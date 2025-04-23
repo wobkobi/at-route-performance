@@ -1,20 +1,26 @@
-import MapClient from "../components/MapClient";
-import type {LatLngExpression} from "leaflet";
+// app/page.tsx
+import dynamic from "next/dynamic";
 
-export default function HomePage() {
-  // example dummy data; replace with your real fetched routes
-  const exampleRoutes: LatLngExpression[][] = [
-    [
-      [-36.8485, 174.7633],
-      [-36.85, 174.765],
-      [-36.852, 174.769],
-    ],
-  ];
+const MapClient = dynamic(() => import("../components/MapView"), {
+  ssr: false,   // only render on the client
+});
+
+export default async function HomePage() {
+  // fetch your stops from the backend
+  const res = await fetch("http://localhost:4000/api/gtfs/stops?date=2025-04-23");
+  const { data } = await res.json();
+
+  // extract the attributes straight into our Stop shape
+  const stops = data.map((r: any) => ({
+    stop_id:   r.attributes.stop_id,
+    stop_name: r.attributes.stop_name,
+    stop_lat:  r.attributes.stop_lat,
+    stop_lon:  r.attributes.stop_lon,
+  }));
 
   return (
-    <main style={{height: "100vh"}}>
-      {/* This is a Server Component importing a Client Component */}
-      <MapClient routes={exampleRoutes} />
-    </main>
+    <div style={{ width: "100vw", height: "100vh" }}>
+      <MapClient stops={stops} />
+    </div>
   );
 }

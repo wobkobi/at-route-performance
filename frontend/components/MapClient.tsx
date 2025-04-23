@@ -1,11 +1,15 @@
+// components/MapClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
-import type {LatLngExpression} from "leaflet";
+import type { MapViewProps } from "./MapView";
 
-// Dynamically import your MapView—and disable SSR—inside a client component
-const MapViewNoSSR = dynamic<{routes: LatLngExpression[][]}>(() => import("./MapView"), {ssr: false});
+// tell next/dynamic exactly what the imported component's props are:
+const MapView = dynamic<MapViewProps>(
+  () => import("./MapView"),
+  { ssr: false }
+);
 
-export default function MapClient(props: {routes: LatLngExpression[][]}) {
-  return <MapViewNoSSR {...props} />;
+export default function MapClient(props: MapViewProps) {
+  return <MapView {...props} />;
 }

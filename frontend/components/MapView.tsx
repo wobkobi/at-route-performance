@@ -1,58 +1,51 @@
-// frontend/components/MapView.tsx
+// components/MapView.tsx
 "use client";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-import {useState, useRef, useLayoutEffect} from "react";
-import {MapContainer, TileLayer, Polyline, Marker, Popup, useMap} from "react-leaflet";
-import type {LatLngExpression, Map as LeafletMap} from "leaflet";
+// … your icon setup …
 
-// helper to grab the map instance if you need it
-function MapInitializer({onCreate}: {onCreate: (map: LeafletMap) => void}) {
-  const map = useMap();
-  onCreate(map);
-  return null;
+export interface Stop {
+  stop_id:   string;
+  stop_name: string;
+  stop_lat:  number;
+  stop_lon:  number;
 }
 
-interface Props {
-  routes: LatLngExpression[][];
+export interface MapViewProps {
+  stops: Stop[];
 }
 
-export default function MapView({routes}: Props) {
-  // default to the first point or a sensible fallback
-  const center: LatLngExpression = routes[0]?.[0] ?? [-36.8485, 174.7633];
-
-  // unique key on (real) mount so React actually unmounts/remounts
-  const [mapKey] = useState(() => `leaflet-${Date.now()}`);
-
-  // ref to the wrapper div that *will* contain the .leaflet-container
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  // optional: grab the map instance
-  const mapRef = useRef<LeafletMap | null>(null);
-
-  useLayoutEffect(() => {
-    // if there's an old leaflet container here, clear its _leaflet_id
-    const old = wrapperRef.current?.querySelector(".leaflet-container");
-    if (old && (old as any)._leaflet_id) {
-      delete (old as any)._leaflet_id;
-    }
-  }, []);
+export default function MapView({ stops }: MapViewProps) {
+  // use a LatLngLiteral so TS knows it's {lat:number, lng:number}
+  const center: L.LatLngLiteral = stops.length
+    ? { lat: stops[0].stop_lat, lng: stops[0].stop_lon }
+    : { lat: -36.8485,      lng: 174.7633 };
 
   return (
-    <div ref={wrapperRef} style={{flex: 1, height: "100%"}}>
-      <MapContainer key={mapKey} center={center} zoom={12} style={{flex: 1, height: "100%"}}>
-        <MapInitializer onCreate={(m) => (mapRef.current = m)} />
+    <MapContainer
+      center={center}
+      zoom={12}
+      style={{ flex: 1, height: "100%" }}
+      scrollWheelZoom
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
 
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-        {routes.map((path, i) => (
-          <Polyline key={i} positions={path} />
-        ))}
-
-        {routes.flat().map((pos, i) => (
-          <Marker key={i} position={pos}>
-            <Popup>{`Stop ${i + 1}`}</Popup>
-          </Marker>
-        ))}
-      </MapContainer>
-    </div>
+      {stops.map((s) => (
+        <Marker
+          key={s.stop_id}
+          position={{ lat: s.stop_lat, lng: s.stop_lon }}
+        >
+          <Popup>
+            <strong>{s.stop_name}</strong><br />
+            ID: {s.stop_id}
+          </Popup>
+        </Marker>
+      ))}
+    </MapContainer>
   );
 }
