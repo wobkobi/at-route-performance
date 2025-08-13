@@ -17,7 +17,7 @@ export async function POST(): Promise<NextResponse> {
     if (!tu) continue;
     for (const stu of tu.stop_time_update ?? []) {
       const a = stu.arrival ?? stu.departure;
-      if (!a?.time || a.delay === undefined) continue; // need both to reconstruct schedule
+      if (!a?.time || a.delay === undefined || a.delay === null) continue; // need both to reconstruct schedule
       const actualAt = new Date(a.time * 1000);
       const scheduledAt = new Date((a.time - a.delay) * 1000);
       rows.push({

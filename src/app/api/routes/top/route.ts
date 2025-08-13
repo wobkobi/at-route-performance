@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+const MS_PER_WEEK = 604_800_000;
+
 /**
  * Compute the UTC start and end dates for an ISO week string.
  * Falls back to the current week if no or invalid input is provided.
@@ -27,7 +29,7 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
 
   if (!week) {
     const diffMs = now.getTime() - week1Mon.getTime();
-    week = Math.floor(diffMs / 604_800_000) + 1;
+    week = Math.floor(diffMs / MS_PER_WEEK) + 1;
   }
 
   const start = new Date(week1Mon);

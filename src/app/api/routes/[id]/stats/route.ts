@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+const MILLISECONDS_IN_A_DAY = 864e5;
+
 /**
  * Summarize a route’s performance over a time window.
  * Defaults to the last 7 days. On-time = |deviationSec| ≤ thresholdSec.
@@ -19,7 +21,9 @@ export async function GET(
   const f = url.searchParams.get("from");
   const t = url.searchParams.get("to");
   const thresholdSec = Number(url.searchParams.get("thresholdSec") ?? "300");
-  const start = f ? new Date(f) : new Date(Date.now() - 7 * 864e5);
+  const start = f
+    ? new Date(f)
+    : new Date(Date.now() - 7 * MILLISECONDS_IN_A_DAY);
   const end = t ? new Date(t) : new Date();
 
   const rows = await prisma.$queryRaw<
