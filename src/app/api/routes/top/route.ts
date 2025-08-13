@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-const MS_PER_WEEK = 604_800_000;
+const MS_IN_WEEK = 604_800_000;
 
 /**
  * Compute the UTC start and end dates for an ISO week string.
@@ -29,7 +29,7 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
 
   if (!week) {
     const diffMs = now.getTime() - week1Mon.getTime();
-    week = Math.floor(diffMs / MS_PER_WEEK) + 1;
+    week = Math.floor(diffMs / MS_IN_WEEK) + 1;
   }
 
   const start = new Date(week1Mon);
@@ -54,7 +54,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
   const iso = searchParams.get("week") || undefined;
   const limit = Number(searchParams.get("limit") ?? "10");
-  const metric = searchParams.get("metric") || "on_time_rate"; // or avg_delay
+  const metric = searchParams.get("metric") || "on_time_rate";
   const thresholdSec = Number(searchParams.get("thresholdSec") ?? "300");
   const mode = (searchParams.get("mode") ?? null) as
     | null
@@ -63,6 +63,10 @@ export async function GET(req: Request): Promise<NextResponse> {
     | "FERRY";
 
   const { start, end } = isoWeekRange(iso);
+
+  // guard ORDER BY selector
+  const allowedMetrics = new Set(["on_time_rate", "avg_delay"]);
+  const safeMetric = allowedMetrics.has(metric) ? metric : "on_time_rate";
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -90,9 +94,10 @@ export async function GET(req: Request): Promise<NextResponse> {
       AND (${mode}::text IS NULL OR r.mode::text = ${mode})
     GROUP BY r.id, r."shortName", r."longName", r.mode
     ORDER BY
-      CASE WHEN ${metric} = 'avg_delay' THEN AVG(ae.deviation_sec)
-           WHEN ${metric} = 'on_time_rate' THEN 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
-           ELSE 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
+      CASE
+        WHEN ${safeMetric} = 'avg_delay' THEN AVG(ae.deviation_sec)
+        WHEN ${safeMetric} = 'on_time_rate' THEN 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
+        ELSE 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
       END DESC
     LIMIT ${limit};
   `;
