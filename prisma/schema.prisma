@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Mode {
+  BUS
+  TRAIN
+  FERRY
+}
+
+model Route {
+  id        String         @id @default(cuid())
+  shortName String?
+  longName  String
+  mode      Mode
+  createdAt DateTime       @default(now())
+  arrivals  ArrivalEvent[]
+  trips     Trip[]
+
+  @@index([mode])
+}
+
+model Stop {
+  id        String         @id @default(cuid())
+  code      String?
+  name      String
+  lat       Float
+  lon       Float
+  createdAt DateTime       @default(now())
+  arrivals  ArrivalEvent[]
+}
+
+model Trip {
+  id          String         @id @default(cuid())
+  routeId     String
+  route       Route          @relation(fields: [routeId], references: [id])
+  serviceDate DateTime // local service day start if you need it
+  headsign    String?
+  directionId Int?
+  createdAt   DateTime       @default(now())
+  arrivals    ArrivalEvent[]
+
+  @@index([routeId, serviceDate])
+}
+
+model ArrivalEvent {
+  id           String   @id @default(cuid())
+  routeId      String
+  route        Route    @relation(fields: [routeId], references: [id])
+  stopId       String
+  stop         Stop     @relation(fields: [stopId], references: [id])
+  tripId       String?
+  trip         Trip?    @relation(fields: [tripId], references: [id])
+  vehicleId    String?
+  scheduledAt  DateTime @db.Timestamptz(6)
+  actualAt     DateTime @db.Timestamptz(6)
+  deviationSec Int // actual - scheduled. early < 0
+  source       String?
+  createdAt    DateTime @default(now())
+
+  @@unique([tripId, stopId, actualAt]) // for idempotent ingest
+  @@index([routeId, scheduledAt])
+  @@index([stopId, scheduledAt])
+  @@index([scheduledAt])
+}
