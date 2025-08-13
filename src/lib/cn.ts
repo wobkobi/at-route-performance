@@ -1,9 +1,4 @@
-/**
- * @file cn.ts
- * @description
- * Utility to merge Tailwind CSS class names with intelligent deduplication.
- * Combines multiple class inputs, resolves conflicts, and returns a single string.
- */
+// src/lib/cn.ts
 
 import clsx from "clsx";
 import { type ClassNameValue, twMerge } from "tailwind-merge";

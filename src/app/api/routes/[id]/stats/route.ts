@@ -1,3 +1,4 @@
+// src/app/api/routes/[id]/stats/route.ts
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -9,14 +10,13 @@ const MS_IN_DAY = 86_400_000;
  * @param req - Incoming request used for query params.
  * @param ctx - Route context object.
  * @param ctx.params - Route parameters.
- * @param ctx.params.id - Route ID to summarize.
  * @returns JSON payload `{ summary, byStop }`.
  */
 export async function GET(
   req: Request,
-  ctx: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const id = ctx.params.id;
+  const { id } = await ctx.params;
   const url = new URL(req.url);
   const f = url.searchParams.get("from");
   const t = url.searchParams.get("to");
@@ -32,11 +32,12 @@ export async function GET(
     }>
   >`
     SELECT COUNT(*)::int AS events,
-           AVG(ae.deviation_sec)::float AS avg_delay_sec,
-           100.0 * AVG(CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
+       AVG(ae."deviationSec")::float AS avg_delay_sec,
+       100.0 * AVG(CASE WHEN ABS(ae."deviationSec") <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
     FROM "ArrivalEvent" ae
     WHERE ae."routeId" = ${id}
       AND ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end};
+
   `;
 
   const byStop = await prisma.$queryRaw<
@@ -48,8 +49,8 @@ export async function GET(
     }>
   >`
     SELECT s.id AS stop_id, s.name,
-           COUNT(*)::int AS events,
-           AVG(ae.deviation_sec)::float AS avg_delay_sec
+          COUNT(*)::int AS events,
+          AVG(ae."deviationSec")::float AS avg_delay_sec
     FROM "ArrivalEvent" ae
     JOIN "Stop" s ON s.id = ae."stopId"
     WHERE ae."routeId" = ${id}

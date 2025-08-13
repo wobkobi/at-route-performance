@@ -1,3 +1,4 @@
+// src/app/api/routes/top/route.ts
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -73,13 +74,13 @@ export async function GET(req: Request): Promise<NextResponse> {
         >`
           WITH stats AS (
             SELECT r.id AS route_id,
-                   r."shortName" AS short_name,
-                   r."longName" AS long_name,
-                   r.mode::text AS mode,
-                   COUNT(ae.*) AS events,
-                   AVG(ae.deviation_sec)::float AS avg_delay_sec,
-                   AVG(ABS(ae.deviation_sec))::float AS avg_abs_delay_sec,
-                   100.0 * AVG(CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
+                  r."shortName" AS short_name,
+                  r."longName" AS long_name,
+                  r.mode::text AS mode,
+                  COUNT(ae.*) AS events,
+                  AVG(ae."deviationSec")::float AS avg_delay_sec,
+                  AVG(ABS(ae."deviationSec"))::float AS avg_abs_delay_sec,
+                  100.0 * AVG(CASE WHEN ABS(ae."deviationSec") <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
             FROM "ArrivalEvent" ae
             JOIN "Route" r ON r.id = ae."routeId"
             WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
@@ -87,7 +88,7 @@ export async function GET(req: Request): Promise<NextResponse> {
             GROUP BY r.id, r."shortName", r."longName", r.mode
           )
           SELECT * FROM stats
-          ORDER BY avg_delay_sec DESC
+          ORDER BY on_time_pct DESC   -- or avg_delay_sec DESC in the other branch
           LIMIT ${limit};
         `
       : await prisma.$queryRaw<
@@ -104,22 +105,22 @@ export async function GET(req: Request): Promise<NextResponse> {
         >`
           WITH stats AS (
             SELECT r.id AS route_id,
-                   r."shortName" AS short_name,
-                   r."longName" AS long_name,
-                   r.mode::text AS mode,
-                   COUNT(ae.*) AS events,
-                   AVG(ae.deviation_sec)::float AS avg_delay_sec,
-                   AVG(ABS(ae.deviation_sec))::float AS avg_abs_delay_sec,
-                   100.0 * AVG(CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
+                    r."shortName" AS short_name,
+                    r."longName" AS long_name,
+                    r.mode::text AS mode,
+                    COUNT(ae.*) AS events,
+                    AVG(ae."deviationSec")::float AS avg_delay_sec,
+                    AVG(ABS(ae."deviationSec"))::float AS avg_abs_delay_sec,
+                    100.0 * AVG(CASE WHEN ABS(ae."deviationSec") <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
             FROM "ArrivalEvent" ae
             JOIN "Route" r ON r.id = ae."routeId"
             WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
               AND (${mode}::text IS NULL OR r.mode::text = ${mode})
             GROUP BY r.id, r."shortName", r."longName", r.mode
-          )
-          SELECT * FROM stats
-          ORDER BY on_time_pct DESC
-          LIMIT ${limit};
+            )
+            SELECT * FROM stats
+            ORDER BY on_time_pct DESC   -- or avg_delay_sec DESC in the other branch
+            LIMIT ${limit};
         `;
 
   return NextResponse.json(byDelay);
