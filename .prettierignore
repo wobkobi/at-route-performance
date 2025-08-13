@@ -1,0 +1,9 @@
+.eslintignore
+.gitignore
+LICENSE
+next.config.mjs
+postcss.config.js
+eslint.config.js
+node_modules/
+.dist/
+.coverage/
