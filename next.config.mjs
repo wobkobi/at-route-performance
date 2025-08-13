@@ -1,22 +1,17 @@
 // next.config.mjs
-
-import bundleAnalyzer from "@next/bundle-analyzer";
+import bundleAnalyzer from "@next/bundle-analyzer"
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  // — Opt in to React strict mode
   reactStrictMode: true,
-
-  // — Standalone build for Docker / serverless
   output: "standalone",
-
-  // — Don’t block production builds on lint errors
   eslint: { ignoreDuringBuilds: true },
-
-  // — Fail build on TS errors
   typescript: { ignoreBuildErrors: false },
 
-  // — Global security headers
+  /**
+   * Global security headers.
+   * @returns {Promise<import('next').Headers>} Header rules.
+   */
   async headers() {
     return [
       {
@@ -26,20 +21,22 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "geolocation=(), microphone=()" },
-          { key: "X-DNS-Prefetch-Control", value: "on" },
-        ],
-      },
-    ];
+          { key: "X-DNS-Prefetch-Control", value: "on" }
+        ]
+      }
+    ]
   },
 
   experimental: {
-    optimizePackageImports: ["react-icons"],
+    optimizePackageImports: ["react-icons"]
   },
-  serverExternalPackages: ["nodemailer","tailwind-merge", ]
-};
+
+  // keep these external at runtime when using standalone output
+  serverExternalPackages: ["nodemailer", "tailwind-merge"]
+}
 
 const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-});
+  enabled: process.env.ANALYZE === "true"
+})
 
-export default withBundleAnalyzer(nextConfig);
+export default withBundleAnalyzer(nextConfig)

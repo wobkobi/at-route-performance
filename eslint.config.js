@@ -1,26 +1,26 @@
-// eslint.config.js
-import { FlatCompat } from "@eslint/eslintrc";
-import js from "@eslint/js";
-import typescriptEslint from "@typescript-eslint/eslint-plugin";
-import tsParser from "@typescript-eslint/parser";
-import jsdoc from "eslint-plugin-jsdoc";
-import prettier from "eslint-plugin-prettier";
-import globals from "globals";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+// ESM flat config for Next.js + TS + JSDoc + Prettier
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { FlatCompat } from "@eslint/eslintrc"
+import js from "@eslint/js"
+import typescriptEslint from "@typescript-eslint/eslint-plugin"
+import tsParser from "@typescript-eslint/parser"
+import jsdoc from "eslint-plugin-jsdoc"
+import prettier from "eslint-plugin-prettier"
+import globals from "globals"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 
-// Compat wrapper to merge ESLint’s recommended configs
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 const compat = new FlatCompat({
   baseDirectory: __dirname,
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
-});
+})
 
 export default [
-  // 1) Files/globs to ignore entirely
+  // ignore
   {
     ignores: [
       "**/node_modules/**",
@@ -34,10 +34,10 @@ export default [
     ],
   },
 
-  // 2) JSDoc recommended rules for TypeScript (report as errors)
+  // JSDoc preset (errors)
   jsdoc.configs["flat/recommended-typescript-error"],
 
-  // 3) Bring in ESLint, TypeScript-ESLint, React/Next and Prettier recommended rules
+  // Next + TS + Prettier presets via compat
   ...compat.extends(
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
@@ -46,8 +46,9 @@ export default [
     "prettier"
   ),
 
-  // 4) Project-specific overrides
+  // Project rules and language settings
   {
+    files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -56,41 +57,24 @@ export default [
         project: ["./tsconfig.json"],
         tsconfigRootDir: __dirname,
       },
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
+      globals: { ...globals.browser, ...globals.node },
     },
-
     plugins: {
       "@typescript-eslint": typescriptEslint,
       prettier,
       jsdoc,
     },
-
     settings: {
-      "import/resolver": {
-        node: {
-          extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs"],
-        },
-      },
-      jsdoc: {
-        mode: "typescript",
-      },
+      "import/resolver": { node: { extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs"] } },
+      jsdoc: { mode: "typescript" },
     },
-
     rules: {
-      // No unused variables
       "@typescript-eslint/no-unused-vars": "error",
-
-      // Prettier formatting enforcement
       "prettier/prettier": ["error", { endOfLine: "crlf" }],
       "linebreak-style": ["error", "windows"],
-
-      // Consistent type definitions
       "@typescript-eslint/consistent-type-definitions": "error",
 
-      // JSDoc enforcement rules
+      // JSDoc
       "jsdoc/require-jsdoc": "error",
       "jsdoc/require-param": "error",
       "jsdoc/require-param-description": "error",
@@ -100,11 +84,8 @@ export default [
       "jsdoc/check-tag-names": "error",
       "jsdoc/no-undefined-types": "error",
 
-      // Explicit return types (warn)
-      "@typescript-eslint/explicit-function-return-type": [
-        "warn",
-        { allowExpressions: true },
-      ],
+      // Types
+      "@typescript-eslint/explicit-function-return-type": ["warn", { allowExpressions: true }],
     },
   },
-];
+]

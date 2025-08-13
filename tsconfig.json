@@ -1,17 +1,13 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -23,11 +19,10 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "*"
-      ]
+      "@/*": ["src/*"]
     },
-    "target": "ES2017"
+    "target": "ES2022",
+    "verbatimModuleSyntax": true
   },
   "include": [
     "**/*.ts",
@@ -39,13 +34,7 @@
     "utils",
     "next-env.d.ts",
     ".next/types/**/*.ts",
-    "eslint.config.js"
+    "eslint.config.mjs"
   ],
-  "exclude": [
-    "node_modules",
-    ".next",
-    "dist",
-    "coverage",
-    ".turbo"
-  ]
+  "exclude": ["node_modules", ".next", "dist", "coverage", ".turbo"]
 }
