@@ -8,15 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
-    "analyze": "cross-env ANALYZE=true next build",
-    "prepare": "husky install"
+    "analyze": "cross-env ANALYZE=true next build"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "clsx": "^2.1.1",
     "lint-staged": "^16.1.5",
     "next": "15.4.6",
-    "nodemailer": "^7.0.5",
     "prettier-plugin-organize-imports": "^4.2.0",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "react": "19.1.1",
@@ -30,7 +28,6 @@
     "@eslint/js": "^9.33.0",
     "@next/bundle-analyzer": "^15.4.6",
     "@tailwindcss/postcss": "^4.1.11",
-    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.39.1",
@@ -41,11 +38,26 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "^53.0.1",
     "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "prisma": "^6.14.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^5"
+  },
+  "depcheck": {
+    "ignoreDevDeps": [
+      "tailwindcss",
+      "postcss",
+      "@tailwindcss/postcss",
+      "prettier-plugin-organize-imports",
+      "prettier-plugin-tailwindcss",
+      "eslint-plugin-react",
+      "typescript-eslint",
+      "husky",
+      "@types/node",
+      "@types/react-dom"
+    ]
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint --cache --fix",
