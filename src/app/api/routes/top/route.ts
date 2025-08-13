@@ -61,46 +61,72 @@ export async function GET(req: Request): Promise<NextResponse> {
     | "BUS"
     | "TRAIN"
     | "FERRY";
-
   const { start, end } = isoWeekRange(iso);
 
-  // guard ORDER BY selector
-  const allowedMetrics = new Set(["on_time_rate", "avg_delay"]);
-  const safeMetric = allowedMetrics.has(metric) ? metric : "on_time_rate";
+  const byDelay =
+    metric === "avg_delay" // branch to keep ORDER BY static
+      ? await prisma.$queryRaw<
+          Array<{
+            route_id: string;
+            short_name: string | null;
+            long_name: string;
+            mode: string;
+            events: number;
+            avg_delay_sec: number | null;
+            avg_abs_delay_sec: number | null;
+            on_time_pct: number | null;
+          }>
+        >`
+          WITH stats AS (
+            SELECT r.id AS route_id,
+                   r."shortName" AS short_name,
+                   r."longName" AS long_name,
+                   r.mode::text AS mode,
+                   COUNT(ae.*) AS events,
+                   AVG(ae.deviation_sec)::float AS avg_delay_sec,
+                   AVG(ABS(ae.deviation_sec))::float AS avg_abs_delay_sec,
+                   100.0 * AVG(CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
+            FROM "ArrivalEvent" ae
+            JOIN "Route" r ON r.id = ae."routeId"
+            WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
+              AND (${mode}::text IS NULL OR r.mode::text = ${mode})
+            GROUP BY r.id, r."shortName", r."longName", r.mode
+          )
+          SELECT * FROM stats
+          ORDER BY avg_delay_sec DESC
+          LIMIT ${limit};
+        `
+      : await prisma.$queryRaw<
+          Array<{
+            route_id: string;
+            short_name: string | null;
+            long_name: string;
+            mode: string;
+            events: number;
+            avg_delay_sec: number | null;
+            avg_abs_delay_sec: number | null;
+            on_time_pct: number | null;
+          }>
+        >`
+          WITH stats AS (
+            SELECT r.id AS route_id,
+                   r."shortName" AS short_name,
+                   r."LongName" AS long_name,
+                   r.mode::text AS mode,
+                   COUNT(ae.*) AS events,
+                   AVG(ae.deviation_sec)::float AS avg_delay_sec,
+                   AVG(ABS(ae.deviation_sec))::float AS avg_abs_delay_sec,
+                   100.0 * AVG(CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END)::float AS on_time_pct
+            FROM "ArrivalEvent" ae
+            JOIN "Route" r ON r.id = ae."routeId"
+            WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
+              AND (${mode}::text IS NULL OR r.mode::text = ${mode})
+            GROUP BY r.id, r."shortName", r."LongName", r.mode
+          )
+          SELECT * FROM stats
+          ORDER BY on_time_pct DESC
+          LIMIT ${limit};
+        `;
 
-  const rows = await prisma.$queryRaw<
-    Array<{
-      route_id: string;
-      short_name: string | null;
-      long_name: string;
-      mode: string;
-      events: number;
-      avg_delay_sec: number | null;
-      avg_abs_delay_sec: number | null;
-      on_time_pct: number | null;
-    }>
-  >`
-    SELECT r.id as route_id,
-           r."shortName" as short_name,
-           r."longName" as long_name,
-           r.mode::text as mode,
-           COUNT(ae.*) as events,
-           AVG(ae.deviation_sec)::float as avg_delay_sec,
-           AVG(ABS(ae.deviation_sec))::float as avg_abs_delay_sec,
-           100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )::float as on_time_pct
-    FROM "ArrivalEvent" ae
-    JOIN "Route" r ON r.id = ae."routeId"
-    WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
-      AND (${mode}::text IS NULL OR r.mode::text = ${mode})
-    GROUP BY r.id, r."shortName", r."longName", r.mode
-    ORDER BY
-      CASE
-        WHEN ${safeMetric} = 'avg_delay' THEN AVG(ae.deviation_sec)
-        WHEN ${safeMetric} = 'on_time_rate' THEN 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
-        ELSE 100.0 * AVG( CASE WHEN ABS(ae.deviation_sec) <= ${thresholdSec} THEN 1 ELSE 0 END )
-      END DESC
-    LIMIT ${limit};
-  `;
-
-  return NextResponse.json(rows);
+  return NextResponse.json(byDelay);
 }
