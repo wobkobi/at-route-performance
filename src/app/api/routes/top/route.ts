@@ -41,12 +41,6 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
 
 /**
  * Get the top routes for a given ISO week, ranked by on-time rate or average delay.
- * Query params:
- * - `week` ISO week like `2025-W32` (optional)
- * - `limit` number of rows (default 10)
- * - `metric` `on_time_rate` or `avg_delay` (default `on_time_rate`)
- * - `thresholdSec` on-time threshold in seconds (default 300)
- * - `mode` `BUS` | `TRAIN` | `FERRY` (optional)
  * @param req Incoming request used to read query parameters.
  * @returns JSON array of ranked route stats.
  */
@@ -64,7 +58,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const { start, end } = isoWeekRange(iso);
 
   const byDelay =
-    metric === "avg_delay" // branch to keep ORDER BY static
+    metric === "avg_delay"
       ? await prisma.$queryRaw<
           Array<{
             route_id: string;
@@ -111,7 +105,7 @@ export async function GET(req: Request): Promise<NextResponse> {
           WITH stats AS (
             SELECT r.id AS route_id,
                    r."shortName" AS short_name,
-                   r."LongName" AS long_name,
+                   r."longName" AS long_name,
                    r.mode::text AS mode,
                    COUNT(ae.*) AS events,
                    AVG(ae.deviation_sec)::float AS avg_delay_sec,
@@ -121,7 +115,7 @@ export async function GET(req: Request): Promise<NextResponse> {
             JOIN "Route" r ON r.id = ae."routeId"
             WHERE ae."scheduledAt" >= ${start} AND ae."scheduledAt" < ${end}
               AND (${mode}::text IS NULL OR r.mode::text = ${mode})
-            GROUP BY r.id, r."shortName", r."LongName", r.mode
+            GROUP BY r.id, r."shortName", r."longName", r.mode
           )
           SELECT * FROM stats
           ORDER BY on_time_pct DESC
