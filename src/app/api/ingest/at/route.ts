@@ -1,29 +1,44 @@
+// src/app/api/ingest/at/route.ts
 import { fetchATTripUpdates } from "@/lib/at";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
-/** Debug counters returned by the ingest endpoint. */
-interface IngestDebug {
-  /** Total entities in the feed. */
+type StopRow = Prisma.ArrivalEventCreateManyInput;
+type TripRow = Prisma.TripDelayCreateManyInput;
+
+interface DebugStats {
   seen: number;
-  /** Entities that contained a trip_update. */
   withTU: number;
-  /** Count of processed stop_time_update entries. */
   withSTU: number;
-  /** stop_time_update entries that had a timestamp. */
   withTime: number;
-  /** stop_time_update entries that had an explicit delay. */
   withDelay: number;
-  /** Whether zero-delay fallback insertion was enabled. */
+  withTripDelay: number;
   loose: boolean;
 }
 
 /**
+ * Coerce a GTFS-RT `stop_time_update` value to an array.
+ * Handles single-object or array inputs and returns a normalized array.
+ * @template T
+ * @param v - The raw `stop_time_update` value from the feed.
+ * @returns An array form of `stop_time_update` (empty if input is nullish).
+ */
+function toStuArray<T>(v: T | T[] | undefined): T[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+/**
  * Ingest AT GTFS-RT trip updates.
- * Inserts rows with explicit delay; `loose=1` inserts zero-delay rows.
- * @param req Incoming request. Query: `debug` to include counters, `loose=1` to allow zero delay.
- * @returns JSON `{ inserted, tried, debug?, sample? }`.
+ * Inserts stop-level rows when STU has a timestamp (and delay unless `loose=1`).
+ * Falls back to trip-level rows when only `trip_update.delay` exists.
+ * Query params:
+ * - `debug=1` Include counters and a sample row.
+ * - `loose=1` Insert zero-delay rows when delay is missing.
+ * - `peek=1`  Return feed shape info without inserting.
+ * @param req - Incoming HTTP request containing optional query params.
+ * @returns JSON summary or peek payload.
  */
 export async function POST(req: Request): Promise<NextResponse> {
   if (!process.env.AT_API_KEY) {
@@ -33,17 +48,45 @@ export async function POST(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
   const loose = url.searchParams.get("loose") === "1";
   const wantDebug = url.searchParams.has("debug");
+  const wantPeek = url.searchParams.get("peek") === "1";
 
   try {
     const feed = await fetchATTripUpdates();
+
+    if (wantPeek) {
+      const tu = feed.entity.find((e) => e.trip_update)?.trip_update ?? null;
+      const stuCount = toStuArray(
+        tu?.stop_time_update as unknown[] | undefined
+      ).length;
+      const hasTripDelay =
+        typeof (tu as { delay?: unknown })?.delay === "number";
+      return NextResponse.json({
+        inserted: 0,
+        tried: 0,
+        tripInserted: 0,
+        tripTried: 0,
+        debug: {
+          seen: feed.entity?.length ?? 0,
+          withTU: tu ? 1 : 0,
+          withSTU: stuCount,
+          withTime: 0,
+          withDelay: Number(hasTripDelay),
+          withTripDelay: Number(hasTripDelay),
+          loose,
+        } as DebugStats,
+        sample: null,
+      });
+    }
 
     let seen = 0;
     let withTU = 0;
     let withSTU = 0;
     let withTime = 0;
     let withDelay = 0;
+    let withTripDelay = 0;
 
-    const rows: Prisma.ArrivalEventCreateManyInput[] = [];
+    const stopRows: StopRow[] = [];
+    const tripRows: TripRow[] = [];
 
     for (const e of feed.entity ?? []) {
       seen++;
@@ -51,21 +94,27 @@ export async function POST(req: Request): Promise<NextResponse> {
       if (!tu) continue;
       withTU++;
 
-      for (const stu of tu.stop_time_update ?? []) {
+      // A) Stop-level rows (handle single-object or array STU).
+      const stuList = toStuArray(tu.stop_time_update);
+
+      for (const stu of stuList) {
         withSTU++;
         const a = stu.arrival ?? stu.departure;
         if (!a?.time) continue;
         withTime++;
 
-        const hasDelay = !(a.delay === undefined || a.delay === null);
+        const hasDelay =
+          !(a.delay === undefined || a.delay === null) &&
+          typeof a.delay === "number";
         if (hasDelay) withDelay++;
         if (!hasDelay && !loose) continue;
 
-        const delay = hasDelay ? a.delay! : 0;
-        const actualAt = new Date(a.time * 1000);
-        const scheduledAt = new Date((a.time - delay) * 1000);
+        const delay = hasDelay ? (a.delay as number) : 0;
+        const time = a.time as number;
+        const actualAt = new Date(time * 1000);
+        const scheduledAt = new Date((time - delay) * 1000);
 
-        rows.push({
+        stopRows.push({
           routeId: tu.trip.route_id,
           stopId: stu.stop_id,
           tripId: tu.trip.trip_id,
@@ -75,35 +124,77 @@ export async function POST(req: Request): Promise<NextResponse> {
           source: hasDelay ? "AT_GTFSRT" : "AT_GTFSRT_NO_DELAY",
         });
       }
+
+      // B) Trip-level fallback (no STU but trip-level delay present).
+      if (stuList.length === 0) {
+        const tDelay = (tu as { delay?: unknown }).delay;
+        if (typeof tDelay === "number") {
+          withTripDelay++;
+          const ts =
+            typeof tu.timestamp === "number"
+              ? tu.timestamp
+              : Math.floor(Date.now() / 1000);
+          const veh = (tu as { vehicle?: { id?: unknown } }).vehicle;
+          const vehId = veh && typeof veh.id === "string" ? veh.id : undefined;
+
+          tripRows.push({
+            tripId: tu.trip.trip_id,
+            routeId: tu.trip.route_id,
+            vehicleId: vehId,
+            timestamp: new Date(ts * 1000),
+            delaySec: tDelay,
+            source: "AT_GTFSRT_TU",
+          });
+        }
+      }
     }
 
-    const result = rows.length
-      ? await prisma.arrivalEvent.createMany({
-          data: rows,
-          skipDuplicates: true,
-        })
-      : { count: 0 };
+    const stopResult =
+      stopRows.length > 0
+        ? await prisma.arrivalEvent.createMany({
+            data: stopRows,
+            skipDuplicates: true,
+          })
+        : { count: 0 };
 
-    const body: {
+    const tripResult =
+      tripRows.length > 0
+        ? await prisma.tripDelay.createMany({
+            data: tripRows,
+            skipDuplicates: true,
+          })
+        : { count: 0 };
+
+    const body = {
+      inserted: stopResult.count,
+      tried: stopRows.length,
+      tripInserted: tripResult.count,
+      tripTried: tripRows.length,
+    } as {
       inserted: number;
       tried: number;
-      debug?: IngestDebug;
-      sample?: Prisma.ArrivalEventCreateManyInput | null;
-    } = {
-      inserted: result.count,
-      tried: rows.length,
+      tripInserted: number;
+      tripTried: number;
+      debug?: DebugStats;
+      sample?: StopRow | TripRow | null;
     };
 
     if (wantDebug) {
-      body.debug = { seen, withTU, withSTU, withTime, withDelay, loose };
-      body.sample = rows[0] ?? null;
+      body.debug = {
+        seen,
+        withTU,
+        withSTU,
+        withTime,
+        withDelay,
+        withTripDelay,
+        loose,
+      };
+      body.sample = stopRows[0] ?? tripRows[0] ?? null;
     }
 
     return NextResponse.json(body);
   } catch (err) {
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 502 }
-    );
+    const msg = err instanceof Error ? err.message : "unknown error";
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

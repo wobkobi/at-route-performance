@@ -1,5 +1,5 @@
 // src/lib/at.ts
-/** GTFS-RT types */
+// GTFS-RT types
 export interface DelayTime {
   time?: number;
   delay?: number | null;
@@ -16,18 +16,24 @@ export interface Trip {
 }
 export interface TripUpdate {
   trip: Trip;
-  stop_time_update?: StopTimeUpdate[];
+  // AT may send a single object or an array
+  stop_time_update?: StopTimeUpdate | StopTimeUpdate[];
   timestamp?: number;
+  vehicle?: { id?: string; label?: string; license_plate?: string };
+  // AT sometimes provides trip-level delay
+  delay?: number;
 }
 export interface Entity {
   id: string;
   trip_update?: TripUpdate;
 }
-
 export interface AtTripUpdates {
   header?: { timestamp?: number };
   entity: Entity[];
 }
+
+const toArray = <T>(v: T | T[] | undefined): T[] =>
+  v === undefined ? [] : Array.isArray(v) ? v : [v];
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
@@ -47,6 +53,9 @@ const isStopTimeUpdate = (v: unknown): v is StopTimeUpdate =>
   (v.arrival === undefined || isDelayTime(v.arrival)) &&
   (v.departure === undefined || isDelayTime(v.departure));
 
+const isStuArrayOrOne = (v: unknown): v is StopTimeUpdate | StopTimeUpdate[] =>
+  (Array.isArray(v) && v.every(isStopTimeUpdate)) || isStopTimeUpdate(v);
+
 const isTrip = (v: unknown): v is Trip =>
   isRecord(v) && isString(v.trip_id) && isString(v.route_id);
 
@@ -54,9 +63,11 @@ const isTripUpdate = (v: unknown): v is TripUpdate =>
   isRecord(v) &&
   isTrip(v.trip) &&
   (v.timestamp === undefined || isNumber(v.timestamp)) &&
-  (v.stop_time_update === undefined ||
-    (Array.isArray(v.stop_time_update) &&
-      v.stop_time_update.every(isStopTimeUpdate)));
+  (v.vehicle === undefined ||
+    (isRecord(v.vehicle) &&
+      (v.vehicle.id === undefined || isString(v.vehicle.id)))) &&
+  (v.delay === undefined || isNumber(v.delay)) &&
+  (v.stop_time_update === undefined || isStuArrayOrOne(v.stop_time_update));
 
 const isEntity = (v: unknown): v is Entity =>
   isRecord(v) &&
@@ -64,9 +75,9 @@ const isEntity = (v: unknown): v is Entity =>
   (v.trip_update === undefined || isTripUpdate(v.trip_update));
 
 /**
- * Parse unknown JSON into a normalized AT feed.
+ * Normalize unknown JSON from AT into a typed feed.
  * Accepts `{ entity }` or `{ response: { entity } }`.
- * @param raw Arbitrary JSON.
+ * @param raw Arbitrary JSON from AT.
  * @returns Normalized feed.
  */
 export function toTripUpdates(raw: unknown): AtTripUpdates {
@@ -85,43 +96,56 @@ export function toTripUpdates(raw: unknown): AtTripUpdates {
         : [];
 
   const entity: Entity[] = Array.isArray(entitiesSrc)
-    ? entitiesSrc.filter(isEntity)
+    ? (entitiesSrc.filter(isEntity) as Entity[]).map((e) => {
+        const tu = e.trip_update;
+        return tu
+          ? {
+              ...e,
+              trip_update: {
+                ...tu,
+                stop_time_update: toArray(tu.stop_time_update),
+              },
+            }
+          : e;
+      })
     : [];
 
   return { header, entity };
 }
 
-// switch to JSON response; legacy often returns protobuf
-const DEFAULT_AT_URL =
-  "https://api.at.govt.nz/v2/public/realtime/tripupdates?format=json";
+/**
+ * Coerce a `stop_time_update` value to an array.
+ * @param v Single STU, array of STU, or undefined.
+ * @returns Array of STU.
+ */
+export function toStuArray(
+  v: TripUpdate["stop_time_update"]
+): StopTimeUpdate[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+// AT legacy JSON endpoint
+const DEFAULT_AT_URL = "https://api.at.govt.nz/realtime/legacy/tripupdates";
 
 /**
  * Fetch Auckland Transport GTFS-RT trip updates.
  * @returns Parsed and validated feed.
- * @throws {Error} Non-OK HTTP or invalid JSON.
+ * @throws Error if HTTP fails or key missing.
  */
 export async function fetchATTripUpdates(): Promise<AtTripUpdates> {
   const key = process.env.AT_API_KEY;
   if (!key) throw new Error("AT_API_KEY missing");
-
   const url = process.env.AT_TRIPUPDATES_URL ?? DEFAULT_AT_URL;
 
-  const ac = new AbortController();
-  const timeout = setTimeout(() => ac.abort(), 10_000);
-
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "Ocp-Apim-Subscription-Key": key,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-      signal: ac.signal,
-    });
-    if (!res.ok) throw new Error(`AT ${res.status}`);
-    const raw: unknown = await res.json();
-    return toTripUpdates(raw);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const res = await fetch(url, {
+    headers: {
+      "Ocp-Apim-Subscription-Key": key,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`AT ${res.status}`);
+  const raw: unknown = await res.json();
+  return toTripUpdates(raw);
 }

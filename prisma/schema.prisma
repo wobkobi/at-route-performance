@@ -16,11 +16,12 @@ enum Mode {
 }
 
 model Route {
-  id        String         @id
-  shortName String?
-  longName  String
-  mode      Mode
-  events    ArrivalEvent[]
+  id         String         @id
+  shortName  String?
+  longName   String
+  mode       Mode
+  events     ArrivalEvent[]
+  tripDelays TripDelay[] // back-relation
 }
 
 model Stop {
@@ -49,4 +50,18 @@ model ArrivalEvent {
   @@unique([tripId, stopId, actualAt])
   @@index([routeId, scheduledAt])
   @@index([stopId, scheduledAt])
+}
+
+model TripDelay {
+  id        String   @id @default(cuid())
+  tripId    String
+  routeId   String
+  vehicleId String?
+  timestamp DateTime
+  delaySec  Int
+  source    String?
+  Route     Route    @relation(fields: [routeId], references: [id])
+
+  @@unique([tripId, timestamp]) // <-- add this
+  @@index([routeId, timestamp])
 }

@@ -1,20 +1,20 @@
 // src/lib/at-static.ts
 
-/** Base URL for AT GTFS v3 JSON:API. */
+// Base URL for AT GTFS v3 JSON:API.
 const AT_V3 = "https://api.at.govt.nz/gtfs/v3";
 
-/** Shared headers for AT requests. */
+// Shared headers for AT requests.
 const H: Record<string, string> = {
   "Ocp-Apim-Subscription-Key": process.env.AT_API_KEY ?? "",
   Accept: "application/vnd.api+json",
 };
 
-/** JSON:API envelope. */
+// JSON:API envelope.
 export interface JsonApi<T> {
   data: Array<{ id: string; type: string; attributes: T }>;
 }
 
-/** GTFS route attributes (subset). */
+// GTFS route attributes (subset).
 export interface RouteAttr {
   route_id: string;
   route_short_name?: string | null;
@@ -22,7 +22,7 @@ export interface RouteAttr {
   route_type: number;
 }
 
-/** GTFS stop attributes (subset). */
+// GTFS stop attributes (subset).
 export interface StopAttr {
   stop_id: string;
   stop_code?: string | null;
