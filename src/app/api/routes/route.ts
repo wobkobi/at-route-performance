@@ -1,8 +1,10 @@
+// src/app/api/routes/route.ts
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const Body = z.object({
+  id: z.string().min(1), // AT route_id
   longName: z.string().min(1),
   shortName: z.string().optional(),
   mode: z.enum(["BUS", "TRAIN", "FERRY"]),

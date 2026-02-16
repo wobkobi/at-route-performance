@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,57 +16,52 @@ enum Mode {
 }
 
 model Route {
-  id        String         @id @default(cuid())
-  shortName String?
-  longName  String
-  mode      Mode
-  createdAt DateTime       @default(now())
-  arrivals  ArrivalEvent[]
-  trips     Trip[]
-
-  @@index([mode])
+  id         String         @id
+  shortName  String?
+  longName   String
+  mode       Mode
+  events     ArrivalEvent[]
+  tripDelays TripDelay[] // back-relation
 }
 
 model Stop {
-  id        String         @id @default(cuid())
-  code      String?
-  name      String
-  lat       Float
-  lon       Float
-  createdAt DateTime       @default(now())
-  arrivals  ArrivalEvent[]
-}
-
-model Trip {
-  id          String         @id @default(cuid())
-  routeId     String
-  route       Route          @relation(fields: [routeId], references: [id])
-  serviceDate DateTime // local service day start if you need it
-  headsign    String?
-  directionId Int?
-  createdAt   DateTime       @default(now())
-  arrivals    ArrivalEvent[]
-
-  @@index([routeId, serviceDate])
+  id     String         @id
+  name   String
+  code   String?
+  lat    Float
+  lon    Float
+  events ArrivalEvent[]
 }
 
 model ArrivalEvent {
-  id           String   @id @default(cuid())
+  id           BigInt   @id @default(autoincrement())
   routeId      String
-  route        Route    @relation(fields: [routeId], references: [id])
   stopId       String
-  stop         Stop     @relation(fields: [stopId], references: [id])
-  tripId       String?
-  trip         Trip?    @relation(fields: [tripId], references: [id])
+  tripId       String
+  scheduledAt  DateTime @db.Timestamp(3)
+  actualAt     DateTime @db.Timestamp(3)
+  deviationSec Int
   vehicleId    String?
-  scheduledAt  DateTime @db.Timestamptz(6)
-  actualAt     DateTime @db.Timestamptz(6)
-  deviationSec Int // actual - scheduled. early < 0
   source       String?
-  createdAt    DateTime @default(now())
 
-  @@unique([tripId, stopId, actualAt]) // for idempotent ingest
+  route Route @relation(fields: [routeId], references: [id])
+  stop  Stop  @relation(fields: [stopId], references: [id])
+
+  @@unique([tripId, stopId, actualAt])
   @@index([routeId, scheduledAt])
   @@index([stopId, scheduledAt])
-  @@index([scheduledAt])
+}
+
+model TripDelay {
+  id        String   @id @default(cuid())
+  tripId    String
+  routeId   String
+  vehicleId String?
+  timestamp DateTime
+  delaySec  Int
+  source    String?
+  Route     Route    @relation(fields: [routeId], references: [id])
+
+  @@unique([tripId, timestamp]) // <-- add this
+  @@index([routeId, timestamp])
 }

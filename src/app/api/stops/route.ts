@@ -1,8 +1,10 @@
+// src/app/api/stops/route.ts
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const Body = z.object({
+  id: z.string().min(1), // <-- add id
   name: z.string().min(1),
   code: z.string().optional(),
   lat: z.number().min(-90).max(90),
