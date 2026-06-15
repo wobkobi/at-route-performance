@@ -63,41 +63,6 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
 }
 
 /**
- * ISO week label (e.g. `2026-W08`) for a date, matching {@link isoWeekRange}'s
- * week numbering so the value round-trips back to the same range.
- * @param d - The date to label.
- * @returns ISO week string using the ISO week-numbering year.
- */
-function isoWeekString(d: Date): string {
-  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const dayNum = date.getUTCDay() || 7;
-  // Shift to this week's Thursday; its calendar year is the ISO week-year.
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / MS_IN_DAY + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
-
-/**
- * ISO week of the most recent ArrivalEvent. The home page uses this to fall back
- * from an empty current week to the latest week that actually has data.
- * @returns ISO week string like `2026-W08`, or null when there are no events.
- */
-export async function getLatestDataWeek(): Promise<string | null> {
-  const res = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [{ $group: { _id: null, maxSched: { $max: "$scheduledAt" } } }],
-    cursor: {},
-  })) as unknown as {
-    cursor: { firstBatch: { maxSched?: { $date: string } | string }[] };
-  };
-  const raw = res.cursor.firstBatch[0]?.maxSched;
-  if (!raw) return null;
-  // $runCommandRaw serialises dates as extended JSON ({ $date: "..." }).
-  return isoWeekString(new Date(typeof raw === "string" ? raw : raw.$date));
-}
-
-/**
  * Run the top-routes aggregation against MongoDB.
  * @param p - Validated query parameters.
  * @returns Ranked route rows.
