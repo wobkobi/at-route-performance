@@ -1,4 +1,5 @@
 // src/lib/rankings.ts
+import type { RouteSort } from "@/components/RouteTable";
 import type { TopRouteRow } from "@/types/api";
 
 /** The three leaderboards derived from a window's per-route rows. */
@@ -48,3 +49,26 @@ export function deriveBoards(rows: TopRouteRow[], options: DeriveBoardsOptions):
 
 /** Default minimum events for board eligibility. */
 export const MIN_BOARD_EVENTS = 10;
+
+/**
+ * Sort rows for the full table by the requested column (stable copy).
+ * @param rows - Rows to sort.
+ * @param sort - Column to sort by.
+ * @returns A new sorted array.
+ */
+export function sortRows(rows: TopRouteRow[], sort: RouteSort): TopRouteRow[] {
+  const copy = [...rows];
+  switch (sort) {
+    case "events":
+      return copy.sort((a, b) => b.events - a.events);
+    case "avg_delay":
+      return copy.sort((a, b) => (b.avg_delay_sec ?? 0) - (a.avg_delay_sec ?? 0));
+    case "on_time":
+      return copy.sort((a, b) => (b.on_time_pct ?? -1) - (a.on_time_pct ?? -1));
+    case "route":
+    default:
+      return copy.sort((a, b) =>
+        (a.short_name ?? a.route_id).localeCompare(b.short_name ?? b.route_id),
+      );
+  }
+}

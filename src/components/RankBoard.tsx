@@ -14,7 +14,7 @@ export interface RankBoardProps {
   rows: TopRouteRow[];
   /** Which metric to render on the right. */
   metric: "delay" | "onTime";
-  /** On-time threshold for delay formatting. */
+  /** Threshold (seconds) beyond which a delay is coloured late/early. */
   thresholdSec: number;
 }
 
@@ -25,7 +25,7 @@ export interface RankBoardProps {
  * @param props.accentClass - Tailwind text-colour class for the heading.
  * @param props.rows - Ranked rows.
  * @param props.metric - Whether the right column is a delay or on-time %.
- * @param props.thresholdSec - On-time threshold for delay formatting.
+ * @param props.thresholdSec - Threshold (s) for early/late colour banding.
  * @returns The board element.
  */
 export function RankBoard({
@@ -46,9 +46,11 @@ export function RankBoard({
         <ol className={cn("space-y-1")}>
           {rows.map((r, i) => {
             const colour = linkColour(r.short_name, r.long_name);
+            // Boards rank by deviation magnitude, so always show the actual
+            // value (no "on time" collapse); thresholdSec only drives colour.
             const value =
               metric === "delay"
-                ? formatDelay(r.avg_delay_sec ?? 0, { thresholdSec })
+                ? formatDelay(r.avg_delay_sec ?? 0)
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
             const valueClass =
               metric === "onTime"

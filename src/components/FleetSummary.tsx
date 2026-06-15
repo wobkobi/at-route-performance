@@ -7,18 +7,15 @@ import type { JSX } from "react";
 export interface FleetSummaryProps {
   /** Aggregated totals for the window. */
   data: FleetSummaryData;
-  /** On-time threshold for delay formatting. */
-  thresholdSec: number;
 }
 
 /**
  * Render the fleet KPI strip (trips, on-time %, average delay, routes).
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
- * @param props.thresholdSec - On-time threshold for delay formatting.
  * @returns The KPI strip element.
  */
-export function FleetSummary({ data, thresholdSec }: FleetSummaryProps): JSX.Element {
+export function FleetSummary({ data }: FleetSummaryProps): JSX.Element {
   const items: { label: string; value: string }[] = [
     { label: "Trips", value: data.events.toLocaleString() },
     {
@@ -27,7 +24,7 @@ export function FleetSummary({ data, thresholdSec }: FleetSummaryProps): JSX.Ele
     },
     {
       label: "Avg delay",
-      value: data.avg_delay_sec === null ? "—" : formatDelay(data.avg_delay_sec, { thresholdSec }),
+      value: data.avg_delay_sec === null ? "—" : formatDelay(data.avg_delay_sec),
     },
     { label: "Routes", value: data.route_count.toLocaleString() },
   ];

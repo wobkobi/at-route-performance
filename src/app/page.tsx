@@ -1,103 +1,116 @@
-import Image from "next/image";
+import { FleetSummary } from "@/components/FleetSummary";
+import { ModeBreakdown } from "@/components/ModeBreakdown";
+import { RankBoard } from "@/components/RankBoard";
+import { RouteTable, type RouteSort } from "@/components/RouteTable";
+import { cn } from "@/lib/cn";
+import { getFleetSummary, getModeBreakdown, getMostRecentDataDay, getRankings } from "@/lib/data";
+import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
+import { nzDayRange } from "@/lib/time";
+import type { JSX } from "react";
 
-export default function Home() {
+const THRESHOLD_SEC = 300;
+const TODAY_REVALIDATE = 300; // 5 minutes
+
+/** Query params for the home page. */
+interface HomeSearchParams {
+  sort?: string;
+}
+
+/**
+ * Home: today's network performance dashboard.
+ * @param root0 - Page props.
+ * @param root0.searchParams - Optional query params (table sort).
+ * @returns Page markup.
+ */
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<HomeSearchParams>;
+}): Promise<JSX.Element> {
+  const sp = (await searchParams) ?? {};
+  const sort = (
+    ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
+  ) as RouteSort;
+
+  // Today (Auckland). If today lacks enough data to fill the boards yet (early
+  // morning, or ingest still catching up), fall back to the latest day that does.
+  let range = nzDayRange();
+  let rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
+  let dayLabel = "today";
+  if (!rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
+    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
+    if (latestDay) {
+      range = nzDayRange(latestDay);
+      rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
+      dayLabel = latestDay.toLocaleDateString("en-NZ", {
+        timeZone: "Pacific/Auckland",
+        day: "numeric",
+        month: "short",
+      });
+    }
+  }
+
+  const [fleet, modes] = await Promise.all([
+    getFleetSummary(range, THRESHOLD_SEC, TODAY_REVALIDATE),
+    getModeBreakdown(range, THRESHOLD_SEC, TODAY_REVALIDATE),
+  ]);
+  const boards = deriveBoards(rows, { minEvents: MIN_BOARD_EVENTS });
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className={cn("space-y-6")}>
+      <div className={cn("flex items-end justify-between")}>
+        <h1 className={cn("text-3xl leading-headline font-ultra tracking-zero")}>
+          Network performance
+        </h1>
+        <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <FleetSummary data={fleet} />
+
+      <div className={cn("grid gap-4 md:grid-cols-2")}>
+        <RankBoard
+          title="Running latest"
+          accentClass="text-at-late"
+          rows={boards.latest}
+          metric="delay"
+          thresholdSec={THRESHOLD_SEC}
+        />
+        <RankBoard
+          title="Running earliest"
+          accentClass="text-at-early"
+          rows={boards.earliest}
+          metric="delay"
+          thresholdSec={THRESHOLD_SEC}
+        />
+      </div>
+
+      <div className={cn("grid gap-4 md:grid-cols-2")}>
+        <RankBoard
+          title="Most reliable"
+          accentClass="text-at-ontime"
+          rows={boards.reliable}
+          metric="onTime"
+          thresholdSec={THRESHOLD_SEC}
+        />
+        <ModeBreakdown modes={modes} />
+      </div>
+
+      <a
+        href="/rankings?window=week"
+        className={cn(
+          "flex items-center justify-between rounded-xl bg-at-ocean px-5 py-4 text-white shadow-sm",
+        )}
+      >
+        <span className={cn("font-ultra tracking-zero")}>This week&apos;s top routes</span>
+        <span className={cn("text-at-safety")}>View weekly &rsaquo;</span>
+      </a>
+
+      <details className={cn("rounded-xl bg-at-surface shadow-sm")}>
+        <summary className={cn("cursor-pointer px-4 py-3 font-semibold")}>All routes</summary>
+        <div className={cn("p-2")}>
+          <RouteTable rows={sortRows(rows, sort)} basePath="/" preservedParams={{}} sort={sort} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </details>
+    </main>
   );
 }

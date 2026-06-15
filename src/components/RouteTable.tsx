@@ -17,8 +17,6 @@ export interface RouteTableProps {
   preservedParams: Record<string, string>;
   /** Active sort. */
   sort: RouteSort;
-  /** On-time threshold for delay formatting. */
-  thresholdSec: number;
 }
 
 /**
@@ -40,7 +38,6 @@ function sortHref(basePath: string, preserved: Record<string, string>, sort: Rou
  * @param props.basePath - Page path for sort links.
  * @param props.preservedParams - Params to preserve in sort links.
  * @param props.sort - Active sort column.
- * @param props.thresholdSec - On-time threshold for delay formatting.
  * @returns The table element.
  */
 export function RouteTable({
@@ -48,7 +45,6 @@ export function RouteTable({
   basePath,
   preservedParams,
   sort,
-  thresholdSec,
 }: RouteTableProps): JSX.Element {
   const head: { key: RouteSort; label: string; align: string }[] = [
     { key: "route", label: "Route", align: "text-left" },
@@ -97,7 +93,7 @@ export function RouteTable({
                 </td>
                 <td className={cn("px-3 py-2 text-right tabular-nums")}>{r.events}</td>
                 <td className={cn("px-3 py-2 text-right tabular-nums")}>
-                  {formatDelay(r.avg_delay_sec ?? 0, { thresholdSec })}
+                  {formatDelay(r.avg_delay_sec ?? 0)}
                 </td>
                 <td className={cn("px-3 py-2 text-right tabular-nums")}>
                   {r.on_time_pct?.toFixed(1) ?? "—"}

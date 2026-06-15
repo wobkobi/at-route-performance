@@ -536,3 +536,31 @@ export async function getLatestEventDate(): Promise<Date | null> {
   if (!raw) return null;
   return new Date(typeof raw === "string" ? raw : raw.$date);
 }
+
+/**
+ * The most recent Auckland-local day that has at least `minEvents` events.
+ * The home page falls back to this when the current day is sparse, so a day that
+ * straddles UTC midnight (a few late events) does not strand the bulk of data.
+ * @param minEvents - Minimum events a day needs to qualify.
+ * @returns A Date inside that local day (its UTC midnight), or null when empty.
+ */
+export async function getMostRecentDataDay(minEvents: number): Promise<Date | null> {
+  const res = (await prisma.$runCommandRaw({
+    aggregate: "ArrivalEvent",
+    pipeline: [
+      {
+        $group: {
+          _id: { $dateTrunc: { date: "$scheduledAt", unit: "day", timezone: "Pacific/Auckland" } },
+          n: { $sum: 1 },
+        },
+      },
+      { $match: { n: { $gte: minEvents } } },
+      { $sort: { _id: -1 } },
+      { $limit: 1 },
+    ] as never,
+    cursor: {},
+  })) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
+  const raw = res.cursor.firstBatch[0]?._id;
+  if (!raw) return null;
+  return new Date(typeof raw === "string" ? raw : raw.$date);
+}
