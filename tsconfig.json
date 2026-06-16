@@ -1,40 +1,30 @@
+// tsconfig.json
 {
   "compilerOptions": {
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "esModuleInterop": true,
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "allowJs": false,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     },
-    "target": "ES2022",
-    "verbatimModuleSyntax": true
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "app",
-    "components",
-    "pages",
-    "src",
-    "utils",
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    "eslint.config.mjs"
-  ],
+  "include": ["src", "tests", "next-env.d.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
   "exclude": ["node_modules", ".next", "dist", "coverage", ".turbo"]
 }

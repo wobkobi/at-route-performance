@@ -23,13 +23,7 @@ dist/
 .eslintcache
 .cache/
 .swc/
-turbo/
 .turbo/
-
-# Testing
-coverage/
-playwright-report/
-test-results/
 
 # Logs
 logs/
@@ -72,3 +66,7 @@ prisma/dev.db
 # Project-specific generated
 generated/
 prisma/generated/
+
+# Claude
+.claude/
+.superpowers/
