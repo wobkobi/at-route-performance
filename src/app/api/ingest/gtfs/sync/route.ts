@@ -3,9 +3,12 @@ import { requireCronAuth } from "@/lib/auth";
 import { syncRoutes, syncStops } from "@/lib/ingest";
 import { NextResponse } from "next/server";
 
+// Static GTFS sync touches thousands of rows; give it headroom over the default.
+export const maxDuration = 60;
+
 /**
  * Orchestrator: sync GTFS static data (routes + stops) in-process.
- * Scheduled daily via Vercel Cron (see vercel.json).
+ * Scheduled daily by the external scheduler (see docs/cron-setup.md).
  * @param req - Incoming request; requires the CRON_SECRET bearer token.
  * @returns JSON `{ routes, stops, total_duration_ms, timestamp }`.
  */

@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.6.4] - 2026-06-17
+
+- Make GTFS sync use bulk Mongo `update` commands (batched, upsert) instead of ~7,500 individual
+  `prisma.upsert` calls, so `/api/ingest/gtfs/sync` finishes in seconds instead of timing out on
+  Vercel. Bulk updates also avoid the replica-set transaction requirement. Added a `maxDuration`
+  headroom on the sync route.
+
 ## [0.6.3] - 2026-06-17
 
 - Rename the package to `at-route-performance` and add this changelog.
