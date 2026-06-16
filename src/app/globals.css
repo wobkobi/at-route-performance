@@ -1,12 +1,96 @@
 @import "tailwindcss";
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+/* Theme tokens: AT brand typography + colour palette (Tailwind v4 CSS-first). */
+@theme {
+  /* Brand family: Gotham Narrow > Open Sans > Arial */
+  --font-brand:
+    var(--font-gotham-narrow), "Open Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  /* UI/body fallback when Gotham Narrow unavailable */
+  --font-ui: "Open Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  /* AT core palette (brand identity guide p8) */
+  --color-at-shore: #0073bd;
+  --color-at-ocean: #001930;
+  --color-at-safety: #ffdd00;
+  --color-at-bright-green: #95c11f;
+  --color-at-shore-light: #00a7e5;
+  --color-at-commercial: #f7941f;
+  --color-at-disruption: #ca0076;
+  --color-at-greeny-bluey: #009985;
+  --color-at-cosmic: #773581;
+  --color-at-anther-red: #de0a2b;
+
+  /* Neutrals derived from Ocean (AT has no grey); surfaces white */
+  --color-at-ink: #001930;
+  --color-at-muted: #667583;
+  --color-at-border: #d1d6da;
+  --color-at-bg: #f2f3f5;
+  --color-at-surface: #ffffff;
+
+  /* Semantic status */
+  --color-at-ontime: #0073bd;
+  --color-at-late: #de0a2b;
+  --color-at-early: #95c11f;
+
+  /* Link bus service colours (sampled from bus-services guide p8 swatches) */
+  --color-link-city: #ff0328;
+  --color-link-inner: #6cbe54;
+  --color-link-outer: #f9a22e;
+  --color-link-airport: #fdbb2a;
+  --color-link-tamaki: #0095cd;
+  --color-link-waiheke: #7fcfd6;
+}
+
+/* Family utilities */
+@utility font-brand {
+  font-family: var(--font-brand);
+}
+@utility font-ui {
+  font-family: var(--font-ui);
+}
+
+/* Weight shortcuts mapped to AT guidance */
+@utility font-ultra {
+  font-weight: 900;
+} /* Headlines (Gotham Narrow Ultra) */
+@utility font-book {
+  font-weight: 400;
+} /* Online body */
+@utility font-light {
+  font-weight: 300;
+} /* Print body (use judiciously on web) */
+
+/* Kerning & tracking per guide: zero tracking, optical kerning */
+@utility kern {
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
+}
+@utility tracking-zero {
+  letter-spacing: 0;
+}
+
+/* Headline leading = point size => line-height: 1 (use responsibly for accessibility) */
+@utility leading-headline {
+  line-height: 1;
+}
+
+/* Status badges: solid fill + contrast-checked text for WCAG AA (guide p28). */
+.badge {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+}
+.badge-ok {
+  @apply bg-at-ontime text-white;
+} /* Shore + white = pass */
+.badge-late {
+  @apply bg-at-late text-white;
+} /* Anther Red + white = pass */
+.badge-early {
+  @apply bg-at-early text-at-ink;
+} /* Bright Green + Ocean = pass */
+
+/*
+  Tailwind v4 changed the default border colour to `currentColor`. Restore a
+  sensible default using the AT neutral so unstyled borders stay on-brand.
 */
 @layer base {
   *,
@@ -14,6 +98,6 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-at-border, currentcolor);
   }
 }
