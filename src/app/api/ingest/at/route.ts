@@ -1,11 +1,21 @@
 // src/app/api/ingest/at/route.ts
 import { fetchATTripUpdates } from "@/lib/at";
+import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 type StopRow = Prisma.ArrivalEventCreateManyInput;
 type TripRow = Prisma.TripDelayCreateManyInput;
+
+/**
+ * Whether an error is a Prisma/Mongo duplicate-key violation (safe to skip).
+ * @param e - The thrown error.
+ * @returns True for unique-constraint (P2002) failures.
+ */
+function isDuplicateKey(e: unknown): boolean {
+  return (e as { code?: string })?.code === "P2002";
+}
 
 interface DebugStats {
   seen: number;
@@ -41,6 +51,11 @@ function toStuArray<T>(v: T | T[] | undefined): T[] {
  * @returns JSON summary or peek payload.
  */
 export async function POST(req: Request): Promise<NextResponse> {
+  const startTime = Date.now();
+
+  const denied = requireCronAuth(req);
+  if (denied) return denied;
+
   if (!process.env.AT_API_KEY) {
     return NextResponse.json({ error: "AT_API_KEY missing" }, { status: 400 });
   }
@@ -55,11 +70,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     if (wantPeek) {
       const tu = feed.entity.find((e) => e.trip_update)?.trip_update ?? null;
-      const stuCount = toStuArray(
-        tu?.stop_time_update as unknown[] | undefined
-      ).length;
-      const hasTripDelay =
-        typeof (tu as { delay?: unknown })?.delay === "number";
+      const stuCount = toStuArray(tu?.stop_time_update as unknown[] | undefined).length;
+      const hasTripDelay = typeof (tu as { delay?: unknown })?.delay === "number";
       return NextResponse.json({
         inserted: 0,
         tried: 0,
@@ -104,8 +116,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         withTime++;
 
         const hasDelay =
-          !(a.delay === undefined || a.delay === null) &&
-          typeof a.delay === "number";
+          !(a.delay === undefined || a.delay === null) && typeof a.delay === "number";
         if (hasDelay) withDelay++;
         if (!hasDelay && !loose) continue;
 
@@ -131,9 +142,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         if (typeof tDelay === "number") {
           withTripDelay++;
           const ts =
-            typeof tu.timestamp === "number"
-              ? tu.timestamp
-              : Math.floor(Date.now() / 1000);
+            typeof tu.timestamp === "number" ? tu.timestamp : Math.floor(Date.now() / 1000);
           const veh = (tu as { vehicle?: { id?: unknown } }).vehicle;
           const vehId = veh && typeof veh.id === "string" ? veh.id : undefined;
 
@@ -149,21 +158,46 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
     }
 
-    const stopResult =
-      stopRows.length > 0
-        ? await prisma.arrivalEvent.createMany({
-            data: stopRows,
-            skipDuplicates: true,
-          })
-        : { count: 0 };
+    // MongoDB createMany doesn't support skipDuplicates.
+    // Use ordered:false so inserts continue past duplicate-key errors.
+    let stopCount = 0;
+    if (stopRows.length > 0) {
+      try {
+        const r = await prisma.arrivalEvent.createMany({ data: stopRows });
+        stopCount = r.count;
+      } catch {
+        // Bulk insert hit a duplicate: fall back to one-by-one, skipping only
+        // duplicate-key collisions and rethrowing genuine failures.
+        for (const row of stopRows) {
+          try {
+            await prisma.arrivalEvent.create({ data: row });
+            stopCount++;
+          } catch (e) {
+            if (!isDuplicateKey(e)) throw e;
+          }
+        }
+      }
+    }
 
-    const tripResult =
-      tripRows.length > 0
-        ? await prisma.tripDelay.createMany({
-            data: tripRows,
-            skipDuplicates: true,
-          })
-        : { count: 0 };
+    let tripCount = 0;
+    if (tripRows.length > 0) {
+      try {
+        const r = await prisma.tripDelay.createMany({ data: tripRows });
+        tripCount = r.count;
+      } catch {
+        for (const row of tripRows) {
+          try {
+            await prisma.tripDelay.create({ data: row });
+            tripCount++;
+          } catch (e) {
+            if (!isDuplicateKey(e)) throw e;
+          }
+        }
+      }
+    }
+
+    const stopResult = { count: stopCount };
+    const tripResult = { count: tripCount };
 
     const body = {
       inserted: stopResult.count,
@@ -192,9 +226,30 @@ export async function POST(req: Request): Promise<NextResponse> {
       body.sample = stopRows[0] ?? tripRows[0] ?? null;
     }
 
+    const duration = Date.now() - startTime;
+
+    // LOG for monitoring
+    console.log("[INGEST]", {
+      timestamp: new Date().toISOString(),
+      inserted: stopResult.count,
+      tried: stopRows.length,
+      tripInserted: tripResult.count,
+      tripTried: tripRows.length,
+      duration_ms: duration,
+      source: "cron",
+    });
+
     return NextResponse.json(body);
   } catch (err) {
+    const duration = Date.now() - startTime;
     const msg = err instanceof Error ? err.message : "unknown error";
+
+    console.error("[INGEST] Failed", {
+      timestamp: new Date().toISOString(),
+      error: msg,
+      duration_ms: duration,
+    });
+
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

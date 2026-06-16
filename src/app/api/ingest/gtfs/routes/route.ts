@@ -1,27 +1,23 @@
 // src/app/api/ingest/gtfs/routes/route.ts
-import { fetchRoutes, mapRouteType, type RouteAttr } from "@/lib/at-static";
-import { prisma } from "@/lib/db";
+import { requireCronAuth } from "@/lib/auth";
+import { syncRoutes } from "@/lib/ingest";
 import { NextResponse } from "next/server";
 
 /**
- * Ingest GTFS routes from AT v3 into the Route table.
- * Uses upsert-like behavior via createMany + skipDuplicates.
- * @returns JSON `{ inserted: number }`.
+ * Ingest GTFS routes from AT v3 into the Route collection (batched upserts).
+ * @param req - Incoming request; requires the CRON_SECRET bearer token.
+ * @returns JSON `{ inserted: number }`, 401 if unauthorised, 502 on failure.
  */
-export async function POST(): Promise<NextResponse> {
-  const routes: RouteAttr[] = await fetchRoutes();
+export async function POST(req: Request): Promise<NextResponse> {
+  const denied = requireCronAuth(req);
+  if (denied) return denied;
 
-  const rows = routes
-    .filter((r) => r.route_id && r.route_long_name)
-    .map((r) => ({
-      id: r.route_id,
-      shortName: r.route_short_name ?? null,
-      longName: r.route_long_name,
-      mode: mapRouteType(r.route_type),
-    }));
-
-  if (rows.length) {
-    await prisma.route.createMany({ data: rows, skipDuplicates: true });
+  try {
+    const { upserted } = await syncRoutes();
+    return NextResponse.json({ inserted: upserted });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown error";
+    console.error("[INGEST routes] failed", msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
-  return NextResponse.json({ inserted: rows.length });
 }
