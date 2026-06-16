@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/ingest/at",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/ingest/gtfs/sync",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/ingest/aggregate",
+      "schedule": "30 13 * * *"
+    },
+    {
+      "path": "/api/ingest/cleanup",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}
