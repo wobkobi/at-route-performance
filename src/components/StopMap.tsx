@@ -74,11 +74,22 @@ export default function StopMap({
           fillOpacity: 0.8,
           weight: 1,
         });
-        marker.bindPopup(
-          `<strong>${s.name}</strong><br/>Avg delay: ${
-            s.avg_delay_sec == null ? "—" : Math.round(s.avg_delay_sec)
-          }s<br/>On-time: ${s.on_time_pct == null ? "—" : s.on_time_pct.toFixed(1) + "%"}`,
+        // Build the popup via DOM + textContent: stop names come from the AT
+        // feed, so interpolating them into an HTML string would be a stored XSS
+        // vector. The numeric fields are safe by construction.
+        const popup = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = s.name;
+        const avg = s.avg_delay_sec == null ? "—" : `${Math.round(s.avg_delay_sec)}s`;
+        const onTime = s.on_time_pct == null ? "—" : `${s.on_time_pct.toFixed(1)}%`;
+        popup.append(
+          title,
+          document.createElement("br"),
+          document.createTextNode(`Avg delay: ${avg}`),
+          document.createElement("br"),
+          document.createTextNode(`On-time: ${onTime}`),
         );
+        marker.bindPopup(popup);
         marker.addTo(map);
       }
     })();
