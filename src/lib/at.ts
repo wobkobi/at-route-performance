@@ -1,5 +1,4 @@
 // src/lib/at.ts
-// GTFS-RT types
 export interface DelayTime {
   time?: number;
   delay?: number | null;
@@ -16,12 +15,10 @@ export interface Trip {
 }
 export interface TripUpdate {
   trip: Trip;
-  // AT may send a single object or an array
-  stop_time_update?: StopTimeUpdate | StopTimeUpdate[];
+  stop_time_update?: StopTimeUpdate[] | StopTimeUpdate;
   timestamp?: number;
-  vehicle?: { id?: string; label?: string; license_plate?: string };
-  // AT sometimes provides trip-level delay
-  delay?: number;
+  delay?: number; // seen at root of trip_update in AT JSON
+  vehicle?: { id?: string };
 }
 export interface Entity {
   id: string;
@@ -32,120 +29,108 @@ export interface AtTripUpdates {
   entity: Entity[];
 }
 
-const toArray = <T>(v: T | T[] | undefined): T[] =>
-  v === undefined ? [] : Array.isArray(v) ? v : [v];
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null;
-const isString = (v: unknown): v is string => typeof v === "string";
-const isNumber = (v: unknown): v is number =>
-  typeof v === "number" && Number.isFinite(v);
-
-const isDelayTime = (v: unknown): v is DelayTime =>
-  isRecord(v) &&
-  (v.time === undefined || isNumber(v.time)) &&
-  (v.delay === undefined || v.delay === null || isNumber(v.delay));
-
-const isStopTimeUpdate = (v: unknown): v is StopTimeUpdate =>
-  isRecord(v) &&
-  isString(v.stop_id) &&
-  (v.stop_sequence === undefined || isNumber(v.stop_sequence)) &&
-  (v.arrival === undefined || isDelayTime(v.arrival)) &&
-  (v.departure === undefined || isDelayTime(v.departure));
-
-const isStuArrayOrOne = (v: unknown): v is StopTimeUpdate | StopTimeUpdate[] =>
-  (Array.isArray(v) && v.every(isStopTimeUpdate)) || isStopTimeUpdate(v);
-
-const isTrip = (v: unknown): v is Trip =>
-  isRecord(v) && isString(v.trip_id) && isString(v.route_id);
-
-const isTripUpdate = (v: unknown): v is TripUpdate =>
-  isRecord(v) &&
-  isTrip(v.trip) &&
-  (v.timestamp === undefined || isNumber(v.timestamp)) &&
-  (v.vehicle === undefined ||
-    (isRecord(v.vehicle) &&
-      (v.vehicle.id === undefined || isString(v.vehicle.id)))) &&
-  (v.delay === undefined || isNumber(v.delay)) &&
-  (v.stop_time_update === undefined || isStuArrayOrOne(v.stop_time_update));
-
-const isEntity = (v: unknown): v is Entity =>
-  isRecord(v) &&
-  isString((v as { id?: unknown }).id) &&
-  (v.trip_update === undefined || isTripUpdate(v.trip_update));
+/**
+ * Type guard for a non-null object.
+ * @param v - Value to test.
+ * @returns True when `v` is a non-null object.
+ */
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 /**
- * Normalize unknown JSON from AT into a typed feed.
- * Accepts `{ entity }` or `{ response: { entity } }`.
- * @param raw Arbitrary JSON from AT.
+ * Normalize AT feed shape (handles legacy `response.entity` and singular STU).
+ * @param raw - Arbitrary JSON.
  * @returns Normalized feed.
  */
 export function toTripUpdates(raw: unknown): AtTripUpdates {
+  const root = isObj(raw) && isObj(raw.response) ? raw.response : raw;
+  const entity =
+    isObj(root) && Array.isArray((root as { entity?: unknown }).entity)
+      ? ((root as { entity: unknown[] }).entity as Entity[])
+      : [];
+  // coerce STU to array if present as object
+  for (const e of entity) {
+    const tu = e.trip_update;
+    if (tu && tu.stop_time_update && !Array.isArray(tu.stop_time_update)) {
+      tu.stop_time_update = [tu.stop_time_update];
+    }
+  }
   const header =
-    isRecord(raw) && isRecord(raw.header) && isNumber(raw.header.timestamp)
-      ? { timestamp: raw.header.timestamp }
-      : undefined;
-
-  const entitiesSrc: unknown =
-    isRecord(raw) && Array.isArray(raw.entity)
-      ? raw.entity
-      : isRecord(raw) &&
-          isRecord(raw.response) &&
-          Array.isArray(raw.response.entity)
-        ? raw.response.entity
-        : [];
-
-  const entity: Entity[] = Array.isArray(entitiesSrc)
-    ? (entitiesSrc.filter(isEntity) as Entity[]).map((e) => {
-        const tu = e.trip_update;
-        return tu
-          ? {
-              ...e,
-              trip_update: {
-                ...tu,
-                stop_time_update: toArray(tu.stop_time_update),
-              },
-            }
-          : e;
-      })
-    : [];
-
+    isObj(root) && isObj(root.header) ? (root.header as { timestamp?: number }) : undefined;
   return { header, entity };
 }
 
-/**
- * Coerce a `stop_time_update` value to an array.
- * @param v Single STU, array of STU, or undefined.
- * @returns Array of STU.
- */
-export function toStuArray(
-  v: TripUpdate["stop_time_update"]
-): StopTimeUpdate[] {
-  if (!v) return [];
-  return Array.isArray(v) ? v : [v];
-}
-
-// AT legacy JSON endpoint
 const DEFAULT_AT_URL = "https://api.at.govt.nz/realtime/legacy/tripupdates";
 
 /**
- * Fetch Auckland Transport GTFS-RT trip updates.
- * @returns Parsed and validated feed.
- * @throws Error if HTTP fails or key missing.
+ * Sleep for a given number of milliseconds.
+ * @param ms - Delay in milliseconds.
+ * @returns A promise that resolves after the delay.
  */
-export async function fetchATTripUpdates(): Promise<AtTripUpdates> {
-  const key = process.env.AT_API_KEY;
-  if (!key) throw new Error("AT_API_KEY missing");
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch Auckland Transport GTFS-RT trip updates (JSON) with retry logic for 429s.
+ * @param retries - Number of retry attempts (default: 3).
+ * @returns Parsed and validated feed.
+ * @throws {Error} If all retries are exhausted or a non-retryable error occurs.
+ */
+export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
+  const key = process.env.AT_API_KEY ?? "";
   const url = process.env.AT_TRIPUPDATES_URL ?? DEFAULT_AT_URL;
 
-  const res = await fetch(url, {
-    headers: {
-      "Ocp-Apim-Subscription-Key": key,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`AT ${res.status}`);
-  const raw: unknown = await res.json();
-  return toTripUpdates(raw);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "Ocp-Apim-Subscription-Key": key,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000), // 15s timeout
+      });
+
+      // Retry rate limiting (429) and transient server errors (5xx) with backoff
+      if (res.status === 429 || res.status >= 500) {
+        const backoffMs = Math.min(60_000, 1000 * Math.pow(2, attempt)); // 1s, 2s, 4s, max 60s
+        console.warn(
+          `[AT API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
+        );
+
+        if (attempt < retries) {
+          await sleep(backoffMs);
+          continue; // Retry
+        }
+        throw new Error(`AT API ${res.status} after ${retries + 1} attempts`);
+      }
+
+      // Other errors are thrown immediately (no retry)
+      if (!res.ok) {
+        throw new Error(`AT API ${res.status} ${res.statusText}`);
+      }
+
+      const raw: unknown = await res.json();
+      return toTripUpdates(raw);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Don't retry on timeout or network errors unless it's the first attempt
+      if (
+        attempt === 0 &&
+        (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
+      ) {
+        console.warn(`[AT API] ${lastError.message}. Retrying once...`);
+        await sleep(2000);
+        continue;
+      }
+
+      // Otherwise, throw immediately
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error("AT API fetch failed");
 }
