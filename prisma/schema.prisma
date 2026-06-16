@@ -1,11 +1,9 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -15,31 +13,40 @@ enum Mode {
   FERRY
 }
 
+// Route and Stop use AT's external string IDs as primary keys.
 model Route {
-  id         String         @id
+  id         String              @id @map("_id")
   shortName  String?
   longName   String
   mode       Mode
   events     ArrivalEvent[]
-  tripDelays TripDelay[] // back-relation
+  tripDelays TripDelay[]
+  summaries  DailyRouteSummary[]
+
+  @@index([shortName])
+  // Supports the optional mode filter on the top-routes lookup.
+  @@index([mode])
 }
 
 model Stop {
-  id     String         @id
+  id     String         @id @map("_id")
   name   String
   code   String?
   lat    Float
   lon    Float
   events ArrivalEvent[]
+  
+  @@index([name])
 }
 
+// ArrivalEvent and TripDelay use auto-generated ObjectIds.
 model ArrivalEvent {
-  id           BigInt   @id @default(autoincrement())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId      String
   stopId       String
   tripId       String
-  scheduledAt  DateTime @db.Timestamp(3)
-  actualAt     DateTime @db.Timestamp(3)
+  scheduledAt  DateTime
+  actualAt     DateTime
   deviationSec Int
   vehicleId    String?
   source       String?
@@ -50,18 +57,45 @@ model ArrivalEvent {
   @@unique([tripId, stopId, actualAt])
   @@index([routeId, scheduledAt])
   @@index([stopId, scheduledAt])
+  @@index([scheduledAt])
+  // Supports the weekly top/aggregate: date-range filter then group by routeId.
+  @@index([scheduledAt, routeId])
+  // Supports the per-route by-stop stats: filter by routeId, group by stopId.
+  @@index([routeId, stopId])
 }
 
 model TripDelay {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   tripId    String
   routeId   String
   vehicleId String?
   timestamp DateTime
   delaySec  Int
   source    String?
-  Route     Route    @relation(fields: [routeId], references: [id])
 
-  @@unique([tripId, timestamp]) // <-- add this
+  Route Route @relation(fields: [routeId], references: [id])
+
+  @@unique([tripId, timestamp])
   @@index([routeId, timestamp])
+  @@index([timestamp])
+}
+
+// Pre-aggregated daily stats (retained indefinitely for trend analysis)
+model DailyRouteSummary {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  routeId        String
+  date           DateTime // Normalized to UTC midnight
+  events         Int
+  avgDelaySec    Float?
+  avgAbsDelaySec Float?
+  onTimePct      Float? // % within threshold
+  p50DelaySec    Float? // Median
+  p95DelaySec    Float? // 95th percentile
+  thresholdSec   Int // Threshold used for on-time calc (e.g., 300)
+  createdAt      DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id])
+
+  @@unique([routeId, date])
+  @@index([date])
 }

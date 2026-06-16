@@ -21,10 +21,7 @@ type StopBody = z.infer<typeof Body>;
 export async function POST(req: Request): Promise<NextResponse> {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid", issues: parsed.error.issues },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "invalid", issues: parsed.error.issues }, { status: 400 });
   }
   const s = await prisma.stop.create({ data: parsed.data });
   return NextResponse.json(s, { status: 201 });

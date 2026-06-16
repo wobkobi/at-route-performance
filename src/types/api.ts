@@ -21,7 +21,9 @@ export interface RouteSummary {
 export interface RouteByStop {
   stop_id: string;
   name: string;
+  lat: number;
+  lon: number;
   events: number;
   avg_delay_sec: number | null;
-  on_time_pct?: number | null;
+  on_time_pct: number | null;
 }

@@ -20,10 +20,7 @@ type RouteBody = z.infer<typeof Body>;
 export async function POST(req: Request): Promise<NextResponse> {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid", issues: parsed.error.issues },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "invalid", issues: parsed.error.issues }, { status: 400 });
   }
   const r = await prisma.route.create({ data: parsed.data });
   return NextResponse.json(r, { status: 201 });

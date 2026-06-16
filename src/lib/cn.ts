@@ -1,16 +1,17 @@
 // src/lib/cn.ts
+/**
+ * @file cn.ts
+ * @description Merge conditional class names with Tailwind conflict resolution.
+ */
 
-import clsx from "clsx";
-import { type ClassNameValue, twMerge } from "tailwind-merge";
+import clsx, { type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 /**
- * Conditionally combine class names and merge Tailwind utilities.
- * @param inputs - List of class name values (strings, arrays, objects).
- * @returns The merged className string with no conflicting Tailwind classes.
+ * Utility function to merge class names using clsx and tailwind-merge.
+ * @param inputs - Class names to be merged.
+ * @returns Merged class names as a single string.
  */
-function cn(...inputs: ClassNameValue[]): string {
-  // clsx handles conditional joins, then twMerge deduplicates and resolves Tailwind conflicts
+export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
-
-export default cn;

@@ -1,13 +1,9 @@
-// postcss.config.js
-// Configuration for PostCSS plugins, including Tailwind CSS and Autoprefixer
+// postcss.config.mjs
 
-
-/** @type {import('postcss').Config} */
-export default {
+const config = {
   plugins: {
-    // Tailwind CSS v4.0–v4.1 PostCSS plugin
     "@tailwindcss/postcss": {},
-    // Automatically add vendor prefixes for wider browser support
-    autoprefixer: {},
   },
 };
+
+export default config;
