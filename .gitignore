@@ -70,3 +70,6 @@ prisma/generated/
 # Claude
 .claude/
 .superpowers/
+
+# One-off exploratory research scripts (kept local, not production code)
+scripts/spike-*.ts
