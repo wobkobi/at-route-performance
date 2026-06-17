@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.9.0] - 2026-06-18
+
+- Hide school-service routes (short name `S###`) from the home and rankings lists by default, with a
+  "School buses" toggle to show them. Composes with the mode filter and table sort.
+
 ## [0.8.3] - 2026-06-17
 
 - Allow CARTO tiles in the Content-Security-Policy `img-src`; it still only listed the old OSM tile

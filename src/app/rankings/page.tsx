@@ -3,10 +3,12 @@ import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
+import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { WindowControls } from "@/components/WindowControls";
 import { cn } from "@/lib/cn";
 import { getFleetSummary, getLatestEventDate, getModeBreakdown, getRankings } from "@/lib/data";
 import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
+import { isSchoolBus } from "@/lib/school-bus";
 import { nzMonthRange, nzWeekRange, nzWeekStart, type DateRange } from "@/lib/time";
 import type { JSX } from "react";
 
@@ -19,6 +21,7 @@ interface RankingsSearchParams {
   period?: string;
   sort?: string;
   mode?: string;
+  school?: string;
 }
 
 /**
@@ -122,17 +125,35 @@ export default async function RankingsPage({
     getFleetSummary(range, THRESHOLD_SEC, REVALIDATE),
     getModeBreakdown(range, THRESHOLD_SEC, REVALIDATE),
   ]);
-  // The mode filter narrows the route lists; fleet KPIs stay network-wide.
-  const visible = mode ? rows.filter((r) => r.mode === mode) : rows;
+  // Filters narrow the route lists; fleet KPIs stay network-wide. School
+  // services (S###) are hidden unless ?school=1.
+  const includeSchool = sp.school === "1";
+  const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const visible = includeSchool
+    ? modeFiltered
+    : modeFiltered.filter((r) => !isSchoolBus(r.short_name));
   const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
+
   const tablePreserved: Record<string, string> = { window };
   const modePreserved: Record<string, string> = { window };
+  const schoolPreserved: Record<string, string> = { window };
   if (sp.period) {
     tablePreserved.period = sp.period;
     modePreserved.period = sp.period;
+    schoolPreserved.period = sp.period;
   }
-  if (mode) tablePreserved.mode = mode;
-  if (sort !== "on_time") modePreserved.sort = sort;
+  if (mode) {
+    tablePreserved.mode = mode;
+    schoolPreserved.mode = mode;
+  }
+  if (sort !== "on_time") {
+    modePreserved.sort = sort;
+    schoolPreserved.sort = sort;
+  }
+  if (includeSchool) {
+    tablePreserved.school = "1";
+    modePreserved.school = "1";
+  }
 
   return (
     <main className={cn("space-y-6")}>
@@ -143,7 +164,14 @@ export default async function RankingsPage({
 
       <FleetSummary data={fleet} />
 
-      <ModeFilter active={mode} basePath="/rankings" preservedParams={modePreserved} />
+      <div className={cn("flex flex-wrap items-center gap-3")}>
+        <ModeFilter active={mode} basePath="/rankings" preservedParams={modePreserved} />
+        <SchoolBusToggle
+          active={includeSchool}
+          basePath="/rankings"
+          preservedParams={schoolPreserved}
+        />
+      </div>
 
       <div className={cn("grid gap-4 md:grid-cols-2")}>
         <RankBoard
