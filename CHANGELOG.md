@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.7.3] - 2026-06-17
+
+- Fix MongoDB aggregations silently truncating at the cursor's first batch (101 docs): the rankings
+  query returned only ~101 routes (dropping whole modes such as Train) and route-detail stops capped
+  at 101. All aggregations now request a large `batchSize` so the full result set returns.
+
 ## [0.7.2] - 2026-06-17
 
 - Throttle the route map's live vehicle polling to a 60s shared server cache and a 60s refresh
