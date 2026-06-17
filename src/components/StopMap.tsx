@@ -73,9 +73,13 @@ export default function StopMap({
         : [-36.8485, 174.7633];
 
       map = L.map(divRef.current).setView(center, 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      // CARTO basemaps allow app/embedded use; OSM's volunteer tile servers block
+      // it (403, "Referer is required by tile usage policy"). Positron is clean and
+      // light, which suits the AT palette.
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap",
+        subdomains: "abcd",
+        attribution: "© OpenStreetMap contributors © CARTO",
       }).addTo(map);
 
       for (const s of stops) {

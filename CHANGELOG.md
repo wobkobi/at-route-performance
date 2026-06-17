@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.8.1] - 2026-06-17
+
+- Switch the route map's basemap from OpenStreetMap's volunteer tile servers (which block
+  app/embedded use with a 403) to CARTO Positron, which permits it and suits the light AT palette.
+
 ## [0.8.0] - 2026-06-17
 
 - Add a Bus/Train/Ferry filter on the home and rankings pages that narrows the route lists (boards
