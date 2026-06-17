@@ -78,8 +78,7 @@ export function RankBoard({
                   href={`/route/${encodeURIComponent(r.route_id)}`}
                   className={cn("min-w-0 flex-1 truncate font-medium hover:underline")}
                 >
-                  <span className="font-semibold">{r.short_name ?? r.route_id}</span>{" "}
-                  <span className="text-at-muted">{r.long_name}</span>
+                  <span className="font-semibold">{r.short_name || r.long_name || r.route_id}</span>
                 </a>
                 <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
                   {value}

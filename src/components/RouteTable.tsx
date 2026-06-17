@@ -86,9 +86,8 @@ export function RouteTable({
                       href={`/route/${encodeURIComponent(r.route_id)}`}
                       className={cn("hover:underline")}
                     >
-                      {r.short_name ?? r.route_id}
+                      {r.short_name || r.long_name || r.route_id}
                     </a>
-                    <span className={cn("text-at-muted")}>{r.long_name}</span>
                   </span>
                 </td>
                 <td className={cn("px-3 py-2 text-right tabular-nums")}>{r.events}</td>

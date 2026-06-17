@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.8.0] - 2026-06-17
+
+- Add a Bus/Train/Ferry filter on the home and rankings pages that narrows the route lists (boards
+  and table) by mode; fleet KPIs stay network-wide.
+- Start weeks on Sunday instead of Monday/ISO; the rankings week is now labelled `Week of <date>`.
+- Show a single route name in the lists (the short name, falling back to the long name), since for
+  buses the two are usually the same.
+
 ## [0.7.3] - 2026-06-17
 
 - Fix MongoDB aggregations silently truncating at the cursor's first batch (101 docs): the rankings

@@ -6,8 +6,6 @@ export interface DateRange {
   end: Date;
 }
 
-const MS_IN_DAY = 86_400_000;
-
 /**
  * Auckland's UTC offset, in minutes, at a given instant (handles NZST/NZDT).
  * @param at - The instant to evaluate.
@@ -68,11 +66,12 @@ export function nzDayRange(at: Date = new Date()): DateRange {
 }
 
 /**
- * ISO week label (e.g. `2026-W25`) for an instant, using its Auckland-local date.
+ * The Sunday that starts the Auckland-local week containing an instant.
+ * Weeks reset on Sunday.
  * @param at - The instant to label.
- * @returns ISO week string using the ISO week-numbering year.
+ * @returns The week's Sunday as `YYYY-MM-DD`.
  */
-export function isoWeekString(at: Date): string {
+export function nzWeekStart(at: Date): string {
   const dtf = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Pacific/Auckland",
     year: "numeric",
@@ -81,55 +80,36 @@ export function isoWeekString(at: Date): string {
   });
   const [y, mo, d] = dtf.format(at).split("-").map(Number);
   const date = new Date(Date.UTC(y, mo - 1, d));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / MS_IN_DAY + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay()); // getUTCDay 0 = Sunday
+  return date.toISOString().slice(0, 10);
 }
 
 /**
- * The Auckland-local ISO-week window. Defaults to the week containing now.
- * @param iso - ISO week like `2026-W25` (optional).
- * @returns UTC `{ start, end }` spanning that local week (Mon 00:00 local).
+ * The Auckland-local week window (Sunday 00:00 to the next Sunday 00:00).
+ * Any date snaps to its week's Sunday; defaults to the week containing now.
+ * @param weekStart - The week's Sunday as `YYYY-MM-DD` (optional).
+ * @returns UTC `{ start, end }` spanning that local week.
  */
-export function nzWeekRange(iso?: string): DateRange {
-  const m = iso?.match(/^(\d{4})-W(\d{1,2})$/);
-  let target: Date;
+export function nzWeekRange(weekStart?: string): DateRange {
+  let base: Date;
+  const m = weekStart?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) {
-    const year = Number(m[1]);
-    const week = Number(m[2]);
-    const jan4 = new Date(Date.UTC(year, 0, 4));
-    const day = jan4.getUTCDay() || 7;
-    const week1Mon = new Date(jan4);
-    week1Mon.setUTCDate(jan4.getUTCDate() - day + 1);
-    target = new Date(week1Mon);
-    target.setUTCDate(week1Mon.getUTCDate() + 7 * (week - 1));
+    base = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   } else {
-    const now = new Date();
     const dtf = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Pacific/Auckland",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     });
-    const [y, mo, d] = dtf.format(now).split("-").map(Number);
-    const today = new Date(Date.UTC(y, mo - 1, d));
-    const dayNum = today.getUTCDay() || 7;
-    target = new Date(today);
-    target.setUTCDate(today.getUTCDate() - (dayNum - 1));
+    const [y, mo, d] = dtf.format(new Date()).split("-").map(Number);
+    base = new Date(Date.UTC(y, mo - 1, d));
   }
-  const start = nzLocalToUtc(
-    target.getUTCFullYear(),
-    target.getUTCMonth() + 1,
-    target.getUTCDate(),
-  );
-  const end = nzLocalToUtc(
-    target.getUTCFullYear(),
-    target.getUTCMonth() + 1,
-    target.getUTCDate() + 7,
-  );
-  return { start, end };
+  base.setUTCDate(base.getUTCDate() - base.getUTCDay()); // snap back to Sunday
+  const y = base.getUTCFullYear();
+  const mo = base.getUTCMonth() + 1;
+  const d = base.getUTCDate();
+  return { start: nzLocalToUtc(y, mo, d), end: nzLocalToUtc(y, mo, d + 7) };
 }
 
 /**

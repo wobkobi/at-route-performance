@@ -1,12 +1,13 @@
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
+import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { WindowControls } from "@/components/WindowControls";
 import { cn } from "@/lib/cn";
 import { getFleetSummary, getLatestEventDate, getModeBreakdown, getRankings } from "@/lib/data";
 import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
-import { isoWeekString, nzMonthRange, nzWeekRange, type DateRange } from "@/lib/time";
+import { nzMonthRange, nzWeekRange, nzWeekStart, type DateRange } from "@/lib/time";
 import type { JSX } from "react";
 
 const THRESHOLD_SEC = 300;
@@ -17,6 +18,7 @@ interface RankingsSearchParams {
   window?: string;
   period?: string;
   sort?: string;
+  mode?: string;
 }
 
 /**
@@ -47,9 +49,23 @@ function monthLabel(d: Date): string {
 }
 
 /**
+ * Human week label like `Week of 14 Jun` from a range start.
+ * @param d - Range start (UTC instant of the local Sunday).
+ * @returns Formatted label.
+ */
+function weekLabel(d: Date): string {
+  const day = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+  }).format(d);
+  return `Week of ${day}`;
+}
+
+/**
  * Resolve the active range + label, falling back to the latest period with data.
  * @param window - "week" or "month".
- * @param period - Explicit period (e.g. "2026-W25" or "2026-06"), optional.
+ * @param period - Explicit period (`YYYY-MM-DD` Sunday or `YYYY-MM`), optional.
  * @returns The range and a human label.
  */
 async function resolveRange(
@@ -69,13 +85,12 @@ async function resolveRange(
     return { range, label };
   }
   let range = nzWeekRange(period);
-  let label = period ?? isoWeekString(range.start);
+  let label = weekLabel(range.start);
   if (!period && (await getRankings(range, THRESHOLD_SEC, REVALIDATE)).length === 0) {
     const latest = await getLatestEventDate();
     if (latest) {
-      const wk = isoWeekString(latest);
-      range = nzWeekRange(wk);
-      label = wk;
+      range = nzWeekRange(nzWeekStart(latest));
+      label = weekLabel(range.start);
     }
   }
   return { range, label };
@@ -97,6 +112,9 @@ export default async function RankingsPage({
   const sort = (
     ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
   ) as RouteSort;
+  const mode = (
+    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
+  ) as ModeFilterValue;
 
   const { range, label } = await resolveRange(window, sp.period);
   const [rows, fleet, modes] = await Promise.all([
@@ -104,8 +122,17 @@ export default async function RankingsPage({
     getFleetSummary(range, THRESHOLD_SEC, REVALIDATE),
     getModeBreakdown(range, THRESHOLD_SEC, REVALIDATE),
   ]);
-  const boards = deriveBoards(rows, { minEvents: MIN_BOARD_EVENTS });
-  const preserved: Record<string, string> = { window, ...(sp.period ? { period: sp.period } : {}) };
+  // The mode filter narrows the route lists; fleet KPIs stay network-wide.
+  const visible = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
+  const tablePreserved: Record<string, string> = { window };
+  const modePreserved: Record<string, string> = { window };
+  if (sp.period) {
+    tablePreserved.period = sp.period;
+    modePreserved.period = sp.period;
+  }
+  if (mode) tablePreserved.mode = mode;
+  if (sort !== "on_time") modePreserved.sort = sort;
 
   return (
     <main className={cn("space-y-6")}>
@@ -115,6 +142,8 @@ export default async function RankingsPage({
       </div>
 
       <FleetSummary data={fleet} />
+
+      <ModeFilter active={mode} basePath="/rankings" preservedParams={modePreserved} />
 
       <div className={cn("grid gap-4 md:grid-cols-2")}>
         <RankBoard
@@ -145,9 +174,9 @@ export default async function RankingsPage({
       </div>
 
       <RouteTable
-        rows={sortRows(rows, sort)}
+        rows={sortRows(visible, sort)}
         basePath="/rankings"
-        preservedParams={preserved}
+        preservedParams={tablePreserved}
         sort={sort}
       />
     </main>
