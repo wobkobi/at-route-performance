@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.7.0] - 2026-06-17
+
+- Add live vehicle tracking to the route detail map: each route's buses are plotted from AT's
+  GTFS-RT vehicle-locations feed, polled every 20s and coloured by current delay
+  (late/early/on-time), joined to the trip-updates delay feed via a cached
+  `/api/routes/[id]/vehicles` endpoint.
+- Format the route detail page's average delays in minutes/seconds, matching the rest of the app.
+- Load Leaflet's stylesheet globally so the map always renders correctly.
+
 ## [0.6.4] - 2026-06-17
 
 - Make GTFS sync use bulk Mongo `update` commands (batched, upsert) instead of ~7,500 individual

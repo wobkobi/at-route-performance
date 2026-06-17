@@ -25,6 +25,8 @@ interface StopMapWrapperProps {
     avg_delay_sec: number | null;
     on_time_pct: number | null;
   }>;
+  /** When set, the map polls and plots live vehicles for this route. */
+  routeId?: string;
   className?: string;
 }
 
