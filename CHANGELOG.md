@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.7.1] - 2026-06-17
+
+- Insert realtime arrivals via a single bulk `insert` (`ordered: false`) instead of `createMany`
+  with a per-row duplicate fallback, so `/api/ingest/at` skips already-seen rows in one round-trip
+  per batch and no longer times out (504) on Vercel. Added a `maxDuration` headroom.
+
 ## [0.7.0] - 2026-06-17
 
 - Add live vehicle tracking to the route detail map: each route's buses are plotted from AT's

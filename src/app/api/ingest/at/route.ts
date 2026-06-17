@@ -8,13 +8,31 @@ import { NextResponse } from "next/server";
 type StopRow = Prisma.ArrivalEventCreateManyInput;
 type TripRow = Prisma.TripDelayCreateManyInput;
 
+// Realtime feeds carry ~1.6k rows; give the function headroom over the default.
+export const maxDuration = 60;
+
+/** Max documents per bulk insert command (well under Mongo's limits). */
+const INSERT_BATCH = 1000;
+
 /**
- * Whether an error is a Prisma/Mongo duplicate-key violation (safe to skip).
- * @param e - The thrown error.
- * @returns True for unique-constraint (P2002) failures.
+ * Insert documents into a collection in batches, skipping duplicate-key rows
+ * (ordered: false) in a single round-trip per batch - no per-document fallback
+ * and no multi-document transaction.
+ * @param collection - Target collection name.
+ * @param docs - Extended-JSON documents (dates as `{ $date }`).
+ * @returns Count actually inserted (duplicates excluded).
  */
-function isDuplicateKey(e: unknown): boolean {
-  return (e as { code?: string })?.code === "P2002";
+async function bulkInsert(collection: string, docs: Record<string, unknown>[]): Promise<number> {
+  let inserted = 0;
+  for (let i = 0; i < docs.length; i += INSERT_BATCH) {
+    const res = (await prisma.$runCommandRaw({
+      insert: collection,
+      documents: docs.slice(i, i + INSERT_BATCH) as never,
+      ordered: false,
+    })) as unknown as { n?: number };
+    inserted += res.n ?? 0;
+  }
+  return inserted;
 }
 
 interface DebugStats {
@@ -158,43 +176,32 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
     }
 
-    // MongoDB createMany doesn't support skipDuplicates.
-    // Use ordered:false so inserts continue past duplicate-key errors.
-    let stopCount = 0;
-    if (stopRows.length > 0) {
-      try {
-        const r = await prisma.arrivalEvent.createMany({ data: stopRows });
-        stopCount = r.count;
-      } catch {
-        // Bulk insert hit a duplicate: fall back to one-by-one, skipping only
-        // duplicate-key collisions and rethrowing genuine failures.
-        for (const row of stopRows) {
-          try {
-            await prisma.arrivalEvent.create({ data: row });
-            stopCount++;
-          } catch (e) {
-            if (!isDuplicateKey(e)) throw e;
-          }
-        }
-      }
-    }
-
-    let tripCount = 0;
-    if (tripRows.length > 0) {
-      try {
-        const r = await prisma.tripDelay.createMany({ data: tripRows });
-        tripCount = r.count;
-      } catch {
-        for (const row of tripRows) {
-          try {
-            await prisma.tripDelay.create({ data: row });
-            tripCount++;
-          } catch (e) {
-            if (!isDuplicateKey(e)) throw e;
-          }
-        }
-      }
-    }
+    // Bulk-insert with ordered:false: duplicate (tripId, stopId, actualAt) rows
+    // are skipped in one round-trip per batch instead of a slow per-row fallback.
+    const stopCount = await bulkInsert(
+      "ArrivalEvent",
+      stopRows.map((r) => ({
+        routeId: r.routeId,
+        stopId: r.stopId,
+        tripId: r.tripId,
+        scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
+        actualAt: { $date: new Date(r.actualAt).toISOString() },
+        deviationSec: r.deviationSec,
+        ...(r.source ? { source: r.source } : {}),
+        ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
+      })),
+    );
+    const tripCount = await bulkInsert(
+      "TripDelay",
+      tripRows.map((r) => ({
+        tripId: r.tripId,
+        routeId: r.routeId,
+        ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
+        timestamp: { $date: new Date(r.timestamp).toISOString() },
+        delaySec: r.delaySec,
+        ...(r.source ? { source: r.source } : {}),
+      })),
+    );
 
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
