@@ -4,6 +4,41 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.8.0] - 2026-06-17
+
+- Add a Bus/Train/Ferry filter on the home and rankings pages that narrows the route lists (boards
+  and table) by mode; fleet KPIs stay network-wide.
+- Start weeks on Sunday instead of Monday/ISO; the rankings week is now labelled `Week of <date>`.
+- Show a single route name in the lists (the short name, falling back to the long name), since for
+  buses the two are usually the same.
+
+## [0.7.3] - 2026-06-17
+
+- Fix MongoDB aggregations silently truncating at the cursor's first batch (101 docs): the rankings
+  query returned only ~101 routes (dropping whole modes such as Train) and route-detail stops capped
+  at 101. All aggregations now request a large `batchSize` so the full result set returns.
+
+## [0.7.2] - 2026-06-17
+
+- Throttle the route map's live vehicle polling to a 60s shared server cache and a 60s refresh
+  (paused while the tab is hidden), so AT API usage stays well within the 35,000 calls/week quota
+  regardless of how many people are viewing.
+
+## [0.7.1] - 2026-06-17
+
+- Insert realtime arrivals via a single bulk `insert` (`ordered: false`) instead of `createMany`
+  with a per-row duplicate fallback, so `/api/ingest/at` skips already-seen rows in one round-trip
+  per batch and no longer times out (504) on Vercel. Added a `maxDuration` headroom.
+
+## [0.7.0] - 2026-06-17
+
+- Add live vehicle tracking to the route detail map: each route's buses are plotted from AT's
+  GTFS-RT vehicle-locations feed, polled every 20s and coloured by current delay
+  (late/early/on-time), joined to the trip-updates delay feed via a cached
+  `/api/routes/[id]/vehicles` endpoint.
+- Format the route detail page's average delays in minutes/seconds, matching the rest of the app.
+- Load Leaflet's stylesheet globally so the map always renders correctly.
+
 ## [0.6.4] - 2026-06-17
 
 - Make GTFS sync use bulk Mongo `update` commands (batched, upsert) instead of ~7,500 individual

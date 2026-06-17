@@ -134,7 +134,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
   const result = (await prisma.$runCommandRaw({
     aggregate: "ArrivalEvent",
     pipeline: pipeline as never,
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
 
   return result.cursor.firstBatch;
@@ -209,7 +209,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
         },
       },
     ],
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: RouteSummary[] } };
 
   const byStopResult = (await prisma.$runCommandRaw({
@@ -259,7 +259,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
         },
       },
     ],
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: RouteByStop[] } };
 
   return {
@@ -341,7 +341,7 @@ async function queryRankings(range: DateRange, thresholdSec: number): Promise<To
         },
       },
     ] as never,
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
   return result.cursor.firstBatch;
 }
@@ -413,7 +413,7 @@ export async function getFleetSummary(
             },
           },
         ] as never,
-        cursor: {},
+        cursor: { batchSize: 100_000 },
       })) as unknown as { cursor: { firstBatch: FleetSummary[] } };
       return (
         res.cursor.firstBatch[0] ?? {
@@ -478,7 +478,7 @@ export async function getModeBreakdown(
             },
           },
         ] as never,
-        cursor: {},
+        cursor: { batchSize: 100_000 },
       })) as unknown as { cursor: { firstBatch: ModeStat[] } };
       return res.cursor.firstBatch;
     },
@@ -495,7 +495,7 @@ export async function getLatestEventDate(): Promise<Date | null> {
   const res = (await prisma.$runCommandRaw({
     aggregate: "ArrivalEvent",
     pipeline: [{ $group: { _id: null, maxSched: { $max: "$scheduledAt" } } }] as never,
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: { maxSched?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?.maxSched;
   if (!raw) return null;
@@ -523,7 +523,7 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
       { $sort: { _id: -1 } },
       { $limit: 1 },
     ] as never,
-    cursor: {},
+    cursor: { batchSize: 100_000 },
   })) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?._id;
   if (!raw) return null;

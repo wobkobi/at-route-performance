@@ -1,4 +1,4 @@
-import { isoWeekString, nzDayRange, nzMonthRange, nzWeekRange } from "@/lib/time";
+import { nzDayRange, nzMonthRange, nzWeekRange, nzWeekStart } from "@/lib/time";
 import { describe, expect, it } from "vitest";
 
 describe("nzDayRange", () => {
@@ -17,14 +17,17 @@ describe("nzDayRange", () => {
   });
 });
 
-describe("nzWeekRange", () => {
-  it("round-trips with isoWeekString", () => {
-    const { start } = nzWeekRange("2026-W25");
-    expect(isoWeekString(start)).toBe("2026-W25");
-  });
-  it("spans exactly seven days", () => {
-    const { start, end } = nzWeekRange("2026-W25");
+describe("nzWeekRange (Sunday start)", () => {
+  it("snaps any date to its local Sunday and spans seven days", () => {
+    // 2026-06-17 is a Wednesday; its week's Sunday is 2026-06-14.
+    // 2026-06-14 00:00 NZST == 2026-06-13T12:00Z.
+    const { start, end } = nzWeekRange("2026-06-17");
+    expect(start.toISOString()).toBe("2026-06-13T12:00:00.000Z");
     expect(end.getTime() - start.getTime()).toBe(7 * 86_400_000);
+  });
+  it("round-trips with nzWeekStart", () => {
+    const { start } = nzWeekRange("2026-06-14");
+    expect(nzWeekStart(start)).toBe("2026-06-14");
   });
 });
 
@@ -37,8 +40,8 @@ describe("nzMonthRange", () => {
   });
 });
 
-describe("isoWeekString", () => {
-  it("labels a known date", () => {
-    expect(isoWeekString(new Date("2026-06-15T00:00:00Z"))).toBe("2026-W25");
+describe("nzWeekStart", () => {
+  it("returns the Sunday of the week", () => {
+    expect(nzWeekStart(new Date("2026-06-17T00:00:00Z"))).toBe("2026-06-14");
   });
 });

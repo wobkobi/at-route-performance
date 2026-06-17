@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Leaflet base styles: load globally so the map chunk always has them applied. */
+@import "leaflet/dist/leaflet.css";
 
 /* Theme tokens: AT brand typography + colour palette (Tailwind v4 CSS-first). */
 @theme {

@@ -1,5 +1,6 @@
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
+import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { cn } from "@/lib/cn";
@@ -14,6 +15,7 @@ const TODAY_REVALIDATE = 300; // 5 minutes
 /** Query params for the home page. */
 interface HomeSearchParams {
   sort?: string;
+  mode?: string;
 }
 
 /**
@@ -31,6 +33,9 @@ export default async function Home({
   const sort = (
     ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
   ) as RouteSort;
+  const mode = (
+    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
+  ) as ModeFilterValue;
 
   // Today (Auckland). If today lacks enough data to fill the boards yet (early
   // morning, or ingest still catching up), fall back to the latest day that does.
@@ -54,7 +59,9 @@ export default async function Home({
     getFleetSummary(range, THRESHOLD_SEC, TODAY_REVALIDATE),
     getModeBreakdown(range, THRESHOLD_SEC, TODAY_REVALIDATE),
   ]);
-  const boards = deriveBoards(rows, { minEvents: MIN_BOARD_EVENTS });
+  // The mode filter narrows the route lists; fleet KPIs stay network-wide.
+  const visible = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
 
   return (
     <main className={cn("space-y-6")}>
@@ -66,6 +73,8 @@ export default async function Home({
       </div>
 
       <FleetSummary data={fleet} />
+
+      <ModeFilter active={mode} basePath="/" preservedParams={sort === "on_time" ? {} : { sort }} />
 
       <div className={cn("grid gap-4 md:grid-cols-2")}>
         <RankBoard
@@ -108,7 +117,12 @@ export default async function Home({
       <details className={cn("rounded-xl bg-at-surface shadow-sm")}>
         <summary className={cn("cursor-pointer px-4 py-3 font-semibold")}>All routes</summary>
         <div className={cn("p-2")}>
-          <RouteTable rows={sortRows(rows, sort)} basePath="/" preservedParams={{}} sort={sort} />
+          <RouteTable
+            rows={sortRows(visible, sort)}
+            basePath="/"
+            preservedParams={mode ? { mode } : {}}
+            sort={sort}
+          />
         </div>
       </details>
     </main>

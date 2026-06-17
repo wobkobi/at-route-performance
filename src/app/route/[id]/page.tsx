@@ -2,6 +2,7 @@
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { cn } from "@/lib/cn";
 import { getRouteStats } from "@/lib/data";
+import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
 import { routeStatsQuery } from "@/lib/validate";
 import type { JSX } from "react";
@@ -64,8 +65,10 @@ export default async function RoutePage({
           <p className="text-2xl font-semibold tabular-nums">{summary?.events ?? 0}</p>
         </div>
         <div className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
-          <p className="text-sm text-at-muted">Avg delay (s)</p>
-          <p className="text-2xl font-semibold tabular-nums">{summary?.avg_delay_sec ?? "—"}</p>
+          <p className="text-sm text-at-muted">Avg delay</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {summary?.avg_delay_sec == null ? "—" : formatDelay(summary.avg_delay_sec)}
+          </p>
         </div>
         <div className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
           <p className="text-sm text-at-muted">On-time (%)</p>
@@ -77,8 +80,21 @@ export default async function RoutePage({
 
       {byStop.length > 0 && (
         <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
-          <h2 className="mb-2 text-lg font-semibold">Stop locations</h2>
-          <StopMapWrapper stops={byStop} className="h-100 rounded-lg" />
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Stops &amp; live buses</h2>
+            <span className="flex items-center gap-3 text-xs text-at-muted">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
+              </span>
+            </span>
+          </div>
+          <StopMapWrapper stops={byStop} routeId={id} className="h-100 rounded-lg" />
         </section>
       )}
 
@@ -90,7 +106,7 @@ export default async function RoutePage({
               <tr>
                 <th className="px-3 py-2 text-left">Stop</th>
                 <th className="px-3 py-2 text-right">Events</th>
-                <th className="px-3 py-2 text-right">Avg delay (s)</th>
+                <th className="px-3 py-2 text-right">Avg delay</th>
               </tr>
             </thead>
             <tbody>
@@ -98,7 +114,9 @@ export default async function RoutePage({
                 <tr key={s.stop_id} className="border-t border-at-border">
                   <td className="px-3 py-2">{s.name}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{s.avg_delay_sec ?? "—"}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec)}
+                  </td>
                 </tr>
               ))}
             </tbody>
