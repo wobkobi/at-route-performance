@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.8.2] - 2026-06-17
+
+- Label the late and early buses on the route map directly (e.g. `4m late`), so you can see which
+  are running late without clicking. On-time buses stay an unlabelled dot to keep the map readable.
+
 ## [0.8.1] - 2026-06-17
 
 - Switch the route map's basemap from OpenStreetMap's volunteer tile servers (which block

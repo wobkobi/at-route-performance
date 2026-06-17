@@ -24,6 +24,16 @@ const VEHICLE_THRESHOLD = 120;
 const POLL_MS = 60_000;
 
 /**
+ * Compact delay label for a bus map marker, e.g. `4m late` / `3m early`.
+ * @param sec - Signed deviation in seconds (negative early, positive late).
+ * @returns A short label rounded to the nearest minute.
+ */
+function busLabel(sec: number): string {
+  const mins = Math.max(1, Math.round(Math.abs(sec) / 60));
+  return `${mins}m ${sec > 0 ? "late" : "early"}`;
+}
+
+/**
  * Resolve a CSS custom property on the document root to its concrete value.
  * Leaflet draws on canvas/SVG, not via classes, so markers read the AT palette
  * tokens from globals.css this way.
@@ -142,6 +152,16 @@ export default function StopMap({
               fillColor: colour,
               fillOpacity: 1,
             });
+            // Permanently label the late/early buses (the ones worth tracking);
+            // on-time buses stay an unlabelled dot to keep the map readable.
+            if (d != null && Math.abs(d) > VEHICLE_THRESHOLD) {
+              marker.bindTooltip(busLabel(d), {
+                permanent: true,
+                direction: "right",
+                offset: [6, 0],
+                className: "bus-delay-label",
+              });
+            }
             const popup = document.createElement("div");
             const title = document.createElement("strong");
             title.textContent = veh.label ?? veh.vehicleId;
