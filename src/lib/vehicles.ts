@@ -102,9 +102,12 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
 }
 
 /**
- * Cached snapshot of all live vehicles (15s TTL). Filter by route at the call site.
+ * Cached snapshot of all live vehicles (60s TTL). The cache is shared across all
+ * viewers and requests, so the upstream AT feed is hit at most once per window
+ * regardless of how many route pages are open or how often they poll - keeping
+ * well within AT's 35,000 calls/week quota. Filter by route at the call site.
  * @returns Live vehicles across the network.
  */
 export async function getLiveVehicles(): Promise<LiveVehicle[]> {
-  return unstable_cache(queryLiveVehicles, ["live-vehicles"], { revalidate: 15 })();
+  return unstable_cache(queryLiveVehicles, ["live-vehicles"], { revalidate: 60 })();
 }

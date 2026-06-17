@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.7.2] - 2026-06-17
+
+- Throttle the route map's live vehicle polling to a 60s shared server cache and a 60s refresh
+  (paused while the tab is hidden), so AT API usage stays well within the 35,000 calls/week quota
+  regardless of how many people are viewing.
+
 ## [0.7.1] - 2026-06-17
 
 - Insert realtime arrivals via a single bulk `insert` (`ordered: false`) instead of `createMany`

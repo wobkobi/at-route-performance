@@ -20,8 +20,8 @@ interface StopPoint {
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
-/** How often to refresh live vehicle positions. */
-const POLL_MS = 20_000;
+/** How often to refresh live vehicle positions while the tab is visible. */
+const POLL_MS = 60_000;
 
 /**
  * Resolve a CSS custom property on the document root to its concrete value.
@@ -155,7 +155,11 @@ export default function StopMap({
       };
 
       await refresh();
-      timer = setInterval(refresh, POLL_MS);
+      // Poll on the interval, but skip while the tab is hidden so a backgrounded
+      // page makes no upstream calls.
+      timer = setInterval(() => {
+        if (document.visibilityState === "visible") void refresh();
+      }, POLL_MS);
     })();
 
     return () => {
