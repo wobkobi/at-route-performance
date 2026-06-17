@@ -1,9 +1,26 @@
 // src/lib/data.ts
 import { prisma } from "@/lib/db";
 import type { DateRange } from "@/lib/time";
-import type { RouteByStop, RouteSummary, TopRouteRow } from "@/types/api";
+import type {
+  PerTripStat,
+  RouteByStop,
+  RouteSummary,
+  TopRouteRow,
+  TripStop,
+  TripTimeline,
+} from "@/types/api";
 import type { FleetSummary, ModeStat } from "@/types/dashboard";
 import { unstable_cache } from "next/cache";
+
+/**
+ * Normalise an extended-JSON date (`{ $date }`) or ISO string to an ISO string.
+ * `$runCommandRaw` returns dates as `{ $date }`; this flattens them.
+ * @param d - An extended-JSON date or an ISO string.
+ * @returns The ISO instant string.
+ */
+function toIso(d: { $date: string } | string): string {
+  return typeof d === "string" ? d : d.$date;
+}
 
 const MS_IN_WEEK = 604_800_000;
 const MS_IN_DAY = 86_400_000;
@@ -528,4 +545,147 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   const raw = res.cursor.firstBatch[0]?._id;
   if (!raw) return null;
   return new Date(typeof raw === "string" ? raw : raw.$date);
+}
+
+/** Parameters for {@link getWorstTripsOfDay}. */
+export interface WorstTripsParams {
+  routeId: string;
+  range: DateRange;
+  thresholdSec: number;
+  limit?: number;
+}
+
+/** Raw worst-trips row before the `scheduled_start` date is normalised. */
+interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
+  scheduled_start: { $date: string } | string;
+}
+
+/**
+ * Rank each run (trip) of a route on a day by how far off schedule it was.
+ * Sorted worst-first by average absolute deviation; the signed average is kept
+ * so the board can still show late/early direction. Cached briefly.
+ * @param p - Route, day window, on-time threshold, and optional row limit.
+ * @returns Per-trip rows, worst-first (up to `limit`, default 50).
+ */
+export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
+  const limit = p.limit ?? 50;
+  return unstable_cache(
+    async () => {
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          {
+            $match: {
+              routeId: p.routeId,
+              scheduledAt: {
+                $gte: { $date: p.range.start.toISOString() },
+                $lt: { $date: p.range.end.toISOString() },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$tripId",
+              vehicle_id: { $first: "$vehicleId" },
+              scheduled_start: { $min: "$scheduledAt" },
+              stops: { $sum: 1 },
+              avg_delay_sec: { $avg: "$deviationSec" },
+              avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+              worst_delay_sec: { $max: "$deviationSec" },
+            },
+          },
+          { $sort: { avg_abs_delay_sec: -1 as const } },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              trip_id: { $toString: "$_id" },
+              vehicle_id: 1,
+              scheduled_start: 1,
+              stops: 1,
+              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+              avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+              worst_delay_sec: 1,
+            },
+          },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: WorstTripRaw[] } };
+      return res.cursor.firstBatch.map((t) => ({
+        ...t,
+        scheduled_start: toIso(t.scheduled_start),
+      }));
+    },
+    [
+      "worst-trips",
+      p.routeId,
+      p.range.start.toISOString(),
+      p.range.end.toISOString(),
+      String(limit),
+    ],
+    { revalidate: 300 },
+  )();
+}
+
+/** Raw trip-timeline stop row before the `scheduled_at` date is normalised. */
+interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
+  scheduled_at: { $date: string } | string;
+  vehicle_id: string | null;
+}
+
+/**
+ * A single trip's stop-by-stop scheduled-vs-actual timeline, in stop order.
+ * The `$match { tripId }` rides the existing unique `[tripId, stopId, actualAt]`
+ * index. Cached briefly; a run's events are immutable once recorded.
+ * @param tripId - The trip (run) to resolve.
+ * @param routeId - The owning route (for the header).
+ * @returns The route header, vehicle, and ordered stops.
+ */
+export async function getTripTimeline(tripId: string, routeId: string): Promise<TripTimeline> {
+  return unstable_cache(
+    async () => {
+      const route = await prisma.route.findUnique({
+        where: { id: routeId },
+        select: { shortName: true, longName: true, mode: true },
+      });
+
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          { $match: { tripId } },
+          { $sort: { scheduledAt: 1 as const } },
+          { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+          { $unwind: "$stop" },
+          {
+            $project: {
+              _id: 0,
+              stop_id: { $toString: "$stopId" },
+              name: "$stop.name",
+              scheduled_at: "$scheduledAt",
+              deviation_sec: "$deviationSec",
+              vehicle_id: "$vehicleId",
+            },
+          },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
+
+      const rows = res.cursor.firstBatch;
+      return {
+        trip_id: tripId,
+        route: route
+          ? { shortName: route.shortName, longName: route.longName, mode: route.mode }
+          : null,
+        vehicle_id: rows.find((r) => r.vehicle_id)?.vehicle_id ?? null,
+        stops: rows.map((r) => ({
+          stop_id: r.stop_id,
+          name: r.name,
+          scheduled_at: toIso(r.scheduled_at),
+          deviation_sec: r.deviation_sec,
+        })),
+      };
+    },
+    ["trip-timeline", tripId, routeId],
+    { revalidate: 300 },
+  )();
 }
