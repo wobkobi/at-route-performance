@@ -4,13 +4,27 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.17.0] - 2026-06-18
+
+- Polish the line diagram: draw every direction (and disjoint sub-pattern) at one shared scale so it
+  fills the card width and dot/label sizes stay consistent; only fork for substantial divergences
+  (no tiny 1-2 stop offshoots); reserve space so the angled delay labels no longer clip at the edge;
+  show variants that share no origin with the trunk as their own labelled lines instead of dropping
+  them; hide stops the route has not served in the past week (origin termini, never-served pattern
+  stops) while keeping recently-active stops without today's data as neutral dots; and add a
+  hover/focus tooltip showing each stop's name and delay.
+
 ## [0.16.0] - 2026-06-18
 
 - Rework the route line diagram in the style of AT's rapid-transit map: one bold, rounded trunk line
   per direction that snake-wraps to stay on-screen, with trip variants that end at different spots
   forking off at 45 degrees, and white stations ringed by their average delay (termini drawn
-  larger). Each stop is labelled with its delay; stops with no recorded arrivals that day (origin
-  termini, unserved variants) stay on the line as neutral dots without a label.
+  larger).
+- Base the day-focused views on a transit **service day** (5am to 5am the next day) instead of the
+  calendar day, so a route's post-midnight runs count under the day they started; the trip timeline
+  and the "most recent day with data" fallback use it too.
+- Show the actual service **date** with prev / next day arrows on the home and route pages (a
+  `?day=` link) instead of just labelling it "today", so you can step back to earlier days.
 
 ## [0.15.1] - 2026-06-18
 

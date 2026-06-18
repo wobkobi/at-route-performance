@@ -4,7 +4,12 @@ import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { cn } from "@/lib/cn";
-import { getMostRecentDataDay, getRouteStats, getWorstTripsOfDay } from "@/lib/data";
+import {
+  getMostRecentDataDay,
+  getRecentStopIds,
+  getRouteStats,
+  getWorstTripsOfDay,
+} from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
@@ -50,8 +55,26 @@ interface RouteView {
  */
 async function buildRouteView(routeId: string, byStop: MapStop[]): Promise<RouteView> {
   const empty = { stops: byStop, routeLines: [], directions: {}, nameByStop: new Map() };
-  const pattern = await getRoutePattern(routeId).catch(() => ({ directions: {} }));
-  const variants = Object.values(pattern.directions).flatMap((d) => d.variants);
+  const [pattern, activeStops] = await Promise.all([
+    getRoutePattern(routeId).catch(() => ({ directions: {} }) as RoutePattern),
+    getRecentStopIds(routeId).catch(() => new Set<string>()),
+  ]);
+
+  // Drop pattern stops the route has not served in the last week (origin termini,
+  // never-served variants, id mismatches); keep all if there is no recent data.
+  const active = activeStops.size > 0;
+  const directions: RoutePattern["directions"] = {};
+  for (const [dir, d] of Object.entries(pattern.directions)) {
+    const variants = d.variants
+      .map((v) => ({
+        ...v,
+        stopIds: active ? v.stopIds.filter((s) => activeStops.has(s)) : v.stopIds,
+      }))
+      .filter((v) => v.stopIds.length >= 2);
+    if (variants.length > 0) directions[Number(dir)] = { variants };
+  }
+
+  const variants = Object.values(directions).flatMap((d) => d.variants);
   const patternStopIds = [...new Set(variants.flatMap((v) => v.stopIds))];
   if (patternStopIds.length === 0) return empty;
 
@@ -86,7 +109,7 @@ async function buildRouteView(routeId: string, byStop: MapStop[]): Promise<Route
     )
     .filter((line) => line.length > 1);
 
-  return { stops, routeLines, directions: pattern.directions, nameByStop };
+  return { stops, routeLines, directions, nameByStop };
 }
 
 /**

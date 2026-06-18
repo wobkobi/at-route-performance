@@ -35,6 +35,7 @@ describe("buildBranchedSnake", () => {
       labels: [],
       width: 0,
       height: 0,
+      separate: [],
     });
   });
 
@@ -58,13 +59,13 @@ describe("buildBranchedSnake", () => {
     expect(line.labels).toHaveLength(0);
   });
 
-  it("forks a divergent tail off the trunk on a 45deg diagonal", () => {
+  it("forks a substantial divergent tail off the trunk on a 45deg diagonal", () => {
     const line = buildBranchedSnake(
-      [variant(["a", "b", "c", "d"], 10), variant(["a", "b", "x", "y"], 4, "via X")],
+      [variant(["a", "b", "c", "d"], 10), variant(["a", "b", "x", "y", "z"], 4, "via X")],
       OPTS,
     );
     const branchNodes = line.nodes.filter((n) => n.branch > 0).map((n) => n.stopId);
-    expect(branchNodes).toEqual(["x", "y"]);
+    expect(branchNodes).toEqual(["x", "y", "z"]);
     // Every branch edge is a true 45deg segment (equal x and y deltas).
     const diagonals = line.edges.filter((e) => e.diagonal);
     expect(diagonals.length).toBeGreaterThan(0);
@@ -72,5 +73,24 @@ describe("buildBranchedSnake", () => {
       expect(Math.abs(e.x2 - e.x1)).toBe(Math.abs(e.y2 - e.y1));
     }
     expect(line.labels[0]).toMatchObject({ headsign: "via X" });
+  });
+
+  it("does not fork a tiny (1-2 stop) divergence", () => {
+    const line = buildBranchedSnake(
+      [variant(["a", "b", "c", "d"], 10), variant(["a", "b", "x", "y"], 4, "via X")],
+      OPTS,
+    );
+    expect(line.nodes.every((n) => n.branch === 0)).toBe(true);
+    expect(line.labels).toHaveLength(0);
+  });
+
+  it("returns a variant that shares no leading stop as a separate line", () => {
+    // A separate pattern (different origin) is not drawn as a stray branch; it
+    // is handed back in `separate` to render as its own line.
+    const elsewhere = variant(["m", "n", "o"], 5, "elsewhere");
+    const line = buildBranchedSnake([variant(["a", "b", "c", "d"], 10), elsewhere], OPTS);
+    expect(line.nodes.every((n) => n.branch === 0)).toBe(true);
+    expect(line.labels).toHaveLength(0);
+    expect(line.separate).toEqual([elsewhere]);
   });
 });

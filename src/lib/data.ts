@@ -563,6 +563,35 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   return new Date(bucket.getTime() + 12 * 60 * 60 * 1000);
 }
 
+/**
+ * Stop ids a route has actually served (recorded an arrival at) in the last
+ * `days`. The route diagram uses this to drop pattern stops the route never
+ * really stops at (origin termini, never-served variants, id mismatches), while
+ * keeping recently-active stops that merely lack today's data. Cached hourly.
+ * @param routeId - AT route id.
+ * @param days - How many days back to consider a stop active (default 7).
+ * @returns The set of active stop ids.
+ */
+export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<string>> {
+  const since = new Date(Date.now() - days * MS_IN_DAY);
+  const ids = await unstable_cache(
+    async () => {
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          { $match: { routeId, scheduledAt: { $gte: { $date: since.toISOString() } } } },
+          { $group: { _id: "$stopId" } },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      return res.cursor.firstBatch.map((r) => r._id);
+    },
+    ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
+    { revalidate: 3600 },
+  )();
+  return new Set(ids);
+}
+
 /** Parameters for {@link getWorstTripsOfDay}. */
 export interface WorstTripsParams {
   routeId: string;
