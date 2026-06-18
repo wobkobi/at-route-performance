@@ -146,20 +146,23 @@ export default async function RoutePage({
 
   return (
     <main className={cn("space-y-6")}>
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
-            {colour && (
-              <span
-                aria-hidden="true"
-                className={cn("inline-block h-4 w-4 shrink-0 rounded-full", colour)}
-              />
-            )}
-            {title}
-          </h1>
-          {route?.longName && <p className="text-at-muted">{route.longName}</p>}
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
+              {colour && (
+                <span
+                  aria-hidden="true"
+                  className={cn("inline-block h-4 w-4 shrink-0 rounded-full", colour)}
+                />
+              )}
+              {title}
+            </h1>
+            {route?.longName && <p className="text-at-muted">{route.longName}</p>}
+          </div>
+          <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
         </div>
-        <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
+        <div className="metro-rule" />
       </header>
 
       <section className={cn("grid grid-cols-2 gap-4 sm:grid-cols-4")}>

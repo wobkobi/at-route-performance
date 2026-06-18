@@ -1,3 +1,4 @@
+import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -31,8 +32,8 @@ export default function RootLayout({
           "min-h-screen bg-at-bg font-brand text-at-ink antialiased",
         )}
       >
-        <header className="border-b border-at-border bg-at-surface">
-          <div className="mx-auto flex max-w-6xl items-center px-4 py-3">
+        <header className="bg-at-surface">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
             <Link href="/" className="flex items-center gap-3">
               {/* Shore colourway on the light header; never recolour/distort (guide p13/p14) */}
               <Image
@@ -47,9 +48,15 @@ export default function RootLayout({
                 Route Performance
               </span>
             </Link>
+            <SiteNav />
           </div>
+          {/* Metro-line accent runs full width beneath the header. */}
+          <div className="metro-rule" />
         </header>
         <div className={cn("mx-auto max-w-6xl px-4 py-8")}>{children}</div>
+        <footer className="mx-auto max-w-6xl px-4 pt-4 pb-8 text-xs text-at-muted">
+          Live performance from Auckland Transport&apos;s GTFS feeds. Times are Auckland local.
+        </footer>
       </body>
     </html>
   );

@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.13.0] - 2026-06-18
+
+- Refresh the site's look and layout, keeping the AT identity (no dark mode): a real top navigation
+  (Today / Rankings) with a metro-line colour accent under the header and on every page masthead, a
+  slim footer noting the data source, and a more editorial home headline that names the day.
+
 ## [0.12.0] - 2026-06-18
 
 - Add a branching, metro-style line diagram below the route map: each direction's stops in order,

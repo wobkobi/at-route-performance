@@ -90,12 +90,24 @@ export default async function Home({
 
   return (
     <main className={cn("space-y-6")}>
-      <div className={cn("flex items-end justify-between")}>
-        <h1 className={cn("text-3xl leading-headline font-ultra tracking-zero")}>
-          Network performance
-        </h1>
-        <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
-      </div>
+      <header className={cn("space-y-3")}>
+        <div className={cn("flex flex-wrap items-end justify-between gap-2")}>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold tracking-zero text-at-shore uppercase">
+              Auckland network
+            </p>
+            <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>
+              How Auckland&apos;s transport ran {dayLabel === "today" ? "today" : `on ${dayLabel}`}
+            </h1>
+            <p className="max-w-2xl text-at-muted">
+              Punctuality across every bus, train, and ferry route - the earliest, the latest, and
+              the most reliable, refreshed through the day.
+            </p>
+          </div>
+          <span className={cn("shrink-0 text-sm text-at-muted")}>Showing {dayLabel}</span>
+        </div>
+        <div className="metro-rule" />
+      </header>
 
       <FleetSummary data={fleet} />
 

@@ -157,10 +157,16 @@ export default async function RankingsPage({
 
   return (
     <main className={cn("space-y-6")}>
-      <div className={cn("flex flex-wrap items-end justify-between gap-3")}>
-        <h1 className={cn("text-3xl leading-headline font-ultra tracking-zero")}>Top routes</h1>
-        <WindowControls window={window} periodLabel={label} />
-      </div>
+      <header className={cn("space-y-3")}>
+        <div className={cn("flex flex-wrap items-end justify-between gap-3")}>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold tracking-zero text-at-shore uppercase">Rankings</p>
+            <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>Top routes</h1>
+          </div>
+          <WindowControls window={window} periodLabel={label} />
+        </div>
+        <div className="metro-rule" />
+      </header>
 
       <FleetSummary data={fleet} />
 

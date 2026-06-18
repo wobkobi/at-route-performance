@@ -129,3 +129,21 @@
   line-height: 0;
   transform-origin: center;
 }
+
+/*
+  Metro-line accent: a segmented multi-colour bar from the AT palette, evoking a
+  transit map's coloured lines. Used under page mastheads and the site header.
+*/
+.metro-rule {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--color-at-shore) 0 16.66%,
+    var(--color-at-bright-green) 16.66% 33.33%,
+    var(--color-at-commercial) 33.33% 50%,
+    var(--color-at-disruption) 50% 66.66%,
+    var(--color-at-cosmic) 66.66% 83.33%,
+    var(--color-at-greeny-bluey) 83.33% 100%
+  );
+}
