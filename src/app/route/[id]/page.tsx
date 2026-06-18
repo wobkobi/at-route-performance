@@ -1,4 +1,5 @@
 // src/app/route/[id]/page.tsx
+import { DayNav } from "@/components/DayNav";
 import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
@@ -9,7 +10,7 @@ import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { getRoutePattern } from "@/lib/route-pattern";
-import { nzDayRange, type DateRange } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { routeStatsQuery } from "@/lib/validate";
 import type { RoutePattern } from "@/types/api";
 import type { JSX } from "react";
@@ -17,6 +18,7 @@ import type { JSX } from "react";
 /** Query params for route detail (raw strings). */
 interface StatsSearchParams {
   thresholdSec?: string;
+  day?: string;
 }
 
 /** A stop plotted on the route map. */
@@ -27,19 +29,6 @@ interface MapStop {
   lon: number;
   avg_delay_sec: number | null;
   on_time_pct: number | null;
-}
-
-/**
- * Auckland-local day label (e.g. `18 Jun`) for a day window's start.
- * @param at - An instant within the local day.
- * @returns The label.
- */
-function dayLabelFor(at: Date): string {
-  return at.toLocaleDateString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "numeric",
-    month: "short",
-  });
 }
 
 /** The route map + line-diagram inputs derived from the schedule pattern. */
@@ -121,18 +110,21 @@ export default async function RoutePage({
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
 
-  // Today (Auckland); fall back to the most recent day with data when empty.
-  let range: DateRange = nzDayRange();
-  let dayLabel = "today";
+  // Service day from ?day (or the current one); fall back to the most recent
+  // service day with data only when no explicit day was requested.
+  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
+  let serviceDate = nzServiceDayString(range.start);
   let stats = await getRouteStats({ routeId: id, from: range.start, to: range.end, thresholdSec });
-  if ((stats.summary?.events ?? 0) === 0) {
+  if (!requestedDay && (stats.summary?.events ?? 0) === 0) {
     const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
     if (latestDay) {
-      range = nzDayRange(latestDay);
-      dayLabel = dayLabelFor(range.start);
+      range = nzServiceDayRange(latestDay);
+      serviceDate = nzServiceDayString(range.start);
       stats = await getRouteStats({ routeId: id, from: range.start, to: range.end, thresholdSec });
     }
   }
+  const hasNextDay = serviceDate < nzServiceDayString();
   const { route, summary, byStop } = stats;
 
   const [trips, view] = await Promise.all([
@@ -160,7 +152,12 @@ export default async function RoutePage({
             </h1>
             {route?.longName && <p className="text-at-muted">{route.longName}</p>}
           </div>
-          <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
+          <DayNav
+            basePath={`/route/${encodeURIComponent(id)}`}
+            serviceDate={serviceDate}
+            preservedParams={{}}
+            hasNext={hasNextDay}
+          />
         </div>
         <div className="metro-rule" />
       </header>

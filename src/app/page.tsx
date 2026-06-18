@@ -1,3 +1,4 @@
+import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
@@ -15,7 +16,7 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzDayRange } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import type { JSX } from "react";
 
 const THRESHOLD_SEC = 300;
@@ -27,6 +28,7 @@ interface HomeSearchParams {
   mode?: string;
   school?: string;
   dir?: string;
+  day?: string;
 }
 
 /**
@@ -49,23 +51,22 @@ export default async function Home({
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
-  // Today (Auckland). If today lacks enough data to fill the boards yet (early
-  // morning, or ingest still catching up), fall back to the latest day that does.
-  let range = nzDayRange();
+  // Service day from ?day (or the current one). When no day is requested and the
+  // current service day is too sparse to fill the boards (early morning, or
+  // ingest catching up), fall back to the most recent service day that does.
+  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  let range = nzServiceDayRange(requestedDay ?? new Date());
+  let serviceDate = nzServiceDayString(range.start);
   let rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  let dayLabel = "today";
-  if (!rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
+  if (!requestedDay && !rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
     const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
     if (latestDay) {
-      range = nzDayRange(latestDay);
+      range = nzServiceDayRange(latestDay);
+      serviceDate = nzServiceDayString(range.start);
       rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-      dayLabel = latestDay.toLocaleDateString("en-NZ", {
-        timeZone: "Pacific/Auckland",
-        day: "numeric",
-        month: "short",
-      });
     }
   }
+  const hasNextDay = serviceDate < nzServiceDayString();
 
   const [fleet, modes] = await Promise.all([
     getFleetSummary(range, THRESHOLD_SEC, TODAY_REVALIDATE),
@@ -86,24 +87,36 @@ export default async function Home({
   const schoolPreserved: Record<string, string> = {};
   const dirPreserved: Record<string, string> = {};
   const tablePreserved: Record<string, string> = {};
+  const dayPreserved: Record<string, string> = {};
   if (sort !== "on_time") {
     modePreserved.sort = sort;
     schoolPreserved.sort = sort;
     dirPreserved.sort = sort;
+    dayPreserved.sort = sort;
   }
   if (mode) {
     schoolPreserved.mode = mode;
     dirPreserved.mode = mode;
     tablePreserved.mode = mode;
+    dayPreserved.mode = mode;
   }
   if (includeSchool) {
     modePreserved.school = "1";
     dirPreserved.school = "1";
     tablePreserved.school = "1";
+    dayPreserved.school = "1";
   }
   if (dir) {
     modePreserved.dir = dir;
     schoolPreserved.dir = dir;
+    dayPreserved.dir = dir;
+  }
+  // A non-default day pins itself onto every other control's links.
+  if (requestedDay) {
+    modePreserved.day = requestedDay;
+    schoolPreserved.day = requestedDay;
+    dirPreserved.day = requestedDay;
+    tablePreserved.day = requestedDay;
   }
 
   return (
@@ -115,14 +128,19 @@ export default async function Home({
               Auckland network
             </p>
             <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>
-              How Auckland&apos;s transport ran {dayLabel === "today" ? "today" : `on ${dayLabel}`}
+              How Auckland&apos;s transport ran
             </h1>
             <p className="max-w-2xl text-at-muted">
               Punctuality across every bus, train, and ferry route - which ran furthest off schedule
               and which were the most reliable, refreshed through the day.
             </p>
           </div>
-          <span className={cn("shrink-0 text-sm text-at-muted")}>Showing {dayLabel}</span>
+          <DayNav
+            basePath="/"
+            serviceDate={serviceDate}
+            preservedParams={dayPreserved}
+            hasNext={hasNextDay}
+          />
         </div>
         <div className="metro-rule" />
       </header>

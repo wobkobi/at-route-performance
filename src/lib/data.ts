@@ -1,6 +1,6 @@
 // src/lib/data.ts
 import { prisma } from "@/lib/db";
-import { nzDayRange, type DateRange } from "@/lib/time";
+import { nzServiceDayRange, SERVICE_START_HOUR, type DateRange } from "@/lib/time";
 import type {
   PerTripStat,
   RouteByStop,
@@ -520,11 +520,12 @@ export async function getLatestEventDate(): Promise<Date | null> {
 }
 
 /**
- * The most recent Auckland-local day that has at least `minEvents` events.
- * The home page falls back to this when the current day is sparse, so a day that
- * straddles UTC midnight (a few late events) does not strand the bulk of data.
- * @param minEvents - Minimum events a day needs to qualify.
- * @returns A Date inside that local day (its UTC midnight), or null when empty.
+ * The most recent Auckland-local **service day** that has at least `minEvents`
+ * events. Day-focused pages fall back to this when the current service day is
+ * sparse. Events are bucketed by service day (shift back by `SERVICE_START_HOUR`
+ * then truncate), so a post-midnight run counts under the day it started.
+ * @param minEvents - Minimum events a service day needs to qualify.
+ * @returns A Date inside that service day (its local noon), or null when empty.
  */
 export async function getMostRecentDataDay(minEvents: number): Promise<Date | null> {
   const res = (await prisma.$runCommandRaw({
@@ -532,7 +533,19 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
     pipeline: [
       {
         $group: {
-          _id: { $dateTrunc: { date: "$scheduledAt", unit: "day", timezone: "Pacific/Auckland" } },
+          _id: {
+            $dateTrunc: {
+              date: {
+                $dateSubtract: {
+                  startDate: "$scheduledAt",
+                  unit: "hour",
+                  amount: SERVICE_START_HOUR,
+                },
+              },
+              unit: "day",
+              timezone: "Pacific/Auckland",
+            },
+          },
           n: { $sum: 1 },
         },
       },
@@ -544,7 +557,10 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   })) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?._id;
   if (!raw) return null;
-  return new Date(typeof raw === "string" ? raw : raw.$date);
+  // The bucket is the service day's local midnight; return its local noon so the
+  // hour sits safely inside the service day for nzServiceDayRange.
+  const bucket = new Date(typeof raw === "string" ? raw : raw.$date);
+  return new Date(bucket.getTime() + 12 * 60 * 60 * 1000);
 }
 
 /** Parameters for {@link getWorstTripsOfDay}. */
@@ -634,10 +650,11 @@ interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
 }
 
 /**
- * The Auckland-local day window of a trip's most recent run, so an undated
- * timeline request still resolves to a single service day.
+ * The Auckland-local service-day window of a trip's most recent run, so an
+ * undated timeline request still resolves to a single run (a run that crosses
+ * midnight stays in one service day).
  * @param tripId - The trip to scope.
- * @returns The latest run's day window, or null when the trip has no events.
+ * @returns The latest run's service-day window, or null when the trip has no events.
  */
 async function latestTripDay(tripId: string): Promise<DateRange | null> {
   const res = (await prisma.$runCommandRaw({
@@ -649,7 +666,7 @@ async function latestTripDay(tripId: string): Promise<DateRange | null> {
     cursor: { batchSize: 1 },
   })) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?.max;
-  return raw ? nzDayRange(new Date(toIso(raw))) : null;
+  return raw ? nzServiceDayRange(new Date(toIso(raw))) : null;
 }
 
 /**

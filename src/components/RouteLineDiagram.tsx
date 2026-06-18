@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 import { formatDelay } from "@/lib/format";
-import { buildBranchedLine } from "@/lib/route-graph";
+import { buildBranchedSnake, type SnakeOpts } from "@/lib/route-graph";
 import type { RoutePattern } from "@/types/api";
 import type { JSX } from "react";
 
@@ -16,28 +16,36 @@ export interface RouteLineDiagramProps {
   thresholdSec: number;
 }
 
-const COL = 26; // px between columns
-const ROW = 34; // px between tracks
-const PAD = 22; // px padding around the grid
-const R = 5; // node radius
+/** Compact metro-style layout geometry (pixels). */
+const OPTS: SnakeOpts = {
+  cols: 12,
+  col: 34,
+  row: 64,
+  padX: 20,
+  padTop: 66,
+  padBottom: 24,
+  branchStep: 30,
+  maxBranchStops: 6,
+};
 
 /**
- * Tailwind `fill-*` utility for a stop node, by its average delay.
+ * Tailwind `stroke-*` utility for a station ring, by its average delay.
  * @param delay - Average delay in seconds, or null when unknown.
  * @param thresholdSec - Threshold for late/early banding.
- * @returns A fill utility class.
+ * @returns A stroke utility class.
  */
-function fillFor(delay: number | null | undefined, thresholdSec: number): string {
-  if (delay == null) return "fill-at-border";
-  if (delay > thresholdSec) return "fill-at-late";
-  if (delay < -thresholdSec) return "fill-at-early";
-  return "fill-at-ontime";
+function ringClass(delay: number | null | undefined, thresholdSec: number): string {
+  if (delay == null) return "stroke-at-border";
+  if (delay > thresholdSec) return "stroke-at-late";
+  if (delay < -thresholdSec) return "stroke-at-early";
+  return "stroke-at-ontime";
 }
 
 /**
- * Branching, metro-style diagram of a route's stops per direction, with forks
- * where trip variants diverge. Each stop node is coloured by its average delay.
- * Server-rendered SVG; long routes scroll horizontally.
+ * Per-direction stop diagram in the style of AT's rapid-transit map: a bold,
+ * rounded trunk line that snake-wraps to stay on-screen, divergent trip variants
+ * forking off at 45deg, and white stations ringed by their average delay.
+ * Server-rendered SVG.
  * @param props - Diagram props.
  * @param props.directions - Stopping patterns grouped by direction.
  * @param props.delayByStop - Average delay per stop id.
@@ -55,86 +63,117 @@ export function RouteLineDiagram({
     .map(Number)
     .sort((a, b) => a - b);
 
-  if (dirKeys.length === 0) {
-    return (
-      <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
-        <h2 className={cn("mb-1 text-lg font-semibold")}>Line diagram</h2>
-        <p className={cn("text-sm text-at-muted")}>No schedule pattern available for this route.</p>
-      </section>
-    );
-  }
-
   return (
     <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
       <h2 className={cn("mb-1 text-lg font-semibold")}>Line diagram</h2>
       <p className={cn("mb-3 text-xs text-at-muted")}>
-        Stops in order per direction, coloured by average delay. Forks show trip variants.
+        Stops in order per direction. Branches show where some trips end at different spots; each
+        stop is ringed by its average delay.
       </p>
-      <div className={cn("space-y-6")}>
-        {dirKeys.map((dir, di) => {
-          const { variants } = directions[dir];
-          const line = buildBranchedLine(variants);
-          if (line.nodes.length === 0) return null;
-          const w = PAD * 2 + Math.max(0, line.width - 1) * COL;
-          const h = PAD * 2 + Math.max(0, line.height - 1) * ROW;
-          const trunkHead = variants[0]?.headsign;
-          return (
-            <div key={dir}>
-              <h3 className={cn("mb-2 text-sm font-semibold text-at-muted")}>
-                {trunkHead ? `To ${trunkHead}` : `Direction ${di + 1}`}
-              </h3>
-              <div className={cn("overflow-x-auto")}>
+      {dirKeys.length === 0 ? (
+        <p className={cn("text-sm text-at-muted")}>No schedule pattern available for this route.</p>
+      ) : (
+        <div className={cn("space-y-6")}>
+          {dirKeys.map((dir, di) => {
+            const { variants } = directions[dir];
+            const line = buildBranchedSnake(variants, OPTS);
+            if (line.nodes.length === 0) return null;
+            const trunkNodes = line.nodes.filter((n) => n.branch === 0);
+            const trunkPoints = trunkNodes.map((n) => `${n.cx},${n.cy}`).join(" ");
+            const first = trunkNodes[0];
+            const last = trunkNodes[trunkNodes.length - 1];
+            const trunkHead = variants[0]?.headsign;
+            return (
+              <div key={dir}>
+                <h3 className={cn("mb-2 text-sm font-semibold text-at-muted")}>
+                  {trunkHead ? `To ${trunkHead}` : `Direction ${di + 1}`}
+                </h3>
                 <svg
-                  width={w}
-                  height={h}
-                  viewBox={`0 0 ${w} ${h}`}
+                  viewBox={`0 0 ${line.width} ${line.height}`}
                   role="img"
-                  aria-label={`Stop diagram, ${trunkHead ? `to ${trunkHead}` : `direction ${di + 1}`}`}
+                  aria-label={trunkHead ? `Line to ${trunkHead}` : `Direction ${di + 1} line`}
+                  className={cn("h-auto w-full")}
+                  preserveAspectRatio="xMinYMid meet"
                 >
-                  {line.edges.map((e, i) => (
-                    <line
-                      key={`e${i}`}
-                      x1={PAD + e.x1 * COL}
-                      y1={PAD + e.y1 * ROW}
-                      x2={PAD + e.x2 * COL}
-                      y2={PAD + e.y2 * ROW}
-                      strokeWidth={e.branch ? 2 : 3}
-                      className={cn(e.branch ? "stroke-at-muted" : "stroke-at-shore")}
-                    />
-                  ))}
+                  {/* Bold rounded trunk; 90deg snake turns read as smooth bends. */}
+                  <polyline
+                    points={trunkPoints}
+                    fill="none"
+                    strokeWidth={7}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    className={cn("stroke-at-shore")}
+                  />
+                  {/* Divergent branches at 45deg, drawn muted and thinner. */}
+                  {line.edges
+                    .filter((e) => e.diagonal)
+                    .map((e, i) => (
+                      <line
+                        key={`b${i}`}
+                        x1={e.x1}
+                        y1={e.y1}
+                        x2={e.x2}
+                        y2={e.y2}
+                        strokeWidth={4}
+                        strokeLinecap="round"
+                        className={cn("stroke-at-muted")}
+                      />
+                    ))}
+                  {line.nodes.map((n, idx) => {
+                    const delay = delayByStop.get(n.stopId);
+                    const name = nameByStop.get(n.stopId) ?? n.stopId;
+                    const hasData = delay != null;
+                    const label = hasData ? formatDelay(delay, { thresholdSec }) : null;
+                    const terminus = n.branch === 0 && (n === first || n === last);
+                    return (
+                      <g key={`${n.branch}-${idx}`}>
+                        {/* Delay time angled 45deg up-and-right; omitted when no data. */}
+                        {label && (
+                          <text
+                            x={n.cx}
+                            y={n.cy}
+                            dx={8}
+                            dy={3}
+                            textAnchor="start"
+                            transform={`rotate(-45 ${n.cx} ${n.cy})`}
+                            className={cn("fill-at-ink text-[10px] font-semibold")}
+                          >
+                            {label}
+                          </text>
+                        )}
+                        {/* White station, delay-coloured ring; termini read larger. */}
+                        <circle
+                          cx={n.cx}
+                          cy={n.cy}
+                          r={terminus ? 6.5 : 4.5}
+                          strokeWidth={terminus ? 3.5 : 3}
+                          className={cn("fill-at-surface", ringClass(delay, thresholdSec))}
+                        >
+                          <title>{`${name}${label ? ` · ${label}` : " · no data"}`}</title>
+                        </circle>
+                      </g>
+                    );
+                  })}
+                  {/* Branch destinations. */}
                   {line.labels.map((l, i) => (
                     <text
                       key={`l${i}`}
-                      x={PAD + l.x * COL}
-                      y={PAD + l.y * ROW - 8}
-                      className={cn("fill-at-muted text-[10px]")}
+                      x={l.cx}
+                      y={l.cy}
+                      dx={9}
+                      dy={4}
+                      textAnchor="start"
+                      className={cn("fill-at-muted text-[10px] font-semibold")}
                     >
                       {l.headsign ?? "variant"}
                     </text>
                   ))}
-                  {line.nodes.map((n) => {
-                    const delay = delayByStop.get(n.stopId);
-                    const name = nameByStop.get(n.stopId) ?? n.stopId;
-                    const label = delay == null ? "no data" : formatDelay(delay, { thresholdSec });
-                    return (
-                      <circle
-                        key={n.stopId}
-                        cx={PAD + n.x * COL}
-                        cy={PAD + n.y * ROW}
-                        r={R}
-                        strokeWidth={2}
-                        className={cn("stroke-at-ink", fillFor(delay, thresholdSec))}
-                      >
-                        <title>{`${name} · ${label}`}</title>
-                      </circle>
-                    );
-                  })}
                 </svg>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

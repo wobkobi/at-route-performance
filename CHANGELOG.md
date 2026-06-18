@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.16.0] - 2026-06-18
+
+- Rework the route line diagram in the style of AT's rapid-transit map: one bold, rounded trunk line
+  per direction that snake-wraps to stay on-screen, with trip variants that end at different spots
+  forking off at 45 degrees, and white stations ringed by their average delay (termini drawn
+  larger). Each stop is labelled with its delay; stops with no recorded arrivals that day (origin
+  termini, unserved variants) stay on the line as neutral dots without a label.
+
 ## [0.15.1] - 2026-06-18
 
 - Fix the per-trip timeline mixing multiple service days: a GTFS trip id repeats every day it runs,

@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import { getTripTimeline } from "@/lib/data";
 import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
-import { nzDayRange } from "@/lib/time";
+import { nzServiceDayRange } from "@/lib/time";
 import type { JSX } from "react";
 
 const THRESHOLD_SEC = 300;
@@ -39,7 +39,7 @@ export default async function TripPage({
   const { d } = (await searchParams) ?? {};
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
   // do not interleave; falls back to the trip's latest day when `d` is absent.
-  const day = d ? nzDayRange(new Date(d)) : undefined;
+  const day = d ? nzServiceDayRange(new Date(d)) : undefined;
   const timeline = await getTripTimeline(tripId, id, day);
   const { route, stops, vehicle_id } = timeline;
 

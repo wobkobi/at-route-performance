@@ -1,6 +1,16 @@
-import { buildBranchedLine } from "@/lib/route-graph";
+import { buildBranchedSnake, type SnakeOpts } from "@/lib/route-graph";
 import type { RouteVariant } from "@/types/api";
 import { describe, expect, it } from "vitest";
+
+const OPTS: SnakeOpts = {
+  cols: 3,
+  col: 10,
+  row: 20,
+  padX: 5,
+  padTop: 5,
+  padBottom: 5,
+  branchStep: 8,
+};
 
 /**
  * Build a RouteVariant for tests.
@@ -17,9 +27,9 @@ function variant(
   return { stopIds, tripCount, headsign, directionId: 0 };
 }
 
-describe("buildBranchedLine", () => {
+describe("buildBranchedSnake", () => {
   it("returns an empty layout for no variants", () => {
-    expect(buildBranchedLine([])).toEqual({
+    expect(buildBranchedSnake([], OPTS)).toEqual({
       nodes: [],
       edges: [],
       labels: [],
@@ -28,50 +38,39 @@ describe("buildBranchedLine", () => {
     });
   });
 
-  it("lays the most-frequent variant out as the trunk on track 0", () => {
-    const line = buildBranchedLine([variant(["a", "b"], 2), variant(["a", "b", "c", "d"], 9)]);
-    // The 9-trip variant wins the trunk despite being listed second.
-    const trunk = ["a", "b", "c", "d"];
-    trunk.forEach((id, i) => {
-      const node = line.nodes.find((n) => n.stopId === id);
-      expect(node).toMatchObject({ x: i, y: 0 });
-    });
-    expect(line.height).toBe(1); // no branches
+  it("snake-wraps the trunk, turning vertically at the row end", () => {
+    // 4 stops, 3 cols: row0 = a,b,c (left>right); row1 starts at the same column as c.
+    const line = buildBranchedSnake([variant(["a", "b", "c", "d"], 5)], OPTS);
+    expect(line.nodes.every((n) => n.branch === 0)).toBe(true);
+    const c = line.nodes.find((n) => n.stopId === "c")!;
+    const d = line.nodes.find((n) => n.stopId === "d")!;
+    expect(d.cx).toBe(c.cx); // turn is a vertical step
+    expect(d.cy).toBe(c.cy + OPTS.row);
     expect(line.labels).toHaveLength(0);
   });
 
-  it("adds no branch when a variant just ends early (subset of the trunk)", () => {
-    const line = buildBranchedLine([
-      variant(["a", "b", "c", "d", "e"], 10),
-      variant(["a", "b", "c"], 3),
-    ]);
-    expect(line.height).toBe(1);
-    expect(line.nodes.every((n) => n.y === 0)).toBe(true);
+  it("adds no branch when a variant just ends early (prefix of the trunk)", () => {
+    const line = buildBranchedSnake(
+      [variant(["a", "b", "c", "d"], 10), variant(["a", "b", "c"], 4)],
+      OPTS,
+    );
+    expect(line.nodes.every((n) => n.branch === 0)).toBe(true);
     expect(line.labels).toHaveLength(0);
   });
 
-  it("routes a variant's unshared stops onto a branch track", () => {
-    const line = buildBranchedLine([
-      variant(["a", "b", "c", "d"], 10),
-      variant(["a", "b", "x", "y"], 4, "via X"),
-    ]);
-    // Shared stops stay on the trunk.
-    expect(line.nodes.find((n) => n.stopId === "a")).toMatchObject({ y: 0 });
-    expect(line.nodes.find((n) => n.stopId === "b")).toMatchObject({ y: 0 });
-    // The unshared stops sit on a non-zero track, labelled by headsign.
-    const branchNodes = line.nodes.filter((n) => n.y > 0).map((n) => n.stopId);
-    expect(branchNodes).toEqual(expect.arrayContaining(["x", "y"]));
-    expect(line.height).toBeGreaterThan(1);
+  it("forks a divergent tail off the trunk on a 45deg diagonal", () => {
+    const line = buildBranchedSnake(
+      [variant(["a", "b", "c", "d"], 10), variant(["a", "b", "x", "y"], 4, "via X")],
+      OPTS,
+    );
+    const branchNodes = line.nodes.filter((n) => n.branch > 0).map((n) => n.stopId);
+    expect(branchNodes).toEqual(["x", "y"]);
+    // Every branch edge is a true 45deg segment (equal x and y deltas).
+    const diagonals = line.edges.filter((e) => e.diagonal);
+    expect(diagonals.length).toBeGreaterThan(0);
+    for (const e of diagonals) {
+      expect(Math.abs(e.x2 - e.x1)).toBe(Math.abs(e.y2 - e.y1));
+    }
     expect(line.labels[0]).toMatchObject({ headsign: "via X" });
-  });
-
-  it("shares a branch stop seen across two variants rather than duplicating it", () => {
-    const line = buildBranchedLine([
-      variant(["a", "b", "c"], 10),
-      variant(["a", "b", "z"], 5),
-      variant(["a", "b", "z"], 4),
-    ]);
-    const zNodes = line.nodes.filter((n) => n.stopId === "z");
-    expect(zNodes).toHaveLength(1);
   });
 });
