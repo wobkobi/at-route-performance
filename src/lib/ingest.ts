@@ -1,6 +1,7 @@
 // src/lib/ingest.ts
 import { fetchRoutes, fetchStops, mapRouteType } from "@/lib/at-static";
 import { prisma } from "@/lib/db";
+import { fetchShapes } from "@/lib/gtfs-shapes";
 
 /** Max update operations per bulk `update` command (well under Mongo's 1000 cap). */
 const BATCH = 500;
@@ -77,5 +78,21 @@ export async function syncStops(date?: string): Promise<{ upserted: number }> {
     }));
 
   await bulkUpsert("Stop", ops);
+  return { upserted: ops.length };
+}
+
+/**
+ * Fetch GTFS shape geometry from AT's full feed and upsert it into the Shape
+ * collection (simplified `[lon, lat]` paths keyed by shape_id).
+ * @returns Count of shapes upserted.
+ */
+export async function syncShapes(): Promise<{ upserted: number }> {
+  const shapes = await fetchShapes();
+  const ops: UpsertOp[] = shapes.map((s) => ({
+    q: { _id: s.id },
+    u: { $set: { points: s.points } },
+  }));
+
+  await bulkUpsert("Shape", ops);
   return { upserted: ops.length };
 }

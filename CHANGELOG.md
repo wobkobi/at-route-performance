@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.18.0] - 2026-06-18
+
+- Ingest GTFS route geometry: a new `/api/ingest/gtfs/shapes` endpoint downloads AT's full GTFS zip,
+  extracts `shapes.txt`, simplifies each shape, and upserts it into a new `Shape` collection (keyed
+  by `shape_id`). This backs the road-following route map. Documented as a weekly cron job.
+
 ## [0.17.0] - 2026-06-18
 
 - Polish the line diagram: draw every direction (and disjoint sub-pattern) at one shared scale so it

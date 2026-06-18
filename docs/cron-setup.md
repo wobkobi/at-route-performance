@@ -28,12 +28,13 @@ Authorization: Bearer <CRON_SECRET>
 
 All endpoints are **POST**. Create one cron-job.org job per row.
 
-| Job              | URL path                | Method | Schedule        | Purpose                        |
-| ---------------- | ----------------------- | ------ | --------------- | ------------------------------ |
-| Realtime ingest  | `/api/ingest/at`        | POST   | every 2 minutes | Capture GTFS-RT arrival events |
-| GTFS static sync | `/api/ingest/gtfs/sync` | POST   | daily 13:00 UTC | Refresh routes + stops         |
-| Daily aggregate  | `/api/ingest/aggregate` | POST   | daily 13:30 UTC | Roll up DailyRouteSummary      |
-| Cleanup          | `/api/ingest/cleanup`   | POST   | daily 14:00 UTC | Apply retention                |
+| Job              | URL path                  | Method | Schedule         | Purpose                         |
+| ---------------- | ------------------------- | ------ | ---------------- | ------------------------------- |
+| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes  | Capture GTFS-RT arrival events  |
+| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 13:00 UTC  | Refresh routes + stops          |
+| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 13:10 UTC | Refresh route geometry (shapes) |
+| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 13:30 UTC  | Roll up DailyRouteSummary       |
+| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 14:00 UTC  | Apply retention                 |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
@@ -44,6 +45,8 @@ job if you prefer to schedule in NZ local time.
 
 - The realtime job is the one that fills the home page's "today" view. Lower the frequency to every
   5 minutes if you want fewer invocations.
+- The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
+  so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, actualAt)` drops duplicate
   arrivals, so overlapping runs are safe.
 - cron-job.org's free tier supports down to 1-minute intervals and custom headers.
