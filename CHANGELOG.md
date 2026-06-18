@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.11.0] - 2026-06-18
+
+- Add a per-trip timeline page (`/route/[id]/trip/[tripId]`) showing one run's stop-by-stop
+  scheduled times and how early or late it was at each stop, reached from the worst-buses ranking.
+
 ## [0.10.0] - 2026-06-18
 
 - Revamp the route detail page around a "worst buses of the day" ranking: each run of the route,
