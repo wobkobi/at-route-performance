@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.20.0] - 2026-06-19
+
+- Sort the route page's "buses of the day" board: by most off-schedule (default), latest, earliest,
+  or departure time, via sort chips that keep the selected day.
+
 ## [0.19.1] - 2026-06-19
 
 - Show ferries when the Ferry filter is selected. The boards required >=10 events, which a ferry

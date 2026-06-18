@@ -9,6 +9,7 @@ import {
   getRecentStopIds,
   getRouteStats,
   getWorstTripsOfDay,
+  type TripSort,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { formatDelay } from "@/lib/format";
@@ -28,7 +29,11 @@ const ROAD_OFFSET_M = 12;
 interface StatsSearchParams {
   thresholdSec?: string;
   day?: string;
+  tsort?: string;
 }
+
+/** Valid trip-sort values. */
+const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
 
 /** A stop plotted on the route map. */
 interface MapStop {
@@ -156,6 +161,9 @@ export default async function RoutePage({
   const sp = (await searchParams) ?? {};
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
+  const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
+    ? (sp.tsort as TripSort)
+    : "off";
 
   // Service day from ?day (or the current one); fall back to the most recent
   // service day with data only when no explicit day was requested.
@@ -175,10 +183,15 @@ export default async function RoutePage({
   const { route, summary, byStop } = stats;
 
   const [trips, view] = await Promise.all([
-    getWorstTripsOfDay({ routeId: id, range, thresholdSec }),
+    getWorstTripsOfDay({ routeId: id, range, thresholdSec, sort: tripSort }),
     buildRouteView(id, byStop),
   ]);
   const delayByStop = new Map(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
+
+  // The trip-sort links keep the current day (and threshold, if set).
+  const tripPreserved: Record<string, string> = {};
+  if (requestedDay) tripPreserved.day = requestedDay;
+  if (sp.thresholdSec) tripPreserved.thresholdSec = sp.thresholdSec;
 
   const title = route?.shortName ?? id;
   const colour = linkColour(route?.shortName, route?.longName);
@@ -232,7 +245,14 @@ export default async function RoutePage({
         </div>
       </section>
 
-      <WorstTripsBoard routeId={id} trips={trips} thresholdSec={thresholdSec} />
+      <WorstTripsBoard
+        routeId={id}
+        trips={trips}
+        thresholdSec={thresholdSec}
+        sort={tripSort}
+        basePath={`/route/${encodeURIComponent(id)}`}
+        preservedParams={tripPreserved}
+      />
 
       {view.stops.length > 0 && (
         <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>

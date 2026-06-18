@@ -598,7 +598,20 @@ export interface WorstTripsParams {
   range: DateRange;
   thresholdSec: number;
   limit?: number;
+  /** How to order the runs (default "off" = most off-schedule). */
+  sort?: TripSort;
 }
+
+/** Ordering for {@link getWorstTripsOfDay}. */
+export type TripSort = "off" | "late" | "early" | "departure";
+
+/** Mongo `$sort` stage for each trip ordering. */
+const TRIP_SORTS: Record<TripSort, Record<string, 1 | -1>> = {
+  off: { avg_abs_delay_sec: -1 },
+  late: { avg_delay_sec: -1 },
+  early: { avg_delay_sec: 1 },
+  departure: { scheduled_start: 1 },
+};
 
 /** Raw worst-trips row before the `scheduled_start` date is normalised. */
 interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
@@ -606,14 +619,15 @@ interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
 }
 
 /**
- * Rank each run (trip) of a route on a day by how far off schedule it was.
- * Sorted worst-first by average absolute deviation; the signed average is kept
- * so the board can still show late/early direction. Cached briefly.
- * @param p - Route, day window, on-time threshold, and optional row limit.
- * @returns Per-trip rows, worst-first (up to `limit`, default 50).
+ * List each run (trip) of a route on a day, ordered by `sort` (default most
+ * off-schedule by average absolute deviation). The signed average is kept so the
+ * board can still show late/early direction. Cached briefly.
+ * @param p - Route, day window, on-time threshold, optional row limit and sort.
+ * @returns Per-trip rows ordered by `sort` (up to `limit`, default 50).
  */
 export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
   const limit = p.limit ?? 50;
+  const sort = p.sort ?? "off";
   return unstable_cache(
     async () => {
       const res = (await prisma.$runCommandRaw({
@@ -639,7 +653,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
               worst_delay_sec: { $max: "$deviationSec" },
             },
           },
-          { $sort: { avg_abs_delay_sec: -1 as const } },
+          { $sort: TRIP_SORTS[sort] },
           { $limit: limit },
           {
             $project: {
@@ -667,6 +681,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
       p.range.start.toISOString(),
       p.range.end.toISOString(),
       String(limit),
+      sort,
     ],
     { revalidate: 300 },
   )();
