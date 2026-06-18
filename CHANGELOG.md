@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.14.0] - 2026-06-18
+
+- Replace the home/rankings "Running latest" and "Running earliest" boards with a single "Most
+  off-schedule" list ranked by how far off schedule each route ran (largest absolute average
+  deviation), with All / Late / Early filter chips that compose with the mode and school filters.
+- Fix the school-bus filter hiding almost no school services: the `S###` code lives in the route's
+  long name (the short name is the plain number, e.g. `046`), and the code can carry a trailing
+  variant letter (e.g. `S046D`, `S001N`). Match the pattern in either name so school services are
+  excluded by default as intended.
+
 ## [0.13.0] - 2026-06-18
 
 - Refresh the site's look and layout, keeping the AT identity (no dark mode): a real top navigation

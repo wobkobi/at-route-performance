@@ -1,3 +1,4 @@
+import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
@@ -6,7 +7,13 @@ import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { cn } from "@/lib/cn";
 import { getFleetSummary, getModeBreakdown, getMostRecentDataDay, getRankings } from "@/lib/data";
-import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
+import {
+  deriveBoards,
+  deriveOffSchedule,
+  MIN_BOARD_EVENTS,
+  sortRows,
+  type DelayDirection,
+} from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzDayRange } from "@/lib/time";
 import type { JSX } from "react";
@@ -19,6 +26,7 @@ interface HomeSearchParams {
   sort?: string;
   mode?: string;
   school?: string;
+  dir?: string;
 }
 
 /**
@@ -39,6 +47,7 @@ export default async function Home({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
+  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
   // Today (Auckland). If today lacks enough data to fill the boards yet (early
   // morning, or ingest still catching up), fall back to the latest day that does.
@@ -68,24 +77,33 @@ export default async function Home({
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered
-    : modeFiltered.filter((r) => !isSchoolBus(r.short_name));
+    : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
   const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
+  const offSchedule = deriveOffSchedule(visible, { minEvents: MIN_BOARD_EVENTS, direction: dir });
 
   // Each control preserves the others' params so the filters compose in links.
   const modePreserved: Record<string, string> = {};
   const schoolPreserved: Record<string, string> = {};
+  const dirPreserved: Record<string, string> = {};
   const tablePreserved: Record<string, string> = {};
   if (sort !== "on_time") {
     modePreserved.sort = sort;
     schoolPreserved.sort = sort;
+    dirPreserved.sort = sort;
   }
   if (mode) {
     schoolPreserved.mode = mode;
+    dirPreserved.mode = mode;
     tablePreserved.mode = mode;
   }
   if (includeSchool) {
     modePreserved.school = "1";
+    dirPreserved.school = "1";
     tablePreserved.school = "1";
+  }
+  if (dir) {
+    modePreserved.dir = dir;
+    schoolPreserved.dir = dir;
   }
 
   return (
@@ -100,8 +118,8 @@ export default async function Home({
               How Auckland&apos;s transport ran {dayLabel === "today" ? "today" : `on ${dayLabel}`}
             </h1>
             <p className="max-w-2xl text-at-muted">
-              Punctuality across every bus, train, and ferry route - the earliest, the latest, and
-              the most reliable, refreshed through the day.
+              Punctuality across every bus, train, and ferry route - which ran furthest off schedule
+              and which were the most reliable, refreshed through the day.
             </p>
           </div>
           <span className={cn("shrink-0 text-sm text-at-muted")}>Showing {dayLabel}</span>
@@ -116,18 +134,14 @@ export default async function Home({
         <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
       </div>
 
-      <div className={cn("grid gap-4 md:grid-cols-2")}>
+      <div className={cn("space-y-2")}>
+        <div className={cn("flex justify-end")}>
+          <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
+        </div>
         <RankBoard
-          title="Running latest"
-          accentClass="text-at-late"
-          rows={boards.latest}
-          metric="delay"
-          thresholdSec={THRESHOLD_SEC}
-        />
-        <RankBoard
-          title="Running earliest"
-          accentClass="text-at-early"
-          rows={boards.earliest}
+          title="Most off-schedule"
+          accentClass="text-at-ink"
+          rows={offSchedule}
           metric="delay"
           thresholdSec={THRESHOLD_SEC}
         />

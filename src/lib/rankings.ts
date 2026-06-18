@@ -47,6 +47,40 @@ export function deriveBoards(rows: TopRouteRow[], options: DeriveBoardsOptions):
   return { latest, earliest, reliable };
 }
 
+/** Delay direction filter: late only, early only, or null for both. */
+export type DelayDirection = "late" | "early" | null;
+
+/** Options for {@link deriveOffSchedule}. */
+export interface OffScheduleOptions {
+  /** Minimum events for a route to qualify. */
+  minEvents: number;
+  /** Max rows (default 10). */
+  size?: number;
+  /** Restrict to late-only or early-only routes; null keeps both. */
+  direction?: DelayDirection;
+}
+
+/**
+ * Rank routes by how far off schedule they ran, worst first (largest absolute
+ * average deviation). Optionally restrict to late-only or early-only routes;
+ * each row keeps its signed average so the direction stays visible.
+ * @param rows - Per-route aggregated rows for the window.
+ * @param options - Event threshold, board size, and optional direction filter.
+ * @returns The sorted, sliced board.
+ */
+export function deriveOffSchedule(rows: TopRouteRow[], options: OffScheduleOptions): TopRouteRow[] {
+  const size = options.size ?? 10;
+  let eligible = rows.filter((r) => r.events >= options.minEvents && r.avg_delay_sec !== null);
+  if (options.direction === "late") {
+    eligible = eligible.filter((r) => (r.avg_delay_sec as number) > 0);
+  } else if (options.direction === "early") {
+    eligible = eligible.filter((r) => (r.avg_delay_sec as number) < 0);
+  }
+  return [...eligible]
+    .sort((a, b) => Math.abs(b.avg_delay_sec as number) - Math.abs(a.avg_delay_sec as number))
+    .slice(0, size);
+}
+
 /** Default minimum events for board eligibility. */
 export const MIN_BOARD_EVENTS = 10;
 

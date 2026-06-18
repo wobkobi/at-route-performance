@@ -1,13 +1,19 @@
 // src/lib/school-bus.ts
 
-/** AT school services use a short name of `S` followed by three digits, e.g. `S123`. */
-const SCHOOL_BUS_RE = /^S\d{3}$/i;
+/**
+ * AT school services carry an `S` + three-digit code, optionally with a trailing
+ * variant letter, e.g. `S046`, `S046D`, `S001N`. In the feed this code lives in
+ * the route's long name (the short name is the plain number, e.g. `046`), so
+ * callers should test both names.
+ */
+const SCHOOL_BUS_RE = /^S\d{3}[A-Z]*$/i;
 
 /**
- * Whether a route is a school service, by its short name (e.g. `S123`).
- * @param shortName - The route's short name (may be null).
- * @returns True for school-service routes.
+ * Whether a route is a school service, by any of its names. Pass both the short
+ * and long name, since the `S###` code is usually in the long name.
+ * @param names - Candidate names (e.g. short and long route names); nullables ignored.
+ * @returns True when any name is a school-service code.
  */
-export function isSchoolBus(shortName: string | null | undefined): boolean {
-  return !!shortName && SCHOOL_BUS_RE.test(shortName);
+export function isSchoolBus(...names: Array<string | null | undefined>): boolean {
+  return names.some((n) => !!n && SCHOOL_BUS_RE.test(n));
 }
