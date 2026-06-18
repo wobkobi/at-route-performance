@@ -73,3 +73,6 @@ prisma/generated/
 
 # One-off exploratory research scripts (kept local, not production code)
 scripts/spike-*.ts
+
+# Local-only AT brand asset dump (large PDFs/EPS; not for redistribution or deploy)
+public/everything/
