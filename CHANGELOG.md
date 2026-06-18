@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.19.1] - 2026-06-19
+
+- Show ferries when the Ferry filter is selected. The boards required >=10 events, which a ferry
+  rarely reaches in a day (they run a handful of times), so picking Ferry came up empty. A
+  single-mode view now uses a lower event threshold so low-frequency modes appear.
+
 ## [0.19.0] - 2026-06-19
 
 - Make the route map follow the actual road. Each direction's path now uses its GTFS shape geometry

@@ -12,6 +12,7 @@ import {
   deriveBoards,
   deriveOffSchedule,
   MIN_BOARD_EVENTS,
+  MIN_MODE_EVENTS,
   sortRows,
   type DelayDirection,
 } from "@/lib/rankings";
@@ -141,8 +142,10 @@ export default async function RankingsPage({
   const visible = includeSchool
     ? modeFiltered
     : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
-  const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
-  const offSchedule = deriveOffSchedule(visible, { minEvents: MIN_BOARD_EVENTS, direction: dir });
+  // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
+  const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  const boards = deriveBoards(visible, { minEvents: boardMin });
+  const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
 
   const tablePreserved: Record<string, string> = { window };
   const modePreserved: Record<string, string> = { window };

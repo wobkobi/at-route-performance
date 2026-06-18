@@ -85,6 +85,13 @@ export function deriveOffSchedule(rows: TopRouteRow[], options: OffScheduleOptio
 export const MIN_BOARD_EVENTS = 10;
 
 /**
+ * Lower board-eligibility threshold used when a single mode is filtered. Ferries
+ * (and other low-frequency services) run few times a day, so the default
+ * `MIN_BOARD_EVENTS` would empty their boards; a focused mode view shows them.
+ */
+export const MIN_MODE_EVENTS = 3;
+
+/**
  * Sort rows for the full table by the requested column (stable copy).
  * @param rows - Rows to sort.
  * @param sort - Column to sort by.
