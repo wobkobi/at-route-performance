@@ -14,11 +14,16 @@ export interface WorstTripsBoardProps {
   thresholdSec: number;
   /** Active ordering. */
   sort: TripSort;
+  /** Route mode, for the heading noun (bus/train/ferry). */
+  mode?: string;
   /** Page path the sort links point at (the route page). */
   basePath: string;
   /** Query params to preserve on the sort links (the `tsort` param is set here). */
   preservedParams: Record<string, string>;
 }
+
+/** Plural service noun per mode, for the board heading. */
+const MODE_NOUN: Record<string, string> = { BUS: "Buses", TRAIN: "Trains", FERRY: "Ferries" };
 
 const SORTS: { key: TripSort; label: string }[] = [
   { key: "off", label: "Most off" },
@@ -50,6 +55,7 @@ function localTime(iso: string): string {
  * @param props.trips - Trips ordered by the active sort.
  * @param props.thresholdSec - Threshold (s) for early/late colour banding.
  * @param props.sort - The active ordering.
+ * @param props.mode - Route mode, for the heading noun.
  * @param props.basePath - Page path the sort links point at.
  * @param props.preservedParams - Query params to keep when changing sort.
  * @returns The board element.
@@ -59,14 +65,16 @@ export function WorstTripsBoard({
   trips,
   thresholdSec,
   sort,
+  mode,
   basePath,
   preservedParams,
 }: WorstTripsBoardProps): JSX.Element {
+  const noun = (mode && MODE_NOUN[mode]) ?? "Services";
   return (
     <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
       <div className={cn("mb-3 flex flex-wrap items-center justify-between gap-2")}>
         <h2 className={cn("text-sm font-ultra tracking-zero text-at-late uppercase")}>
-          Buses of the day
+          {noun} of the day
         </h2>
         <div className={cn("flex flex-wrap gap-1")}>
           {SORTS.map((s) => {

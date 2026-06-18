@@ -250,6 +250,7 @@ export default async function RoutePage({
         trips={trips}
         thresholdSec={thresholdSec}
         sort={tripSort}
+        mode={route?.mode}
         basePath={`/route/${encodeURIComponent(id)}`}
         preservedParams={tripPreserved}
       />

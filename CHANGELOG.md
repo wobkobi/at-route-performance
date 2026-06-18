@@ -4,6 +4,11 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.20.1] - 2026-06-19
+
+- Make the route trip board heading match the mode: "Ferries of the day" / "Trains of the day"
+  instead of always "Buses of the day".
+
 ## [0.20.0] - 2026-06-19
 
 - Sort the route page's "buses of the day" board: by most off-schedule (default), latest, earliest,
