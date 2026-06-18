@@ -29,6 +29,8 @@ interface StopMapWrapperProps {
   routeLines?: Array<Array<[number, number]>>;
   /** When set, the map polls and plots live vehicles for this route. */
   routeId?: string;
+  /** Route transport mode, selecting the live-vehicle glyph. */
+  mode?: "BUS" | "TRAIN" | "FERRY";
   className?: string;
 }
 

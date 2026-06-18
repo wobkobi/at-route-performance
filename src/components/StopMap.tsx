@@ -47,37 +47,76 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/** The route's transport mode; picks the vehicle glyph. */
+type RouteMode = "BUS" | "TRAIN" | "FERRY";
+
 /**
- * A rotatable arrow `divIcon` for a live bus, pointing to its compass heading.
- * The triangle points north at 0deg, so a wrapper rotation of `bearing` aims it
- * along the direction of travel; fill is the delay colour with a white halo.
+ * Inner SVG markup for each mode's vehicle glyph, on a 24x24 grid. Windows are
+ * knocked out in white so they read against the marker's white disc; every other
+ * shape inherits the marker colour. Authored in the AT visual style (the brand
+ * asset pack ships no mode pictograms).
+ */
+const MODE_GLYPHS: Record<RouteMode, string> = {
+  BUS:
+    '<rect x="4" y="4" width="16" height="13" rx="2.5"/>' +
+    '<rect x="6" y="7" width="5" height="4" rx="0.6" fill="#fff"/>' +
+    '<rect x="13" y="7" width="5" height="4" rx="0.6" fill="#fff"/>' +
+    '<circle cx="8" cy="18" r="1.7"/><circle cx="16" cy="18" r="1.7"/>',
+  TRAIN:
+    '<rect x="5" y="3" width="14" height="15" rx="3.5"/>' +
+    '<rect x="7" y="6" width="10" height="5" rx="1" fill="#fff"/>' +
+    '<circle cx="9" cy="14.3" r="1.3" fill="#fff"/><circle cx="15" cy="14.3" r="1.3" fill="#fff"/>' +
+    '<rect x="6.6" y="18" width="2.1" height="3.2" rx="1" transform="rotate(22 7.6 19.6)"/>' +
+    '<rect x="15.3" y="18" width="2.1" height="3.2" rx="1" transform="rotate(-22 16.4 19.6)"/>',
+  FERRY:
+    '<path d="M4 13h16l-1.5 4.6a3 3 0 0 1-2.1 2 2 2 0 0 1-1.8-.5 1.8 1.8 0 0 0-2.4 0 2 2 0 0 1-1.8.5 3 3 0 0 1-2.1-2Z"/>' +
+    '<rect x="7" y="6" width="10" height="6" rx="1"/>' +
+    '<rect x="8.8" y="8" width="2.4" height="2.6" fill="#fff"/>' +
+    '<rect x="12.8" y="8" width="2.4" height="2.6" fill="#fff"/>' +
+    '<rect x="11" y="3" width="2" height="3" rx="0.5"/>',
+};
+
+/**
+ * A live-vehicle `divIcon`: a white disc ringed in the delay colour, the route's
+ * mode glyph centred and upright, and (when a heading is known) a same-coloured
+ * arrow on the ring pointing the way the vehicle is travelling.
  * @param L - The Leaflet module.
- * @param bearing - Compass heading in degrees (0 = north).
- * @param colour - Fill colour for the arrow.
+ * @param opts - Marker options.
+ * @param opts.colour - Delay colour for the ring, glyph, and arrow.
+ * @param opts.mode - Route mode selecting the glyph (defaults to bus).
+ * @param opts.bearing - Compass heading in degrees (0 = north), or null.
  * @returns A Leaflet divIcon.
  */
-function arrowIcon(L: typeof import("leaflet"), bearing: number, colour: string): Leaflet.DivIcon {
-  const svg =
-    `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">` +
-    `<path d="M12 2 L20 21 L12 16 L4 21 Z" fill="${colour}" stroke="#fff" stroke-width="1.6" ` +
-    `stroke-linejoin="round"/></svg>`;
-  return L.divIcon({
-    className: "bus-arrow-wrap",
-    html: `<div class="bus-arrow" style="transform: rotate(${Math.round(bearing)}deg)">${svg}</div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
+function vehicleIcon(
+  L: typeof import("leaflet"),
+  opts: { colour: string; mode: RouteMode; bearing: number | null },
+): Leaflet.DivIcon {
+  const glyph = MODE_GLYPHS[opts.mode] ?? MODE_GLYPHS.BUS;
+  // Arrow sits on the ring's top edge, then the whole group rotates to the bearing.
+  const arrow =
+    opts.bearing == null
+      ? ""
+      : `<g transform="rotate(${Math.round(opts.bearing)} 18 18)">` +
+        `<path d="M18 0.5 L22.5 6.5 L13.5 6.5 Z" fill="${opts.colour}"/></g>`;
+  const html =
+    `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">` +
+    arrow +
+    `<circle cx="18" cy="18" r="12" fill="#fff" stroke="${opts.colour}" stroke-width="3"/>` +
+    `<g transform="translate(9 9) scale(0.75)" fill="${opts.colour}">${glyph}</g>` +
+    `</svg>`;
+  return L.divIcon({ className: "vehicle-marker", html, iconSize: [36, 36], iconAnchor: [18, 18] });
 }
 
 /**
  * Leaflet route map: the route's path (straight lines between stops in order),
  * its stops as black-outlined nodes coloured by average delay, and the live
- * vehicles as heading arrows coloured by punctuality (late = Anther Red,
- * early = Bright Green, on-time = Shore).
+ * vehicles as mode-glyph markers in a punctuality-coloured ring (late = Anther
+ * Red, early = Bright Green, on-time = Shore) with a heading arrow.
  * @param root0 - Props object.
  * @param root0.stops - Stops to plot (each with id, name, lat, lon, and delay info).
  * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
  * @param root0.routeId - When set, poll and plot live vehicles for this route.
+ * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
  * @param root0.className - Optional extra classes for the container.
  * @returns Map container element.
  */
@@ -85,11 +124,13 @@ export default function StopMap({
   stops,
   routeLines = [],
   routeId,
+  mode = "BUS",
   className,
 }: {
   stops: StopPoint[];
   routeLines?: RouteLine[];
   routeId?: string;
+  mode?: RouteMode;
   className?: string;
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
@@ -192,18 +233,11 @@ export default function StopMap({
                   : d < -VEHICLE_THRESHOLD
                     ? earlyColour
                     : ontimeColour;
-            // With a heading, show a rotated arrow pointing the way the bus is
-            // travelling; without one, fall back to a white-ringed dot.
-            const marker =
-              veh.bearing == null
-                ? L.circleMarker([veh.lat, veh.lon], {
-                    radius: 8,
-                    color: "#ffffff",
-                    weight: 2,
-                    fillColor: colour,
-                    fillOpacity: 1,
-                  })
-                : L.marker([veh.lat, veh.lon], { icon: arrowIcon(L, veh.bearing, colour) });
+            // Mode glyph in a delay-coloured ring; a same-coloured arrow on the
+            // ring points the heading when the feed reports one.
+            const marker = L.marker([veh.lat, veh.lon], {
+              icon: vehicleIcon(L, { colour, mode, bearing: veh.bearing }),
+            });
             // Permanently label the late/early buses (the ones worth tracking);
             // on-time buses stay an unlabelled marker to keep the map readable.
             if (d != null && Math.abs(d) > VEHICLE_THRESHOLD) {
@@ -244,7 +278,7 @@ export default function StopMap({
       if (timer) clearInterval(timer);
       map?.remove();
     };
-  }, [stops, routeLines, routeId]);
+  }, [stops, routeLines, routeId, mode]);
 
   return <div ref={divRef} className={cn("w-full bg-at-bg", className)} />;
 }

@@ -210,6 +210,7 @@ export default async function RoutePage({
             stops={view.stops}
             routeLines={view.routeLines}
             routeId={id}
+            mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
             className="h-100 rounded-lg"
           />
         </section>

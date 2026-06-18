@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.15.0] - 2026-06-18
+
+- Style the route map's live vehicles as AT-style markers: the route's mode glyph (bus/train/ferry)
+  on a white disc, ringed in the punctuality colour, with a same-coloured arrow on the ring pointing
+  the direction of travel. Stops stay as the only black-outlined dots.
+
 ## [0.14.0] - 2026-06-18
 
 - Replace the home/rankings "Running latest" and "Running earliest" boards with a single "Most

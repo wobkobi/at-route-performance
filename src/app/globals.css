@@ -122,12 +122,9 @@
   display: none; /* hide the tooltip pointer */
 }
 
-/* Heading arrow for a live bus; rotated inline to its compass bearing. */
-.bus-arrow {
-  width: 18px;
-  height: 18px;
+/* Live-vehicle marker: glyph + delay-coloured ring + heading arrow (inline SVG). */
+.vehicle-marker {
   line-height: 0;
-  transform-origin: center;
 }
 
 /*
