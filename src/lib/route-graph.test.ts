@@ -24,7 +24,7 @@ function variant(
   tripCount: number,
   headsign: string | null = null,
 ): RouteVariant {
-  return { stopIds, tripCount, headsign, directionId: 0 };
+  return { stopIds, tripCount, headsign, directionId: 0, shapeId: null };
 }
 
 describe("buildBranchedSnake", () => {

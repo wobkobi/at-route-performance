@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.19.0] - 2026-06-19
+
+- Make the route map follow the actual road. Each direction's path now uses its GTFS shape geometry
+  (from the new `Shape` collection) instead of straight stop-to-stop lines, drawn as two parallel
+  offset lines so the two directions read separately. Routes without a stored shape fall back to the
+  straight stop-to-stop line.
+
 ## [0.18.0] - 2026-06-18
 
 - Ingest GTFS route geometry: a new `/api/ingest/gtfs/shapes` endpoint downloads AT's full GTFS zip,

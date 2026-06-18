@@ -14,11 +14,15 @@ import { prisma } from "@/lib/db";
 import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { offsetPath } from "@/lib/route-geo";
 import { getRoutePattern } from "@/lib/route-pattern";
 import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { routeStatsQuery } from "@/lib/validate";
 import type { RoutePattern } from "@/types/api";
 import type { JSX } from "react";
+
+/** Metres each direction's road line is offset from the centreline. */
+const ROAD_OFFSET_M = 12;
 
 /** Query params for route detail (raw strings). */
 interface StatsSearchParams {
@@ -100,13 +104,33 @@ async function buildRouteView(routeId: string, byStop: MapStop[]): Promise<Route
     };
   });
 
+  // Road geometry: load the variants' GTFS shapes; draw each direction's real
+  // road path offset to its own side. Fall back to a straight stop-to-stop line
+  // when a shape is missing.
+  const shapeIds = [...new Set(variants.map((v) => v.shapeId).filter((s): s is string => !!s))];
+  const shapeDocs = shapeIds.length
+    ? await prisma.shape.findMany({
+        where: { id: { in: shapeIds } },
+        select: { id: true, points: true },
+      })
+    : [];
+  const shapeById = new Map(
+    shapeDocs.map((s) => [s.id, s.points as unknown as [number, number][]]),
+  );
+
   const routeLines = variants
-    .map((v) =>
-      v.stopIds
+    .map((v) => {
+      const shape = v.shapeId ? shapeById.get(v.shapeId) : undefined;
+      if (shape && shape.length > 1) {
+        // Shapes store [lon, lat]; the map wants [lat, lon]. Offset by direction.
+        const latLon = shape.map(([lon, lat]) => [lat, lon] as [number, number]);
+        return offsetPath(latLon, ROAD_OFFSET_M, v.directionId === 1 ? -1 : 1);
+      }
+      return v.stopIds
         .map((id) => coordById.get(id))
         .filter((s): s is NonNullable<typeof s> => Boolean(s))
-        .map((s) => [s.lat, s.lon] as [number, number]),
-    )
+        .map((s) => [s.lat, s.lon] as [number, number]);
+    })
     .filter((line) => line.length > 1);
 
   return { stops, routeLines, directions, nameByStop };

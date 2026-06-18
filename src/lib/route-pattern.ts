@@ -38,7 +38,13 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
   // Group trips by (direction, shape); keep a representative trip and a count.
   const groups = new Map<
     string,
-    { directionId: number; headsign: string | null; tripId: string; count: number }
+    {
+      directionId: number;
+      headsign: string | null;
+      tripId: string;
+      shapeId: string | null;
+      count: number;
+    }
   >();
   for (const t of trips) {
     if (!t.trip_id) continue;
@@ -52,6 +58,7 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
         directionId,
         headsign: t.trip_headsign ?? null,
         tripId: t.trip_id,
+        shapeId: t.shape_id ?? null,
         count: 1,
       });
     }
@@ -75,6 +82,7 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
       directionId: g.directionId,
       tripCount: g.count,
       stopIds,
+      shapeId: g.shapeId,
     });
   }
 

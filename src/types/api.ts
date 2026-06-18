@@ -70,6 +70,8 @@ export interface RouteVariant {
   tripCount: number;
   /** Stop ids in schedule (stop_sequence) order. */
   stopIds: string[];
+  /** GTFS shape id for the road geometry, when the schedule reports one. */
+  shapeId: string | null;
 }
 
 // A route's stopping patterns grouped by direction.
