@@ -4,6 +4,17 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.10.0] - 2026-06-18
+
+- Revamp the route detail page around a "worst buses of the day" ranking: each run of the route,
+  ranked by how far off schedule it ran (average absolute deviation), showing its scheduled start,
+  vehicle, and stop count, each linking to that run's stop-by-stop timeline. The page is now
+  day-focused (today, falling back to the most recent day with data), like the home page.
+- Turn the route map into a proper route map: draw the route path between stops in order, outline
+  the stop nodes so they pop, and show live buses as heading arrows pointing the way they are
+  travelling. The path uses straight segments between stops - AT's API exposes stop order but no
+  road geometry.
+
 ## [0.9.0] - 2026-06-18
 
 - Hide school-service routes (short name `S###`) from the home and rankings lists by default, with a

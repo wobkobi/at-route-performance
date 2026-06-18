@@ -121,3 +121,11 @@
 .leaflet-tooltip.bus-delay-label::before {
   display: none; /* hide the tooltip pointer */
 }
+
+/* Heading arrow for a live bus; rotated inline to its compass bearing. */
+.bus-arrow {
+  width: 18px;
+  height: 18px;
+  line-height: 0;
+  transform-origin: center;
+}

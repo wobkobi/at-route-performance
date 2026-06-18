@@ -17,6 +17,9 @@ interface StopPoint {
   on_time_pct: number | null;
 }
 
+/** A route variant's path: stop coordinates in schedule order. */
+type RouteLine = Array<[number, number]>;
+
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
@@ -45,20 +48,47 @@ function cssVar(name: string): string {
 }
 
 /**
- * Leaflet map of a route's stops plus its live vehicles, each coloured by
- * punctuality (late = Anther Red, early = Bright Green, on-time = Shore).
+ * A rotatable arrow `divIcon` for a live bus, pointing to its compass heading.
+ * The triangle points north at 0deg, so a wrapper rotation of `bearing` aims it
+ * along the direction of travel; fill is the delay colour with a white halo.
+ * @param L - The Leaflet module.
+ * @param bearing - Compass heading in degrees (0 = north).
+ * @param colour - Fill colour for the arrow.
+ * @returns A Leaflet divIcon.
+ */
+function arrowIcon(L: typeof import("leaflet"), bearing: number, colour: string): Leaflet.DivIcon {
+  const svg =
+    `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">` +
+    `<path d="M12 2 L20 21 L12 16 L4 21 Z" fill="${colour}" stroke="#fff" stroke-width="1.6" ` +
+    `stroke-linejoin="round"/></svg>`;
+  return L.divIcon({
+    className: "bus-arrow-wrap",
+    html: `<div class="bus-arrow" style="transform: rotate(${Math.round(bearing)}deg)">${svg}</div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+/**
+ * Leaflet route map: the route's path (straight lines between stops in order),
+ * its stops as black-outlined nodes coloured by average delay, and the live
+ * vehicles as heading arrows coloured by punctuality (late = Anther Red,
+ * early = Bright Green, on-time = Shore).
  * @param root0 - Props object.
  * @param root0.stops - Stops to plot (each with id, name, lat, lon, and delay info).
+ * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
  * @param root0.routeId - When set, poll and plot live vehicles for this route.
  * @param root0.className - Optional extra classes for the container.
  * @returns Map container element.
  */
 export default function StopMap({
   stops,
+  routeLines = [],
   routeId,
   className,
 }: {
   stops: StopPoint[];
+  routeLines?: RouteLine[];
   routeId?: string;
   className?: string;
 }): JSX.Element {
@@ -77,12 +107,10 @@ export default function StopMap({
       const lateColour = cssVar("--color-at-late") || "#de0a2b";
       const earlyColour = cssVar("--color-at-early") || "#95c11f";
       const ontimeColour = cssVar("--color-at-ontime") || "#0073bd";
+      const inkColour = cssVar("--color-at-ink") || "#001930";
+      const shoreColour = cssVar("--color-at-shore") || "#0073bd";
 
-      const center: Leaflet.LatLngExpression = stops.length
-        ? [stops[0].lat, stops[0].lon]
-        : [-36.8485, 174.7633];
-
-      map = L.map(divRef.current).setView(center, 12);
+      map = L.map(divRef.current);
       // CARTO basemaps allow app/embedded use; OSM's volunteer tile servers block
       // it (403, "Referer is required by tile usage policy"). Positron is clean and
       // light, which suits the AT palette.
@@ -92,15 +120,24 @@ export default function StopMap({
         attribution: "© OpenStreetMap contributors © CARTO",
       }).addTo(map);
 
+      // Route path: straight segments between consecutive stops (AT exposes stop
+      // order but no road geometry). Drawn first so stops/buses sit on top.
+      for (const line of routeLines) {
+        if (line.length > 1) {
+          L.polyline(line, { color: shoreColour, weight: 3, opacity: 0.45 }).addTo(map);
+        }
+      }
+
       for (const s of stops) {
         const v = s.avg_delay_sec ?? 0;
         const colour = v > 5 ? lateColour : v < -5 ? earlyColour : ontimeColour;
+        // Black outline so the coloured stop nodes pop against the light basemap.
         const marker = L.circleMarker([s.lat, s.lon], {
           radius: 5,
-          color: colour,
+          color: inkColour,
           fillColor: colour,
-          fillOpacity: 0.7,
-          weight: 1,
+          fillOpacity: 0.85,
+          weight: 2,
         });
         const popup = document.createElement("div");
         const title = document.createElement("strong");
@@ -113,6 +150,17 @@ export default function StopMap({
         );
         marker.bindPopup(popup);
         marker.addTo(map);
+      }
+
+      // Frame the map to the stops (falling back to the route lines, else NZ).
+      const boundsPoints: Leaflet.LatLngExpression[] = [
+        ...stops.map((s) => [s.lat, s.lon] as [number, number]),
+        ...routeLines.flat(),
+      ];
+      if (boundsPoints.length) {
+        map.fitBounds(L.latLngBounds(boundsPoints).pad(0.1));
+      } else {
+        map.setView([-36.8485, 174.7633], 12);
       }
 
       if (!routeId) return;
@@ -144,16 +192,20 @@ export default function StopMap({
                   : d < -VEHICLE_THRESHOLD
                     ? earlyColour
                     : ontimeColour;
-            // Buses: larger, white-ringed dots to stand apart from stops.
-            const marker = L.circleMarker([veh.lat, veh.lon], {
-              radius: 8,
-              color: "#ffffff",
-              weight: 2,
-              fillColor: colour,
-              fillOpacity: 1,
-            });
+            // With a heading, show a rotated arrow pointing the way the bus is
+            // travelling; without one, fall back to a white-ringed dot.
+            const marker =
+              veh.bearing == null
+                ? L.circleMarker([veh.lat, veh.lon], {
+                    radius: 8,
+                    color: "#ffffff",
+                    weight: 2,
+                    fillColor: colour,
+                    fillOpacity: 1,
+                  })
+                : L.marker([veh.lat, veh.lon], { icon: arrowIcon(L, veh.bearing, colour) });
             // Permanently label the late/early buses (the ones worth tracking);
-            // on-time buses stay an unlabelled dot to keep the map readable.
+            // on-time buses stay an unlabelled marker to keep the map readable.
             if (d != null && Math.abs(d) > VEHICLE_THRESHOLD) {
               marker.bindTooltip(busLabel(d), {
                 permanent: true,
@@ -192,7 +244,7 @@ export default function StopMap({
       if (timer) clearInterval(timer);
       map?.remove();
     };
-  }, [stops, routeId]);
+  }, [stops, routeLines, routeId]);
 
   return <div ref={divRef} className={cn("w-full bg-at-bg", className)} />;
 }

@@ -60,3 +60,19 @@ export interface TripTimeline {
   vehicle_id: string | null;
   stops: TripStop[];
 }
+
+// One distinct stopping pattern of a route in a single direction.
+export interface RouteVariant {
+  /** Trip headsign (destination), when the schedule reports one. */
+  headsign: string | null;
+  directionId: number;
+  /** How many trips run this exact pattern (drives trunk selection). */
+  tripCount: number;
+  /** Stop ids in schedule (stop_sequence) order. */
+  stopIds: string[];
+}
+
+// A route's stopping patterns grouped by direction.
+export interface RoutePattern {
+  directions: Record<number, { variants: RouteVariant[] }>;
+}

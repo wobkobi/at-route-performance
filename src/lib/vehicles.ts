@@ -12,13 +12,17 @@ export interface LiveVehicle {
   lon: number;
   /** Signed deviation in seconds (negative early, positive late), or null. */
   delaySec: number | null;
+  /** Compass heading in degrees (0 = north), when the feed reports it. */
+  bearing: number | null;
+  /** GTFS trip direction (0/1), when the feed reports it. */
+  directionId: number | null;
 }
 
 /** Raw vehicle-locations entity shape (subset of AT's GTFS-RT JSON). */
 interface VehicleEntity {
   vehicle?: {
-    trip?: { trip_id?: string; route_id?: string };
-    position?: { latitude?: number; longitude?: number };
+    trip?: { trip_id?: string; route_id?: string; direction_id?: number | string };
+    position?: { latitude?: number; longitude?: number; bearing?: number | string };
     vehicle?: { id?: string; label?: string };
   };
 }
@@ -88,6 +92,10 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
     const vehicleId = v?.vehicle?.id;
     if (!routeId || vehicleId == null || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     const tripId = v?.trip?.trip_id ?? null;
+    // Bearing and direction arrive as numbers or numeric strings depending on
+    // the feed; coerce and keep only finite values.
+    const bearingNum = Number(v?.position?.bearing);
+    const dirNum = Number(v?.trip?.direction_id);
     out.push({
       vehicleId,
       label: v?.vehicle?.label ?? null,
@@ -96,6 +104,8 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
       lat: lat as number,
       lon: lon as number,
       delaySec: tripId ? (delayByTrip.get(tripId) ?? null) : null,
+      bearing: Number.isFinite(bearingNum) ? bearingNum : null,
+      directionId: Number.isFinite(dirNum) ? dirNum : null,
     });
   }
   return out;

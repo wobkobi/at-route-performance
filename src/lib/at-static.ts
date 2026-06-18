@@ -107,7 +107,7 @@ export async function getJson<T>(
  * @param qs - Optional query params for the first request.
  * @returns Flattened attributes from all pages.
  */
-async function fetchAll<T>(
+export async function fetchAll<T>(
   path: string,
   qs?: Record<string, string | number | undefined>,
 ): Promise<T[]> {
