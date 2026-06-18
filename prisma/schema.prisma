@@ -35,7 +35,7 @@ model Stop {
   lat    Float
   lon    Float
   events ArrivalEvent[]
-  
+
   @@index([name])
 }
 
