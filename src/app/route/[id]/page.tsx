@@ -1,4 +1,5 @@
 // src/app/route/[id]/page.tsx
+import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { cn } from "@/lib/cn";
@@ -10,6 +11,7 @@ import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { getRoutePattern } from "@/lib/route-pattern";
 import { nzDayRange, type DateRange } from "@/lib/time";
 import { routeStatsQuery } from "@/lib/validate";
+import type { RoutePattern } from "@/types/api";
 import type { JSX } from "react";
 
 /** Query params for route detail (raw strings). */
@@ -40,30 +42,38 @@ function dayLabelFor(at: Date): string {
   });
 }
 
+/** The route map + line-diagram inputs derived from the schedule pattern. */
+interface RouteView {
+  stops: MapStop[];
+  routeLines: Array<Array<[number, number]>>;
+  directions: RoutePattern["directions"];
+  nameByStop: Map<string, string>;
+}
+
 /**
- * Build the route map's stops and per-variant path lines from the schedule
- * pattern, colouring stops by the day's average delay. Falls back to the
- * day's busiest stops (no path) when the pattern is unavailable.
+ * Build the route map (stops + per-variant path lines) and the line-diagram
+ * inputs from the schedule pattern, colouring stops by the day's average delay.
+ * Falls back to the day's busiest stops (no path, no diagram) when the pattern
+ * is unavailable.
  * @param routeId - AT route id.
  * @param byStop - The day's per-stop stats (carries the delay colour + coords).
- * @returns Stops to plot and the path lines.
+ * @returns Map stops, path lines, pattern directions, and stop names.
  */
-async function buildMapData(
-  routeId: string,
-  byStop: MapStop[],
-): Promise<{ stops: MapStop[]; routeLines: Array<Array<[number, number]>> }> {
+async function buildRouteView(routeId: string, byStop: MapStop[]): Promise<RouteView> {
+  const empty = { stops: byStop, routeLines: [], directions: {}, nameByStop: new Map() };
   const pattern = await getRoutePattern(routeId).catch(() => ({ directions: {} }));
   const variants = Object.values(pattern.directions).flatMap((d) => d.variants);
   const patternStopIds = [...new Set(variants.flatMap((v) => v.stopIds))];
-  if (patternStopIds.length === 0) return { stops: byStop, routeLines: [] };
+  if (patternStopIds.length === 0) return empty;
 
   const stopDocs = await prisma.stop.findMany({
     where: { id: { in: patternStopIds } },
     select: { id: true, name: true, lat: true, lon: true },
   });
-  if (stopDocs.length === 0) return { stops: byStop, routeLines: [] };
+  if (stopDocs.length === 0) return empty;
 
   const coordById = new Map(stopDocs.map((s) => [s.id, s]));
+  const nameByStop = new Map(stopDocs.map((s) => [s.id, s.name]));
   const delayById = new Map(byStop.map((s) => [s.stop_id, s]));
 
   const stops: MapStop[] = stopDocs.map((s) => {
@@ -87,7 +97,7 @@ async function buildMapData(
     )
     .filter((line) => line.length > 1);
 
-  return { stops, routeLines };
+  return { stops, routeLines, directions: pattern.directions, nameByStop };
 }
 
 /**
@@ -125,10 +135,11 @@ export default async function RoutePage({
   }
   const { route, summary, byStop } = stats;
 
-  const [trips, mapData] = await Promise.all([
+  const [trips, view] = await Promise.all([
     getWorstTripsOfDay({ routeId: id, range, thresholdSec }),
-    buildMapData(id, byStop),
+    buildRouteView(id, byStop),
   ]);
+  const delayByStop = new Map(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
 
   const title = route?.shortName ?? id;
   const colour = linkColour(route?.shortName, route?.longName);
@@ -176,7 +187,7 @@ export default async function RoutePage({
 
       <WorstTripsBoard routeId={id} trips={trips} thresholdSec={thresholdSec} />
 
-      {mapData.stops.length > 0 && (
+      {view.stops.length > 0 && (
         <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Route map</h2>
@@ -193,12 +204,21 @@ export default async function RoutePage({
             </span>
           </div>
           <StopMapWrapper
-            stops={mapData.stops}
-            routeLines={mapData.routeLines}
+            stops={view.stops}
+            routeLines={view.routeLines}
             routeId={id}
             className="h-100 rounded-lg"
           />
         </section>
+      )}
+
+      {Object.keys(view.directions).length > 0 && (
+        <RouteLineDiagram
+          directions={view.directions}
+          delayByStop={delayByStop}
+          nameByStop={view.nameByStop}
+          thresholdSec={thresholdSec}
+        />
       )}
 
       {byStop.length > 0 && (

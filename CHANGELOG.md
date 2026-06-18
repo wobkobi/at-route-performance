@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.12.0] - 2026-06-18
+
+- Add a branching, metro-style line diagram below the route map: each direction's stops in order,
+  with forks where trip variants diverge (some runs end early or go via a different segment) and
+  each stop node coloured by its average delay. Stop order comes from the AT GTFS schedule; there is
+  no schema change.
+
 ## [0.11.0] - 2026-06-18
 
 - Add a per-trip timeline page (`/route/[id]/trip/[tripId]`) showing one run's stop-by-stop
