@@ -1,6 +1,6 @@
 // src/lib/data.ts
 import { prisma } from "@/lib/db";
-import type { DateRange } from "@/lib/time";
+import { nzDayRange, type DateRange } from "@/lib/time";
 import type {
   PerTripStat,
   RouteByStop,
@@ -634,14 +634,42 @@ interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
 }
 
 /**
- * A single trip's stop-by-stop scheduled-vs-actual timeline, in stop order.
- * The `$match { tripId }` rides the existing unique `[tripId, stopId, actualAt]`
- * index. Cached briefly; a run's events are immutable once recorded.
+ * The Auckland-local day window of a trip's most recent run, so an undated
+ * timeline request still resolves to a single service day.
+ * @param tripId - The trip to scope.
+ * @returns The latest run's day window, or null when the trip has no events.
+ */
+async function latestTripDay(tripId: string): Promise<DateRange | null> {
+  const res = (await prisma.$runCommandRaw({
+    aggregate: "ArrivalEvent",
+    pipeline: [
+      { $match: { tripId } },
+      { $group: { _id: null, max: { $max: "$scheduledAt" } } },
+    ] as never,
+    cursor: { batchSize: 1 },
+  })) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
+  const raw = res.cursor.firstBatch[0]?.max;
+  return raw ? nzDayRange(new Date(toIso(raw))) : null;
+}
+
+/**
+ * A single trip run's stop-by-stop scheduled-vs-actual timeline, in stop order.
+ * A GTFS `tripId` repeats every service day, so the events are scoped to one
+ * day - the supplied `range` (the run the user clicked) or the trip's latest day
+ * - otherwise different days' runs interleave and stops appear out of order or
+ * duplicated. Consecutive events for the same stop (a stop with two recorded
+ * actuals) are collapsed. Cached briefly.
  * @param tripId - The trip (run) to resolve.
  * @param routeId - The owning route (for the header).
+ * @param range - The run's Auckland-local day window; defaults to its latest day.
  * @returns The route header, vehicle, and ordered stops.
  */
-export async function getTripTimeline(tripId: string, routeId: string): Promise<TripTimeline> {
+export async function getTripTimeline(
+  tripId: string,
+  routeId: string,
+  range?: DateRange,
+): Promise<TripTimeline> {
+  const day = range ?? (await latestTripDay(tripId));
   return unstable_cache(
     async () => {
       const route = await prisma.route.findUnique({
@@ -649,10 +677,18 @@ export async function getTripTimeline(tripId: string, routeId: string): Promise<
         select: { shortName: true, longName: true, mode: true },
       });
 
+      const match: Record<string, unknown> = { tripId };
+      if (day) {
+        match.scheduledAt = {
+          $gte: { $date: day.start.toISOString() },
+          $lt: { $date: day.end.toISOString() },
+        };
+      }
+
       const res = (await prisma.$runCommandRaw({
         aggregate: "ArrivalEvent",
         pipeline: [
-          { $match: { tripId } },
+          { $match: match },
           { $sort: { scheduledAt: 1 as const } },
           { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
           { $unwind: "$stop" },
@@ -670,22 +706,27 @@ export async function getTripTimeline(tripId: string, routeId: string): Promise<
         cursor: { batchSize: 100_000 },
       })) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
 
-      const rows = res.cursor.firstBatch;
+      const stops: TripStop[] = [];
+      for (const r of res.cursor.firstBatch) {
+        // Collapse a stop that recorded two actuals into one timeline row.
+        if (stops[stops.length - 1]?.stop_id === r.stop_id) continue;
+        stops.push({
+          stop_id: r.stop_id,
+          name: r.name,
+          scheduled_at: toIso(r.scheduled_at),
+          deviation_sec: r.deviation_sec,
+        });
+      }
       return {
         trip_id: tripId,
         route: route
           ? { shortName: route.shortName, longName: route.longName, mode: route.mode }
           : null,
-        vehicle_id: rows.find((r) => r.vehicle_id)?.vehicle_id ?? null,
-        stops: rows.map((r) => ({
-          stop_id: r.stop_id,
-          name: r.name,
-          scheduled_at: toIso(r.scheduled_at),
-          deviation_sec: r.deviation_sec,
-        })),
+        vehicle_id: res.cursor.firstBatch.find((r) => r.vehicle_id)?.vehicle_id ?? null,
+        stops,
       };
     },
-    ["trip-timeline", tripId, routeId],
+    ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
     { revalidate: 300 },
   )();
 }

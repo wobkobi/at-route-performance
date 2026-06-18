@@ -73,7 +73,7 @@ export function WorstTripsBoard({
                   {i + 1}
                 </span>
                 <a
-                  href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(t.trip_id)}`}
+                  href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(t.scheduled_start)}`}
                   className={cn("min-w-0 flex-1 truncate hover:underline")}
                 >
                   <span className={cn("font-semibold tabular-nums")}>

@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.15.1] - 2026-06-18
+
+- Fix the per-trip timeline mixing multiple service days: a GTFS trip id repeats every day it runs,
+  so `getTripTimeline` matched every day's run at once, showing stops out of order and duplicated.
+  Scope it to the run's day (the worst-buses board now passes it), falling back to the trip's most
+  recent day, and collapse a stop that recorded two actuals into one row.
+
 ## [0.15.0] - 2026-06-18
 
 - Style the route map's live vehicles as AT-style markers: the route's mode glyph (bus/train/ferry)

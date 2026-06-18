@@ -3,6 +3,7 @@ import { cn } from "@/lib/cn";
 import { getTripTimeline } from "@/lib/data";
 import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
+import { nzDayRange } from "@/lib/time";
 import type { JSX } from "react";
 
 const THRESHOLD_SEC = 300;
@@ -24,15 +25,22 @@ function localTime(iso: string): string {
  * Trip timeline page: one run's stop-by-stop scheduled-vs-actual punctuality.
  * @param root0 - Page props.
  * @param root0.params - Dynamic route params `{ id, tripId }`.
+ * @param root0.searchParams - Optional query params (`d` = the run's instant).
  * @returns Page markup.
  */
 export default async function TripPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; tripId: string }>;
+  searchParams?: Promise<{ d?: string }>;
 }): Promise<JSX.Element> {
   const { id, tripId } = await params;
-  const timeline = await getTripTimeline(tripId, id);
+  const { d } = (await searchParams) ?? {};
+  // Scope to the run's Auckland-local day so other days' runs of the same tripId
+  // do not interleave; falls back to the trip's latest day when `d` is absent.
+  const day = d ? nzDayRange(new Date(d)) : undefined;
+  const timeline = await getTripTimeline(tripId, id, day);
   const { route, stops, vehicle_id } = timeline;
 
   const title = route?.shortName ?? id;
