@@ -35,8 +35,15 @@ model Stop {
   lat    Float
   lon    Float
   events ArrivalEvent[]
-  
+
   @@index([name])
+}
+
+// GTFS shape geometry (from shapes.txt), keyed by AT shape_id.
+// `points` is a simplified ordered list of [lon, lat] pairs for the road path.
+model Shape {
+  id     String @id @map("_id")
+  points Json
 }
 
 // ArrivalEvent and TripDelay use auto-generated ObjectIds.

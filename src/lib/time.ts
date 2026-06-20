@@ -65,6 +65,89 @@ export function nzDayRange(at: Date = new Date()): DateRange {
   return { start, end };
 }
 
+/** Hour the transit service day starts (Auckland local). */
+export const SERVICE_START_HOUR = 5;
+
+/**
+ * Convert an Auckland-local wall-clock date + hour to the UTC instant.
+ * @param y - Local full year.
+ * @param mo - Local month (1-12).
+ * @param d - Local day of month (may be out of range; normalised).
+ * @param hour - Local hour (0-23).
+ * @returns The UTC Date for that Auckland local time.
+ */
+function nzLocalToUtcAtHour(y: number, mo: number, d: number, hour: number): Date {
+  const guess = new Date(Date.UTC(y, mo - 1, d, hour));
+  const offset = nzOffsetMinutes(guess);
+  return new Date(Date.UTC(y, mo - 1, d, hour) - offset * 60000);
+}
+
+/**
+ * The Auckland-local **service day** window containing an instant: a transit day
+ * runs from `startHour` (default 5am) to the same hour next day, so a post-
+ * midnight run counts under the day it started. Accepts a `YYYY-MM-DD` string,
+ * which is treated as the service date directly (for a `?day=` param).
+ * @param at - An instant within the target service day, or its `YYYY-MM-DD` date.
+ * @param startHour - Local hour the service day begins (default {@link SERVICE_START_HOUR}).
+ * @returns UTC `{ start, end }` for that service day.
+ */
+export function nzServiceDayRange(
+  at: Date | string = new Date(),
+  startHour = SERVICE_START_HOUR,
+): DateRange {
+  let y: number;
+  let mo: number;
+  let d: number;
+  const ymd = typeof at === "string" ? at.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  if (ymd) {
+    y = Number(ymd[1]);
+    mo = Number(ymd[2]);
+    d = Number(ymd[3]);
+  } else {
+    const inst = typeof at === "string" ? new Date(at) : at;
+    const dtf = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Pacific/Auckland",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+    });
+    const parts = Object.fromEntries(dtf.formatToParts(inst).map((p) => [p.type, p.value]));
+    y = Number(parts.year);
+    mo = Number(parts.month);
+    d = Number(parts.day);
+    const hour = parts.hour === "24" ? 0 : Number(parts.hour);
+    // Before the start hour, the instant belongs to the previous service day.
+    if (hour < startHour) {
+      const prev = new Date(Date.UTC(y, mo - 1, d - 1));
+      y = prev.getUTCFullYear();
+      mo = prev.getUTCMonth() + 1;
+      d = prev.getUTCDate();
+    }
+  }
+  return {
+    start: nzLocalToUtcAtHour(y, mo, d, startHour),
+    end: nzLocalToUtcAtHour(y, mo, d + 1, startHour),
+  };
+}
+
+/**
+ * The service date (`YYYY-MM-DD`) of the service day containing an instant.
+ * @param at - The instant to label.
+ * @param startHour - Local hour the service day begins.
+ * @returns The service date as `YYYY-MM-DD`.
+ */
+export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_START_HOUR): string {
+  const { start } = nzServiceDayRange(at, startHour);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(start);
+}
+
 /**
  * The Sunday that starts the Auckland-local week containing an instant.
  * Weeks reset on Sunday.

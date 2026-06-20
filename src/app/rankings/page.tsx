@@ -1,12 +1,22 @@
+import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
+import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { WindowControls } from "@/components/WindowControls";
 import { cn } from "@/lib/cn";
 import { getFleetSummary, getLatestEventDate, getModeBreakdown, getRankings } from "@/lib/data";
-import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
+import {
+  deriveBoards,
+  deriveOffSchedule,
+  MIN_BOARD_EVENTS,
+  MIN_MODE_EVENTS,
+  sortRows,
+  type DelayDirection,
+} from "@/lib/rankings";
+import { isSchoolBus } from "@/lib/school-bus";
 import { nzMonthRange, nzWeekRange, nzWeekStart, type DateRange } from "@/lib/time";
 import type { JSX } from "react";
 
@@ -19,6 +29,8 @@ interface RankingsSearchParams {
   period?: string;
   sort?: string;
   mode?: string;
+  school?: string;
+  dir?: string;
 }
 
 /**
@@ -115,6 +127,7 @@ export default async function RankingsPage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
+  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
   const { range, label } = await resolveRange(window, sp.period);
   const [rows, fleet, modes] = await Promise.all([
@@ -122,41 +135,80 @@ export default async function RankingsPage({
     getFleetSummary(range, THRESHOLD_SEC, REVALIDATE),
     getModeBreakdown(range, THRESHOLD_SEC, REVALIDATE),
   ]);
-  // The mode filter narrows the route lists; fleet KPIs stay network-wide.
-  const visible = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
+  // Filters narrow the route lists; fleet KPIs stay network-wide. School
+  // services (S###) are hidden unless ?school=1.
+  const includeSchool = sp.school === "1";
+  const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const visible = includeSchool
+    ? modeFiltered
+    : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
+  // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
+  const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  const boards = deriveBoards(visible, { minEvents: boardMin });
+  const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
+
   const tablePreserved: Record<string, string> = { window };
   const modePreserved: Record<string, string> = { window };
+  const schoolPreserved: Record<string, string> = { window };
+  const dirPreserved: Record<string, string> = { window };
   if (sp.period) {
     tablePreserved.period = sp.period;
     modePreserved.period = sp.period;
+    schoolPreserved.period = sp.period;
+    dirPreserved.period = sp.period;
   }
-  if (mode) tablePreserved.mode = mode;
-  if (sort !== "on_time") modePreserved.sort = sort;
+  if (mode) {
+    tablePreserved.mode = mode;
+    schoolPreserved.mode = mode;
+    dirPreserved.mode = mode;
+  }
+  if (sort !== "on_time") {
+    modePreserved.sort = sort;
+    schoolPreserved.sort = sort;
+    dirPreserved.sort = sort;
+  }
+  if (includeSchool) {
+    tablePreserved.school = "1";
+    modePreserved.school = "1";
+    dirPreserved.school = "1";
+  }
+  if (dir) {
+    modePreserved.dir = dir;
+    schoolPreserved.dir = dir;
+  }
 
   return (
     <main className={cn("space-y-6")}>
-      <div className={cn("flex flex-wrap items-end justify-between gap-3")}>
-        <h1 className={cn("text-3xl leading-headline font-ultra tracking-zero")}>Top routes</h1>
-        <WindowControls window={window} periodLabel={label} />
-      </div>
+      <header className={cn("space-y-3")}>
+        <div className={cn("flex flex-wrap items-end justify-between gap-3")}>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold tracking-zero text-at-shore uppercase">Rankings</p>
+            <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>Top routes</h1>
+          </div>
+          <WindowControls window={window} periodLabel={label} />
+        </div>
+        <div className="metro-rule" />
+      </header>
 
       <FleetSummary data={fleet} />
 
-      <ModeFilter active={mode} basePath="/rankings" preservedParams={modePreserved} />
-
-      <div className={cn("grid gap-4 md:grid-cols-2")}>
-        <RankBoard
-          title="Running latest"
-          accentClass="text-at-late"
-          rows={boards.latest}
-          metric="delay"
-          thresholdSec={THRESHOLD_SEC}
+      <div className={cn("flex flex-wrap items-center gap-3")}>
+        <ModeFilter active={mode} basePath="/rankings" preservedParams={modePreserved} />
+        <SchoolBusToggle
+          active={includeSchool}
+          basePath="/rankings"
+          preservedParams={schoolPreserved}
         />
+      </div>
+
+      <div className={cn("space-y-2")}>
+        <div className={cn("flex justify-end")}>
+          <DelayFilter active={dir} basePath="/rankings" preservedParams={dirPreserved} />
+        </div>
         <RankBoard
-          title="Running earliest"
-          accentClass="text-at-early"
-          rows={boards.earliest}
+          title="Most off-schedule"
+          accentClass="text-at-ink"
+          rows={offSchedule}
           metric="delay"
           thresholdSec={THRESHOLD_SEC}
         />

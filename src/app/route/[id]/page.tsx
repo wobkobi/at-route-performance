@@ -1,22 +1,150 @@
 // src/app/route/[id]/page.tsx
+import { DayNav } from "@/components/DayNav";
+import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import StopMapWrapper from "@/components/StopMapWrapper";
+import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { cn } from "@/lib/cn";
-import { getRouteStats } from "@/lib/data";
+import {
+  getMostRecentDataDay,
+  getRecentStopIds,
+  getRouteStats,
+  getWorstTripsOfDay,
+  type TripSort,
+} from "@/lib/data";
+import { prisma } from "@/lib/db";
 import { formatDelay } from "@/lib/format";
 import { linkColour } from "@/lib/link-colour";
+import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { offsetPath } from "@/lib/route-geo";
+import { getRoutePattern } from "@/lib/route-pattern";
+import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { routeStatsQuery } from "@/lib/validate";
+import type { RoutePattern } from "@/types/api";
 import type { JSX } from "react";
+
+/** Metres each direction's road line is offset from the centreline. */
+const ROAD_OFFSET_M = 12;
 
 /** Query params for route detail (raw strings). */
 interface StatsSearchParams {
-  from?: string;
-  to?: string;
   thresholdSec?: string;
-  sort?: string;
+  day?: string;
+  tsort?: string;
+}
+
+/** Valid trip-sort values. */
+const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
+
+/** A stop plotted on the route map. */
+interface MapStop {
+  stop_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  avg_delay_sec: number | null;
+  on_time_pct: number | null;
+}
+
+/** The route map + line-diagram inputs derived from the schedule pattern. */
+interface RouteView {
+  stops: MapStop[];
+  routeLines: Array<Array<[number, number]>>;
+  directions: RoutePattern["directions"];
+  nameByStop: Map<string, string>;
 }
 
 /**
- * Route detail page: summary + top stops table.
+ * Build the route map (stops + per-variant path lines) and the line-diagram
+ * inputs from the schedule pattern, colouring stops by the day's average delay.
+ * Falls back to the day's busiest stops (no path, no diagram) when the pattern
+ * is unavailable.
+ * @param routeId - AT route id.
+ * @param byStop - The day's per-stop stats (carries the delay colour + coords).
+ * @returns Map stops, path lines, pattern directions, and stop names.
+ */
+async function buildRouteView(routeId: string, byStop: MapStop[]): Promise<RouteView> {
+  const empty = { stops: byStop, routeLines: [], directions: {}, nameByStop: new Map() };
+  const [pattern, activeStops] = await Promise.all([
+    getRoutePattern(routeId).catch(() => ({ directions: {} }) as RoutePattern),
+    getRecentStopIds(routeId).catch(() => new Set<string>()),
+  ]);
+
+  // Drop pattern stops the route has not served in the last week (origin termini,
+  // never-served variants, id mismatches); keep all if there is no recent data.
+  const active = activeStops.size > 0;
+  const directions: RoutePattern["directions"] = {};
+  for (const [dir, d] of Object.entries(pattern.directions)) {
+    const variants = d.variants
+      .map((v) => ({
+        ...v,
+        stopIds: active ? v.stopIds.filter((s) => activeStops.has(s)) : v.stopIds,
+      }))
+      .filter((v) => v.stopIds.length >= 2);
+    if (variants.length > 0) directions[Number(dir)] = { variants };
+  }
+
+  const variants = Object.values(directions).flatMap((d) => d.variants);
+  const patternStopIds = [...new Set(variants.flatMap((v) => v.stopIds))];
+  if (patternStopIds.length === 0) return empty;
+
+  const stopDocs = await prisma.stop.findMany({
+    where: { id: { in: patternStopIds } },
+    select: { id: true, name: true, lat: true, lon: true },
+  });
+  if (stopDocs.length === 0) return empty;
+
+  const coordById = new Map(stopDocs.map((s) => [s.id, s]));
+  const nameByStop = new Map(stopDocs.map((s) => [s.id, s.name]));
+  const delayById = new Map(byStop.map((s) => [s.stop_id, s]));
+
+  const stops: MapStop[] = stopDocs.map((s) => {
+    const stat = delayById.get(s.id);
+    return {
+      stop_id: s.id,
+      name: s.name,
+      lat: s.lat,
+      lon: s.lon,
+      avg_delay_sec: stat?.avg_delay_sec ?? null,
+      on_time_pct: stat?.on_time_pct ?? null,
+    };
+  });
+
+  // Road geometry: load the variants' GTFS shapes; draw each direction's real
+  // road path offset to its own side. Fall back to a straight stop-to-stop line
+  // when a shape is missing.
+  const shapeIds = [...new Set(variants.map((v) => v.shapeId).filter((s): s is string => !!s))];
+  const shapeDocs = shapeIds.length
+    ? await prisma.shape.findMany({
+        where: { id: { in: shapeIds } },
+        select: { id: true, points: true },
+      })
+    : [];
+  const shapeById = new Map(
+    shapeDocs.map((s) => [s.id, s.points as unknown as [number, number][]]),
+  );
+
+  const routeLines = variants
+    .map((v) => {
+      const shape = v.shapeId ? shapeById.get(v.shapeId) : undefined;
+      if (shape && shape.length > 1) {
+        // Shapes store [lon, lat]; the map wants [lat, lon]. Offset by direction.
+        const latLon = shape.map(([lon, lat]) => [lat, lon] as [number, number]);
+        return offsetPath(latLon, ROAD_OFFSET_M, v.directionId === 1 ? -1 : 1);
+      }
+      return v.stopIds
+        .map((id) => coordById.get(id))
+        .filter((s): s is NonNullable<typeof s> => Boolean(s))
+        .map((s) => [s.lat, s.lon] as [number, number]);
+    })
+    .filter((line) => line.length > 1);
+
+  return { stops, routeLines, directions, nameByStop };
+}
+
+/**
+ * Route detail page: the day's "worst bus" ranking, a route map, and stops.
+ * Day-focused like the home page: shows today, falling back to the most recent
+ * day with data when today is empty.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic route params `{ id }`.
  * @param root0.searchParams - Optional query params.
@@ -32,37 +160,76 @@ export default async function RoutePage({
   const { id } = await params;
   const sp = (await searchParams) ?? {};
   const parsed = routeStatsQuery.safeParse(sp);
-  const query = parsed.success ? parsed.data : routeStatsQuery.parse({});
+  const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
+  const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
+    ? (sp.tsort as TripSort)
+    : "off";
 
-  const { route, summary, byStop } = await getRouteStats({
-    routeId: id,
-    from: query.from,
-    to: query.to,
-    thresholdSec: query.thresholdSec,
-  });
+  // Service day from ?day (or the current one); fall back to the most recent
+  // service day with data only when no explicit day was requested.
+  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
+  let serviceDate = nzServiceDayString(range.start);
+  let stats = await getRouteStats({ routeId: id, from: range.start, to: range.end, thresholdSec });
+  if (!requestedDay && (stats.summary?.events ?? 0) === 0) {
+    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
+    if (latestDay) {
+      range = nzServiceDayRange(latestDay);
+      serviceDate = nzServiceDayString(range.start);
+      stats = await getRouteStats({ routeId: id, from: range.start, to: range.end, thresholdSec });
+    }
+  }
+  const hasNextDay = serviceDate < nzServiceDayString();
+  const { route, summary, byStop } = stats;
+
+  const [trips, view] = await Promise.all([
+    getWorstTripsOfDay({ routeId: id, range, thresholdSec, sort: tripSort }),
+    buildRouteView(id, byStop),
+  ]);
+  const delayByStop = new Map(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
+
+  // The trip-sort links keep the current day (and threshold, if set).
+  const tripPreserved: Record<string, string> = {};
+  if (requestedDay) tripPreserved.day = requestedDay;
+  if (sp.thresholdSec) tripPreserved.thresholdSec = sp.thresholdSec;
 
   const title = route?.shortName ?? id;
   const colour = linkColour(route?.shortName, route?.longName);
 
   return (
     <main className={cn("space-y-6")}>
-      <header className="space-y-1">
-        <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
-          {colour && (
-            <span
-              aria-hidden="true"
-              className={cn("inline-block h-4 w-4 shrink-0 rounded-full", colour)}
-            />
-          )}
-          {title}
-        </h1>
-        {route?.longName && <p className="text-at-muted">{route.longName}</p>}
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
+              {colour && (
+                <span
+                  aria-hidden="true"
+                  className={cn("inline-block h-4 w-4 shrink-0 rounded-full", colour)}
+                />
+              )}
+              {title}
+            </h1>
+            {route?.longName && <p className="text-at-muted">{route.longName}</p>}
+          </div>
+          <DayNav
+            basePath={`/route/${encodeURIComponent(id)}`}
+            serviceDate={serviceDate}
+            preservedParams={{}}
+            hasNext={hasNextDay}
+          />
+        </div>
+        <div className="metro-rule" />
       </header>
 
-      <section className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3")}>
+      <section className={cn("grid grid-cols-2 gap-4 sm:grid-cols-4")}>
         <div className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
           <p className="text-sm text-at-muted">Events</p>
           <p className="text-2xl font-semibold tabular-nums">{summary?.events ?? 0}</p>
+        </div>
+        <div className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
+          <p className="text-sm text-at-muted">Trips</p>
+          <p className="text-2xl font-semibold tabular-nums">{trips.length}</p>
         </div>
         <div className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
           <p className="text-sm text-at-muted">Avg delay</p>
@@ -78,10 +245,20 @@ export default async function RoutePage({
         </div>
       </section>
 
-      {byStop.length > 0 && (
+      <WorstTripsBoard
+        routeId={id}
+        trips={trips}
+        thresholdSec={thresholdSec}
+        sort={tripSort}
+        mode={route?.mode}
+        basePath={`/route/${encodeURIComponent(id)}`}
+        preservedParams={tripPreserved}
+      />
+
+      {view.stops.length > 0 && (
         <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Stops &amp; live buses</h2>
+            <h2 className="text-lg font-semibold">Route map</h2>
             <span className="flex items-center gap-3 text-xs text-at-muted">
               <span className="flex items-center gap-1">
                 <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
@@ -94,35 +271,52 @@ export default async function RoutePage({
               </span>
             </span>
           </div>
-          <StopMapWrapper stops={byStop} routeId={id} className="h-100 rounded-lg" />
+          <StopMapWrapper
+            stops={view.stops}
+            routeLines={view.routeLines}
+            routeId={id}
+            mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
+            className="h-100 rounded-lg"
+          />
         </section>
       )}
 
-      <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
-        <h2 className="mb-2 text-lg font-semibold">Top stops</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-at-bg text-at-muted">
-              <tr>
-                <th className="px-3 py-2 text-left">Stop</th>
-                <th className="px-3 py-2 text-right">Events</th>
-                <th className="px-3 py-2 text-right">Avg delay</th>
-              </tr>
-            </thead>
-            <tbody>
-              {byStop.map((s) => (
-                <tr key={s.stop_id} className="border-t border-at-border">
-                  <td className="px-3 py-2">{s.name}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec)}
-                  </td>
+      {Object.keys(view.directions).length > 0 && (
+        <RouteLineDiagram
+          directions={view.directions}
+          delayByStop={delayByStop}
+          nameByStop={view.nameByStop}
+          thresholdSec={thresholdSec}
+        />
+      )}
+
+      {byStop.length > 0 && (
+        <details className={cn("rounded-xl bg-at-surface shadow-sm")}>
+          <summary className={cn("cursor-pointer px-4 py-3 font-semibold")}>Stops</summary>
+          <div className="overflow-x-auto px-4 pb-4">
+            <table className="min-w-full text-sm">
+              <thead className="bg-at-bg text-at-muted">
+                <tr>
+                  <th className="px-3 py-2 text-left">Stop</th>
+                  <th className="px-3 py-2 text-right">Events</th>
+                  <th className="px-3 py-2 text-right">Avg delay</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {byStop.map((s) => (
+                  <tr key={s.stop_id} className="border-t border-at-border">
+                    <td className="px-3 py-2">{s.name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </main>
   );
 }

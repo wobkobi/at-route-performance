@@ -1,12 +1,23 @@
+import { DayNav } from "@/components/DayNav";
+import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
+import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { cn } from "@/lib/cn";
 import { getFleetSummary, getModeBreakdown, getMostRecentDataDay, getRankings } from "@/lib/data";
-import { deriveBoards, MIN_BOARD_EVENTS, sortRows } from "@/lib/rankings";
-import { nzDayRange } from "@/lib/time";
+import {
+  deriveBoards,
+  deriveOffSchedule,
+  MIN_BOARD_EVENTS,
+  MIN_MODE_EVENTS,
+  sortRows,
+  type DelayDirection,
+} from "@/lib/rankings";
+import { isSchoolBus } from "@/lib/school-bus";
+import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import type { JSX } from "react";
 
 const THRESHOLD_SEC = 300;
@@ -16,6 +27,9 @@ const TODAY_REVALIDATE = 300; // 5 minutes
 interface HomeSearchParams {
   sort?: string;
   mode?: string;
+  school?: string;
+  dir?: string;
+  day?: string;
 }
 
 /**
@@ -36,58 +50,119 @@ export default async function Home({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
+  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
-  // Today (Auckland). If today lacks enough data to fill the boards yet (early
-  // morning, or ingest still catching up), fall back to the latest day that does.
-  let range = nzDayRange();
+  // Service day from ?day (or the current one). When no day is requested and the
+  // current service day is too sparse to fill the boards (early morning, or
+  // ingest catching up), fall back to the most recent service day that does.
+  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  let range = nzServiceDayRange(requestedDay ?? new Date());
+  let serviceDate = nzServiceDayString(range.start);
   let rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  let dayLabel = "today";
-  if (!rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
+  if (!requestedDay && !rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
     const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
     if (latestDay) {
-      range = nzDayRange(latestDay);
+      range = nzServiceDayRange(latestDay);
+      serviceDate = nzServiceDayString(range.start);
       rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-      dayLabel = latestDay.toLocaleDateString("en-NZ", {
-        timeZone: "Pacific/Auckland",
-        day: "numeric",
-        month: "short",
-      });
     }
   }
+  const hasNextDay = serviceDate < nzServiceDayString();
 
   const [fleet, modes] = await Promise.all([
     getFleetSummary(range, THRESHOLD_SEC, TODAY_REVALIDATE),
     getModeBreakdown(range, THRESHOLD_SEC, TODAY_REVALIDATE),
   ]);
-  // The mode filter narrows the route lists; fleet KPIs stay network-wide.
-  const visible = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const boards = deriveBoards(visible, { minEvents: MIN_BOARD_EVENTS });
+  // Filters narrow the route lists; fleet KPIs stay network-wide. School
+  // services (S###) are hidden unless ?school=1.
+  const includeSchool = sp.school === "1";
+  const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const visible = includeSchool
+    ? modeFiltered
+    : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
+  // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
+  const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  const boards = deriveBoards(visible, { minEvents: boardMin });
+  const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
+
+  // Each control preserves the others' params so the filters compose in links.
+  const modePreserved: Record<string, string> = {};
+  const schoolPreserved: Record<string, string> = {};
+  const dirPreserved: Record<string, string> = {};
+  const tablePreserved: Record<string, string> = {};
+  const dayPreserved: Record<string, string> = {};
+  if (sort !== "on_time") {
+    modePreserved.sort = sort;
+    schoolPreserved.sort = sort;
+    dirPreserved.sort = sort;
+    dayPreserved.sort = sort;
+  }
+  if (mode) {
+    schoolPreserved.mode = mode;
+    dirPreserved.mode = mode;
+    tablePreserved.mode = mode;
+    dayPreserved.mode = mode;
+  }
+  if (includeSchool) {
+    modePreserved.school = "1";
+    dirPreserved.school = "1";
+    tablePreserved.school = "1";
+    dayPreserved.school = "1";
+  }
+  if (dir) {
+    modePreserved.dir = dir;
+    schoolPreserved.dir = dir;
+    dayPreserved.dir = dir;
+  }
+  // A non-default day pins itself onto every other control's links.
+  if (requestedDay) {
+    modePreserved.day = requestedDay;
+    schoolPreserved.day = requestedDay;
+    dirPreserved.day = requestedDay;
+    tablePreserved.day = requestedDay;
+  }
 
   return (
     <main className={cn("space-y-6")}>
-      <div className={cn("flex items-end justify-between")}>
-        <h1 className={cn("text-3xl leading-headline font-ultra tracking-zero")}>
-          Network performance
-        </h1>
-        <span className={cn("text-sm text-at-muted")}>Showing {dayLabel}</span>
-      </div>
+      <header className={cn("space-y-3")}>
+        <div className={cn("flex flex-wrap items-end justify-between gap-2")}>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold tracking-zero text-at-shore uppercase">
+              Auckland network
+            </p>
+            <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>
+              How Auckland&apos;s transport ran
+            </h1>
+            <p className="max-w-2xl text-at-muted">
+              Punctuality across every bus, train, and ferry route - which ran furthest off schedule
+              and which were the most reliable, refreshed through the day.
+            </p>
+          </div>
+          <DayNav
+            basePath="/"
+            serviceDate={serviceDate}
+            preservedParams={dayPreserved}
+            hasNext={hasNextDay}
+          />
+        </div>
+        <div className="metro-rule" />
+      </header>
 
       <FleetSummary data={fleet} />
 
-      <ModeFilter active={mode} basePath="/" preservedParams={sort === "on_time" ? {} : { sort }} />
+      <div className={cn("flex flex-wrap items-center gap-3")}>
+        <ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />
+        <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+      </div>
 
-      <div className={cn("grid gap-4 md:grid-cols-2")}>
+      <div className={cn("space-y-2")}>
+        <div className={cn("flex justify-end")}>
+          <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
+        </div>
         <RankBoard
-          title="Running latest"
-          accentClass="text-at-late"
-          rows={boards.latest}
-          metric="delay"
-          thresholdSec={THRESHOLD_SEC}
-        />
-        <RankBoard
-          title="Running earliest"
-          accentClass="text-at-early"
-          rows={boards.earliest}
+          title="Most off-schedule"
+          accentClass="text-at-ink"
+          rows={offSchedule}
           metric="delay"
           thresholdSec={THRESHOLD_SEC}
         />
@@ -120,7 +195,7 @@ export default async function Home({
           <RouteTable
             rows={sortRows(visible, sort)}
             basePath="/"
-            preservedParams={mode ? { mode } : {}}
+            preservedParams={tablePreserved}
             sort={sort}
           />
         </div>

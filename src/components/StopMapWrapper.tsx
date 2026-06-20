@@ -25,8 +25,12 @@ interface StopMapWrapperProps {
     avg_delay_sec: number | null;
     on_time_pct: number | null;
   }>;
+  /** Per-variant stop-coordinate sequences drawn as the route path. */
+  routeLines?: Array<Array<[number, number]>>;
   /** When set, the map polls and plots live vehicles for this route. */
   routeId?: string;
+  /** Route transport mode, selecting the live-vehicle glyph. */
+  mode?: "BUS" | "TRAIN" | "FERRY";
   className?: string;
 }
 

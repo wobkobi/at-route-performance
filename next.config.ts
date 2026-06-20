@@ -5,13 +5,13 @@ import path from "node:path";
 
 const isDev = process.env.NODE_ENV !== "production";
 
-// Fonts are bundled locally (next/font/local) and the map is Leaflet + OpenStreetMap
-// tiles, so the only external origin needed is the OSM tile servers (loaded as images).
+// Fonts are bundled locally (next/font/local) and the map is Leaflet + CARTO basemap
+// tiles, so the only external origin needed is the CARTO tile CDN (loaded as images).
 const cspProd =
   "default-src 'self'; " +
   "script-src 'self' 'unsafe-inline' blob:; " +
   "style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob: https://*.tile.openstreetmap.org; " +
+  "img-src 'self' data: blob: https://*.basemaps.cartocdn.com; " +
   "font-src 'self' data:; " +
   "connect-src 'self'; " +
   "worker-src 'self' blob:; " +
@@ -24,7 +24,7 @@ const cspDev =
   "default-src 'self' blob: data:; " +
   "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; " +
   "style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob: https://*.tile.openstreetmap.org; " +
+  "img-src 'self' data: blob: https://*.basemaps.cartocdn.com; " +
   "font-src 'self' data:; " +
   "connect-src 'self' ws: http://localhost:3000 http://127.0.0.1:3000; " +
   "worker-src 'self' blob:; " +

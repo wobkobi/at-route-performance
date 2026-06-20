@@ -103,3 +103,44 @@
     border-color: var(--color-at-border, currentcolor);
   }
 }
+
+/* Compact, box-less delay labels for live buses on the route map. */
+.leaflet-tooltip.bus-delay-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-at-ink);
+  text-shadow:
+    0 0 2px #fff,
+    0 0 2px #fff,
+    0 0 3px #fff;
+}
+.leaflet-tooltip.bus-delay-label::before {
+  display: none; /* hide the tooltip pointer */
+}
+
+/* Live-vehicle marker: glyph + delay-coloured ring + heading arrow (inline SVG). */
+.vehicle-marker {
+  line-height: 0;
+}
+
+/*
+  Metro-line accent: a segmented multi-colour bar from the AT palette, evoking a
+  transit map's coloured lines. Used under page mastheads and the site header.
+*/
+.metro-rule {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--color-at-shore) 0 16.66%,
+    var(--color-at-bright-green) 16.66% 33.33%,
+    var(--color-at-commercial) 33.33% 50%,
+    var(--color-at-disruption) 50% 66.66%,
+    var(--color-at-cosmic) 66.66% 83.33%,
+    var(--color-at-greeny-bluey) 83.33% 100%
+  );
+}

@@ -4,6 +4,129 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [0.20.1] - 2026-06-19
+
+- Make the route trip board heading match the mode: "Ferries of the day" / "Trains of the day"
+  instead of always "Buses of the day".
+
+## [0.20.0] - 2026-06-19
+
+- Sort the route page's "buses of the day" board: by most off-schedule (default), latest, earliest,
+  or departure time, via sort chips that keep the selected day.
+
+## [0.19.1] - 2026-06-19
+
+- Show ferries when the Ferry filter is selected. The boards required >=10 events, which a ferry
+  rarely reaches in a day (they run a handful of times), so picking Ferry came up empty. A
+  single-mode view now uses a lower event threshold so low-frequency modes appear.
+
+## [0.19.0] - 2026-06-19
+
+- Make the route map follow the actual road. Each direction's path now uses its GTFS shape geometry
+  (from the new `Shape` collection) instead of straight stop-to-stop lines, drawn as two parallel
+  offset lines so the two directions read separately. Routes without a stored shape fall back to the
+  straight stop-to-stop line.
+
+## [0.18.0] - 2026-06-18
+
+- Ingest GTFS route geometry: a new `/api/ingest/gtfs/shapes` endpoint downloads AT's full GTFS zip,
+  extracts `shapes.txt`, simplifies each shape, and upserts it into a new `Shape` collection (keyed
+  by `shape_id`). This backs the road-following route map. Documented as a weekly cron job.
+
+## [0.17.0] - 2026-06-18
+
+- Polish the line diagram: draw every direction (and disjoint sub-pattern) at one shared scale so it
+  fills the card width and dot/label sizes stay consistent; only fork for substantial divergences
+  (no tiny 1-2 stop offshoots); reserve space so the angled delay labels no longer clip at the edge;
+  show variants that share no origin with the trunk as their own labelled lines instead of dropping
+  them; hide stops the route has not served in the past week (origin termini, never-served pattern
+  stops) while keeping recently-active stops without today's data as neutral dots; and add a
+  hover/focus tooltip showing each stop's name and delay.
+
+## [0.16.0] - 2026-06-18
+
+- Rework the route line diagram in the style of AT's rapid-transit map: one bold, rounded trunk line
+  per direction that snake-wraps to stay on-screen, with trip variants that end at different spots
+  forking off at 45 degrees, and white stations ringed by their average delay (termini drawn
+  larger).
+- Base the day-focused views on a transit **service day** (5am to 5am the next day) instead of the
+  calendar day, so a route's post-midnight runs count under the day they started; the trip timeline
+  and the "most recent day with data" fallback use it too.
+- Show the actual service **date** with prev / next day arrows on the home and route pages (a
+  `?day=` link) instead of just labelling it "today", so you can step back to earlier days.
+
+## [0.15.1] - 2026-06-18
+
+- Fix the per-trip timeline mixing multiple service days: a GTFS trip id repeats every day it runs,
+  so `getTripTimeline` matched every day's run at once, showing stops out of order and duplicated.
+  Scope it to the run's day (the worst-buses board now passes it), falling back to the trip's most
+  recent day, and collapse a stop that recorded two actuals into one row.
+
+## [0.15.0] - 2026-06-18
+
+- Style the route map's live vehicles as AT-style markers: the route's mode glyph (bus/train/ferry)
+  on a white disc, ringed in the punctuality colour, with a same-coloured arrow on the ring pointing
+  the direction of travel. Stops stay as the only black-outlined dots.
+
+## [0.14.0] - 2026-06-18
+
+- Replace the home/rankings "Running latest" and "Running earliest" boards with a single "Most
+  off-schedule" list ranked by how far off schedule each route ran (largest absolute average
+  deviation), with All / Late / Early filter chips that compose with the mode and school filters.
+- Fix the school-bus filter hiding almost no school services: the `S###` code lives in the route's
+  long name (the short name is the plain number, e.g. `046`), and the code can carry a trailing
+  variant letter (e.g. `S046D`, `S001N`). Match the pattern in either name so school services are
+  excluded by default as intended.
+
+## [0.13.0] - 2026-06-18
+
+- Refresh the site's look and layout, keeping the AT identity (no dark mode): a real top navigation
+  (Today / Rankings) with a metro-line colour accent under the header and on every page masthead, a
+  slim footer noting the data source, and a more editorial home headline that names the day.
+
+## [0.12.0] - 2026-06-18
+
+- Add a branching, metro-style line diagram below the route map: each direction's stops in order,
+  with forks where trip variants diverge (some runs end early or go via a different segment) and
+  each stop node coloured by its average delay. Stop order comes from the AT GTFS schedule; there is
+  no schema change.
+
+## [0.11.0] - 2026-06-18
+
+- Add a per-trip timeline page (`/route/[id]/trip/[tripId]`) showing one run's stop-by-stop
+  scheduled times and how early or late it was at each stop, reached from the worst-buses ranking.
+
+## [0.10.0] - 2026-06-18
+
+- Revamp the route detail page around a "worst buses of the day" ranking: each run of the route,
+  ranked by how far off schedule it ran (average absolute deviation), showing its scheduled start,
+  vehicle, and stop count, each linking to that run's stop-by-stop timeline. The page is now
+  day-focused (today, falling back to the most recent day with data), like the home page.
+- Turn the route map into a proper route map: draw the route path between stops in order, outline
+  the stop nodes so they pop, and show live buses as heading arrows pointing the way they are
+  travelling. The path uses straight segments between stops - AT's API exposes stop order but no
+  road geometry.
+
+## [0.9.0] - 2026-06-18
+
+- Hide school-service routes (short name `S###`) from the home and rankings lists by default, with a
+  "School buses" toggle to show them. Composes with the mode filter and table sort.
+
+## [0.8.3] - 2026-06-17
+
+- Allow CARTO tiles in the Content-Security-Policy `img-src`; it still only listed the old OSM tile
+  host, so the new basemap was blocked and the map rendered grey.
+
+## [0.8.2] - 2026-06-17
+
+- Label the late and early buses on the route map directly (e.g. `4m late`), so you can see which
+  are running late without clicking. On-time buses stay an unlabelled dot to keep the map readable.
+
+## [0.8.1] - 2026-06-17
+
+- Switch the route map's basemap from OpenStreetMap's volunteer tile servers (which block
+  app/embedded use with a 403) to CARTO Positron, which permits it and suits the light AT palette.
+
 ## [0.8.0] - 2026-06-17
 
 - Add a Bus/Train/Ferry filter on the home and rankings pages that narrows the route lists (boards

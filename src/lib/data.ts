@@ -1,9 +1,26 @@
 // src/lib/data.ts
 import { prisma } from "@/lib/db";
-import type { DateRange } from "@/lib/time";
-import type { RouteByStop, RouteSummary, TopRouteRow } from "@/types/api";
+import { nzServiceDayRange, SERVICE_START_HOUR, type DateRange } from "@/lib/time";
+import type {
+  PerTripStat,
+  RouteByStop,
+  RouteSummary,
+  TopRouteRow,
+  TripStop,
+  TripTimeline,
+} from "@/types/api";
 import type { FleetSummary, ModeStat } from "@/types/dashboard";
 import { unstable_cache } from "next/cache";
+
+/**
+ * Normalise an extended-JSON date (`{ $date }`) or ISO string to an ISO string.
+ * `$runCommandRaw` returns dates as `{ $date }`; this flattens them.
+ * @param d - An extended-JSON date or an ISO string.
+ * @returns The ISO instant string.
+ */
+function toIso(d: { $date: string } | string): string {
+  return typeof d === "string" ? d : d.$date;
+}
 
 const MS_IN_WEEK = 604_800_000;
 const MS_IN_DAY = 86_400_000;
@@ -503,11 +520,12 @@ export async function getLatestEventDate(): Promise<Date | null> {
 }
 
 /**
- * The most recent Auckland-local day that has at least `minEvents` events.
- * The home page falls back to this when the current day is sparse, so a day that
- * straddles UTC midnight (a few late events) does not strand the bulk of data.
- * @param minEvents - Minimum events a day needs to qualify.
- * @returns A Date inside that local day (its UTC midnight), or null when empty.
+ * The most recent Auckland-local **service day** that has at least `minEvents`
+ * events. Day-focused pages fall back to this when the current service day is
+ * sparse. Events are bucketed by service day (shift back by `SERVICE_START_HOUR`
+ * then truncate), so a post-midnight run counts under the day it started.
+ * @param minEvents - Minimum events a service day needs to qualify.
+ * @returns A Date inside that service day (its local noon), or null when empty.
  */
 export async function getMostRecentDataDay(minEvents: number): Promise<Date | null> {
   const res = (await prisma.$runCommandRaw({
@@ -515,7 +533,19 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
     pipeline: [
       {
         $group: {
-          _id: { $dateTrunc: { date: "$scheduledAt", unit: "day", timezone: "Pacific/Auckland" } },
+          _id: {
+            $dateTrunc: {
+              date: {
+                $dateSubtract: {
+                  startDate: "$scheduledAt",
+                  unit: "hour",
+                  amount: SERVICE_START_HOUR,
+                },
+              },
+              unit: "day",
+              timezone: "Pacific/Auckland",
+            },
+          },
           n: { $sum: 1 },
         },
       },
@@ -527,5 +557,237 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   })) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?._id;
   if (!raw) return null;
-  return new Date(typeof raw === "string" ? raw : raw.$date);
+  // The bucket is the service day's local midnight; return its local noon so the
+  // hour sits safely inside the service day for nzServiceDayRange.
+  const bucket = new Date(typeof raw === "string" ? raw : raw.$date);
+  return new Date(bucket.getTime() + 12 * 60 * 60 * 1000);
+}
+
+/**
+ * Stop ids a route has actually served (recorded an arrival at) in the last
+ * `days`. The route diagram uses this to drop pattern stops the route never
+ * really stops at (origin termini, never-served variants, id mismatches), while
+ * keeping recently-active stops that merely lack today's data. Cached hourly.
+ * @param routeId - AT route id.
+ * @param days - How many days back to consider a stop active (default 7).
+ * @returns The set of active stop ids.
+ */
+export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<string>> {
+  const since = new Date(Date.now() - days * MS_IN_DAY);
+  const ids = await unstable_cache(
+    async () => {
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          { $match: { routeId, scheduledAt: { $gte: { $date: since.toISOString() } } } },
+          { $group: { _id: "$stopId" } },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      return res.cursor.firstBatch.map((r) => r._id);
+    },
+    ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
+    { revalidate: 3600 },
+  )();
+  return new Set(ids);
+}
+
+/** Parameters for {@link getWorstTripsOfDay}. */
+export interface WorstTripsParams {
+  routeId: string;
+  range: DateRange;
+  thresholdSec: number;
+  limit?: number;
+  /** How to order the runs (default "off" = most off-schedule). */
+  sort?: TripSort;
+}
+
+/** Ordering for {@link getWorstTripsOfDay}. */
+export type TripSort = "off" | "late" | "early" | "departure";
+
+/** Mongo `$sort` stage for each trip ordering. */
+const TRIP_SORTS: Record<TripSort, Record<string, 1 | -1>> = {
+  off: { avg_abs_delay_sec: -1 },
+  late: { avg_delay_sec: -1 },
+  early: { avg_delay_sec: 1 },
+  departure: { scheduled_start: 1 },
+};
+
+/** Raw worst-trips row before the `scheduled_start` date is normalised. */
+interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
+  scheduled_start: { $date: string } | string;
+}
+
+/**
+ * List each run (trip) of a route on a day, ordered by `sort` (default most
+ * off-schedule by average absolute deviation). The signed average is kept so the
+ * board can still show late/early direction. Cached briefly.
+ * @param p - Route, day window, on-time threshold, optional row limit and sort.
+ * @returns Per-trip rows ordered by `sort` (up to `limit`, default 50).
+ */
+export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
+  const limit = p.limit ?? 50;
+  const sort = p.sort ?? "off";
+  return unstable_cache(
+    async () => {
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          {
+            $match: {
+              routeId: p.routeId,
+              scheduledAt: {
+                $gte: { $date: p.range.start.toISOString() },
+                $lt: { $date: p.range.end.toISOString() },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$tripId",
+              vehicle_id: { $first: "$vehicleId" },
+              scheduled_start: { $min: "$scheduledAt" },
+              stops: { $sum: 1 },
+              avg_delay_sec: { $avg: "$deviationSec" },
+              avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+              worst_delay_sec: { $max: "$deviationSec" },
+            },
+          },
+          { $sort: TRIP_SORTS[sort] },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              trip_id: { $toString: "$_id" },
+              vehicle_id: 1,
+              scheduled_start: 1,
+              stops: 1,
+              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+              avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+              worst_delay_sec: 1,
+            },
+          },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: WorstTripRaw[] } };
+      return res.cursor.firstBatch.map((t) => ({
+        ...t,
+        scheduled_start: toIso(t.scheduled_start),
+      }));
+    },
+    [
+      "worst-trips",
+      p.routeId,
+      p.range.start.toISOString(),
+      p.range.end.toISOString(),
+      String(limit),
+      sort,
+    ],
+    { revalidate: 300 },
+  )();
+}
+
+/** Raw trip-timeline stop row before the `scheduled_at` date is normalised. */
+interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
+  scheduled_at: { $date: string } | string;
+  vehicle_id: string | null;
+}
+
+/**
+ * The Auckland-local service-day window of a trip's most recent run, so an
+ * undated timeline request still resolves to a single run (a run that crosses
+ * midnight stays in one service day).
+ * @param tripId - The trip to scope.
+ * @returns The latest run's service-day window, or null when the trip has no events.
+ */
+async function latestTripDay(tripId: string): Promise<DateRange | null> {
+  const res = (await prisma.$runCommandRaw({
+    aggregate: "ArrivalEvent",
+    pipeline: [
+      { $match: { tripId } },
+      { $group: { _id: null, max: { $max: "$scheduledAt" } } },
+    ] as never,
+    cursor: { batchSize: 1 },
+  })) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
+  const raw = res.cursor.firstBatch[0]?.max;
+  return raw ? nzServiceDayRange(new Date(toIso(raw))) : null;
+}
+
+/**
+ * A single trip run's stop-by-stop scheduled-vs-actual timeline, in stop order.
+ * A GTFS `tripId` repeats every service day, so the events are scoped to one
+ * day - the supplied `range` (the run the user clicked) or the trip's latest day
+ * - otherwise different days' runs interleave and stops appear out of order or
+ * duplicated. Consecutive events for the same stop (a stop with two recorded
+ * actuals) are collapsed. Cached briefly.
+ * @param tripId - The trip (run) to resolve.
+ * @param routeId - The owning route (for the header).
+ * @param range - The run's Auckland-local day window; defaults to its latest day.
+ * @returns The route header, vehicle, and ordered stops.
+ */
+export async function getTripTimeline(
+  tripId: string,
+  routeId: string,
+  range?: DateRange,
+): Promise<TripTimeline> {
+  const day = range ?? (await latestTripDay(tripId));
+  return unstable_cache(
+    async () => {
+      const route = await prisma.route.findUnique({
+        where: { id: routeId },
+        select: { shortName: true, longName: true, mode: true },
+      });
+
+      const match: Record<string, unknown> = { tripId };
+      if (day) {
+        match.scheduledAt = {
+          $gte: { $date: day.start.toISOString() },
+          $lt: { $date: day.end.toISOString() },
+        };
+      }
+
+      const res = (await prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          { $match: match },
+          { $sort: { scheduledAt: 1 as const } },
+          { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+          { $unwind: "$stop" },
+          {
+            $project: {
+              _id: 0,
+              stop_id: { $toString: "$stopId" },
+              name: "$stop.name",
+              scheduled_at: "$scheduledAt",
+              deviation_sec: "$deviationSec",
+              vehicle_id: "$vehicleId",
+            },
+          },
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      })) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
+
+      const stops: TripStop[] = [];
+      for (const r of res.cursor.firstBatch) {
+        // Collapse a stop that recorded two actuals into one timeline row.
+        if (stops[stops.length - 1]?.stop_id === r.stop_id) continue;
+        stops.push({
+          stop_id: r.stop_id,
+          name: r.name,
+          scheduled_at: toIso(r.scheduled_at),
+          deviation_sec: r.deviation_sec,
+        });
+      }
+      return {
+        trip_id: tripId,
+        route: route
+          ? { shortName: route.shortName, longName: route.longName, mode: route.mode }
+          : null,
+        vehicle_id: res.cursor.firstBatch.find((r) => r.vehicle_id)?.vehicle_id ?? null,
+        stops,
+      };
+    },
+    ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
+    { revalidate: 300 },
+  )();
 }
