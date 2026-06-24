@@ -23,6 +23,8 @@ export interface RouteAttr {
   route_short_name?: string | null;
   route_long_name: string;
   route_type: number;
+  route_color?: string | null;
+  route_text_color?: string | null;
 }
 
 // GTFS stop attributes (subset).

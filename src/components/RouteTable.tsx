@@ -1,107 +1,205 @@
+"use client";
+
+import { ChevronRight } from "@/components/icons";
+import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { formatDelay } from "@/lib/format";
-import { linkColour } from "@/lib/link-colour";
+import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
-import type { JSX } from "react";
+import { useState, type JSX } from "react";
 
 /** Sortable columns for {@link RouteTable}. */
 export type RouteSort = "route" | "events" | "avg_delay" | "on_time";
 
+/** Sort direction. */
+type SortDir = "asc" | "desc";
+
 /** Props for {@link RouteTable}. */
 export interface RouteTableProps {
-  /** All rows to show (already sorted by the caller). */
+  /** All rows to show. */
   rows: TopRouteRow[];
-  /** Base path for sort links (e.g. "/" or "/rankings"). */
-  basePath: string;
-  /** Current query string params to preserve in sort links. */
-  preservedParams: Record<string, string>;
-  /** Active sort. */
+  /** Initial sort column. */
   sort: RouteSort;
+  /**
+   * Service day (`YYYY-MM-DD`) to pin on each route link, so the route opens on
+   * the same day being viewed. Omit to link to the route's default day.
+   */
+  routeDay?: string;
+  /**
+   * Window to open on each route link (e.g. `"week"`). Applied when `routeDay`
+   * is absent; omit to open the route's default day view.
+   */
+  routeWindow?: string;
+  /**
+   * Calendar period to pin on each route link (`YYYY-MM-DD` Monday for week,
+   * `YYYY-MM` for month). Applied alongside `routeWindow`; omit for the rolling
+   * default.
+   */
+  routePeriod?: string;
 }
 
 /**
- * Build an href that preserves params and sets a new sort column.
- * @param basePath - Page path.
- * @param preserved - Params to keep.
- * @param sort - Sort column to set.
- * @returns A relative URL string.
+ * Compare two rows by a column (ascending). Route is compared by name with
+ * numeric awareness (so 9 sorts before 100); other columns are numeric.
+ * @param a - First row.
+ * @param b - Second row.
+ * @param key - Column to compare by.
+ * @returns Negative, zero, or positive per the standard sort contract.
  */
-function sortHref(basePath: string, preserved: Record<string, string>, sort: RouteSort): string {
-  const sp = new URLSearchParams({ ...preserved, sort });
-  return `${basePath}?${sp.toString()}`;
+function compareRows(a: TopRouteRow, b: TopRouteRow, key: RouteSort): number {
+  switch (key) {
+    case "events":
+      return a.events - b.events;
+    case "avg_delay":
+      return (a.avg_delay_sec ?? 0) - (b.avg_delay_sec ?? 0);
+    case "on_time":
+      return (a.on_time_pct ?? 0) - (b.on_time_pct ?? 0);
+    case "route":
+    default:
+      return (a.short_name ?? a.route_id).localeCompare(b.short_name ?? b.route_id, undefined, {
+        numeric: true,
+      });
+  }
 }
 
 /**
- * Render the full, server-sorted routes table.
+ * The full routes table with a live search (route number or name) and instant
+ * client-side column sorting - click a header to sort, click again to flip the
+ * direction. No page reload, so the search text and the open panel are kept.
  * @param props - Component props.
- * @param props.rows - Rows in display order.
- * @param props.basePath - Page path for sort links.
- * @param props.preservedParams - Params to preserve in sort links.
- * @param props.sort - Active sort column.
+ * @param props.rows - All routes to show.
+ * @param props.sort - Initial sort column.
+ * @param props.routeDay - Service day to pin on each route link (optional).
+ * @param props.routeWindow - Window to open on each route link when no day is pinned (optional).
+ * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
  * @returns The table element.
  */
 export function RouteTable({
   rows,
-  basePath,
-  preservedParams,
   sort,
+  routeDay,
+  routeWindow,
+  routePeriod,
 }: RouteTableProps): JSX.Element {
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<RouteSort>(sort);
+  // Names read best ascending (A>Z, 1>100); counts/rates read best high-first.
+  const [sortDir, setSortDir] = useState<SortDir>(sort === "route" ? "asc" : "desc");
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? rows.filter((r) =>
+        `${r.short_name ?? ""} ${r.long_name ?? ""} ${r.route_id}`.toLowerCase().includes(q),
+      )
+    : rows;
+  const sorted = [...filtered].sort((a, b) => {
+    const c = compareRows(a, b, sortKey);
+    return sortDir === "asc" ? c : -c;
+  });
+
   const head: { key: RouteSort; label: string; align: string }[] = [
     { key: "route", label: "Route", align: "text-left" },
     { key: "events", label: "Events", align: "text-right" },
     { key: "avg_delay", label: "Avg delay", align: "text-right" },
     { key: "on_time", label: "On-time %", align: "text-right" },
   ];
+
   return (
-    <div className={cn("overflow-x-auto rounded-xl bg-at-surface shadow-sm")}>
-      <table className={cn("min-w-full text-sm")}>
-        <thead className={cn("bg-at-bg text-at-muted")}>
-          <tr>
-            {head.map((h) => (
-              <th key={h.key} className={cn("px-3 py-2", h.align)}>
-                <a
-                  href={sortHref(basePath, preservedParams, h.key)}
-                  className={cn("hover:underline", sort === h.key && "font-semibold text-at-ink")}
-                >
-                  {h.label}
-                </a>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const colour = linkColour(r.short_name, r.long_name);
-            return (
-              <tr key={r.route_id} className={cn("border-t border-at-border")}>
-                <td className={cn("px-3 py-2 font-medium")}>
-                  <span className={cn("flex items-center gap-2")}>
-                    {colour && (
-                      <span
-                        aria-hidden
-                        className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-full", colour)}
-                      />
-                    )}
-                    <a
-                      href={`/route/${encodeURIComponent(r.route_id)}`}
-                      className={cn("hover:underline")}
+    <div className="space-y-2">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search routes by number or name"
+        aria-label="Search routes"
+        className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore focus:outline-none"
+      />
+      <div className="overflow-x-auto border border-at-border bg-at-surface">
+        <table className="min-w-full text-sm">
+          <thead className="bg-at-bg text-xs tracking-wide text-at-muted uppercase">
+            <tr>
+              {head.map((h) => {
+                const active = sortKey === h.key;
+                return (
+                  <th
+                    key={h.key}
+                    aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+                    className={cn("px-3 py-2.5 font-semibold", h.align)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        active
+                          ? setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+                          : (setSortKey(h.key), setSortDir(h.key === "route" ? "asc" : "desc"))
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1 hover:text-at-ink",
+                        active && "text-at-ink",
+                      )}
                     >
-                      {r.short_name || r.long_name || r.route_id}
-                    </a>
-                  </span>
-                </td>
-                <td className={cn("px-3 py-2 text-right tabular-nums")}>{r.events}</td>
-                <td className={cn("px-3 py-2 text-right tabular-nums")}>
-                  {formatDelay(r.avg_delay_sec ?? 0)}
-                </td>
-                <td className={cn("px-3 py-2 text-right tabular-nums")}>
-                  {r.on_time_pct?.toFixed(1) ?? "—"}
+                      {h.label}
+                      {active && (
+                        <ChevronRight
+                          className={cn("h-3 w-3", sortDir === "asc" ? "-rotate-90" : "rotate-90")}
+                        />
+                      )}
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={head.length} className="px-3 py-4 text-center text-at-muted">
+                  No routes match &ldquo;{query.trim()}&rdquo;.
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ) : (
+              sorted.map((r) => {
+                return (
+                  <tr
+                    key={r.route_id}
+                    className="border-t border-at-border transition-colors hover:bg-at-shore-pale"
+                  >
+                    <td className="px-3 py-2.5 font-medium">
+                      <span className="flex items-center gap-2">
+                        <ModeIcon
+                          mode={r.mode}
+                          shortName={r.short_name}
+                          longName={r.long_name}
+                          colour={r.colour}
+                        />
+                        <a
+                          href={
+                            routeDay
+                              ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?day=${routeDay}`
+                              : routeWindow
+                                ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?window=${routeWindow}${routePeriod ? `&period=${routePeriod}` : ""}`
+                                : `/route/${encodeURIComponent(routeSlug(r.route_id))}`
+                          }
+                          className="font-semibold text-at-shore hover:underline"
+                        >
+                          {r.short_name || r.long_name || r.route_id}
+                        </a>
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{r.events}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {formatDelay(r.avg_delay_sec ?? 0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {r.on_time_pct?.toFixed(1) ?? "—"}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

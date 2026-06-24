@@ -1,4 +1,4 @@
-import { cn } from "@/lib/cn";
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -13,6 +13,8 @@ export interface DayNavProps {
   serviceDate: string;
   /** Query params to preserve on the links (the `day` param is set here). */
   preservedParams: Record<string, string>;
+  /** Whether a previous (earlier) day link should be offered (false on the earliest day with data). */
+  hasPrev: boolean;
   /** Whether a next (later) day link should be offered (false on the latest day). */
   hasNext: boolean;
 }
@@ -51,12 +53,14 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
 }
 
 /**
- * Service-day stepper: prev / current date / next, as `?day=` links. The next
- * link is omitted on the latest service day so you cannot page into the future.
+ * Service-day stepper: prev / current date / next, as `?day=` links. The prev
+ * link is omitted on the earliest service day with data and the next link on the
+ * latest, so you cannot page past where data exists in either direction.
  * @param props - Component props.
  * @param props.basePath - Page path the day links point at.
  * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
  * @param props.preservedParams - Query params to keep when changing day.
+ * @param props.hasPrev - Whether to offer a previous-day link.
  * @param props.hasNext - Whether to offer a next-day link.
  * @returns The day navigation element.
  */
@@ -64,33 +68,30 @@ export function DayNav({
   basePath,
   serviceDate,
   preservedParams,
+  hasPrev,
   hasNext,
 }: DayNavProps): JSX.Element {
-  const pill = "rounded-full px-2.5 py-1 text-sm font-semibold";
   return (
-    <div className={cn("flex items-center gap-1")}>
-      <Link
-        href={dayHref(basePath, preservedParams, shiftDate(serviceDate, -1))}
-        className={cn(pill, "bg-at-surface text-at-ink hover:bg-at-bg")}
-        aria-label="Previous day"
-      >
-        &lsaquo;
-      </Link>
-      <span className={cn("px-2 text-sm font-semibold tabular-nums")}>
-        {dateLabel(serviceDate)}
-      </span>
-      {hasNext ? (
+    <div className="flex items-center gap-1">
+      {/* Step links are omitted (not disabled) at the edges of the data range. */}
+      {hasPrev && (
+        <Link
+          href={dayHref(basePath, preservedParams, shiftDate(serviceDate, -1))}
+          className="chip chip-off"
+          aria-label="Previous day"
+        >
+          <ChevronLeft />
+        </Link>
+      )}
+      <span className="px-2 text-sm font-semibold tabular-nums">{dateLabel(serviceDate)}</span>
+      {hasNext && (
         <Link
           href={dayHref(basePath, preservedParams, shiftDate(serviceDate, 1))}
-          className={cn(pill, "bg-at-surface text-at-ink hover:bg-at-bg")}
+          className="chip chip-off"
           aria-label="Next day"
         >
-          &rsaquo;
+          <ChevronRight />
         </Link>
-      ) : (
-        <span className={cn(pill, "text-at-border")} aria-hidden="true">
-          &rsaquo;
-        </span>
       )}
     </div>
   );

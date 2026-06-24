@@ -1,4 +1,5 @@
 // src/app/api/routes/[id]/vehicles/route.ts
+import { routeSlug } from "@/lib/route-slug";
 import { getLiveVehicles } from "@/lib/vehicles";
 import { NextResponse } from "next/server";
 
@@ -18,7 +19,9 @@ export async function GET(
   const { id } = await ctx.params;
   try {
     const all = await getLiveVehicles();
-    return NextResponse.json({ vehicles: all.filter((v) => v.routeId === id) });
+    // AT's real-time feed includes versioned route ids (e.g. "NX1-202409"); strip
+    // the version suffix before comparing so they match the URL slug "NX1".
+    return NextResponse.json({ vehicles: all.filter((v) => routeSlug(v.routeId) === id) });
   } catch (err) {
     console.error("GET /api/routes/[id]/vehicles failed", err);
     return NextResponse.json({ error: "server_error", vehicles: [] }, { status: 502 });

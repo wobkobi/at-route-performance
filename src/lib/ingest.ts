@@ -2,6 +2,7 @@
 import { fetchRoutes, fetchStops, mapRouteType } from "@/lib/at-static";
 import { prisma } from "@/lib/db";
 import { fetchShapes } from "@/lib/gtfs-shapes";
+import { fetchTrips } from "@/lib/gtfs-trips";
 
 /** Max update operations per bulk `update` command (well under Mongo's 1000 cap). */
 const BATCH = 500;
@@ -46,6 +47,8 @@ export async function syncRoutes(): Promise<{ upserted: number }> {
           shortName: r.route_short_name ?? null,
           longName: r.route_long_name,
           mode: mapRouteType(r.route_type),
+          colour: r.route_color ? r.route_color.replace(/^#/, "") : null,
+          textColour: r.route_text_color ? r.route_text_color.replace(/^#/, "") : null,
         },
       },
     }));
@@ -94,5 +97,27 @@ export async function syncShapes(): Promise<{ upserted: number }> {
   }));
 
   await bulkUpsert("Shape", ops);
+  return { upserted: ops.length };
+}
+
+/**
+ * Fetch GTFS trip metadata from AT's full feed and upsert it into the
+ * `tripMeta` collection (headsign + direction keyed by trip_id).
+ * @returns Count of trips upserted.
+ */
+export async function syncTripMeta(): Promise<{ upserted: number }> {
+  const trips = await fetchTrips();
+  const ops: UpsertOp[] = trips.map((t) => ({
+    q: { _id: t.id },
+    u: {
+      $set: {
+        routeId: t.routeId,
+        headsign: t.headsign,
+        directionId: t.directionId,
+      },
+    },
+  }));
+
+  await bulkUpsert("tripMeta", ops);
   return { upserted: ops.length };
 }

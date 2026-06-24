@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { formatDelay } from "@/lib/format";
+import { delayColour } from "@/lib/delay-colour";
+import { formatDelay, formatDuration } from "@/lib/format";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
@@ -15,6 +16,8 @@ interface StopPoint {
   lon: number;
   avg_delay_sec: number | null;
   on_time_pct: number | null;
+  /** Average absolute deviation (off-by); when set, the popup shows it too. */
+  avg_abs_delay_sec?: number | null;
 }
 
 /** A route variant's path: stop coordinates in schedule order. */
@@ -25,6 +28,31 @@ const VEHICLE_THRESHOLD = 120;
 
 /** How often to refresh live vehicle positions while the tab is visible. */
 const POLL_MS = 60_000;
+
+/**
+ * Zoom for focusing a single stop (the stop detail page, or a clicked diagram
+ * stop): a neighbourhood view that shows the surrounding area for context,
+ * rather than the street-level zoom `fitBounds` snaps to for a lone point.
+ */
+const STOP_FOCUS_ZOOM = 14;
+
+/**
+ * Haversine distance in kilometres between two WGS-84 coordinates.
+ * @param lat1 - Latitude of point 1.
+ * @param lon1 - Longitude of point 1.
+ * @param lat2 - Latitude of point 2.
+ * @param lon2 - Longitude of point 2.
+ * @returns Distance in kilometres.
+ */
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
 
 /**
  * Compact delay label for a bus map marker, e.g. `4m late` / `3m early`.
@@ -108,6 +136,23 @@ function vehicleIcon(
 }
 
 /**
+ * A small filled-triangle arrow `divIcon` pointing along a bearing (degrees
+ * clockwise from north), to show a route line's travel direction. Web Mercator
+ * is conformal, so the geographic bearing doubles as the on-screen rotation.
+ * @param L - The Leaflet module.
+ * @param colour - Fill colour (the line colour).
+ * @param bearing - Heading in degrees (0 = north) of the underlying segment.
+ * @returns A Leaflet divIcon.
+ */
+function arrowIcon(L: typeof import("leaflet"), colour: string, bearing: number): Leaflet.DivIcon {
+  const html =
+    `<svg viewBox="0 0 14 14" width="22" height="22" aria-hidden="true">` +
+    `<g transform="rotate(${Math.round(bearing)} 7 7)">` +
+    `<path d="M7 1.5 L11 9 L7 7 L3 9 Z" fill="${colour}"/></g></svg>`;
+  return L.divIcon({ className: "route-arrow", html, iconSize: [22, 22], iconAnchor: [11, 11] });
+}
+
+/**
  * Leaflet route map: the route's path (straight lines between stops in order),
  * its stops as black-outlined nodes coloured by average delay, and the live
  * vehicles as mode-glyph markers in a punctuality-coloured ring (late = Anther
@@ -117,6 +162,9 @@ function vehicleIcon(
  * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
  * @param root0.routeId - When set, poll and plot live vehicles for this route.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
+ * @param root0.selectedStopId - When set, centre on this stop and open its popup.
+ * @param root0.filterTripId - When set, only show the path of this trip.
+ * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
  * @param root0.className - Optional extra classes for the container.
  * @returns Map container element.
  */
@@ -125,12 +173,23 @@ export default function StopMap({
   routeLines = [],
   routeId,
   mode = "BUS",
+  selectedStopId,
+  filterTripId,
+  filterDirectionIds,
   className,
 }: {
   stops: StopPoint[];
   routeLines?: RouteLine[];
   routeId?: string;
   mode?: RouteMode;
+  selectedStopId?: string;
+  /** When set, only show the live vehicle whose tripId matches. */
+  filterTripId?: string;
+  /**
+   * When set, only live vehicles whose `directionId` is in this list are shown.
+   * Pass all raw GTFS direction ids that alias to the active direction.
+   */
+  filterDirectionIds?: number[];
   className?: string;
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
@@ -150,6 +209,8 @@ export default function StopMap({
       const ontimeColour = cssVar("--color-at-ontime") || "#0073bd";
       const inkColour = cssVar("--color-at-ink") || "#001930";
       const shoreColour = cssVar("--color-at-shore") || "#0073bd";
+      const borderColour = cssVar("--color-at-border") || "#c7ced6";
+      const surfaceColour = cssVar("--color-at-surface") || "#ffffff";
 
       map = L.map(divRef.current);
       // CARTO basemaps allow app/embedded use; OSM's volunteer tile servers block
@@ -161,36 +222,81 @@ export default function StopMap({
         attribution: "© OpenStreetMap contributors © CARTO",
       }).addTo(map);
 
-      // Route path: straight segments between consecutive stops (AT exposes stop
-      // order but no road geometry). Drawn first so stops/buses sit on top.
-      for (const line of routeLines) {
-        if (line.length > 1) {
-          L.polyline(line, { color: shoreColour, weight: 3, opacity: 0.45 }).addTo(map);
+      // Route path (road geometry where available, else straight stop-to-stop),
+      // drawn first so stops/buses sit on top. Arrows are staggered by line index
+      // so forward/return lines don't place arrows on top of each other.
+      for (const [lineIdx, line] of routeLines.entries()) {
+        if (line.length < 2) continue;
+        L.polyline(line, { color: shoreColour, weight: 3, opacity: 0.45 }).addTo(map);
+        const shift = (lineIdx % 2) * 0.15;
+        const idxs = [
+          ...new Set(
+            [0.3 + shift, 0.65 + shift].map((f) =>
+              Math.max(1, Math.round(Math.min(f, 0.95) * (line.length - 1))),
+            ),
+          ),
+        ];
+        for (const i of idxs) {
+          const [aLat, aLon] = line[i - 1];
+          const [bLat, bLon] = line[i];
+          const bearing =
+            (Math.atan2((bLon - aLon) * Math.cos((aLat * Math.PI) / 180), bLat - aLat) * 180) /
+            Math.PI;
+          L.marker([(aLat + bLat) / 2, (aLon + bLon) / 2], {
+            icon: arrowIcon(L, shoreColour, bearing),
+            interactive: false,
+            keyboard: false,
+          }).addTo(map);
         }
       }
 
+      // Markers kept by stop id so a selected stop can be centred + popped open.
+      const markerById = new Map<string, Leaflet.CircleMarker>();
       for (const s of stops) {
-        const v = s.avg_delay_sec ?? 0;
-        const colour = v > 5 ? lateColour : v < -5 ? earlyColour : ontimeColour;
-        // Black outline so the coloured stop nodes pop against the light basemap.
-        const marker = L.circleMarker([s.lat, s.lon], {
-          radius: 5,
-          color: inkColour,
-          fillColor: colour,
-          fillOpacity: 0.85,
-          weight: 2,
-        });
+        const hasData = s.avg_delay_sec != null;
+        // Served stops: a coloured disc, black-outlined so it pops (the fade lives
+        // in the fill colour, so keep it opaque). Stops with no data that day - e.g.
+        // a sparse route's unserved stops - show as a small hollow dot, so a stop is
+        // clearly "no data here" rather than an uncoloured one.
+        const marker = L.circleMarker(
+          [s.lat, s.lon],
+          hasData
+            ? {
+                radius: 5,
+                color: inkColour,
+                fillColor: delayColour(s.avg_delay_sec, mode),
+                fillOpacity: 1,
+                weight: 2,
+              }
+            : {
+                radius: 3.5,
+                color: borderColour,
+                fillColor: surfaceColour,
+                fillOpacity: 1,
+                weight: 1.5,
+              },
+        );
         const popup = document.createElement("div");
         const title = document.createElement("strong");
         title.textContent = s.name;
-        const avg = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec);
-        popup.append(
-          title,
-          document.createElement("br"),
-          document.createTextNode(`Avg delay: ${avg}`),
-        );
+        const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec);
+        popup.append(title);
+        if (s.avg_abs_delay_sec != null) {
+          // Show both: the net average (earlies and lates cancel) and the off-by
+          // magnitude, so the popup matches the stop's "Avg off by" KPI instead of
+          // looking like it contradicts it.
+          popup.append(
+            document.createElement("br"),
+            document.createTextNode(`Net delay: ${net}`),
+            document.createElement("br"),
+            document.createTextNode(`Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`),
+          );
+        } else {
+          popup.append(document.createElement("br"), document.createTextNode(`Avg delay: ${net}`));
+        }
         marker.bindPopup(popup);
         marker.addTo(map);
+        markerById.set(s.stop_id, marker);
       }
 
       // Frame the map to the stops (falling back to the route lines, else NZ).
@@ -198,10 +304,22 @@ export default function StopMap({
         ...stops.map((s) => [s.lat, s.lon] as [number, number]),
         ...routeLines.flat(),
       ];
-      if (boundsPoints.length) {
+      if (boundsPoints.length === 1) {
+        // A lone stop (the stop detail page) has no extent to fit, so use a fixed
+        // neighbourhood zoom instead of the street-level zoom fitBounds snaps to.
+        map.setView(boundsPoints[0], STOP_FOCUS_ZOOM);
+      } else if (boundsPoints.length) {
         map.fitBounds(L.latLngBounds(boundsPoints).pad(0.1));
       } else {
         map.setView([-36.8485, 174.7633], 12);
+      }
+
+      // A focused stop (e.g. a clicked diagram stop): centre on it and open its
+      // popup so you can see where it is, zooming in only enough for context.
+      const selected = selectedStopId ? markerById.get(selectedStopId) : undefined;
+      if (selected) {
+        map.setView(selected.getLatLng(), Math.max(map.getZoom(), STOP_FOCUS_ZOOM));
+        selected.openPopup();
       }
 
       if (!routeId) return;
@@ -223,7 +341,26 @@ export default function StopMap({
           const data = (await res.json()) as { vehicles: LiveVehicle[] };
           if (cancelled || !map) return;
           vehicleLayer.clearLayers();
-          for (const veh of data.vehicles) {
+          let vehicles = filterTripId
+            ? data.vehicles.filter((v) => v.tripId === filterTripId)
+            : data.vehicles;
+          if (!filterTripId) {
+            // Direction filter: only show vehicles matching the active direction
+            // (or its aliased ids when two GTFS direction ids map to one diagram lane).
+            if (filterDirectionIds) {
+              vehicles = vehicles.filter(
+                (v) => v.directionId == null || filterDirectionIds.includes(v.directionId),
+              );
+            }
+            // Proximity filter: discard GPS-lost or off-route vehicles that are more
+            // than 2km from every stop on this route, so stray dots don't mislead.
+            if (stops.length > 0) {
+              vehicles = vehicles.filter((v) =>
+                stops.some((s) => haversineKm(v.lat, v.lon, s.lat, s.lon) < 2.0),
+              );
+            }
+          }
+          for (const veh of vehicles) {
             const d = veh.delaySec;
             const colour =
               d == null
@@ -278,7 +415,9 @@ export default function StopMap({
       if (timer) clearInterval(timer);
       map?.remove();
     };
-  }, [stops, routeLines, routeId, mode]);
+  }, [stops, routeLines, routeId, mode, selectedStopId, filterTripId, filterDirectionIds]);
 
-  return <div ref={divRef} className={cn("w-full bg-at-bg", className)} />;
+  // `isolate` keeps Leaflet's high pane z-indexes (200-700) in their own stacking
+  // context so they don't paint over the sticky header (z-40).
+  return <div ref={divRef} className={cn("isolate w-full bg-at-bg", className)} />;
 }
