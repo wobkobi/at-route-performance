@@ -1,6 +1,10 @@
 import Link from "next/link";
 import type { JSX } from "react";
 
+// Prevent static prerendering: the root layout queries the DB and needs DATABASE_URL,
+// which is unavailable at build time in CI.
+export const dynamic = "force-dynamic";
+
 /**
  * Global 404 page - rendered by Next.js when `notFound()` is called from any
  * route or stop page, or when a path matches no route segment.

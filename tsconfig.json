@@ -25,6 +25,13 @@
       }
     ]
   },
-  "include": ["src", "tests", "next-env.d.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "include": [
+    "src",
+    "scripts",
+    "tests",
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
   "exclude": ["node_modules", ".next", "dist", "coverage", ".turbo"]
 }
