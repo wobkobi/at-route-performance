@@ -94,7 +94,9 @@ export interface DataFreshness {
  */
 export async function getDataFreshness(): Promise<DataFreshness | null> {
   const run = await getLastIngestRun("at");
-  const resolved = run?.completedAt ?? (await getLatestEventDate());
+  // unstable_cache JSON-serialises Date objects to strings; convert back so
+  // getTime() calls below work whether the value came from cache or Prisma.
+  const resolved = run ? new Date(run.completedAt) : await getLatestEventDate();
   if (!resolved) return null;
   // The event-date fallback is the newest *scheduled* arrival, which sits in the
   // near future when the feed already holds the morning's timetable - clamp so
