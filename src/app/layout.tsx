@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description: "Auckland Transport route and stop performance analytics.",
 };
 
+// All pages query the database; skip static generation so CI builds succeed
+// without DATABASE_URL and production renders always use live data.
+export const dynamic = "force-dynamic";
+
 /**
  * Root layout: AT-branded header + page container.
  * @param props - The page content to render.
