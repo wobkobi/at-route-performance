@@ -1,6 +1,17 @@
 // src/app/api/ingest/aggregate/route.ts
 import { requireCronAuth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { prisma, runCommand } from "@/lib/db";
+import { MAX_EARLY_SEC, MAX_LATE_SEC } from "@/lib/deviation";
+import { recordIngestRun } from "@/lib/ingest-run";
+import {
+  earlyTwoCounts,
+  lateSum,
+  ON_TIME_LATE_SEC,
+  onTimeTwoCounts,
+  pickEarlyByRouteMode,
+  pickOnTimeByRouteMode,
+} from "@/lib/on-time";
+import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import { NextResponse } from "next/server";
 
 interface DailyStats {
@@ -9,13 +20,18 @@ interface DailyStats {
   avg_delay_sec: number;
   avg_abs_delay_sec: number;
   on_time_pct: number;
+  early_pct: number;
+  late_pct: number;
   p50_delay_sec: number;
   p95_delay_sec: number;
 }
 
 /**
- * Compute DailyRouteSummary for all routes on a given date (defaults to yesterday).
- * @param req - Request with optional `?date=YYYY-MM-DD` query param.
+ * Compute DailyRouteSummary for all routes on a given NZ service day (defaults to
+ * the most recently completed one). The window matches the live dashboard: 5am
+ * Auckland to 5am the next day, half-open `[start, end)`.
+ * @param req - Request with optional `?date=YYYY-MM-DD` query param (treated as
+ *   the NZ service date; defaults to the service day that ended before now).
  * @returns JSON `{ aggregated, date, duration_ms }`, 401/400/500 on failure.
  */
 export async function POST(req: Request): Promise<NextResponse> {
@@ -25,106 +41,133 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (denied) return denied;
 
   try {
-    // Parse date (default to yesterday)
     const url = new URL(req.url);
     const dateParam = url.searchParams.get("date");
 
-    let targetDate: Date;
-    if (dateParam) {
-      targetDate = new Date(dateParam);
-      if (isNaN(targetDate.getTime())) {
-        return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
-      }
-    } else {
-      targetDate = new Date();
-      targetDate.setUTCDate(targetDate.getUTCDate() - 1); // Yesterday (UTC)
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
     }
 
-    // Normalize to UTC midnight
-    targetDate.setUTCHours(0, 0, 0, 0);
+    // Default to the most recently completed service day (24 h ago is always done).
+    const rangeTarget = dateParam ?? new Date(Date.now() - 86_400_000);
+    const range = nzServiceDayRange(rangeTarget);
+    const serviceDate = nzServiceDayString(range.start);
+    // Stable BSON-date representation used in both the query filter and the $set.
+    const dateBson = { $date: range.start.toISOString() };
 
-    const startOfDay = new Date(targetDate);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setUTCHours(23, 59, 59, 999);
-
-    const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || "300", 10);
+    const thresholdSec = parseInt(
+      process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC),
+      10,
+    );
 
     console.log("[AGGREGATE] Starting aggregation", {
-      date: targetDate.toISOString().split("T")[0],
-      startOfDay: startOfDay.toISOString(),
-      endOfDay: endOfDay.toISOString(),
+      date: serviceDate,
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
       thresholdSec,
     });
 
-    // MongoDB aggregation pipeline
-    const result = (await prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        {
-          $match: {
-            scheduledAt: {
-              $gte: { $date: startOfDay.toISOString() },
-              $lte: { $date: endOfDay.toISOString() },
+    // Ghost runs (AT reusing a trip_id against a later vehicle block) report
+    // ~60 min late at every stop. The deviation filter is removed from the
+    // initial $match so every event contributes to the `events` count — a route
+    // that had ghost-run events is no longer hidden below the MIN_BOARD_EVENTS
+    // threshold in the rankings. Stats (averages, percentiles, on-time %) use
+    // only the plausible subset via $filter / $cond guards.
+    const plausible = {
+      $and: [
+        { $gte: ["$deviationSec", -MAX_EARLY_SEC] },
+        { $lte: ["$deviationSec", MAX_LATE_SEC] },
+      ],
+    };
+    const result = (await runCommand(() =>
+      prisma.$runCommandRaw({
+        aggregate: "ArrivalEvent",
+        pipeline: [
+          {
+            $match: {
+              // Half-open window: matches nzServiceDayRange used everywhere else.
+              scheduledAt: {
+                $gte: { $date: range.start.toISOString() },
+                $lt: { $date: range.end.toISOString() },
+              },
+              // Exclude loose-mode rows where no delay was available: these store
+              // deviationSec=0 (scheduledAt === actualAt) and would inflate on-time
+              // rates if included in averages.
+              source: { $ne: "AT_GTFSRT_NO_DELAY" },
+              // No deviation filter: every event counted in `events` so ghost
+              // runs do not suppress a route's day total.
             },
           },
-        },
-        {
-          $group: {
-            _id: "$routeId",
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-            on_time_count: {
-              $sum: {
-                $cond: [{ $lte: [{ $abs: "$deviationSec" }, thresholdSec] }, 1, 0],
+          {
+            $group: {
+              _id: "$routeId",
+              events: { $sum: 1 },
+              // Plausible-event count used as denominator for delay averages.
+              _plausible: { $sum: { $cond: [plausible, 1, 0] } },
+              w_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
+              w_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
+              ...onTimeTwoCounts(),
+              ...earlyTwoCounts(),
+              late_count: lateSum(),
+              _delays: { $push: "$deviationSec" },
+            },
+          },
+          // Resolve the route's mode, then pick the matching on-time + early counts.
+          { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
+          { $unwind: "$route" },
+          {
+            $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode },
+          },
+          {
+            // Filter the collected delay array to plausible events for percentiles.
+            $addFields: {
+              _ok: {
+                $filter: {
+                  input: "$_delays",
+                  as: "d",
+                  cond: {
+                    $and: [{ $gte: ["$$d", -MAX_EARLY_SEC] }, { $lte: ["$$d", MAX_LATE_SEC] }],
+                  },
+                },
               },
             },
-            delays: { $push: "$deviationSec" },
           },
-        },
-        {
-          $addFields: {
-            on_time_pct: {
-              $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
+          {
+            $addFields: {
+              avg_delay_sec: { $divide: ["$w_delay", { $max: [1, "$_plausible"] }] },
+              avg_abs_delay_sec: { $divide: ["$w_abs", { $max: [1, "$_plausible"] }] },
+              on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+              early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+              late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
             },
           },
-        },
-        {
-          $project: {
-            _id: 1,
-            events: 1,
-            avg_delay_sec: 1,
-            avg_abs_delay_sec: 1,
-            on_time_pct: 1,
-            p50_delay_sec: {
-              $arrayElemAt: [
-                {
-                  $percentile: {
-                    input: "$delays",
-                    p: [0.5],
-                    method: "approximate",
-                  },
-                },
-                0,
-              ],
-            },
-            p95_delay_sec: {
-              $arrayElemAt: [
-                {
-                  $percentile: {
-                    input: "$delays",
-                    p: [0.95],
-                    method: "approximate",
-                  },
-                },
-                0,
-              ],
+          {
+            $project: {
+              _id: 1,
+              events: 1,
+              avg_delay_sec: 1,
+              avg_abs_delay_sec: 1,
+              on_time_pct: 1,
+              early_pct: 1,
+              late_pct: 1,
+              p50_delay_sec: {
+                $arrayElemAt: [
+                  { $percentile: { input: "$_ok", p: [0.5], method: "approximate" } },
+                  0,
+                ],
+              },
+              p95_delay_sec: {
+                $arrayElemAt: [
+                  { $percentile: { input: "$_ok", p: [0.95], method: "approximate" } },
+                  0,
+                ],
+              },
             },
           },
-        },
-      ],
-      cursor: {},
-    })) as unknown as { cursor: { firstBatch: DailyStats[] } };
+        ] as never,
+        cursor: { batchSize: 100_000 },
+      }),
+    )) as unknown as { cursor: { firstBatch: DailyStats[] } };
 
     const stats = result.cursor.firstBatch;
 
@@ -133,55 +176,54 @@ export async function POST(req: Request): Promise<NextResponse> {
       duration_ms: Date.now() - startTime,
     });
 
-    // Upsert each route's daily summary (parallel for performance)
-    const upsertPromises = stats.map((stat) =>
-      prisma.dailyRouteSummary.upsert({
-        where: {
-          routeId_date: {
-            routeId: stat._id,
-            date: targetDate,
-          },
-        },
-        create: {
-          routeId: stat._id,
-          date: targetDate,
-          events: stat.events,
-          avgDelaySec: stat.avg_delay_sec,
-          avgAbsDelaySec: stat.avg_abs_delay_sec,
-          onTimePct: stat.on_time_pct,
-          p50DelaySec: stat.p50_delay_sec,
-          p95DelaySec: stat.p95_delay_sec,
-          thresholdSec,
-        },
-        update: {
-          events: stat.events,
-          avgDelaySec: stat.avg_delay_sec,
-          avgAbsDelaySec: stat.avg_abs_delay_sec,
-          onTimePct: stat.on_time_pct,
-          p50DelaySec: stat.p50_delay_sec,
-          p95DelaySec: stat.p95_delay_sec,
-          thresholdSec,
-        },
-      }),
-    );
+    if (stats.length > 0) {
+      // Single bulk update: atomic per document on the (routeId, date) key, no N
+      // round-trips, safe when two cron runs overlap on the same service day.
+      await runCommand(() =>
+        prisma.$runCommandRaw({
+          update: "DailyRouteSummary",
+          updates: stats.map((stat) => ({
+            q: { routeId: stat._id, date: dateBson },
+            u: {
+              $set: {
+                routeId: stat._id,
+                date: dateBson,
+                events: stat.events,
+                avgDelaySec: stat.avg_delay_sec,
+                avgAbsDelaySec: stat.avg_abs_delay_sec,
+                onTimePct: stat.on_time_pct,
+                earlyPct: stat.early_pct,
+                latePct: stat.late_pct,
+                p50DelaySec: stat.p50_delay_sec,
+                p95DelaySec: stat.p95_delay_sec,
+                thresholdSec,
+              },
+            },
+            upsert: true,
+          })),
+          ordered: false,
+        }),
+      );
+    }
 
-    await Promise.all(upsertPromises);
-    const upserted = upsertPromises.length;
-
+    const upserted = stats.length;
     const duration = Date.now() - startTime;
 
     console.log("[AGGREGATE] Complete", {
       timestamp: new Date().toISOString(),
-      date: targetDate.toISOString().split("T")[0],
+      date: serviceDate,
       aggregated: upserted,
       duration_ms: duration,
     });
 
-    return NextResponse.json({
-      aggregated: upserted,
-      date: targetDate.toISOString().split("T")[0],
-      duration_ms: duration,
+    await recordIngestRun({
+      endpoint: "aggregate",
+      startedAt: new Date(startTime),
+      success: true,
+      count: upserted,
     });
+
+    return NextResponse.json({ aggregated: upserted, date: serviceDate, duration_ms: duration });
   } catch (error) {
     const duration = Date.now() - startTime;
     const msg = error instanceof Error ? error.message : "Unknown error";
@@ -190,6 +232,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       error: msg,
       duration_ms: duration,
+    });
+
+    await recordIngestRun({
+      endpoint: "aggregate",
+      startedAt: new Date(startTime),
+      success: false,
+      error: msg,
     });
 
     return NextResponse.json({ error: msg }, { status: 500 });

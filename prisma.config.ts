@@ -2,10 +2,8 @@
 import { config } from "dotenv";
 import type { PrismaConfig } from "prisma";
 
-// Load env for Prisma CLI commands. Mirror Next.js precedence: .env.local wins,
-// then .env fills any gaps (dotenv keeps the first value set, so load .local first).
+// Load .env.local for Prisma CLI commands
 config({ path: ".env.local" });
-config({ path: ".env" });
 
 export default {
   schema: "prisma/schema.prisma",

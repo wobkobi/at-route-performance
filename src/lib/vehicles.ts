@@ -112,6 +112,40 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
 }
 
 /**
+ * Map each currently-tracked trip to its running vehicle (fleet label preferred,
+ * else feed id), from the vehicle-locations feed. The realtime ingest tags
+ * arrival rows with this so the trip boards can name the vehicle instead of
+ * "unknown bus" - the tripupdates feed that ingest reads does not carry vehicle,
+ * so this join (by trip_id, the same one the live map uses) is the source.
+ * Uncached: the ingest wants the snapshot at its own moment.
+ * @returns `trip_id` > vehicle label/id for every live vehicle on a trip.
+ */
+export async function fetchVehicleByTrip(): Promise<Map<string, string>> {
+  const res = await fetch(process.env.AT_VEHICLELOCATIONS_URL ?? DEFAULT_VEHICLES_URL, {
+    headers: {
+      "Ocp-Apim-Subscription-Key": process.env.AT_API_KEY ?? "",
+      Accept: "application/json",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`AT vehicle locations ${res.status}`);
+  const raw = (await res.json()) as {
+    response?: { entity?: VehicleEntity[] };
+    entity?: VehicleEntity[];
+  };
+  const entities = (raw.response ?? raw).entity ?? [];
+  const byTrip = new Map<string, string>();
+  for (const e of entities) {
+    const v = e.vehicle;
+    const tripId = v?.trip?.trip_id;
+    const vid = v?.vehicle?.label ?? v?.vehicle?.id;
+    if (tripId && vid) byTrip.set(tripId, vid);
+  }
+  return byTrip;
+}
+
+/**
  * Cached snapshot of all live vehicles (60s TTL). The cache is shared across all
  * viewers and requests, so the upstream AT feed is hit at most once per window
  * regardless of how many route pages are open or how often they poll - keeping

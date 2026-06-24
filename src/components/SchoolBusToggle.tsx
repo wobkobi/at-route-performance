@@ -31,13 +31,7 @@ export function SchoolBusToggle({
   });
   const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
   return (
-    <a
-      href={href}
-      className={cn(
-        "rounded-full px-3 py-1 text-sm font-semibold",
-        active ? "bg-at-shore text-white" : "bg-at-surface text-at-ink",
-      )}
-    >
+    <a href={href} className={cn("chip", active ? "chip-on" : "chip-off")}>
       School buses
     </a>
   );

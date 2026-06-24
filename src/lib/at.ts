@@ -12,6 +12,8 @@ export interface StopTimeUpdate {
 export interface Trip {
   trip_id: string;
   route_id: string;
+  /** GTFS-RT schedule relationship: 0=SCHEDULED, 1=ADDED, 2=UNSCHEDULED, 3=CANCELED. */
+  schedule_relationship?: number;
 }
 export interface TripUpdate {
   trip: Trip;

@@ -1,15 +1,47 @@
 // src/lib/data.ts
-import { prisma } from "@/lib/db";
-import { nzServiceDayRange, SERVICE_START_HOUR, type DateRange } from "@/lib/time";
+import { fetchAll } from "@/lib/at-static";
+import { prisma, runCommand } from "@/lib/db";
+import { MAX_EARLY_SEC, MAX_LATE_SEC, plausibleDeviationMatch } from "@/lib/deviation";
+import {
+  earlySingleModeSum,
+  earlyTwoCounts,
+  lateSum,
+  onTimePerEventSum,
+  onTimeSingleModeSum,
+  onTimeTwoCounts,
+  pickEarlyByRouteMode,
+  pickOnTimeByRouteMode,
+} from "@/lib/on-time";
+import { routeSlug, routeVersion } from "@/lib/route-slug";
+import { isSchoolBus } from "@/lib/school-bus";
+import { stationId, stationName } from "@/lib/station";
+import {
+  nzServiceDayRange,
+  nzServiceDayString,
+  SERVICE_START_HOUR,
+  type DateRange,
+} from "@/lib/time";
 import type {
   PerTripStat,
   RouteByStop,
+  RouteDay,
   RouteSummary,
+  StopStats,
   TopRouteRow,
   TripStop,
   TripTimeline,
 } from "@/types/api";
-import type { FleetSummary, ModeStat } from "@/types/dashboard";
+import type {
+  ModeStat,
+  ShameDayStop,
+  ShameOfDay,
+  ShameOfWeek,
+  ShameStop,
+  ShameStopOfDay,
+  ShameStopOfWeek,
+  ShameTrip,
+  WorstStop,
+} from "@/types/dashboard";
 import { unstable_cache } from "next/cache";
 
 /**
@@ -24,6 +56,62 @@ function toIso(d: { $date: string } | string): string {
 
 const MS_IN_WEEK = 604_800_000;
 const MS_IN_DAY = 86_400_000;
+
+/**
+ * Every AT route id sharing a slug - the same route across feed-version
+ * republishes (see {@link routeSlug}) - newest version first. Lets route queries
+ * aggregate over all versions (so history doesn't fragment when AT bumps the
+ * suffix) and resolve a slug URL to a concrete id. Falls back to the input when
+ * nothing matches, so a full id still works. Cached briefly.
+ * @param slug - A version-stripped route slug (or a full route id).
+ * @returns Matching route ids, newest version first (or `[slug]` when none).
+ */
+export async function routeIdsForSlug(slug: string): Promise<string[]> {
+  return unstable_cache(
+    async () => {
+      const routes = await prisma.route.findMany({
+        where: { OR: [{ id: slug }, { id: { startsWith: `${slug}-` } }] },
+        select: { id: true },
+      });
+      const ids = routes
+        .map((r) => r.id)
+        .filter((id) => routeSlug(id) === slug)
+        .sort((a, b) => routeVersion(b) - routeVersion(a));
+      return ids.length > 0 ? ids : [slug];
+    },
+    ["route-ids-for-slug", slug],
+    { revalidate: 3600 },
+  )();
+}
+
+/**
+ * Find the canonical version-stripped slug for a route, case-insensitively.
+ * Returns the exact slug when it exists (fast path), or the slug of the first
+ * case-insensitive match (for URLs typed in the wrong case), or null when no
+ * route exists. Not cached - used at request time before any data fetch.
+ * @param slug - A version-stripped route slug to look up.
+ * @returns The canonical slug, or null when unknown.
+ */
+export async function findCanonicalRouteSlug(slug: string): Promise<string | null> {
+  // Exact match first - covers the common case without a regex scan.
+  const exact = await prisma.route.findFirst({
+    where: { OR: [{ id: slug }, { id: { startsWith: `${slug}-` } }] },
+    select: { id: true },
+  });
+  if (exact) return routeSlug(exact.id);
+
+  // Case-insensitive fallback for user-typed URLs (e.g. /route/nx1 > /route/NX1).
+  const ci = await prisma.route.findFirst({
+    where: {
+      OR: [
+        { id: { equals: slug, mode: "insensitive" } },
+        { id: { startsWith: `${slug}-`, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+  return ci ? routeSlug(ci.id) : null;
+}
 
 /** Parameters for {@link getTopRoutes}. */
 export interface TopRoutesParams {
@@ -44,7 +132,7 @@ export interface RouteStatsParams {
 
 /** Result shape of {@link getRouteStats}. */
 export interface RouteStats {
-  route: { shortName: string | null; longName: string; mode: string } | null;
+  route: { shortName: string | null; longName: string; mode: string; colour: string | null } | null;
   summary: RouteSummary | null;
   byStop: RouteByStop[];
 }
@@ -95,6 +183,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
           $gte: { $date: start.toISOString() },
           $lt: { $date: end.toISOString() },
         },
+        ...plausibleDeviationMatch,
       },
     },
     {
@@ -103,18 +192,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
         events: { $sum: 1 },
         avg_delay_sec: { $avg: "$deviationSec" },
         avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-        on_time_count: {
-          $sum: {
-            $cond: [{ $lte: [{ $abs: "$deviationSec" }, p.thresholdSec] }, 1, 0],
-          },
-        },
-      },
-    },
-    {
-      $addFields: {
-        on_time_pct: {
-          $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
-        },
+        ...onTimeTwoCounts(),
       },
     },
     {
@@ -126,6 +204,13 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
       },
     },
     { $unwind: "$route" },
+    // Mode known after the lookup: pick the matching on-time count, then the rate.
+    { $addFields: { on_time_count: pickOnTimeByRouteMode } },
+    {
+      $addFields: {
+        on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+      },
+    },
   ];
 
   if (p.mode) pipeline.push({ $match: { "route.mode": p.mode } });
@@ -148,11 +233,13 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
     },
   });
 
-  const result = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: pipeline as never,
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+  const result = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: pipeline as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
 
   return result.cursor.firstBatch;
 }
@@ -173,6 +260,38 @@ export async function getTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
 }
 
 /**
+ * Collapse multi-platform train stations into one row per station: sum events
+ * and event-weight the average delay and on-time %. Non-platform stops pass
+ * through unchanged (see {@link stationId}). Keeps the per-stop table, map, and
+ * line diagram from showing the same station once per platform.
+ * @param rows - Per-stop rows for the window (busiest first).
+ * @returns Rows with train platforms merged by station, re-sorted busiest first.
+ */
+function collapseStations(rows: RouteByStop[]): RouteByStop[] {
+  const acc = new Map<string, { row: RouteByStop; delaySum: number; otCount: number }>();
+  for (const r of rows) {
+    const id = stationId(r.stop_id, r.name);
+    const delaySum = (r.avg_delay_sec ?? 0) * r.events;
+    const otCount = ((r.on_time_pct ?? 0) / 100) * r.events;
+    const cur = acc.get(id);
+    if (cur) {
+      cur.row.events += r.events;
+      cur.delaySum += delaySum;
+      cur.otCount += otCount;
+    } else {
+      acc.set(id, { row: { ...r, stop_id: id, name: stationName(r.name) }, delaySum, otCount });
+    }
+  }
+  return [...acc.values()]
+    .map(({ row, delaySum, otCount }) => ({
+      ...row,
+      avg_delay_sec: row.events ? Math.round((delaySum / row.events) * 10) / 10 : null,
+      on_time_pct: row.events ? Math.round((otCount / row.events) * 1000) / 10 : null,
+    }))
+    .sort((a, b) => b.events - a.events);
+}
+
+/**
  * Run the route-stats aggregations (summary + per-stop) against MongoDB.
  * @param p - Validated parameters; window defaults to the last 7 days.
  * @returns Summary and top stops.
@@ -181,110 +300,123 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   const start = p.from ?? new Date(Date.now() - 7 * MS_IN_DAY);
   const end = p.to ?? new Date();
 
+  // Resolve the slug to every version's id so the stats cover the whole route's
+  // history; read metadata from the newest version.
+  const routeIds = await routeIdsForSlug(p.routeId);
   const route = await prisma.route.findUnique({
-    where: { id: p.routeId },
-    select: { shortName: true, longName: true, mode: true },
+    where: { id: routeIds[0] },
+    select: { shortName: true, longName: true, mode: true, colour: true },
   });
+  // Single route, so the mode is fixed: use its asymmetric on-time window.
+  const mode = route?.mode ?? "BUS";
 
   const match = {
-    routeId: p.routeId,
+    routeId: { $in: routeIds },
     scheduledAt: {
       $gte: { $date: start.toISOString() },
       $lt: { $date: end.toISOString() },
     },
+    ...plausibleDeviationMatch,
   };
 
-  const summaryResult = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [
-      { $match: match },
-      {
-        $group: {
-          _id: null,
-          events: { $sum: 1 },
-          avg_delay_sec: { $avg: "$deviationSec" },
-          on_time_count: {
-            $sum: {
-              $cond: [{ $lte: [{ $abs: "$deviationSec" }, p.thresholdSec] }, 1, 0],
-            },
+  const summaryResult = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            events: { $sum: 1 },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+            on_time_count: onTimeSingleModeSum(mode),
+            early_count: earlySingleModeSum(mode),
+            late_count: lateSum(),
           },
         },
-      },
-      {
-        $addFields: {
-          on_time_pct: {
-            $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
+        {
+          $addFields: {
+            on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+            early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+            late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
           },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          events: 1,
-          avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-          on_time_pct: { $round: ["$on_time_pct", 1] },
+        {
+          $project: {
+            _id: 0,
+            events: 1,
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+            on_time_pct: { $round: ["$on_time_pct", 1] },
+            early_pct: { $round: ["$early_pct", 1] },
+            late_pct: { $round: ["$late_pct", 1] },
+          },
         },
-      },
-    ],
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: RouteSummary[] } };
+      ],
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: RouteSummary[] } };
 
-  const byStopResult = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [
-      { $match: match },
-      {
-        $group: {
-          _id: "$stopId",
-          events: { $sum: 1 },
-          avg_delay_sec: { $avg: "$deviationSec" },
-          on_time_count: {
-            $sum: {
-              $cond: [{ $lte: [{ $abs: "$deviationSec" }, p.thresholdSec] }, 1, 0],
+  const byStopResult = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        { $match: match },
+        {
+          $group: {
+            _id: "$stopId",
+            events: { $sum: 1 },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            on_time_count: onTimeSingleModeSum(mode),
+          },
+        },
+        {
+          $addFields: {
+            on_time_pct: {
+              $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
             },
           },
         },
-      },
-      {
-        $addFields: {
-          on_time_pct: {
-            $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
+        {
+          $lookup: {
+            from: "Stop",
+            localField: "_id",
+            foreignField: "_id",
+            as: "stop",
           },
         },
-      },
-      {
-        $lookup: {
-          from: "Stop",
-          localField: "_id",
-          foreignField: "_id",
-          as: "stop",
+        { $unwind: "$stop" },
+        { $sort: { events: -1 as const } },
+        { $limit: 200 },
+        {
+          $project: {
+            _id: 0,
+            stop_id: { $toString: "$_id" },
+            name: "$stop.name",
+            lat: "$stop.lat",
+            lon: "$stop.lon",
+            events: 1,
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            on_time_pct: { $round: ["$on_time_pct", 1] },
+          },
         },
-      },
-      { $unwind: "$stop" },
-      { $sort: { events: -1 as const } },
-      { $limit: 200 },
-      {
-        $project: {
-          _id: 0,
-          stop_id: { $toString: "$_id" },
-          name: "$stop.name",
-          lat: "$stop.lat",
-          lon: "$stop.lon",
-          events: 1,
-          avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-          on_time_pct: { $round: ["$on_time_pct", 1] },
-        },
-      },
-    ],
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: RouteByStop[] } };
+      ],
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: RouteByStop[] } };
 
   return {
     route: route
-      ? { shortName: route.shortName, longName: route.longName, mode: route.mode }
+      ? {
+          shortName: route.shortName,
+          longName: route.longName,
+          mode: route.mode,
+          colour: route.colour ?? null,
+        }
       : null,
     summary: summaryResult.cursor.firstBatch[0] ?? null,
-    byStop: byStopResult.cursor.firstBatch,
+    byStop: collapseStations(byStopResult.cursor.firstBatch),
   };
 }
 
@@ -309,58 +441,153 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
 }
 
 /**
- * Per-route aggregated rows for an arbitrary window (no ranking applied here).
+ * Per-route aggregated rows from `DailyRouteSummary`. Per-day stats are weighted
+ * by event count so the multi-day average is correct. Returns empty when no
+ * summaries exist for the window (e.g. the current service day hasn't been
+ * aggregated yet).
  * @param range - UTC half-open window.
- * @param thresholdSec - On-time threshold in seconds.
- * @returns Rows for every route with at least one event in the window.
+ * @returns Rows for every route with at least one summary in the window.
  */
-async function queryRankings(range: DateRange, thresholdSec: number): Promise<TopRouteRow[]> {
-  const result = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [
-      {
-        $match: {
-          scheduledAt: {
-            $gte: { $date: range.start.toISOString() },
-            $lt: { $date: range.end.toISOString() },
+async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
+  const result = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "DailyRouteSummary",
+      pipeline: [
+        {
+          $match: {
+            date: {
+              $gte: { $date: range.start.toISOString() },
+              $lt: { $date: range.end.toISOString() },
+            },
           },
         },
-      },
-      {
-        $group: {
-          _id: "$routeId",
-          events: { $sum: 1 },
-          avg_delay_sec: { $avg: "$deviationSec" },
-          avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-          on_time_count: {
-            $sum: { $cond: [{ $lte: [{ $abs: "$deviationSec" }, thresholdSec] }, 1, 0] },
+        {
+          $group: {
+            _id: "$routeId",
+            events: { $sum: "$events" },
+            w_delay: { $sum: { $multiply: [{ $ifNull: ["$avgDelaySec", 0] }, "$events"] } },
+            w_abs: { $sum: { $multiply: [{ $ifNull: ["$avgAbsDelaySec", 0] }, "$events"] } },
+            w_on_time: { $sum: { $multiply: [{ $ifNull: ["$onTimePct", 0] }, "$events"] } },
+            w_early: { $sum: { $multiply: [{ $ifNull: ["$earlyPct", 0] }, "$events"] } },
+            w_late: { $sum: { $multiply: [{ $ifNull: ["$latePct", 0] }, "$events"] } },
           },
         },
-      },
-      {
-        $addFields: {
-          on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+        { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
+        { $unwind: "$route" },
+        {
+          $project: {
+            _id: 0,
+            route_id: { $toString: "$_id" },
+            short_name: "$route.shortName",
+            long_name: "$route.longName",
+            mode: "$route.mode",
+            events: 1,
+            avg_delay_sec: { $round: [{ $divide: ["$w_delay", "$events"] }, 1] },
+            avg_abs_delay_sec: { $round: [{ $divide: ["$w_abs", "$events"] }, 1] },
+            on_time_pct: { $round: [{ $divide: ["$w_on_time", "$events"] }, 1] },
+            early_pct: { $round: [{ $divide: ["$w_early", "$events"] }, 1] },
+            late_pct: { $round: [{ $divide: ["$w_late", "$events"] }, 1] },
+            colour: "$route.colour",
+          },
         },
-      },
-      { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
-      { $unwind: "$route" },
-      {
-        $project: {
-          _id: 0,
-          route_id: { $toString: "$_id" },
-          short_name: "$route.shortName",
-          long_name: "$route.longName",
-          mode: "$route.mode",
-          events: 1,
-          avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-          avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-          on_time_pct: { $round: ["$on_time_pct", 1] },
-        },
-      },
-    ] as never,
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+      ] as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
   return result.cursor.firstBatch;
+}
+
+/**
+ * Per-route aggregated rows scanned live from `ArrivalEvent`. Slower than
+ * {@link querySummaryRankings} but always reflects the current service day.
+ * Used as a fallback when today's `DailyRouteSummary` hasn't been written yet.
+ * @param range - UTC half-open window.
+ * @returns Rows for every route with at least one qualifying event in the window.
+ */
+async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
+  // Inline plausibility condition used for weighted sums: ghost runs (AT reusing
+  // a trip_id against a later vehicle block) report ~60 min late at every stop.
+  // The total `events` count includes all events so no route falls below the
+  // rankings threshold; delay averages use only the plausible subset.
+  const plausible = {
+    $and: [{ $gte: ["$deviationSec", -MAX_EARLY_SEC] }, { $lte: ["$deviationSec", MAX_LATE_SEC] }],
+  };
+  const result = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        {
+          $match: {
+            scheduledAt: {
+              $gte: { $date: range.start.toISOString() },
+              $lt: { $date: range.end.toISOString() },
+            },
+            source: { $ne: "AT_GTFSRT_NO_DELAY" },
+            // No deviation filter here: every event counted so ghost-run noise
+            // does not hide a route from rankings.
+          },
+        },
+        {
+          $group: {
+            _id: "$routeId",
+            events: { $sum: 1 },
+            // Plausible-event count used as denominator for delay averages so
+            // ghost runs do not skew the mean.
+            _plausible: { $sum: { $cond: [plausible, 1, 0] } },
+            w_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
+            w_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
+            ...onTimeTwoCounts(),
+            ...earlyTwoCounts(),
+            late_count: lateSum(),
+          },
+        },
+        { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
+        { $unwind: "$route" },
+        { $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode } },
+        {
+          $project: {
+            _id: 0,
+            route_id: { $toString: "$_id" },
+            short_name: "$route.shortName",
+            long_name: "$route.longName",
+            mode: "$route.mode",
+            colour: "$route.colour",
+            events: 1,
+            avg_delay_sec: {
+              $round: [{ $divide: ["$w_delay", { $max: [1, "$_plausible"] }] }, 1],
+            },
+            avg_abs_delay_sec: {
+              $round: [{ $divide: ["$w_abs", { $max: [1, "$_plausible"] }] }, 1],
+            },
+            on_time_pct: {
+              $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
+            },
+            early_pct: {
+              $round: [{ $multiply: [{ $divide: ["$early_count", "$events"] }, 100] }, 1],
+            },
+            late_pct: {
+              $round: [{ $multiply: [{ $divide: ["$late_count", "$events"] }, 100] }, 1],
+            },
+          },
+        },
+      ] as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+  return result.cursor.firstBatch;
+}
+
+/**
+ * Per-route aggregated rows for an arbitrary window. Tries the fast
+ * `DailyRouteSummary` path first; falls back to a live `ArrivalEvent` scan when
+ * no summaries exist for the window (e.g. today before the aggregate ingest runs).
+ * @param range - UTC half-open window.
+ * @returns Per-route rows.
+ */
+async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
+  const rows = await querySummaryRankings(range);
+  if (rows.length > 0) return rows;
+  return queryLiveRankings(range);
 }
 
 /**
@@ -376,72 +603,8 @@ export async function getRankings(
   revalidate: number,
 ): Promise<TopRouteRow[]> {
   return unstable_cache(
-    () => queryRankings(range, thresholdSec),
+    () => queryRankings(range),
     ["rankings", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate },
-  )();
-}
-
-/**
- * Fleet-wide totals for a window. On-time % is weighted from raw events.
- * @param range - UTC half-open window.
- * @param thresholdSec - On-time threshold in seconds.
- * @param revalidate - Cache TTL in seconds.
- * @returns Fleet summary, or zeros when the window is empty.
- */
-export async function getFleetSummary(
-  range: DateRange,
-  thresholdSec: number,
-  revalidate: number,
-): Promise<FleetSummary> {
-  return unstable_cache(
-    async () => {
-      const res = (await prisma.$runCommandRaw({
-        aggregate: "ArrivalEvent",
-        pipeline: [
-          {
-            $match: {
-              scheduledAt: {
-                $gte: { $date: range.start.toISOString() },
-                $lt: { $date: range.end.toISOString() },
-              },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              events: { $sum: 1 },
-              avg_delay_sec: { $avg: "$deviationSec" },
-              on_time_count: {
-                $sum: { $cond: [{ $lte: [{ $abs: "$deviationSec" }, thresholdSec] }, 1, 0] },
-              },
-              routes: { $addToSet: "$routeId" },
-            },
-          },
-          {
-            $project: {
-              _id: 0,
-              events: 1,
-              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-              on_time_pct: {
-                $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
-              },
-              route_count: { $size: "$routes" },
-            },
-          },
-        ] as never,
-        cursor: { batchSize: 100_000 },
-      })) as unknown as { cursor: { firstBatch: FleetSummary[] } };
-      return (
-        res.cursor.firstBatch[0] ?? {
-          events: 0,
-          on_time_pct: null,
-          avg_delay_sec: null,
-          route_count: 0,
-        }
-      );
-    },
-    ["fleet-summary", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
     { revalidate },
   )();
 }
@@ -460,43 +623,54 @@ export async function getModeBreakdown(
 ): Promise<ModeStat[]> {
   return unstable_cache(
     async () => {
-      const res = (await prisma.$runCommandRaw({
-        aggregate: "ArrivalEvent",
-        pipeline: [
-          {
-            $match: {
-              scheduledAt: {
-                $gte: { $date: range.start.toISOString() },
-                $lt: { $date: range.end.toISOString() },
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "DailyRouteSummary",
+          pipeline: [
+            {
+              $match: {
+                date: {
+                  $gte: { $date: range.start.toISOString() },
+                  $lt: { $date: range.end.toISOString() },
+                },
               },
             },
-          },
-          { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
-          { $unwind: "$route" },
-          {
-            $group: {
-              _id: "$route.mode",
-              events: { $sum: 1 },
-              avg_delay_sec: { $avg: "$deviationSec" },
-              on_time_count: {
-                $sum: { $cond: [{ $lte: [{ $abs: "$deviationSec" }, thresholdSec] }, 1, 0] },
+            // Weighted totals per route first so each route counts once regardless of
+            // how many daily summaries it has in the window.
+            {
+              $group: {
+                _id: "$routeId",
+                events: { $sum: "$events" },
+                w_delay: { $sum: { $multiply: [{ $ifNull: ["$avgDelaySec", 0] }, "$events"] } },
+                w_on_time: { $sum: { $multiply: [{ $ifNull: ["$onTimePct", 0] }, "$events"] } },
               },
             },
-          },
-          {
-            $project: {
-              _id: 0,
-              mode: "$_id",
-              events: 1,
-              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-              on_time_pct: {
-                $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
+            { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
+            { $unwind: "$route" },
+            // Second group: roll up by mode.
+            {
+              $group: {
+                _id: "$route.mode",
+                events: { $sum: "$events" },
+                w_delay: { $sum: "$w_delay" },
+                w_on_time: { $sum: "$w_on_time" },
+                route_count: { $sum: 1 },
               },
             },
-          },
-        ] as never,
-        cursor: { batchSize: 100_000 },
-      })) as unknown as { cursor: { firstBatch: ModeStat[] } };
+            {
+              $project: {
+                _id: 0,
+                mode: "$_id",
+                events: 1,
+                avg_delay_sec: { $round: [{ $divide: ["$w_delay", "$events"] }, 1] },
+                on_time_pct: { $round: [{ $divide: ["$w_on_time", "$events"] }, 1] },
+                route_count: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: ModeStat[] } };
       return res.cursor.firstBatch;
     },
     ["mode-breakdown", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
@@ -509,14 +683,25 @@ export async function getModeBreakdown(
  * @returns The max `scheduledAt`, or null when there are no events.
  */
 export async function getLatestEventDate(): Promise<Date | null> {
-  const res = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [{ $group: { _id: null, maxSched: { $max: "$scheduledAt" } } }] as never,
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: { maxSched?: { $date: string } | string }[] } };
-  const raw = res.cursor.firstBatch[0]?.maxSched;
-  if (!raw) return null;
-  return new Date(typeof raw === "string" ? raw : raw.$date);
+  // Full-collection $max, so cache it: the latest event only advances once per
+  // ingest cycle, and this sits on the rankings page's critical path.
+  const iso = await unstable_cache(
+    async () => {
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [{ $group: { _id: null, maxSched: { $max: "$scheduledAt" } } }] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: { maxSched?: { $date: string } | string }[] } };
+      const raw = res.cursor.firstBatch[0]?.maxSched;
+      if (!raw) return null;
+      return typeof raw === "string" ? raw : raw.$date;
+    },
+    ["latest-event-date"],
+    { revalidate: 600 },
+  )();
+  return iso ? new Date(iso) : null;
 }
 
 /**
@@ -528,39 +713,103 @@ export async function getLatestEventDate(): Promise<Date | null> {
  * @returns A Date inside that service day (its local noon), or null when empty.
  */
 export async function getMostRecentDataDay(minEvents: number): Promise<Date | null> {
-  const res = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [
-      {
-        $group: {
-          _id: {
-            $dateTrunc: {
-              date: {
-                $dateSubtract: {
-                  startDate: "$scheduledAt",
-                  unit: "hour",
-                  amount: SERVICE_START_HOUR,
+  const iso = await unstable_cache(
+    async () => {
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $group: {
+                _id: {
+                  $dateTrunc: {
+                    date: {
+                      $dateSubtract: {
+                        startDate: "$scheduledAt",
+                        unit: "hour",
+                        amount: SERVICE_START_HOUR,
+                      },
+                    },
+                    unit: "day",
+                    timezone: "Pacific/Auckland",
+                  },
                 },
+                n: { $sum: 1 },
               },
-              unit: "day",
-              timezone: "Pacific/Auckland",
             },
-          },
-          n: { $sum: 1 },
-        },
-      },
-      { $match: { n: { $gte: minEvents } } },
-      { $sort: { _id: -1 } },
-      { $limit: 1 },
-    ] as never,
-    cursor: { batchSize: 100_000 },
-  })) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
-  const raw = res.cursor.firstBatch[0]?._id;
-  if (!raw) return null;
+            { $match: { n: { $gte: minEvents } } },
+            { $sort: { _id: -1 } },
+            { $limit: 1 },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
+      const raw = res.cursor.firstBatch[0]?._id;
+      if (!raw) return null;
+      return typeof raw === "string" ? raw : raw.$date;
+    },
+    ["most-recent-data-day", String(minEvents)],
+    { revalidate: 600 },
+  )();
+  if (!iso) return null;
+  // The bucket is the service-day local midnight; +12h lands at noon within
+  // the service day so nzServiceDayRange anchors on the right day.
+  return new Date(new Date(iso).getTime() + 12 * 60 * 60 * 1000);
+}
+
+/**
+ * The earliest Auckland-local **service day** that has at least `minEvents`
+ * events. Day-focused pages use this to stop the day stepper paging back past
+ * where data exists. Buckets match {@link getMostRecentDataDay} (shift back by
+ * `SERVICE_START_HOUR`, then truncate), so the boundary is symmetric.
+ * @param minEvents - Minimum events a service day needs to qualify.
+ * @returns A Date inside that service day (its local noon), or null when empty.
+ */
+export async function getEarliestDataDay(minEvents: number): Promise<Date | null> {
+  // Full-collection group-by-service-day, so cache it: the earliest day never
+  // moves back, and day-stepper prev-page hits it on every render.
+  const iso = await unstable_cache(
+    async () => {
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $group: {
+                _id: {
+                  $dateTrunc: {
+                    date: {
+                      $dateSubtract: {
+                        startDate: "$scheduledAt",
+                        unit: "hour",
+                        amount: SERVICE_START_HOUR,
+                      },
+                    },
+                    unit: "day",
+                    timezone: "Pacific/Auckland",
+                  },
+                },
+                n: { $sum: 1 },
+              },
+            },
+            { $match: { n: { $gte: minEvents } } },
+            { $sort: { _id: 1 } },
+            { $limit: 1 },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
+      const raw = res.cursor.firstBatch[0]?._id;
+      if (!raw) return null;
+      return typeof raw === "string" ? raw : raw.$date;
+    },
+    ["earliest-data-day", String(minEvents)],
+    { revalidate: 600 },
+  )();
+  if (!iso) return null;
   // The bucket is the service day's local midnight; return its local noon so the
   // hour sits safely inside the service day for nzServiceDayRange.
-  const bucket = new Date(typeof raw === "string" ? raw : raw.$date);
-  return new Date(bucket.getTime() + 12 * 60 * 60 * 1000);
+  return new Date(new Date(iso).getTime() + 12 * 60 * 60 * 1000);
 }
 
 /**
@@ -576,14 +825,22 @@ export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<s
   const since = new Date(Date.now() - days * MS_IN_DAY);
   const ids = await unstable_cache(
     async () => {
-      const res = (await prisma.$runCommandRaw({
-        aggregate: "ArrivalEvent",
-        pipeline: [
-          { $match: { routeId, scheduledAt: { $gte: { $date: since.toISOString() } } } },
-          { $group: { _id: "$stopId" } },
-        ] as never,
-        cursor: { batchSize: 100_000 },
-      })) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      const routeIds = await routeIdsForSlug(routeId);
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $match: {
+                routeId: { $in: routeIds },
+                scheduledAt: { $gte: { $date: since.toISOString() } },
+              },
+            },
+            { $group: { _id: "$stopId" } },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
       return res.cursor.firstBatch.map((r) => r._id);
     },
     ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
@@ -630,46 +887,104 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
   const sort = p.sort ?? "off";
   return unstable_cache(
     async () => {
-      const res = (await prisma.$runCommandRaw({
-        aggregate: "ArrivalEvent",
-        pipeline: [
-          {
-            $match: {
-              routeId: p.routeId,
-              scheduledAt: {
-                $gte: { $date: p.range.start.toISOString() },
-                $lt: { $date: p.range.end.toISOString() },
+      const routeIds = await routeIdsForSlug(p.routeId);
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $match: {
+                routeId: { $in: routeIds },
+                scheduledAt: {
+                  $gte: { $date: p.range.start.toISOString() },
+                  $lt: { $date: p.range.end.toISOString() },
+                },
+                // No deviation filter here: every trip that had any event is
+                // counted so the total reflects real runs, not just those within
+                // the noise-free window.
               },
             },
-          },
-          {
-            $group: {
-              _id: "$tripId",
-              vehicle_id: { $first: "$vehicleId" },
-              scheduled_start: { $min: "$scheduledAt" },
-              stops: { $sum: 1 },
-              avg_delay_sec: { $avg: "$deviationSec" },
-              avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-              worst_delay_sec: { $max: "$deviationSec" },
+            // Sort by time first so $first/$last within the group give the
+            // chronological first/last stop, not an arbitrary document order.
+            { $sort: { tripId: 1, scheduledAt: 1 } },
+            {
+              $group: {
+                _id: "$tripId",
+                vehicle_id: { $first: "$vehicleId" },
+                scheduled_start: { $min: "$scheduledAt" },
+                stops: { $sum: 1 },
+                first_stop_id: { $first: "$stopId" },
+                // Collect all deviations so stats can be computed from the
+                // plausible subset only, keeping ghost-run noise out of averages.
+                _delays: { $push: "$deviationSec" },
+              },
             },
-          },
-          { $sort: TRIP_SORTS[sort] },
-          { $limit: limit },
-          {
-            $project: {
-              _id: 0,
-              trip_id: { $toString: "$_id" },
-              vehicle_id: 1,
-              scheduled_start: 1,
-              stops: 1,
-              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-              avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-              worst_delay_sec: 1,
+            {
+              // Stats from plausible events only: ghost runs (AT reusing a trip_id
+              // against a later vehicle block) report ~60 min late at every stop
+              // and would skew per-trip averages if included.
+              $addFields: {
+                _ok: {
+                  $filter: {
+                    input: "$_delays",
+                    as: "d",
+                    cond: {
+                      $and: [{ $gte: ["$$d", -MAX_EARLY_SEC] }, { $lte: ["$$d", MAX_LATE_SEC] }],
+                    },
+                  },
+                },
+              },
             },
-          },
-        ] as never,
-        cursor: { batchSize: 100_000 },
-      })) as unknown as { cursor: { firstBatch: WorstTripRaw[] } };
+            {
+              $addFields: {
+                avg_delay_sec: { $avg: "$_ok" },
+                avg_abs_delay_sec: {
+                  $avg: { $map: { input: "$_ok", as: "d", in: { $abs: "$$d" } } },
+                },
+                worst_delay_sec: { $max: "$_ok" },
+              },
+            },
+            // AT issues several trip_ids for one physical run, so collapse runs that
+            // share the same Auckland-local start minute and stop count into one
+            // (keeping the most off-schedule). Done before the metric sort + limit so
+            // the board and the Trips count reflect real runs.
+            {
+              $addFields: {
+                _minute: {
+                  $dateToString: {
+                    date: "$scheduled_start",
+                    format: "%Y-%m-%dT%H:%M",
+                    timezone: "Pacific/Auckland",
+                  },
+                },
+              },
+            },
+            { $sort: { _minute: 1, stops: -1, avg_abs_delay_sec: -1 } },
+            { $group: { _id: { m: "$_minute", s: "$stops" }, doc: { $first: "$$ROOT" } } },
+            { $replaceRoot: { newRoot: "$doc" } },
+            { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
+            { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
+            { $sort: TRIP_SORTS[sort] },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 0,
+                trip_id: { $toString: "$_id" },
+                vehicle_id: 1,
+                scheduled_start: 1,
+                stops: 1,
+                avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                worst_delay_sec: 1,
+                headsign: { $ifNull: ["$meta.headsign", null] },
+                direction_id: { $ifNull: ["$meta.directionId", null] },
+                first_stop_id: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: WorstTripRaw[] } };
       return res.cursor.firstBatch.map((t) => ({
         ...t,
         scheduled_start: toIso(t.scheduled_start),
@@ -687,6 +1002,1075 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
   )();
 }
 
+/** Fewest stops a run must have to qualify for the Shame board (drops flukes). */
+const SHAME_MIN_STOPS = 5;
+
+/** Raw Shame row before its `scheduled_start` date is normalised. */
+interface ShameTripRaw extends Omit<
+  ShameTrip,
+  "scheduled_start" | "short_name" | "long_name" | "mode"
+> {
+  scheduled_start: { $date: string } | string;
+  short_name?: string | null;
+  long_name?: string | null;
+  mode?: string | null;
+}
+
+/** School-service code regex (mirrors `isSchoolBus`) for the Shame filter. */
+const SCHOOL_BUS_REGEX = "^S[0-9]{3}[A-Z]*$";
+
+/** Which runs the Shame board considers - mirrors the home page's filters. */
+export interface ShameFilter {
+  /** Restrict to this mode; null/undefined means every mode. */
+  mode?: "BUS" | "TRAIN" | "FERRY" | null;
+  /** Include school services (default false, matching the home page default). */
+  includeSchool?: boolean;
+}
+
+/**
+ * The day's "Shame of the Day": the single most off-schedule run plus the worst
+ * run of each hour, within the chosen filter. A run is ranked by its average
+ * absolute deviation and attributed to the Auckland-local hour of its first
+ * scheduled stop; runs shorter than {@link SHAME_MIN_STOPS} stops are excluded so
+ * a stray one-stop feed sample can't top the board. The mode/school filters are
+ * applied before the per-hour pick, so the worst always reflects what is shown
+ * on the home page. Cached briefly.
+ * @param range - The service-day window.
+ * @param filter - Mode/school filters mirroring the home page.
+ * @param filter.mode - Restrict to this mode; null/undefined means every mode.
+ * @param filter.includeSchool - Include school services (default false).
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The day's worst run and the per-hour worst list (earliest hour first).
+ */
+export async function getShameOfDay(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<ShameOfDay> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pipeline: any[] = [
+        {
+          $match: {
+            scheduledAt: {
+              $gte: { $date: range.start.toISOString() },
+              $lt: { $date: range.end.toISOString() },
+            },
+            ...plausibleDeviationMatch,
+          },
+        },
+        // One row per run, with its off-schedule magnitude and owning route.
+        {
+          $group: {
+            _id: "$tripId",
+            route_id: { $first: "$routeId" },
+            scheduled_start: { $min: "$scheduledAt" },
+            stops: { $sum: 1 },
+            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            worst_delay_sec: { $max: "$deviationSec" },
+          },
+        },
+        { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
+        { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+        { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
+        { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
+      ];
+      // Apply the home page's filters *before* the per-hour pick, so the worst of
+      // an hour is the worst among the runs the page would actually show.
+      if (mode) pipeline.push({ $match: { "route.mode": mode } });
+      if (!includeSchool) {
+        pipeline.push({
+          $match: {
+            $expr: {
+              $not: {
+                $or: [
+                  {
+                    $regexMatch: {
+                      input: { $ifNull: ["$route.shortName", ""] },
+                      regex: SCHOOL_BUS_REGEX,
+                    },
+                  },
+                  {
+                    $regexMatch: {
+                      input: { $ifNull: ["$route.longName", ""] },
+                      regex: SCHOOL_BUS_REGEX,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        });
+      }
+      pipeline.push(
+        {
+          $addFields: {
+            hour: { $hour: { date: "$scheduled_start", timezone: "Pacific/Auckland" } },
+          },
+        },
+        // Sort worst-first, then keep the worst run of each hour ($first after the
+        // sort = the most off-schedule run in that hour).
+        { $sort: { avg_abs_delay_sec: -1 } },
+        {
+          $group: {
+            _id: "$hour",
+            trip_id: { $first: { $toString: "$_id" } },
+            route_id: { $first: "$route_id" },
+            short_name: { $first: "$route.shortName" },
+            long_name: { $first: "$route.longName" },
+            mode: { $first: "$route.mode" },
+            colour: { $first: "$route.colour" },
+            scheduled_start: { $first: "$scheduled_start" },
+            stops: { $first: "$stops" },
+            avg_abs_delay_sec: { $first: "$avg_abs_delay_sec" },
+            avg_delay_sec: { $first: "$avg_delay_sec" },
+            worst_delay_sec: { $first: "$worst_delay_sec" },
+            headsign: { $first: "$meta.headsign" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            hour: "$_id",
+            trip_id: 1,
+            route_id: 1,
+            short_name: 1,
+            long_name: 1,
+            mode: 1,
+            colour: 1,
+            scheduled_start: 1,
+            stops: 1,
+            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            worst_delay_sec: 1,
+            headsign: 1,
+          },
+        },
+      );
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: pipeline as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: ShameTripRaw[] } };
+
+      const hours: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
+        hour: t.hour,
+        trip_id: t.trip_id,
+        route_id: t.route_id,
+        short_name: t.short_name ?? null,
+        long_name: t.long_name ?? "",
+        mode: t.mode ?? "BUS",
+        colour: t.colour ?? null,
+        scheduled_start: toIso(t.scheduled_start),
+        stops: t.stops,
+        avg_abs_delay_sec: t.avg_abs_delay_sec,
+        avg_delay_sec: t.avg_delay_sec,
+        worst_delay_sec: t.worst_delay_sec,
+        headsign: t.headsign ?? null,
+      }));
+      // Service-day order: 5am is first, post-midnight runs (12am-4am) are last.
+      hours.sort(
+        (a, b) =>
+          ((a.hour + 24 - SERVICE_START_HOUR) % 24) - ((b.hour + 24 - SERVICE_START_HOUR) % 24),
+      );
+      const worst = hours.reduce<ShameTrip | null>(
+        (w, h) => (w == null || h.avg_abs_delay_sec > w.avg_abs_delay_sec ? h : w),
+        null,
+      );
+      return { worst, hours };
+    },
+    [
+      "shame-of-day",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+    ],
+    { revalidate },
+  )();
+}
+
+/**
+ * Format a MongoDB-returned date value (either a plain ISO string or a
+ * `{ $date: "..." }` object) as an Auckland-local `YYYY-MM-DD` string without
+ * the service-day hour shift. Used when the pipeline already handles that shift
+ * via `$dateSubtract`.
+ * @param d - Raw value from the aggregation cursor.
+ * @returns Auckland-local calendar date.
+ */
+function nzDateString(d: unknown): string {
+  const iso = typeof d === "string" ? d : ((d as { $date: string })?.$date ?? String(d));
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
+/**
+ * Build the shared part of the shame aggregation pipeline: match by date range,
+ * group to one row per trip, filter by min stops, join Route + TripMeta, then
+ * apply mode/school filters. The caller appends the final hour or service-day
+ * grouping.
+ * @param range - The window to query.
+ * @param mode - Route mode filter (null = all).
+ * @param includeSchool - Whether to include school services.
+ * @returns The partial aggregation pipeline array.
+ */
+function shamePipelineBase(
+  range: DateRange,
+  mode: string | null,
+  includeSchool: boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pipeline: any[] = [
+    {
+      $match: {
+        scheduledAt: {
+          $gte: { $date: range.start.toISOString() },
+          $lt: { $date: range.end.toISOString() },
+        },
+        ...plausibleDeviationMatch,
+      },
+    },
+    {
+      $group: {
+        _id: "$tripId",
+        route_id: { $first: "$routeId" },
+        scheduled_start: { $min: "$scheduledAt" },
+        stops: { $sum: 1 },
+        avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        worst_delay_sec: { $max: "$deviationSec" },
+      },
+    },
+    { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
+    { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+    { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
+    { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
+  ];
+  if (mode) pipeline.push({ $match: { "route.mode": mode } });
+  if (!includeSchool) {
+    pipeline.push({
+      $match: {
+        $expr: {
+          $not: {
+            $or: [
+              {
+                $regexMatch: {
+                  input: { $ifNull: ["$route.shortName", ""] },
+                  regex: SCHOOL_BUS_REGEX,
+                },
+              },
+              {
+                $regexMatch: {
+                  input: { $ifNull: ["$route.longName", ""] },
+                  regex: SCHOOL_BUS_REGEX,
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+  }
+  return pipeline;
+}
+
+/**
+ * The week's "Shame of the Week": the single most off-schedule run plus the
+ * worst run of each service day, within the chosen filter. Mirrors
+ * {@link getShameOfDay} but groups by service day instead of hour. The service
+ * day boundary is determined by subtracting {@link SERVICE_START_HOUR} hours
+ * before truncating to the Auckland-local calendar day. Cached at the supplied
+ * revalidate rate.
+ * @param range - The week (or multi-day) window.
+ * @param filter - Mode/school filters mirroring the rankings page.
+ * @param filter.mode - Restrict to this mode; null/undefined means every mode.
+ * @param filter.includeSchool - Include school services (default false).
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The period's worst run and the per-day worst list, earliest day first.
+ */
+export async function getShameOfWeek(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<ShameOfWeek> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const pipeline = shamePipelineBase(range, mode, includeSchool);
+      pipeline.push(
+        {
+          $addFields: {
+            // Shift each trip back by the service-start offset then truncate to
+            // Auckland-local calendar day so post-midnight trips land on the correct
+            // service day.
+            serviceDay: {
+              $dateTrunc: {
+                date: {
+                  $dateSubtract: {
+                    startDate: "$scheduled_start",
+                    unit: "hour",
+                    amount: SERVICE_START_HOUR,
+                  },
+                },
+                unit: "day",
+                timezone: "Pacific/Auckland",
+              },
+            },
+          },
+        },
+        { $sort: { avg_abs_delay_sec: -1 } },
+        {
+          $group: {
+            _id: "$serviceDay",
+            trip_id: { $first: { $toString: "$_id" } },
+            route_id: { $first: "$route_id" },
+            short_name: { $first: "$route.shortName" },
+            long_name: { $first: "$route.longName" },
+            mode: { $first: "$route.mode" },
+            colour: { $first: "$route.colour" },
+            scheduled_start: { $first: "$scheduled_start" },
+            stops: { $first: "$stops" },
+            avg_abs_delay_sec: { $first: "$avg_abs_delay_sec" },
+            avg_delay_sec: { $first: "$avg_delay_sec" },
+            worst_delay_sec: { $first: "$worst_delay_sec" },
+            headsign: { $first: "$meta.headsign" },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            trip_id: 1,
+            route_id: 1,
+            short_name: 1,
+            long_name: 1,
+            mode: 1,
+            colour: 1,
+            scheduled_start: 1,
+            stops: 1,
+            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            worst_delay_sec: 1,
+            headsign: 1,
+          },
+        },
+      );
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: pipeline as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as {
+        cursor: {
+          firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: unknown })[];
+        };
+      };
+
+      const days: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
+        hour: 0,
+        date: nzDateString(t._id),
+        trip_id: t.trip_id,
+        route_id: t.route_id,
+        short_name: t.short_name ?? null,
+        long_name: t.long_name ?? "",
+        mode: t.mode ?? "BUS",
+        colour: t.colour ?? null,
+        scheduled_start: toIso(t.scheduled_start),
+        stops: t.stops,
+        avg_abs_delay_sec: t.avg_abs_delay_sec,
+        avg_delay_sec: t.avg_delay_sec,
+        worst_delay_sec: t.worst_delay_sec,
+        headsign: t.headsign ?? null,
+      }));
+      days.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+      const worst = days.reduce<ShameTrip | null>(
+        (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
+        null,
+      );
+      return { worst, days };
+    },
+    [
+      "shame-of-week",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+    ],
+    { revalidate },
+  )();
+}
+
+/** Fewest events a stop needs per hour to appear in the Stop Shame hour board. */
+const MIN_STOP_EVENTS_HOUR = 5;
+
+/** Fewest events a stop needs to qualify for the worst-stops ranking. */
+const MIN_STOP_EVENTS = 20;
+
+/** Raw worst-stop row straight from the aggregation (pre platform-collapse). */
+interface WorstStopRaw {
+  stop_id: string;
+  name: string;
+  events: number;
+  avg_delay_sec: number | null;
+  avg_abs_delay_sec: number;
+  /** Route ids that served this stop in the window; used to resolve dominant mode. */
+  routeIds: string[];
+  mode: "BUS" | "TRAIN" | "FERRY"; // resolved in JS, not from the pipeline
+}
+
+/**
+ * Collapse train-platform rows to one station each (summing events and
+ * re-averaging both delay figures by event weight), then re-rank worst-first.
+ * Mirrors {@link stationId}/{@link stationName} platform collapsing for the
+ * cross-route worst-stops board so a station isn't split across its platforms.
+ * @param rows - Raw per-stop rows, richest first.
+ * @returns Station-collapsed rows, sorted by off-schedule magnitude descending.
+ */
+function collapseWorstStops(rows: WorstStopRaw[]): WorstStop[] {
+  const acc = new Map<string, { row: WorstStop; absSum: number; signedSum: number }>();
+  for (const r of rows) {
+    const id = stationId(r.stop_id, r.name);
+    const absSum = r.avg_abs_delay_sec * r.events;
+    const signedSum = (r.avg_delay_sec ?? 0) * r.events;
+    const cur = acc.get(id);
+    if (cur) {
+      cur.row.events += r.events;
+      cur.absSum += absSum;
+      cur.signedSum += signedSum;
+      // mode already set from the first row - platforms share a mode
+    } else {
+      acc.set(id, {
+        row: {
+          stop_id: id,
+          name: stationName(r.name),
+          events: r.events,
+          avg_delay_sec: r.avg_delay_sec,
+          avg_abs_delay_sec: r.avg_abs_delay_sec,
+          mode: r.mode,
+        },
+        absSum,
+        signedSum,
+      });
+    }
+  }
+  return [...acc.values()]
+    .map(({ row, absSum, signedSum }) => ({
+      ...row,
+      avg_abs_delay_sec: Math.round((absSum / row.events) * 10) / 10,
+      avg_delay_sec: Math.round((signedSum / row.events) * 10) / 10,
+    }))
+    .sort((a, b) => b.avg_abs_delay_sec - a.avg_abs_delay_sec);
+}
+
+/**
+ * All routes as a `routeId -> mode` map. Cached with a long TTL since routes
+ * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
+ * @returns Map from route id to its mode.
+ */
+async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "FERRY">> {
+  const pairs = await unstable_cache(
+    async () => {
+      const rows = await prisma.route.findMany({ select: { id: true, mode: true } });
+      return rows.map((r) => [r.id, r.mode] as const);
+    },
+    ["route-mode-map"],
+    { revalidate: 3600 },
+  )();
+  return new Map(pairs as [string, "BUS" | "TRAIN" | "FERRY"][]);
+}
+
+/**
+ * Pick the most common mode among `routeIds`. Ties resolve BUS > TRAIN > FERRY.
+ * @param routeIds - Route ids that served a stop in the window.
+ * @param modeMap - The full route-mode map from {@link getRouteModeMap}.
+ * @returns The dominant mode, or `"BUS"` when no routes are recognised.
+ */
+function dominantMode(
+  routeIds: string[],
+  modeMap: Map<string, "BUS" | "TRAIN" | "FERRY">,
+): "BUS" | "TRAIN" | "FERRY" {
+  const counts = { BUS: 0, TRAIN: 0, FERRY: 0 };
+  for (const id of routeIds) {
+    const m = modeMap.get(id);
+    if (m) counts[m]++;
+  }
+  if (counts.BUS >= counts.TRAIN && counts.BUS >= counts.FERRY) return "BUS";
+  if (counts.TRAIN >= counts.FERRY) return "TRAIN";
+  return "FERRY";
+}
+
+/**
+ * Resolve the route ids whose events the worst-stop ranking should include,
+ * mirroring the home/rankings mode + school filters. Returns null when no filter
+ * applies (every mode, school included), so the caller can skip the `$in` match.
+ * @param mode - Restrict to this mode, or null for every mode.
+ * @param includeSchool - Whether to include `S###` school services.
+ * @returns Included route ids, or null when no route filter is needed.
+ */
+async function worstStopRouteIds(
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+): Promise<string[] | null> {
+  if (!mode && includeSchool) return null;
+  const routes = await prisma.route.findMany({
+    // Push mode filter to DB; school-bus detection needs name fields so stays in JS.
+    where: mode ? { mode } : undefined,
+    select: { id: true, shortName: true, longName: true },
+  });
+  return routes
+    .filter((r) => includeSchool || !isSchoolBus(r.shortName, r.longName))
+    .map((r) => r.id);
+}
+
+/**
+ * Rank stops by how far off schedule their buses ran across every route - the
+ * average absolute deviation per stop, which counts both late and early. Drops
+ * stops below {@link MIN_STOP_EVENTS} so a thin sample can't top the board, and
+ * collapses train platforms to one station (see {@link collapseWorstStops}). The
+ * mode/school filters mirror the home page so the worst stop stays in step with
+ * what's shown. Cached briefly.
+ * @param range - The window to rank over.
+ * @param filter - Mode/school filters mirroring the home page.
+ * @param filter.mode - Restrict to this mode; null/undefined means every mode.
+ * @param filter.includeSchool - Include school services (default false).
+ * @param limit - How many ranked stops to return.
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The worst stops, off-schedule magnitude descending.
+ */
+export async function getWorstStops(
+  range: DateRange,
+  filter: ShameFilter,
+  limit: number,
+  revalidate: number,
+): Promise<WorstStop[]> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const match: Record<string, unknown> = {
+        scheduledAt: {
+          $gte: { $date: range.start.toISOString() },
+          $lt: { $date: range.end.toISOString() },
+        },
+        ...plausibleDeviationMatch,
+      };
+      if (routeIds) match.routeId = { $in: routeIds };
+
+      // Fetch a generous candidate set so the post-aggregation platform collapse
+      // can merge stations and still leave `limit` rows after re-ranking.
+      const candidates = Math.max(80, limit * 8);
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            { $match: match },
+            {
+              $group: {
+                _id: "$stopId",
+                events: { $sum: 1 },
+                avg_delay_sec: { $avg: "$deviationSec" },
+                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                routeIds: { $addToSet: "$routeId" },
+              },
+            },
+            { $match: { events: { $gte: MIN_STOP_EVENTS } } },
+            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
+            { $sort: { avg_abs_delay_sec: -1 as const } },
+            { $limit: candidates },
+            {
+              $project: {
+                _id: 0,
+                stop_id: { $toString: "$_id" },
+                name: "$stop.name",
+                events: 1,
+                avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                routeIds: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: Omit<WorstStopRaw, "mode">[] } };
+
+      // Resolve dominant mode per stop from its route ids. When a mode filter is
+      // active every stop already belongs to that mode; otherwise fetch the map.
+      const modeMap = mode ? null : await getRouteModeMap();
+      const enriched: WorstStopRaw[] = res.cursor.firstBatch.map((r) => ({
+        ...r,
+        mode: mode ?? dominantMode(r.routeIds, modeMap!),
+      }));
+      return collapseWorstStops(enriched).slice(0, limit);
+    },
+    [
+      "worst-stops",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+      String(limit),
+    ],
+    { revalidate },
+  )();
+}
+
+/**
+ * The day's "Stop Shame": the single most off-schedule stop plus the worst stop
+ * of each hour for a service window. Only stops with at least
+ * {@link MIN_STOP_EVENTS_HOUR} events in that hour qualify. Cached briefly.
+ * @param range - The service-day window.
+ * @param filter - Mode/school filters.
+ * @param filter.mode - Restrict to this mode; null/undefined means every mode.
+ * @param filter.includeSchool - Include school services (default false).
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The hour's worst stop and the per-hour worst list, earliest hour first.
+ */
+export async function getWorstStopsOfDay(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<ShameStopOfDay> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const match: Record<string, unknown> = {
+        scheduledAt: {
+          $gte: { $date: range.start.toISOString() },
+          $lt: { $date: range.end.toISOString() },
+        },
+        ...plausibleDeviationMatch,
+      };
+      if (routeIds) match.routeId = { $in: routeIds };
+
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            { $match: match },
+            {
+              $group: {
+                _id: {
+                  hour: { $hour: { date: "$scheduledAt", timezone: "Pacific/Auckland" } },
+                  stop_id: "$stopId",
+                },
+                events: { $sum: 1 },
+                avg_delay_sec: { $avg: "$deviationSec" },
+                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                routeIds: { $addToSet: "$routeId" },
+              },
+            },
+            { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
+            {
+              $lookup: {
+                from: "Stop",
+                localField: "_id.stop_id",
+                foreignField: "_id",
+                as: "stop",
+              },
+            },
+            { $unwind: "$stop" },
+            { $sort: { avg_abs_delay_sec: -1 } },
+            {
+              $group: {
+                _id: "$_id.hour",
+                stop_id: { $first: { $toString: "$_id.stop_id" } },
+                name: { $first: "$stop.name" },
+                events: { $first: "$events" },
+                avg_delay_sec: { $first: { $round: ["$avg_delay_sec", 1] } },
+                avg_abs_delay_sec: { $first: { $round: ["$avg_abs_delay_sec", 1] } },
+                routeIds: { $first: "$routeIds" },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                hour: "$_id",
+                stop_id: 1,
+                name: 1,
+                events: 1,
+                avg_delay_sec: 1,
+                avg_abs_delay_sec: 1,
+                routeIds: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: (ShameStop & { routeIds: string[] })[] } };
+
+      const modeMap = mode ? null : await getRouteModeMap();
+      const hours: ShameStop[] = res.cursor.firstBatch.map((r) => ({
+        hour: r.hour,
+        stop_id: r.stop_id,
+        name: r.name,
+        events: r.events,
+        avg_delay_sec: r.avg_delay_sec,
+        avg_abs_delay_sec: r.avg_abs_delay_sec,
+        mode: mode ?? dominantMode(r.routeIds, modeMap!),
+      }));
+      hours.sort(
+        (a, b) =>
+          ((a.hour + 24 - SERVICE_START_HOUR) % 24) - ((b.hour + 24 - SERVICE_START_HOUR) % 24),
+      );
+      const worst = hours.reduce<ShameStop | null>(
+        (w, h) => (w == null || h.avg_abs_delay_sec > w.avg_abs_delay_sec ? h : w),
+        null,
+      );
+      return { worst, hours };
+    },
+    [
+      "worst-stops-of-day",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+    ],
+    { revalidate },
+  )();
+}
+
+/** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
+interface ShameDayStopRaw {
+  _id: unknown; // service-day UTC midnight Date
+  stop_id: string;
+  name: string;
+  events: number;
+  avg_delay_sec: number | null;
+  avg_abs_delay_sec: number;
+  routeIds: string[];
+}
+
+/**
+ * The week's "Stop Shame": the single most off-schedule stop plus the worst stop
+ * of each service day over a multi-day window. Only stops with at least
+ * {@link MIN_STOP_EVENTS_HOUR} events on that day qualify. Cached at the supplied
+ * revalidate rate.
+ * @param range - The week (or multi-day) window.
+ * @param filter - Mode/school filters.
+ * @param filter.mode - Restrict to this mode; null/undefined means every mode.
+ * @param filter.includeSchool - Include school services (default false).
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The period's worst stop and the per-day worst list, earliest day first.
+ */
+export async function getWorstStopsOfWeek(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<ShameStopOfWeek> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const match: Record<string, unknown> = {
+        scheduledAt: {
+          $gte: { $date: range.start.toISOString() },
+          $lt: { $date: range.end.toISOString() },
+        },
+        ...plausibleDeviationMatch,
+      };
+      if (routeIds) match.routeId = { $in: routeIds };
+
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            { $match: match },
+            {
+              $group: {
+                _id: {
+                  serviceDay: {
+                    $dateTrunc: {
+                      date: {
+                        $dateSubtract: {
+                          startDate: "$scheduledAt",
+                          unit: "hour",
+                          amount: SERVICE_START_HOUR,
+                        },
+                      },
+                      unit: "day",
+                      timezone: "Pacific/Auckland",
+                    },
+                  },
+                  stop_id: "$stopId",
+                },
+                events: { $sum: 1 },
+                avg_delay_sec: { $avg: "$deviationSec" },
+                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                routeIds: { $addToSet: "$routeId" },
+              },
+            },
+            { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
+            {
+              $lookup: {
+                from: "Stop",
+                localField: "_id.stop_id",
+                foreignField: "_id",
+                as: "stop",
+              },
+            },
+            { $unwind: "$stop" },
+            { $sort: { avg_abs_delay_sec: -1 } },
+            {
+              $group: {
+                _id: "$_id.serviceDay",
+                stop_id: { $first: { $toString: "$_id.stop_id" } },
+                name: { $first: "$stop.name" },
+                events: { $first: "$events" },
+                avg_delay_sec: { $first: { $round: ["$avg_delay_sec", 1] } },
+                avg_abs_delay_sec: { $first: { $round: ["$avg_abs_delay_sec", 1] } },
+                routeIds: { $first: "$routeIds" },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                stop_id: 1,
+                name: 1,
+                events: 1,
+                avg_delay_sec: 1,
+                avg_abs_delay_sec: 1,
+                routeIds: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as {
+        cursor: {
+          firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: unknown } & { routeIds: string[] })[];
+        };
+      };
+
+      const modeMap = mode ? null : await getRouteModeMap();
+      const days: ShameDayStop[] = res.cursor.firstBatch.map((r) => ({
+        date: nzDateString(r._id),
+        stop_id: r.stop_id,
+        name: r.name,
+        events: r.events,
+        avg_delay_sec: r.avg_delay_sec,
+        avg_abs_delay_sec: r.avg_abs_delay_sec,
+        mode: mode ?? dominantMode(r.routeIds, modeMap!),
+      }));
+      days.sort((a, b) => a.date.localeCompare(b.date));
+      const worst = days.reduce<ShameDayStop | null>(
+        (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
+        null,
+      );
+      return { worst, days };
+    },
+    [
+      "worst-stops-of-week",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+    ],
+    { revalidate },
+  )();
+}
+
+/** A canonical stop resolved to its underlying platform ids + display position. */
+interface StopGroup {
+  /** Canonical id (a `station:` id for collapsed train platforms, else the stop id). */
+  id: string;
+  /** Underlying GTFS stop ids to match in the events (platforms of a station). */
+  ids: string[];
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Resolve a (possibly station-collapsed) stop id to its underlying platform ids
+ * and a display name/position, the way {@link routeIdsForSlug} resolves a route
+ * slug. A `station:<name>` id expands to every train platform of that station; a
+ * plain id resolves to itself. Returns null when no such stop exists.
+ * @param id - The canonical stop id from a link (raw stop id or `station:` id).
+ * @returns The resolved group, or null when unknown.
+ */
+async function resolveStopGroup(id: string): Promise<StopGroup | null> {
+  if (id.startsWith("station:")) {
+    // Platform ids aren't derivable from the station id, so scan the (small) set
+    // of numbered train platforms and keep those that collapse to this station.
+    const platforms = await prisma.stop.findMany({
+      where: { name: { contains: "Train Station" } },
+      select: { id: true, name: true, lat: true, lon: true },
+    });
+    const members = platforms.filter((s) => stationId(s.id, s.name) === id);
+    if (members.length === 0) return null;
+    const first = members[0];
+    return {
+      id,
+      ids: members.map((s) => s.id),
+      name: stationName(first.name),
+      lat: first.lat,
+      lon: first.lon,
+    };
+  }
+  const stop = await prisma.stop.findUnique({
+    where: { id },
+    select: { id: true, name: true, lat: true, lon: true },
+  });
+  if (!stop) return null;
+  return { id: stop.id, ids: [stop.id], name: stop.name, lat: stop.lat, lon: stop.lon };
+}
+
+/** One facet's results from the stop-stats aggregation. */
+interface StopStatsFacet {
+  summary: RouteSummary[];
+  routes: TopRouteRow[];
+  routeCount: { n: number }[];
+}
+
+/**
+ * How a single stop performed across every route in a window: an overall
+ * punctuality summary and the worst routes calling at it. Mirrors the per-route
+ * pipeline but matches by stop (all platform ids of a station) with no route
+ * filter, joining Route so the on-time split honours each event's mode-specific
+ * window (see {@link onTimePerEventSum}). Cached briefly.
+ * @param id - Canonical stop id (raw stop id or `station:` id).
+ * @param range - The window to summarise.
+ * @param thresholdSec - On-time late bound, for cache-key versioning only.
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns The stop's stats, or null when the stop id is unknown.
+ */
+export async function getStopStats(
+  id: string,
+  range: DateRange,
+  thresholdSec: number,
+  revalidate: number,
+): Promise<StopStats | null> {
+  return unstable_cache(
+    async () => {
+      const group = await resolveStopGroup(id);
+      if (!group) return null;
+
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $match: {
+                stopId: { $in: group.ids },
+                scheduledAt: {
+                  $gte: { $date: range.start.toISOString() },
+                  $lt: { $date: range.end.toISOString() },
+                },
+                ...plausibleDeviationMatch,
+              },
+            },
+            { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
+            { $unwind: "$route" },
+            {
+              $facet: {
+                summary: [
+                  {
+                    $group: {
+                      _id: null,
+                      events: { $sum: 1 },
+                      avg_delay_sec: { $avg: "$deviationSec" },
+                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                      on_time_count: onTimePerEventSum(),
+                      late_count: lateSum(),
+                    },
+                  },
+                  // Every event is exactly one of early/on-time/late, so early is
+                  // the remainder - no separate mode-aware early accumulator needed.
+                  {
+                    $addFields: {
+                      early_count: {
+                        $subtract: ["$events", { $add: ["$on_time_count", "$late_count"] }],
+                      },
+                    },
+                  },
+                  {
+                    $addFields: {
+                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                      early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+                      late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
+                    },
+                  },
+                  {
+                    $project: {
+                      _id: 0,
+                      events: 1,
+                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                      on_time_pct: { $round: ["$on_time_pct", 1] },
+                      early_pct: { $round: ["$early_pct", 1] },
+                      late_pct: { $round: ["$late_pct", 1] },
+                    },
+                  },
+                ],
+                routes: [
+                  {
+                    $group: {
+                      _id: "$routeId",
+                      events: { $sum: 1 },
+                      avg_delay_sec: { $avg: "$deviationSec" },
+                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                      on_time_count: onTimePerEventSum(),
+                      short_name: { $first: "$route.shortName" },
+                      long_name: { $first: "$route.longName" },
+                      mode: { $first: "$route.mode" },
+                    },
+                  },
+                  {
+                    $addFields: {
+                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                    },
+                  },
+                  { $sort: { avg_abs_delay_sec: -1 as const } },
+                  { $limit: 12 },
+                  {
+                    $project: {
+                      _id: 0,
+                      route_id: { $toString: "$_id" },
+                      short_name: 1,
+                      long_name: 1,
+                      mode: 1,
+                      events: 1,
+                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                      on_time_pct: { $round: ["$on_time_pct", 1] },
+                    },
+                  },
+                ],
+                routeCount: [{ $group: { _id: "$routeId" } }, { $count: "n" }],
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: StopStatsFacet[] } };
+
+      const facet = res.cursor.firstBatch[0];
+      return {
+        stop: { stop_id: group.id, name: group.name, lat: group.lat, lon: group.lon },
+        summary: facet?.summary[0] ?? null,
+        routes: facet?.routes ?? [],
+        routes_count: facet?.routeCount[0]?.n ?? 0,
+      };
+    },
+    ["stop-stats", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    { revalidate },
+  )();
+}
+
 /** Raw trip-timeline stop row before the `scheduled_at` date is normalised. */
 interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
   scheduled_at: { $date: string } | string;
@@ -701,14 +2085,16 @@ interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
  * @returns The latest run's service-day window, or null when the trip has no events.
  */
 async function latestTripDay(tripId: string): Promise<DateRange | null> {
-  const res = (await prisma.$runCommandRaw({
-    aggregate: "ArrivalEvent",
-    pipeline: [
-      { $match: { tripId } },
-      { $group: { _id: null, max: { $max: "$scheduledAt" } } },
-    ] as never,
-    cursor: { batchSize: 1 },
-  })) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        { $match: { tripId } },
+        { $group: { _id: null, max: { $max: "$scheduledAt" } } },
+      ] as never,
+      cursor: { batchSize: 1 },
+    }),
+  )) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
   const raw = res.cursor.firstBatch[0]?.max;
   return raw ? nzServiceDayRange(new Date(toIso(raw))) : null;
 }
@@ -733,12 +2119,13 @@ export async function getTripTimeline(
   const day = range ?? (await latestTripDay(tripId));
   return unstable_cache(
     async () => {
+      const routeIds = await routeIdsForSlug(routeId);
       const route = await prisma.route.findUnique({
-        where: { id: routeId },
-        select: { shortName: true, longName: true, mode: true },
+        where: { id: routeIds[0] },
+        select: { shortName: true, longName: true, mode: true, colour: true },
       });
 
-      const match: Record<string, unknown> = { tripId };
+      const match: Record<string, unknown> = { tripId, ...plausibleDeviationMatch };
       if (day) {
         match.scheduledAt = {
           $gte: { $date: day.start.toISOString() },
@@ -746,34 +2133,58 @@ export async function getTripTimeline(
         };
       }
 
-      const res = (await prisma.$runCommandRaw({
-        aggregate: "ArrivalEvent",
-        pipeline: [
-          { $match: match },
-          { $sort: { scheduledAt: 1 as const } },
-          { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
-          { $unwind: "$stop" },
-          {
-            $project: {
-              _id: 0,
-              stop_id: { $toString: "$stopId" },
-              name: "$stop.name",
-              scheduled_at: "$scheduledAt",
-              deviation_sec: "$deviationSec",
-              vehicle_id: "$vehicleId",
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            { $match: match },
+            { $sort: { scheduledAt: 1 as const } },
+            { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
+            {
+              $project: {
+                _id: 0,
+                stop_id: { $toString: "$stopId" },
+                name: "$stop.name",
+                lat: "$stop.lat",
+                lon: "$stop.lon",
+                scheduled_at: "$scheduledAt",
+                deviation_sec: "$deviationSec",
+                vehicle_id: "$vehicleId",
+              },
             },
-          },
-        ] as never,
-        cursor: { batchSize: 100_000 },
-      })) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
+
+      // AT re-reports a trip_id against a later vehicle cycle, so a stop can carry
+      // both its real arrival and a "ghost" reading ~1h off - and the ghosts can
+      // even outnumber the real events. Collapse each station (and its platforms)
+      // to the event nearest its own schedule (the real run); the run's deviation
+      // level is then the median of those, and any station left only with a ghost
+      // (a gross outlier from that level) is dropped rather than shown wildly late.
+      const GHOST_GAP_SEC = 45 * 60;
+      const bestByStop = new Map<string, TripStopRaw>();
+      for (const r of res.cursor.firstBatch) {
+        const id = stationId(r.stop_id, r.name);
+        const cur = bestByStop.get(id);
+        if (!cur || Math.abs(r.deviation_sec) < Math.abs(cur.deviation_sec)) bestByStop.set(id, r);
+      }
+      const chosen = [...bestByStop.values()].sort(
+        (a, b) => +new Date(toIso(a.scheduled_at)) - +new Date(toIso(b.scheduled_at)),
+      );
+      const devs = chosen.map((r) => r.deviation_sec).sort((a, b) => a - b);
+      const runMedian = devs.length ? devs[Math.floor(devs.length / 2)] : 0;
 
       const stops: TripStop[] = [];
-      for (const r of res.cursor.firstBatch) {
-        // Collapse a stop that recorded two actuals into one timeline row.
-        if (stops[stops.length - 1]?.stop_id === r.stop_id) continue;
+      for (const r of chosen) {
+        if (Math.abs(r.deviation_sec - runMedian) > GHOST_GAP_SEC) continue;
         stops.push({
-          stop_id: r.stop_id,
-          name: r.name,
+          stop_id: stationId(r.stop_id, r.name),
+          name: stationName(r.name),
+          lat: r.lat,
+          lon: r.lon,
           scheduled_at: toIso(r.scheduled_at),
           deviation_sec: r.deviation_sec,
         });
@@ -781,7 +2192,12 @@ export async function getTripTimeline(
       return {
         trip_id: tripId,
         route: route
-          ? { shortName: route.shortName, longName: route.longName, mode: route.mode }
+          ? {
+              shortName: route.shortName,
+              longName: route.longName,
+              mode: route.mode,
+              colour: route.colour,
+            }
           : null,
         vehicle_id: res.cursor.firstBatch.find((r) => r.vehicle_id)?.vehicle_id ?? null,
         stops,
@@ -790,4 +2206,111 @@ export async function getTripTimeline(
     ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
     { revalidate: 300 },
   )();
+}
+
+/** One stop in a trip's GTFS scheduled stop sequence. */
+export interface ScheduledStop {
+  stop_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  stop_sequence: number;
+  /** GTFS departure time "HH:MM:SS"; hours may exceed 23 for post-midnight trips. */
+  departure_time: string | null;
+}
+
+/**
+ * Scheduled stop sequence for a trip from the AT GTFS static feed, joined with
+ * stop names and coordinates from the database. Cached for a day - the schedule
+ * does not change during a trip's service day.
+ * @param tripId - AT GTFS trip id.
+ * @returns Stops ordered by stop_sequence with display names and coordinates.
+ */
+export async function getTripScheduledStops(tripId: string): Promise<ScheduledStop[]> {
+  interface RawStopTime {
+    stop_id: string;
+    stop_sequence: number;
+    departure_time?: string | null;
+  }
+  return unstable_cache(
+    async () => {
+      const stoptimes = await fetchAll<RawStopTime>(
+        `/trips/${encodeURIComponent(tripId)}/stoptimes`,
+      ).catch(() => [] as RawStopTime[]);
+      if (stoptimes.length === 0) return [];
+      const ordered = stoptimes.slice().sort((a, b) => a.stop_sequence - b.stop_sequence);
+      const stopIds = ordered.map((s) => s.stop_id);
+      const stopDocs = await prisma.stop.findMany({
+        where: { id: { in: stopIds } },
+        select: { id: true, name: true, lat: true, lon: true },
+      });
+      const stopById = new Map(stopDocs.map((s) => [s.id, s]));
+      const out: ScheduledStop[] = [];
+      for (const st of ordered) {
+        const stop = stopById.get(st.stop_id);
+        if (!stop) continue;
+        out.push({
+          stop_id: stationId(stop.id, stop.name),
+          name: stationName(stop.name),
+          lat: stop.lat,
+          lon: stop.lon,
+          stop_sequence: st.stop_sequence,
+          departure_time: st.departure_time ?? null,
+        });
+      }
+      return out;
+    },
+    ["trip-scheduled-stops", tripId],
+    { revalidate: 86_400 },
+  )();
+}
+
+/**
+ * Look up short names for a set of route ids. Returns a map of id to shortName,
+ * falling back to the raw id when the route has no shortName set.
+ * @param routeIds - Route ids to look up.
+ * @returns Record mapping each id to its display name.
+ */
+export async function getRouteNames(routeIds: string[]): Promise<Record<string, string>> {
+  if (routeIds.length === 0) return {};
+  const rows = await prisma.route.findMany({
+    where: { id: { in: routeIds } },
+    select: { id: true, shortName: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.id, r.shortName ?? r.id]));
+}
+
+/**
+ * Fetch aggregated stats for a route from `DailyRouteSummary`, newest first.
+ * Supply `from`/`to` (UTC instants) to fetch a specific window; omit both to
+ * get the rolling last 7 records. Returns an empty array when no summary
+ * records exist (route never ingested or backfill not yet run).
+ * @param routeId - AT route id (slug form).
+ * @param from - Inclusive window start (UTC). Omit for rolling-7 behaviour.
+ * @param to - Exclusive window end (UTC). Omit for rolling-7 behaviour.
+ * @returns Per-day stats, newest first.
+ */
+export async function getRouteDailyStats(
+  routeId: string,
+  from?: Date,
+  to?: Date,
+): Promise<RouteDay[]> {
+  const rows = await prisma.dailyRouteSummary.findMany({
+    where: {
+      routeId,
+      ...(from || to
+        ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } }
+        : {}),
+    },
+    orderBy: { date: "desc" },
+    ...(from || to ? {} : { take: 7 }),
+    select: { date: true, events: true, avgDelaySec: true, avgAbsDelaySec: true, onTimePct: true },
+  });
+  return rows.map((r) => ({
+    date: nzServiceDayString(r.date),
+    events: r.events,
+    avg_delay_sec: r.avgDelaySec ?? null,
+    avg_abs_delay_sec: r.avgAbsDelaySec ?? null,
+    on_time_pct: r.onTimePct ?? null,
+  }));
 }

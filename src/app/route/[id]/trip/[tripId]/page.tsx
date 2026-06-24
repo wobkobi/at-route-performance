@@ -1,12 +1,16 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
+import { ChevronLeft } from "@/components/icons";
+import { ModeIcon } from "@/components/ModeIcon";
+import StopMapWrapper from "@/components/StopMapWrapper";
 import { cn } from "@/lib/cn";
-import { getTripTimeline } from "@/lib/data";
-import { formatDelay } from "@/lib/format";
-import { linkColour } from "@/lib/link-colour";
+import { getTripScheduledStops, getTripTimeline, type ScheduledStop } from "@/lib/data";
+import { formatDelay, formatGtfsTime } from "@/lib/format";
+import { delayBand } from "@/lib/on-time";
+import { routeSlug } from "@/lib/route-slug";
+import type { MapStop } from "@/lib/route-view";
 import { nzServiceDayRange } from "@/lib/time";
+import type { TripStop } from "@/types/api";
 import type { JSX } from "react";
-
-const THRESHOLD_SEC = 300;
 
 /**
  * Auckland-local clock time (e.g. `7:24am`) for an ISO instant.
@@ -36,32 +40,77 @@ export default async function TripPage({
   searchParams?: Promise<{ d?: string }>;
 }): Promise<JSX.Element> {
   const { id, tripId } = await params;
+  const slug = routeSlug(id);
   const { d } = (await searchParams) ?? {};
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
   // do not interleave; falls back to the trip's latest day when `d` is absent.
   const day = d ? nzServiceDayRange(new Date(d)) : undefined;
-  const timeline = await getTripTimeline(tripId, id, day);
-  const { route, stops, vehicle_id } = timeline;
+  const [timeline, scheduledStops] = await Promise.all([
+    getTripTimeline(tripId, slug, day),
+    getTripScheduledStops(tripId),
+  ]);
+  const { route, vehicle_id } = timeline;
+  const routeMode = route?.mode ?? "BUS";
 
-  const title = route?.shortName ?? id;
-  const colour = linkColour(route?.shortName, route?.longName);
-  const departing = stops[0]?.scheduled_at;
+  // Merge served stops (with actual deviation data) and unserved scheduled stops
+  // (future stops for a live trip). Served stops are matched by station-canonical
+  // stop_id so train-platform variants don't create duplicates.
+  type MergedStop = ({ kind: "served" } & TripStop) | ({ kind: "future" } & ScheduledStop);
+
+  const servedById = new Map(timeline.stops.map((s) => [s.stop_id, s]));
+  const seenInSchedule = new Set<string>();
+
+  const mergedStops: MergedStop[] =
+    scheduledStops.length > 0
+      ? [
+          ...scheduledStops.map((s): MergedStop => {
+            seenInSchedule.add(s.stop_id);
+            const served = servedById.get(s.stop_id);
+            return served ? { kind: "served", ...served } : { kind: "future", ...s };
+          }),
+          // Append any served stops absent from the schedule (diversions / id gaps).
+          ...timeline.stops
+            .filter((s) => !seenInSchedule.has(s.stop_id))
+            .map((s): MergedStop => ({ kind: "served", ...s })),
+        ]
+      : timeline.stops.map((s): MergedStop => ({ kind: "served", ...s }));
+
+  // Map shows all stops: served ones coloured by deviation, future ones neutral.
+  const tripMapStops: MapStop[] = mergedStops.map((s) => ({
+    stop_id: s.stop_id,
+    name: s.name,
+    lat: s.lat,
+    lon: s.lon,
+    avg_delay_sec: s.kind === "served" ? s.deviation_sec : null,
+    on_time_pct: null,
+  }));
+  const tripPath: Array<[number, number]> = mergedStops.map((s) => [s.lat, s.lon]);
+
+  const title = route?.shortName ?? slug;
+  const firstServed = mergedStops.find(
+    (s): s is { kind: "served" } & TripStop => s.kind === "served",
+  );
+  const departing = firstServed?.scheduled_at;
 
   return (
     <main className={cn("space-y-6")}>
       <a
-        href={`/route/${encodeURIComponent(id)}`}
-        className={cn("text-sm text-at-shore hover:underline")}
+        href={`/route/${encodeURIComponent(slug)}`}
+        className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
       >
-        &lsaquo; Back to {title}
+        <ChevronLeft className="h-3.5 w-3.5" />
+        Back to {title}
       </a>
 
       <header className="space-y-1">
         <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
-          {colour && (
-            <span
-              aria-hidden="true"
-              className={cn("inline-block h-4 w-4 shrink-0 rounded-full", colour)}
+          {route && (
+            <ModeIcon
+              mode={route.mode}
+              shortName={route.shortName}
+              longName={route.longName}
+              colour={route.colour}
+              className="h-7 w-7"
             />
           )}
           {title}
@@ -72,41 +121,98 @@ export default async function TripPage({
         </p>
       </header>
 
-      {stops.length === 0 ? (
-        <p className={cn("rounded-xl bg-at-surface p-4 text-at-muted shadow-sm")}>
+      {tripMapStops.length > 0 && (
+        <section className="border border-at-border bg-at-surface p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
+            <span className="flex items-center gap-3 text-xs text-at-muted">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
+              </span>
+            </span>
+          </div>
+          <StopMapWrapper
+            stops={tripMapStops}
+            routeLines={tripPath.length > 1 ? [tripPath] : []}
+            routeId={slug}
+            filterTripId={tripId}
+            mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
+            className="h-100"
+          />
+        </section>
+      )}
+
+      {mergedStops.length === 0 ? (
+        <p className="border border-at-border bg-at-surface p-4 text-at-muted">
           No stop records found for this trip.
         </p>
       ) : (
-        <section className={cn("rounded-xl bg-at-surface p-4 shadow-sm")}>
-          <ol className={cn("space-y-0")}>
-            {stops.map((s, i) => {
-              const d = s.deviation_sec;
-              const band =
-                d > THRESHOLD_SEC
+        <section className="border border-at-border bg-at-surface p-4">
+          <ol className="space-y-0">
+            {mergedStops.map((s, i) => {
+              const isFuture = s.kind === "future";
+              const stopBand = isFuture ? "ontime" : delayBand(s.deviation_sec, routeMode);
+              const band = isFuture
+                ? "text-at-muted"
+                : stopBand === "late"
                   ? "text-at-late"
-                  : d < -THRESHOLD_SEC
+                  : stopBand === "early"
                     ? "text-at-early"
                     : "text-at-ink";
-              const dotColour = d > 5 ? "bg-at-late" : d < -5 ? "bg-at-early" : "bg-at-ontime";
+              const dotColour = isFuture
+                ? "bg-at-border"
+                : stopBand === "late"
+                  ? "bg-at-late"
+                  : stopBand === "early"
+                    ? "bg-at-early"
+                    : "bg-at-ontime";
               return (
-                <li key={`${s.stop_id}-${i}`} className={cn("flex items-stretch gap-3")}>
-                  {/* Timeline rail: a dot per stop joined by a connector line. */}
-                  <div className={cn("flex w-3 flex-col items-center")}>
+                <li key={`${s.stop_id}-${i}`} className="flex items-stretch gap-3">
+                  <div className="flex w-3 flex-col items-center">
                     <span className={cn("h-3 w-3 shrink-0 rounded-full", dotColour)} />
-                    {i < stops.length - 1 && (
-                      <span className={cn("w-px flex-1 bg-at-border")} aria-hidden="true" />
+                    {i < mergedStops.length - 1 && (
+                      <span className="w-px flex-1 bg-at-border" aria-hidden="true" />
                     )}
                   </div>
-                  <div className={cn("flex flex-1 items-baseline justify-between gap-3 pb-4")}>
+                  <div className="flex flex-1 items-baseline justify-between gap-3 pb-4">
                     <div className="min-w-0">
-                      <p className={cn("truncate font-medium")}>{s.name}</p>
-                      <p className={cn("text-xs text-at-muted tabular-nums")}>
-                        {localTime(s.scheduled_at)}
+                      <p className={cn("truncate font-medium", isFuture && "text-at-muted")}>
+                        {s.name}
+                      </p>
+                      <p className="text-xs text-at-muted tabular-nums">
+                        {isFuture ? (
+                          <>
+                            Sched{" "}
+                            <span className="text-at-ink">
+                              {s.departure_time ? formatGtfsTime(s.departure_time) : "—"}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            Sched <span className="text-at-ink">{localTime(s.scheduled_at)}</span> ·
+                            Actual{" "}
+                            <span className={cn(band)}>
+                              {localTime(
+                                new Date(
+                                  new Date(s.scheduled_at).getTime() + s.deviation_sec * 1000,
+                                ).toISOString(),
+                              )}
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
-                    <span className={cn("shrink-0 text-sm font-semibold tabular-nums", band)}>
-                      {formatDelay(d, { thresholdSec: THRESHOLD_SEC })}
-                    </span>
+                    {!isFuture && (
+                      <span className={cn("shrink-0 text-sm font-semibold tabular-nums", band)}>
+                        {formatDelay(s.deviation_sec, { mode: routeMode })}
+                      </span>
+                    )}
                   </div>
                 </li>
               );

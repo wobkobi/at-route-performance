@@ -1,6 +1,7 @@
 // src/app/api/ingest/gtfs/shapes/route.ts
 import { requireCronAuth } from "@/lib/auth";
-import { syncShapes } from "@/lib/ingest";
+import { syncShapes, syncTripMeta } from "@/lib/ingest";
+import { recordIngestRun } from "@/lib/ingest-run";
 import { NextResponse } from "next/server";
 
 // Downloads + parses AT's full GTFS zip (large); give it generous headroom.
@@ -20,18 +21,37 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (denied) return denied;
 
   try {
-    console.log("[SHAPES] Starting GTFS shapes sync", { timestamp: new Date().toISOString() });
-    const shapes = await syncShapes();
+    console.log("[SHAPES] Starting GTFS shapes + trip meta sync", {
+      timestamp: new Date().toISOString(),
+    });
+    const [shapes, tripMeta] = await Promise.all([syncShapes(), syncTripMeta()]);
     const duration = Date.now() - startTime;
-    console.log("[SHAPES] Complete", { shapes: shapes.upserted, duration_ms: duration });
+    console.log("[SHAPES] Complete", {
+      shapes: shapes.upserted,
+      tripMeta: tripMeta.upserted,
+      duration_ms: duration,
+    });
+    await recordIngestRun({
+      endpoint: "gtfs/shapes",
+      startedAt: new Date(startTime),
+      success: true,
+      count: shapes.upserted + tripMeta.upserted,
+    });
     return NextResponse.json({
       shapes,
+      tripMeta,
       duration_ms: duration,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("[SHAPES] Failed", { error: msg, duration_ms: Date.now() - startTime });
+    await recordIngestRun({
+      endpoint: "gtfs/shapes",
+      startedAt: new Date(startTime),
+      success: false,
+      error: msg,
+    });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -19,6 +19,8 @@ model Route {
   shortName  String?
   longName   String
   mode       Mode
+  colour     String?
+  textColour String?
   events     ArrivalEvent[]
   tripDelays TripDelay[]
   summaries  DailyRouteSummary[]
@@ -44,6 +46,16 @@ model Stop {
 model Shape {
   id     String @id @map("_id")
   points Json
+}
+
+// GTFS trip metadata (from trips.txt), keyed by AT trip_id.
+model TripMeta {
+  id          String  @id @map("_id")
+  routeId     String?
+  headsign    String?
+  directionId Int?
+
+  @@map("tripMeta")
 }
 
 // ArrivalEvent and TripDelay use auto-generated ObjectIds.
@@ -87,15 +99,42 @@ model TripDelay {
   @@index([timestamp])
 }
 
+// One row per ingest run, written by each /api/ingest/* endpoint on success and
+// failure. Powers the footer's "last updated" indicator with the real wall-clock
+// time ingest last succeeded, so a silently stalled feed reads as stale rather
+// than fresh (the newest scheduledAt can sit in the near future even when ingest
+// has stopped).
+model IngestRun {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  endpoint    String // "at" | "gtfs/sync" | "gtfs/shapes" | "aggregate" | "cleanup"
+  startedAt   DateTime
+  completedAt DateTime @default(now())
+  success     Boolean
+  count       Int? // rows inserted/processed (endpoint-specific)
+  error       String? // message when success = false
+
+  @@index([endpoint, completedAt])
+}
+
+// Generic key-value store for persisted app settings (e.g. last synced GTFS version).
+model Setting {
+  id    String @id @map("_id")
+  value String
+
+  @@map("setting")
+}
+
 // Pre-aggregated daily stats (retained indefinitely for trend analysis)
 model DailyRouteSummary {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId        String
-  date           DateTime // Normalized to UTC midnight
+  date           DateTime // NZ service-day start (5am Auckland, stored as UTC)
   events         Int
   avgDelaySec    Float?
   avgAbsDelaySec Float?
   onTimePct      Float? // % within threshold
+  earlyPct       Float? // % beyond the early-tolerance
+  latePct        Float? // % beyond the late-tolerance
   p50DelaySec    Float? // Median
   p95DelaySec    Float? // 95th percentile
   thresholdSec   Int // Threshold used for on-time calc (e.g., 300)

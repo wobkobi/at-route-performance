@@ -1,26 +1,37 @@
+import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
-import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
-import { cn } from "@/lib/cn";
-import { getFleetSummary, getModeBreakdown, getMostRecentDataDay, getRankings } from "@/lib/data";
+import { ShameOfDay } from "@/components/ShameOfDay";
+import { WorstStopCard } from "@/components/WorstStopCard";
+import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import {
+  getEarliestDataDay,
+  getMostRecentDataDay,
+  getRankings,
+  getShameOfDay,
+  getWorstStops,
+} from "@/lib/data";
+import { dropTodayParam } from "@/lib/day-url";
+import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
   deriveBoards,
   deriveOffSchedule,
   MIN_BOARD_EVENTS,
   MIN_MODE_EVENTS,
-  sortRows,
+  summariseRows,
   type DelayDirection,
 } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import type { JSX } from "react";
 
-const THRESHOLD_SEC = 300;
+// Late bound for the on-time window + cache-key versioning; early side is per-mode.
+const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const TODAY_REVALIDATE = 300; // 5 minutes
 
 /** Query params for the home page. */
@@ -44,6 +55,7 @@ export default async function Home({
   searchParams?: Promise<HomeSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  dropTodayParam("/", sp);
   const sort = (
     ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
   ) as RouteSort;
@@ -68,20 +80,36 @@ export default async function Home({
     }
   }
   const hasNextDay = serviceDate < nzServiceDayString();
-
-  const [fleet, modes] = await Promise.all([
-    getFleetSummary(range, THRESHOLD_SEC, TODAY_REVALIDATE),
-    getModeBreakdown(range, THRESHOLD_SEC, TODAY_REVALIDATE),
-  ]);
-  // Filters narrow the route lists; fleet KPIs stay network-wide. School
-  // services (S###) are hidden unless ?school=1.
+  // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
+  // Stepper bounds, and the "of the day" cards are all independent once the
+  // service-day window is finalised - run them in a single round-trip.
+  const [earliestDay, shame, worstStops, allAlerts] = await Promise.all([
+    getEarliestDataDay(1),
+    getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
+    getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
+    getServiceAlerts(),
+  ]);
+  const networkAlerts = networkWideAlerts(allAlerts);
+  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  // Only pin ?day on route links for a past day; today's links stay clean so they
+  // don't bounce through dropTodayParam's redirect (a 307 on every click).
+  const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered
     : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
+  // The KPI strip reflects exactly the visible rows, so the mode filter and the
+  // school-bus toggle both flow through to the totals (no separate fleet query).
+  const heroData = summariseRows(visible);
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  // Mode chips are hidden when that mode has no qualifying rows for the day.
+  const availableModes = new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode));
+  // Route table always shows all routes regardless of the active mode chip.
+  const tableRows = includeSchool
+    ? rows
+    : rows.filter((r) => !isSchoolBus(r.short_name, r.long_name));
   const boards = deriveBoards(visible, { minEvents: boardMin });
   const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
 
@@ -89,7 +117,6 @@ export default async function Home({
   const modePreserved: Record<string, string> = {};
   const schoolPreserved: Record<string, string> = {};
   const dirPreserved: Record<string, string> = {};
-  const tablePreserved: Record<string, string> = {};
   const dayPreserved: Record<string, string> = {};
   if (sort !== "on_time") {
     modePreserved.sort = sort;
@@ -100,13 +127,11 @@ export default async function Home({
   if (mode) {
     schoolPreserved.mode = mode;
     dirPreserved.mode = mode;
-    tablePreserved.mode = mode;
     dayPreserved.mode = mode;
   }
   if (includeSchool) {
     modePreserved.school = "1";
     dirPreserved.school = "1";
-    tablePreserved.school = "1";
     dayPreserved.school = "1";
   }
   if (dir) {
@@ -119,85 +144,97 @@ export default async function Home({
     modePreserved.day = requestedDay;
     schoolPreserved.day = requestedDay;
     dirPreserved.day = requestedDay;
-    tablePreserved.day = requestedDay;
   }
 
+  const shameParams = new URLSearchParams();
+  if (serviceDate !== nzServiceDayString()) shameParams.set("day", serviceDate);
+  if (includeSchool) shameParams.set("school", "1");
+  if (mode) shameParams.set("mode", mode);
+  const shameHref = `/shame${shameParams.toString() ? `?${shameParams.toString()}` : ""}`;
+
   return (
-    <main className={cn("space-y-6")}>
-      <header className={cn("space-y-3")}>
-        <div className={cn("flex flex-wrap items-end justify-between gap-2")}>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold tracking-zero text-at-shore uppercase">
-              Auckland network
-            </p>
-            <h1 className={cn("text-4xl leading-headline font-ultra tracking-zero")}>
-              How Auckland&apos;s transport ran
-            </h1>
-            <p className="max-w-2xl text-at-muted">
-              Punctuality across every bus, train, and ferry route - which ran furthest off schedule
-              and which were the most reliable, refreshed through the day.
-            </p>
-          </div>
-          <DayNav
-            basePath="/"
-            serviceDate={serviceDate}
-            preservedParams={dayPreserved}
-            hasNext={hasNextDay}
-          />
-        </div>
-        <div className="metro-rule" />
+    <main className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+          How bad was it today?
+        </h1>
+        <DayNav
+          basePath="/"
+          serviceDate={serviceDate}
+          preservedParams={dayPreserved}
+          hasPrev={hasPrevDay}
+          hasNext={hasNextDay}
+        />
       </header>
 
-      <FleetSummary data={fleet} />
+      <AlertBanner alerts={networkAlerts} />
 
-      <div className={cn("flex flex-wrap items-center gap-3")}>
-        <ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />
+      <FleetSummary data={heroData} />
+
+      <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        {shame.worst != null ? (
+          <ShameOfDay trip={shame.worst} href={shameHref} />
+        ) : worstStops[0] ? (
+          <WorstStopCard stop={worstStops[0]} day={linkDay} />
+        ) : (
+          <ShameOfDay trip={null} href={shameHref} />
+        )}
+        {shame.worst != null && <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <ModeFilter
+          active={mode}
+          basePath="/"
+          preservedParams={modePreserved}
+          availableModes={availableModes}
+        />
         <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
       </div>
 
-      <div className={cn("space-y-2")}>
-        <div className={cn("flex justify-end")}>
-          <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-        </div>
+      {mode && visible.every((r) => r.events < boardMin) && (
+        <p className="text-sm text-at-muted">
+          Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day — try a wider
+          window on the{" "}
+          <a href="/rankings" className="underline">
+            rankings
+          </a>{" "}
+          page or switch back to All.
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
         <RankBoard
           title="Most off-schedule"
           accentClass="text-at-ink"
           rows={offSchedule}
           metric="delay"
-          thresholdSec={THRESHOLD_SEC}
+          routeDay={linkDay}
         />
-      </div>
-
-      <div className={cn("grid gap-4 md:grid-cols-2")}>
         <RankBoard
           title="Most reliable"
           accentClass="text-at-ontime"
           rows={boards.reliable}
           metric="onTime"
-          thresholdSec={THRESHOLD_SEC}
+          routeDay={linkDay}
         />
-        <ModeBreakdown modes={modes} />
       </div>
 
       <a
-        href="/rankings?window=week"
-        className={cn(
-          "flex items-center justify-between rounded-xl bg-at-ocean px-5 py-4 text-white shadow-sm",
-        )}
+        href="/rankings"
+        className="flex items-center justify-between gap-3 bg-at-ocean px-6 py-5 text-white transition-colors hover:bg-at-ocean/90"
       >
-        <span className={cn("font-ultra tracking-zero")}>This week&apos;s top routes</span>
-        <span className={cn("text-at-safety")}>View weekly &rsaquo;</span>
+        <span className="text-lg font-ultra tracking-zero">Top routes</span>
       </a>
 
-      <details className={cn("rounded-xl bg-at-surface shadow-sm")}>
-        <summary className={cn("cursor-pointer px-4 py-3 font-semibold")}>All routes</summary>
-        <div className={cn("p-2")}>
-          <RouteTable
-            rows={sortRows(visible, sort)}
-            basePath="/"
-            preservedParams={tablePreserved}
-            sort={sort}
-          />
+      <details className="border border-at-border bg-at-surface">
+        <summary className="cursor-pointer px-4 py-3 font-semibold">All routes</summary>
+        <div className="p-2">
+          <RouteTable rows={tableRows} sort={sort} routeDay={linkDay} />
         </div>
       </details>
     </main>

@@ -2,6 +2,9 @@
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isPlausibleDeviation } from "@/lib/deviation";
+import { recordIngestRun } from "@/lib/ingest-run";
+import { fetchVehicleByTrip } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -42,6 +45,7 @@ interface DebugStats {
   withTime: number;
   withDelay: number;
   withTripDelay: number;
+  dropped: number;
   loose: boolean;
 }
 
@@ -102,11 +106,17 @@ export async function POST(req: Request): Promise<NextResponse> {
           withTime: 0,
           withDelay: Number(hasTripDelay),
           withTripDelay: Number(hasTripDelay),
+          dropped: 0,
           loose,
         } as DebugStats,
         sample: null,
       });
     }
+
+    // The tripupdates feed has no vehicle, so join the vehicle-locations feed by
+    // trip_id to name each running vehicle. Best-effort: an empty map (off-peak,
+    // or the feed failing) just leaves rows without a vehicle, never fails ingest.
+    const vehicleByTrip = await fetchVehicleByTrip().catch(() => new Map<string, string>());
 
     let seen = 0;
     let withTU = 0;
@@ -114,6 +124,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     let withTime = 0;
     let withDelay = 0;
     let withTripDelay = 0;
+    let dropped = 0; // rows skipped for an implausible deviation (feed noise)
 
     const stopRows: StopRow[] = [];
     const tripRows: TripRow[] = [];
@@ -122,10 +133,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       seen++;
       const tu = e.trip_update;
       if (!tu) continue;
+      // schedule_relationship 3 = CANCELED: no valid stop times, skip.
+      if (tu.trip.schedule_relationship === 3) continue;
       withTU++;
 
       // A) Stop-level rows (handle single-object or array STU).
       const stuList = toStuArray(tu.stop_time_update);
+      const rowsBefore = stopRows.length;
+      // Tag every stop row with the running vehicle (the trip_update's own vehicle
+      // if present, else the locations-feed join) so the trip boards can name it.
+      const vehicleId =
+        (typeof tu.vehicle?.id === "string" ? tu.vehicle.id : undefined) ??
+        vehicleByTrip.get(tu.trip.trip_id);
 
       for (const stu of stuList) {
         withSTU++;
@@ -139,6 +158,12 @@ export async function POST(req: Request): Promise<NextResponse> {
         if (!hasDelay && !loose) continue;
 
         const delay = hasDelay ? (a.delay as number) : 0;
+        // Drop physically-impossible deviations (feed noise) before they reach
+        // the DB and pollute averages/on-time rates.
+        if (hasDelay && !isPlausibleDeviation(delay)) {
+          dropped++;
+          continue;
+        }
         const time = a.time as number;
         const actualAt = new Date(time * 1000);
         const scheduledAt = new Date((time - delay) * 1000);
@@ -150,19 +175,27 @@ export async function POST(req: Request): Promise<NextResponse> {
           scheduledAt,
           actualAt,
           deviationSec: delay,
+          vehicleId,
           source: hasDelay ? "AT_GTFSRT" : "AT_GTFSRT_NO_DELAY",
         });
       }
 
-      // B) Trip-level fallback (no STU but trip-level delay present).
-      if (stuList.length === 0) {
+      // B) Trip-level fallback: fires when the loop above produced no rows for
+      // this trip (either no STUs at all, or every STU lacked arrival.time).
+      if (stopRows.length === rowsBefore) {
         const tDelay = (tu as { delay?: unknown }).delay;
         if (typeof tDelay === "number") {
+          if (!isPlausibleDeviation(tDelay)) {
+            dropped++;
+            continue;
+          }
           withTripDelay++;
           const ts =
             typeof tu.timestamp === "number" ? tu.timestamp : Math.floor(Date.now() / 1000);
           const veh = (tu as { vehicle?: { id?: unknown } }).vehicle;
-          const vehId = veh && typeof veh.id === "string" ? veh.id : undefined;
+          const vehId =
+            (veh && typeof veh.id === "string" ? veh.id : undefined) ??
+            vehicleByTrip.get(tu.trip.trip_id);
 
           tripRows.push({
             tripId: tu.trip.trip_id,
@@ -228,6 +261,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         withTime,
         withDelay,
         withTripDelay,
+        dropped,
         loose,
       };
       body.sample = stopRows[0] ?? tripRows[0] ?? null;
@@ -242,8 +276,16 @@ export async function POST(req: Request): Promise<NextResponse> {
       tried: stopRows.length,
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
+      dropped,
       duration_ms: duration,
       source: "cron",
+    });
+
+    await recordIngestRun({
+      endpoint: "at",
+      startedAt: new Date(startTime),
+      success: true,
+      count: stopResult.count + tripResult.count,
     });
 
     return NextResponse.json(body);
@@ -255,6 +297,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       error: msg,
       duration_ms: duration,
+    });
+
+    await recordIngestRun({
+      endpoint: "at",
+      startedAt: new Date(startTime),
+      success: false,
+      error: msg,
     });
 
     return NextResponse.json({ error: msg }, { status: 502 });

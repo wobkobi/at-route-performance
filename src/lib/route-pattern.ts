@@ -1,5 +1,6 @@
 // src/lib/route-pattern.ts
 import { fetchAll } from "@/lib/at-static";
+import { routeIdsForSlug } from "@/lib/data";
 import type { RoutePattern, RouteVariant } from "@/types/api";
 import { unstable_cache } from "next/cache";
 
@@ -68,23 +69,25 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
   const topGroups = [...groups.values()].sort((a, b) => b.count - a.count).slice(0, MAX_PATTERNS);
 
   const directions: Record<number, { variants: RouteVariant[] }> = {};
-  for (const g of topGroups) {
-    const stoptimes = await fetchAll<StopTimeAttr>(
-      `/trips/${encodeURIComponent(g.tripId)}/stoptimes`,
-    );
-    const stopIds = stoptimes
-      .slice()
-      .sort((a, b) => a.stop_sequence - b.stop_sequence)
-      .map((s) => s.stop_id);
-    if (stopIds.length < 2) continue;
-    (directions[g.directionId] ??= { variants: [] }).variants.push({
-      headsign: g.headsign,
-      directionId: g.directionId,
-      tripCount: g.count,
-      stopIds,
-      shapeId: g.shapeId,
-    });
-  }
+  await Promise.all(
+    topGroups.map(async (g) => {
+      const stoptimes = await fetchAll<StopTimeAttr>(
+        `/trips/${encodeURIComponent(g.tripId)}/stoptimes`,
+      );
+      const stopIds = stoptimes
+        .slice()
+        .sort((a, b) => a.stop_sequence - b.stop_sequence)
+        .map((s) => s.stop_id);
+      if (stopIds.length < 2) return;
+      (directions[g.directionId] ??= { variants: [] }).variants.push({
+        headsign: g.headsign,
+        directionId: g.directionId,
+        tripCount: g.count,
+        stopIds,
+        shapeId: g.shapeId,
+      });
+    }),
+  );
 
   for (const d of Object.values(directions)) {
     d.variants.sort((a, b) => b.tripCount - a.tripCount);
@@ -99,7 +102,9 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
  * @returns Patterns grouped by direction.
  */
 export async function getRoutePattern(routeId: string): Promise<RoutePattern> {
-  return unstable_cache(() => queryRoutePattern(routeId), ["route-pattern", routeId], {
+  // The schedule lives under the newest feed version's id; resolve a slug to it.
+  const [latestId] = await routeIdsForSlug(routeId);
+  return unstable_cache(() => queryRoutePattern(latestId), ["route-pattern", latestId], {
     revalidate: 86_400,
   })();
 }

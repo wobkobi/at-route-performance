@@ -26,8 +26,10 @@
   --color-at-ink: #001930;
   --color-at-muted: #667583;
   --color-at-border: #d1d6da;
-  --color-at-bg: #f2f3f5;
+  --color-at-bg: #e9edf1;
   --color-at-surface: #ffffff;
+  /* Pale Shore tint (at.govt.nz tint-shore-10) for icon badges + section bands */
+  --color-at-shore-pale: #ebf5fb;
 
   /* Semantic status */
   --color-at-ontime: #0073bd;
@@ -90,6 +92,32 @@
   @apply bg-at-early text-at-ink;
 } /* Bright Green + Ocean = pass */
 
+/* AT-style pill controls (filters, day stepper, sort chips). */
+.chip {
+  @apply inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold transition-colors;
+}
+.chip-on {
+  @apply bg-at-shore text-white;
+}
+.chip-off {
+  @apply border border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore;
+}
+
+/* AT button: pill-shaped, flat. The CTA variant is Safety yellow on Ocean text -
+   the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
+   pairing from the brand guide). */
+.at-btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition;
+}
+.at-btn-cta {
+  @apply bg-at-safety text-at-ocean hover:brightness-95;
+}
+
+/* AT card: white, hairline border, rounded, flat (no shadow) - like at.govt.nz. */
+.at-card {
+  @apply border border-at-border bg-at-surface;
+}
+
 /*
   Tailwind v4 changed the default border colour to `currentColor`. Restore a
   sensible default using the AT neutral so unstyled borders stay on-brand.
@@ -125,22 +153,4 @@
 /* Live-vehicle marker: glyph + delay-coloured ring + heading arrow (inline SVG). */
 .vehicle-marker {
   line-height: 0;
-}
-
-/*
-  Metro-line accent: a segmented multi-colour bar from the AT palette, evoking a
-  transit map's coloured lines. Used under page mastheads and the site header.
-*/
-.metro-rule {
-  height: 4px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    to right,
-    var(--color-at-shore) 0 16.66%,
-    var(--color-at-bright-green) 16.66% 33.33%,
-    var(--color-at-commercial) 33.33% 50%,
-    var(--color-at-disruption) 50% 66.66%,
-    var(--color-at-cosmic) 66.66% 83.33%,
-    var(--color-at-greeny-bluey) 83.33% 100%
-  );
 }

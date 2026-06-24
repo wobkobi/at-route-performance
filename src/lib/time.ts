@@ -149,10 +149,10 @@ export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_ST
 }
 
 /**
- * The Sunday that starts the Auckland-local week containing an instant.
- * Weeks reset on Sunday.
+ * The Monday that starts the Auckland-local week containing an instant.
+ * Weeks reset on Monday (ISO).
  * @param at - The instant to label.
- * @returns The week's Sunday as `YYYY-MM-DD`.
+ * @returns The week's Monday as `YYYY-MM-DD`.
  */
 export function nzWeekStart(at: Date): string {
   const dtf = new Intl.DateTimeFormat("en-CA", {
@@ -163,14 +163,15 @@ export function nzWeekStart(at: Date): string {
   });
   const [y, mo, d] = dtf.format(at).split("-").map(Number);
   const date = new Date(Date.UTC(y, mo - 1, d));
-  date.setUTCDate(date.getUTCDate() - date.getUTCDay()); // getUTCDay 0 = Sunday
+  // getUTCDay 0 = Sunday; shift so Monday is the week start.
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
   return date.toISOString().slice(0, 10);
 }
 
 /**
- * The Auckland-local week window (Sunday 00:00 to the next Sunday 00:00).
- * Any date snaps to its week's Sunday; defaults to the week containing now.
- * @param weekStart - The week's Sunday as `YYYY-MM-DD` (optional).
+ * The Auckland-local week window (Monday 00:00 to the next Monday 00:00).
+ * Any date snaps to its week's Monday; defaults to the week containing now.
+ * @param weekStart - The week's Monday as `YYYY-MM-DD` (optional).
  * @returns UTC `{ start, end }` spanning that local week.
  */
 export function nzWeekRange(weekStart?: string): DateRange {
@@ -188,7 +189,7 @@ export function nzWeekRange(weekStart?: string): DateRange {
     const [y, mo, d] = dtf.format(new Date()).split("-").map(Number);
     base = new Date(Date.UTC(y, mo - 1, d));
   }
-  base.setUTCDate(base.getUTCDate() - base.getUTCDay()); // snap back to Sunday
+  base.setUTCDate(base.getUTCDate() - ((base.getUTCDay() + 6) % 7)); // snap back to Monday
   const y = base.getUTCFullYear();
   const mo = base.getUTCMonth() + 1;
   const d = base.getUTCDate();
@@ -218,4 +219,40 @@ export function nzMonthRange(ym?: string): DateRange {
   const start = nzLocalToUtc(y, mo, 1);
   const end = nzLocalToUtc(mo === 12 ? y + 1 : y, mo === 12 ? 1 : mo + 1, 1);
   return { start, end };
+}
+
+/**
+ * Rolling "last 7 days" window, quantised to service-day boundaries so it caches
+ * by day rather than by the instant. Covers the seven service days ending with
+ * the given day's service day.
+ * @param at - Anchor instant (default now).
+ * @returns The seven-service-day window.
+ */
+export function nzLast7DaysRange(at: Date = new Date()): DateRange {
+  const day = nzServiceDayRange(at);
+  return { start: new Date(day.end.getTime() - 604_800_000), end: day.end };
+}
+
+/**
+ * Auckland-local clock time (e.g. "7:24am") for an ISO instant.
+ * @param iso - ISO instant string.
+ * @returns The local 12-hour time label.
+ */
+export function nzClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 -> "12am",
+ * 13 -> "1pm". Used for the Shame board's per-hour headings.
+ * @param hour - Hour of day, 0-23.
+ * @returns The hour label.
+ */
+export function nzHourLabel(hour: number): string {
+  const h = ((hour % 12) + 12) % 12 || 12;
+  return `${h}${hour < 12 ? "am" : "pm"}`;
 }

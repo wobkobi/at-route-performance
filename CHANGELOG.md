@@ -4,6 +4,60 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.0.0] - 2026-06-25
+
+### New pages
+
+- `/shame` - worst trip and worst stops of the selected day, week, or month. Supports `?window=week`
+  and `?window=month` with week/month navigation and a direct link to the offending trip timeline.
+- `/shame/stop` - stop-level shame board: ranks stops by off-schedule arrival count for the selected
+  period, with a worst-stop card and drill-down to the stop detail page.
+- `/stop/[id]` - per-stop schedule page showing today's planned arrivals, live delay badges, and
+  links to each trip's stop-by-stop timeline.
+- Custom 404 page.
+
+### Route page
+
+- Route week summary: a two-week calendar of per-day on-time rate and event count, with prev/next
+  week navigation and a boundary check so the back button disappears at the earliest available data.
+- Period-aware week and month views: the route page accepts `?window=week&period=YYYY-MM-DD` and
+  shows aggregate punctuality stats and the worst-trips board for that period.
+- Direction chips let riders toggle between inbound and outbound on the line diagram.
+
+### Rankings and shame links
+
+- Rankings links to route, shame, and worst-stop pages now carry the active `window` and `period`
+  params so clicking through from a weekly or monthly view preserves the context.
+- `ShameOfDay` copy adapts to the selected period: "Shame of the week", "No shame this month", etc.
+  instead of always reading "day".
+
+### Alerts and data freshness
+
+- AT service alerts banner: active disruptions from the AT API appear on the home page and on
+  affected route pages. Alerts are fetched on each revalidation and dismissed per-session.
+- Data freshness indicator on the home page shows when the last successful ingest ran and how many
+  events it inserted.
+
+### Ingest and data fixes
+
+- Fix aggregate cursor truncation: daily aggregate runs were silently capped at 101 routes
+  (MongoDB's default first-batch limit). Changed to `cursor: { batchSize: 100_000 }` so all routes
+  are captured; rebuilding historical summaries raised per-day route counts from ~101 to 460-512.
+- Cleanup endpoint gains an optional `?summaryDays=N` param to prune `DailyRouteSummary` records
+  older than N NZ service days.
+
+### Maintenance
+
+- Remove one-off diagnostic and spike scripts. Keep `backfill-aggregate.ts`, `check-data-gaps.ts`,
+  `check-routes.ts`, `rebuild-daily-summaries.ts`, and `smoke-test.ts`.
+
+## [0.21.0] - 2026-06-19
+
+- Restyle the site to feel like Auckland Transport's own: a solid Shore-blue header bar with the
+  white AT logo and nav, a dark Ocean footer with links and an "independent project" note, unified
+  AT pill controls (mode/school/delay filters, day stepper, window + trip sort chips) via shared
+  `.chip` classes, and a hairline border on every card.
+
 ## [0.20.1] - 2026-06-19
 
 - Make the route trip board heading match the mode: "Ferries of the day" / "Trains of the day"

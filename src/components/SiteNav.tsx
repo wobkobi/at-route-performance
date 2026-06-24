@@ -17,7 +17,7 @@ const LINKS = [
 export function SiteNav(): JSX.Element {
   const pathname = usePathname();
   return (
-    <nav className={cn("flex items-center gap-1")}>
+    <nav className="flex items-center gap-1">
       {LINKS.map((l) => {
         // "/" only matches exactly; other links match their section prefix.
         const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
@@ -25,9 +25,10 @@ export function SiteNav(): JSX.Element {
           <Link
             key={l.href}
             href={l.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
-              active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-bg",
+              active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
             )}
           >
             {l.label}

@@ -29,7 +29,7 @@ const DIRS: { key: "" | "late" | "early"; label: string; activeClass: string }[]
  */
 export function DelayFilter({ active, basePath, preservedParams }: DelayFilterProps): JSX.Element {
   return (
-    <div className={cn("flex flex-wrap gap-2")}>
+    <div className="flex flex-wrap gap-2">
       {DIRS.map((d) => {
         const params = new URLSearchParams({
           ...preservedParams,
@@ -41,10 +41,7 @@ export function DelayFilter({ active, basePath, preservedParams }: DelayFilterPr
           <a
             key={d.key || "all"}
             href={href}
-            className={cn(
-              "rounded-full px-3 py-1 text-sm font-semibold",
-              isActive ? d.activeClass : "bg-at-surface text-at-ink",
-            )}
+            className={cn("chip", isActive ? d.activeClass : "chip-off")}
           >
             {d.label}
           </a>
