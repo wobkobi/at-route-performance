@@ -317,25 +317,6 @@ export default async function RoutePage({
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
   const weekPeriodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
 
-  // Week stepper navigation mirrors the rankings page.
-  let weekPrevHref: string | null = null;
-  let weekNextHref: string | null = null;
-  if (isWeekView) {
-    const thisWeekStart = nzWeekStart(new Date());
-    const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
-    const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
-    if (!earliestWeekStart || prevWeek >= earliestWeekStart) {
-      weekPrevHref = `/route/${encodeURIComponent(slug)}?window=week&period=${prevWeek}`;
-    }
-    if (periodParam) {
-      const nextWeek = shiftWeek(periodParam, 7);
-      weekNextHref =
-        nextWeek >= thisWeekStart
-          ? `/route/${encodeURIComponent(slug)}?window=week`
-          : `/route/${encodeURIComponent(slug)}?window=week&period=${nextWeek}`;
-    }
-  }
-
   // Week view skips the expensive trips query and live vehicles fetch.
   const [trips, view, earliestDay, allAlerts, liveVehicles, weekDays] = await Promise.all([
     isWeekView
@@ -356,6 +337,25 @@ export default async function RoutePage({
     // Rolling default uses take:7 (most recent records); fixed period uses a date range.
     getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
   ]);
+
+  // Week stepper navigation - computed after earliestDay is available.
+  let weekPrevHref: string | null = null;
+  let weekNextHref: string | null = null;
+  if (isWeekView) {
+    const thisWeekStart = nzWeekStart(new Date());
+    const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
+    const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
+    if (!earliestWeekStart || prevWeek >= earliestWeekStart) {
+      weekPrevHref = `/route/${encodeURIComponent(slug)}?window=week&period=${prevWeek}`;
+    }
+    if (periodParam) {
+      const nextWeek = shiftWeek(periodParam, 7);
+      weekNextHref =
+        nextWeek >= thisWeekStart
+          ? `/route/${encodeURIComponent(slug)}?window=week`
+          : `/route/${encodeURIComponent(slug)}?window=week&period=${nextWeek}`;
+    }
+  }
 
   const routeAlerts = alertsForRoute(allAlerts, [slug]);
   const hasDetour = routeAlerts.some((a) => a.effect === "DETOUR");
