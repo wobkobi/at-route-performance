@@ -256,3 +256,48 @@ export function nzHourLabel(hour: number): string {
   const h = ((hour % 12) + 12) % 12 || 12;
   return `${h}${hour < 12 ? "am" : "pm"}`;
 }
+
+/**
+ * Shift a `YYYY-MM-DD` date string by whole days (UTC arithmetic). Shared
+ * across the shame and route pages for week stepping.
+ * @param ymd - Source date.
+ * @param days - Days to add (negative steps back).
+ * @returns The shifted `YYYY-MM-DD`.
+ */
+export function shiftWeek(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
+ * week straddles New Year.
+ * @param range - Half-open week range (`end` is the exclusive next Monday).
+ * @returns The range label.
+ */
+export function weekRangeLabel(range: DateRange): string {
+  const first = dmY(range.start);
+  const last = dmY(new Date(range.end.getTime() - 86_400_000));
+  return first.y === last.y
+    ? `${first.dm} to ${last.dm}`
+    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
+}
+
+/**
+ * Auckland-local day/month and year parts of a UTC instant. Used by
+ * {@link weekRangeLabel}.
+ * @param d - UTC instant.
+ * @returns `{ dm: "DD/MM", y: "YYYY" }`.
+ */
+function dmY(d: Date): { dm: string; y: string } {
+  const o: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(d)) {
+    o[part.type] = part.value;
+  }
+  return { dm: `${o.day}/${o.month}`, y: o.year };
+}

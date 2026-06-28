@@ -58,6 +58,24 @@ export function formatDuration(sec: number): string {
 }
 
 /**
+ * Auckland-local day/month and year parts of a UTC instant.
+ * @param d - UTC instant.
+ * @returns `{ dm: "DD/MM", y: "YYYY" }`.
+ */
+export function dmY(d: Date): { dm: string; y: string } {
+  const o: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(d)) {
+    o[part.type] = part.value;
+  }
+  return { dm: `${o.day}/${o.month}`, y: o.year };
+}
+
+/**
  * Format a GTFS departure time string ("HH:MM:SS") as a short 12-hour clock
  * string. Handles GTFS extended times where hours >= 24 represent post-midnight
  * trips on the following calendar day (e.g. "25:30:00" displays as "1:30am").
