@@ -100,6 +100,53 @@ export interface ShameStopOfWeek {
   days: ShameDayStop[];
 }
 
+/**
+ * A run of consecutive "bad" service days ending with the current service day,
+ * derived from the last 7 days of DailyRouteSummary data. A day is bad when the
+ * worst-route average absolute delay exceeds 120 seconds.
+ */
+export interface ShameStreak {
+  /** Consecutive bad days ending with today (0 = no streak). */
+  count: number;
+  /** Whether max delays trended up, down, or flat across the streak window. */
+  trend: "worsening" | "improving" | "stable";
+  /** Per-day delay snapshots (up to 7), earliest first. */
+  recentDelays: { date: string; avgAbsDelaySec: number | null }[];
+}
+
+/** One route nominated as an hour's or day's worst, for the Route Shame board. */
+export interface ShameRouteRow {
+  /** Auckland-local hour (0-23) of the window; `0` in week-view entries. */
+  hour: number;
+  /** Auckland-local service date (`YYYY-MM-DD`); present only in week-view entries. */
+  date?: string;
+  route_id: string;
+  short_name: string | null;
+  long_name: string;
+  mode: string;
+  colour?: string | null;
+  /** Arrival events observed for this route in the window. */
+  events: number;
+  /** Average absolute deviation. */
+  avg_abs_delay_sec: number;
+  /** Signed average deviation (negative early, positive late). */
+  avg_delay_sec: number;
+}
+
+/** The day's worst route per hour, for the Route Shame day board. */
+export interface ShameRouteOfDay {
+  worst: ShameRouteRow | null;
+  /** Worst route per hour with data, ordered earliest hour first. */
+  hours: ShameRouteRow[];
+}
+
+/** The week's worst route per service day, for the Route Shame week board. */
+export interface ShameRouteOfWeek {
+  worst: ShameRouteRow | null;
+  /** Worst route per service day with data, ordered earliest day first (`date` is set on each). */
+  days: ShameRouteRow[];
+}
+
 /** A stop ranked by how far off schedule its services ran, across every route. */
 export interface WorstStop {
   /** Canonical stop id (train platforms collapsed to one station id). */
