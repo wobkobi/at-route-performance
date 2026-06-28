@@ -1,7 +1,7 @@
 // src/lib/ingest-run.ts
 import { getLatestEventDate } from "@/lib/data";
 import { prisma } from "@/lib/db";
-import { unstable_cache } from "next/cache";
+import { unstable_cache } from "@/lib/mem-cache";
 
 /**
  * Realtime ingest cadence in seconds (cron-job.org posts to /api/ingest/at every

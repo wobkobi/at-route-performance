@@ -1,5 +1,5 @@
 import { getJson } from "@/lib/at-static";
-import { unstable_cache } from "next/cache";
+import { unstable_cache } from "@/lib/mem-cache";
 
 // Raw GTFS trip attributes from AT v3 /stops/{id}/trips.
 export interface StopTripAttr {

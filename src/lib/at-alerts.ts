@@ -1,5 +1,5 @@
 // src/lib/at-alerts.ts
-import { unstable_cache } from "next/cache";
+import { unstable_cache } from "@/lib/mem-cache";
 
 export interface AlertTranslation {
   text: string;
@@ -215,8 +215,10 @@ export function isAlertActive(alert: ServiceAlert, now: Date = new Date()): bool
 }
 
 /**
- * Cached snapshot of all currently-active service alerts (60s TTL). Shared
- * across all requests so the upstream AT feed is hit at most once per minute.
+ * Cached snapshot of all currently-active service alerts (300s TTL). AT
+ * operators enter alerts manually so sub-minute freshness adds no value.
+ * The longer window keeps alert AT API calls at ~2,000/week - well within
+ * the 35,000/week quota when combined with vehicle and ingest traffic.
  * @returns Active {@link ServiceAlert} array.
  */
 export async function getServiceAlerts(): Promise<ServiceAlert[]> {
@@ -226,7 +228,7 @@ export async function getServiceAlerts(): Promise<ServiceAlert[]> {
       return feed.alerts.filter((a) => isAlertActive(a));
     },
     ["service-alerts"],
-    { revalidate: 60 },
+    { revalidate: 300 },
   )();
 }
 

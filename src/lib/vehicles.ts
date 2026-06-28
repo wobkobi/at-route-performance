@@ -1,6 +1,6 @@
 // src/lib/vehicles.ts
 import { fetchATTripUpdates, type TripUpdate } from "@/lib/at";
-import { unstable_cache } from "next/cache";
+import { unstable_cache } from "@/lib/mem-cache";
 
 /** A live vehicle position with its current schedule deviation (if known). */
 export interface LiveVehicle {
@@ -146,12 +146,15 @@ export async function fetchVehicleByTrip(): Promise<Map<string, string>> {
 }
 
 /**
- * Cached snapshot of all live vehicles (60s TTL). The cache is shared across all
- * viewers and requests, so the upstream AT feed is hit at most once per window
- * regardless of how many route pages are open or how often they poll - keeping
- * well within AT's 35,000 calls/week quota. Filter by route at the call site.
+ * Cached snapshot of all live vehicles (120s TTL). The cache is shared across
+ * all viewers and requests so the upstream AT feed is hit at most once per
+ * 120s window regardless of concurrent viewers - capping page-render vehicle
+ * calls at ~10,000/week. Combined with the realtime ingest's own uncached
+ * calls (10,080/week fixed) and service-alert calls (2,016/week), total stays
+ * comfortably under AT's 35,000 calls/week quota. Filter by route at the call
+ * site.
  * @returns Live vehicles across the network.
  */
 export async function getLiveVehicles(): Promise<LiveVehicle[]> {
-  return unstable_cache(queryLiveVehicles, ["live-vehicles"], { revalidate: 60 })();
+  return unstable_cache(queryLiveVehicles, ["live-vehicles"], { revalidate: 120 })();
 }

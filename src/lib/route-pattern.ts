@@ -1,8 +1,8 @@
 // src/lib/route-pattern.ts
 import { fetchAll } from "@/lib/at-static";
 import { routeIdsForSlug } from "@/lib/data";
+import { unstable_cache } from "@/lib/mem-cache";
 import type { RoutePattern, RouteVariant } from "@/types/api";
-import { unstable_cache } from "next/cache";
 
 /** GTFS trip attributes (subset) from `/routes/{id}/trips`. */
 interface TripAttr {
