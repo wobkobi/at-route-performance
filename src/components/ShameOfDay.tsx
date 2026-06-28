@@ -30,8 +30,8 @@ export interface ShameOfDayProps {
  * @param props.trip - The day's worst run (or null).
  * @param props.href - Detail-page link (day + active filters).
  * @param props.period - Time period for empty-state copy (`"day"` by default).
- * @param props.hours
- * @param props.routeStreakDays
+ * @param props.hours - All hourly entries for the day, used to count this route's appearances.
+ * @param props.routeStreakDays - Consecutive days this route has been the worst shame trip.
  * @returns The banner element.
  */
 export function ShameOfDay({

@@ -67,7 +67,7 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * @param props.preservedParams - Query params to keep when changing day.
  * @param props.hasPrev - Whether to offer a previous-day link.
  * @param props.hasNext - Whether to offer a next-day link.
- * @param props.nextHref
+ * @param props.nextHref - Override href for the next-day link; pass the clean base URL when the next day is today to skip the server redirect.
  * @returns The day navigation element.
  */
 export function DayNav({

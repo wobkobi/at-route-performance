@@ -11,17 +11,9 @@ import { FaCaretDown, FaCaretUp } from "react-icons/fa";
  * Position-movement badge: a caret icon + delta count, or a "new" label.
  * @param props - Badge props.
  * @param props.delta - Position change (positive = climbed), or null for new entries.
- * @param props.goodUp - True when climbing is good (reliable board), false when bad
- *   (off-schedule board). Omit for neutral/muted colour.
  * @returns The badge element, or null when there is no movement to show.
  */
-function DeltaBadge({
-  delta,
-  goodUp,
-}: {
-  delta: number | null | undefined;
-  goodUp?: boolean;
-}): JSX.Element | null {
+function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Element | null {
   if (delta === undefined) return null;
   if (delta === 0)
     return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
@@ -71,11 +63,6 @@ export interface RankBoardProps {
   routePeriod?: string;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
-  /**
-   * Semantic direction for the delta colour. True when climbing is good (reliable
-   * board), false when climbing is bad (off-schedule board). Omit for neutral colour.
-   */
-  deltaGoodUp?: boolean;
 }
 
 /**
@@ -89,7 +76,6 @@ export interface RankBoardProps {
  * @param props.routeWindow - Window to open on each route link when no day is pinned (optional).
  * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
- * @param props.deltaGoodUp - True when climbing is good (reliable board); false when bad (optional).
  * @returns The board element.
  */
 export function RankBoard({
@@ -101,7 +87,6 @@ export function RankBoard({
   routeWindow,
   routePeriod,
   deltas,
-  deltaGoodUp,
 }: RankBoardProps): JSX.Element {
   return (
     <section className="border border-at-border bg-at-surface p-4">
@@ -156,7 +141,7 @@ export function RankBoard({
                         {i + 1}
                       </span>
                       <span className="flex w-9 shrink-0 items-center pl-0.5">
-                        <DeltaBadge delta={deltas.get(r.route_id)} goodUp={deltaGoodUp} />
+                        <DeltaBadge delta={deltas.get(r.route_id)} />
                       </span>
                     </span>
                   ) : (

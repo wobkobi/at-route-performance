@@ -109,7 +109,7 @@ function localTime(iso: string): string {
  * @param props.routeId - Route the trips belong to.
  * @param props.trips - The current page of trips, ordered by the active sort.
  * @param props.sort - The active ordering.
- * @param props.isReversed
+ * @param props.isReversed - Whether the active sort direction is reversed from its default.
  * @param props.mode - Route mode, for the heading noun + colour banding.
  * @param props.basePath - Page path the sort + page links point at.
  * @param props.preservedParams - Query params to keep when changing sort/page.

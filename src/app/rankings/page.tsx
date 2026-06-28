@@ -323,7 +323,7 @@ export default async function RankingsPage({
           rows={offSchedule}
           metric="delay"
           deltas={offScheduleDeltas}
-          deltaGoodUp={false}
+
           routeWindow={window}
           routePeriod={sp.period}
         />
@@ -333,7 +333,7 @@ export default async function RankingsPage({
           rows={boards.reliable}
           metric="onTime"
           deltas={reliableDeltas}
-          deltaGoodUp={true}
+
           routeWindow={window}
           routePeriod={sp.period}
         />

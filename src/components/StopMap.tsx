@@ -6,7 +6,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 /** Stop for map rendering */
 interface StopPoint {
@@ -76,7 +76,8 @@ function cssVar(name: string): string {
 
 /**
  * Escape HTML special characters in external strings before inserting into popup HTML.
- * @param s
+ * @param s - Raw string from external data.
+ * @returns HTML-safe string.
  */
 function esc(s: string): string {
   return s
@@ -190,7 +191,10 @@ interface MapColours {
   surface: string;
 }
 
-/** Read AT colour tokens from the computed style of the document root. */
+/**
+ * Read AT colour tokens from the computed style of the document root.
+ * @returns Current theme colour values.
+ */
 function readColours(): MapColours {
   return {
     late: cssVar("--color-at-late") || "#de0a2b",
@@ -381,7 +385,9 @@ export default function StopMap({
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
   const latestRef = useRef({ stops, routeLines, routeId, mode, filterTripId, filterDirectionIds });
-  latestRef.current = { stops, routeLines, routeId, mode, filterTripId, filterDirectionIds };
+  useLayoutEffect(() => {
+    latestRef.current = { stops, routeLines, routeId, mode, filterTripId, filterDirectionIds };
+  });
 
   // --- Effect 1: initialise map once -------------------------------------------
   // Creates the Leaflet instance and layer groups, draws the initial content, sets
@@ -415,14 +421,7 @@ export default function StopMap({
       stateRef.current = state;
 
       // Draw initial content from the current prop values.
-      const {
-        stops: s0,
-        routeLines: rl0,
-        routeId: rId,
-        mode: m0,
-        filterTripId: fTrip,
-        filterDirectionIds: fDirs,
-      } = latestRef.current;
+      const { stops: s0, routeLines: rl0, routeId: rId, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
       drawStopLayer(state, s0, m0);
 
@@ -451,10 +450,7 @@ export default function StopMap({
 
       if (!rId) return;
 
-      // Live-vehicle polling: uses latestRef so the filter values are always fresh.
-      /**
-       *
-       */
+      /** Fetch and redraw live vehicles, reading always-current values from latestRef. */
       const pollVehicles = async (): Promise<void> => {
         const {
           routeId: pollRId,
