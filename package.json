@@ -1,6 +1,6 @@
 {
   "name": "at-route-performance",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "simple-git-hooks": {
-    "pre-commit": "npm install && git add package-lock.json && npx lint-staged",
+    "pre-commit": "npm install && git add package.json package-lock.json && npx lint-staged",
     "pre-push": "npm run build"
   },
   "lint-staged": {
@@ -58,7 +58,7 @@
     "@next/bundle-analyzer": "^16.2.9",
     "@tailwindcss/postcss": "^4.3.1",
     "@types/leaflet": "^1.9.21",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
@@ -68,12 +68,12 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-jsdoc": "^63.0.7",
+    "eslint-plugin-jsdoc": "^63.0.10",
     "eslint-plugin-prettier": "^5.5.6",
     "globals": "^17.7.0",
     "lint-staged": "^17.0.8",
     "postcss": "^8.5.15",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.1",
     "prettier-plugin-packagejson": "^3.0.2",
     "prisma": "^6.19.3",
     "simple-git-hooks": "^2.13.1",
