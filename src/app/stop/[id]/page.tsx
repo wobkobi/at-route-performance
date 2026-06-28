@@ -12,7 +12,7 @@ import { dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
@@ -70,6 +70,10 @@ export default async function StopPage({
 
   const hasNextDay = serviceDate < nzServiceDayString();
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? `/stop/${encodeURIComponent(id)}`
+      : undefined;
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
 
@@ -99,6 +103,7 @@ export default async function StopPage({
           preservedParams={{}}
           hasPrev={hasPrevDay}
           hasNext={hasNextDay}
+          nextHref={nextDayHref}
         />
       </header>
 

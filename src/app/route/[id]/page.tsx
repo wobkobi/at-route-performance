@@ -2,6 +2,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DirectionChips } from "@/components/DirectionChips";
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
@@ -29,6 +30,8 @@ import {
   nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
+  shiftWeek,
+  weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
 import { routeStatsQuery } from "@/lib/validate";
@@ -49,6 +52,8 @@ interface StatsSearchParams {
   day?: string;
   tsort?: string;
   tpage?: string;
+  /** Reverse the active sort direction when "1". */
+  trev?: string;
   dir?: string;
   window?: string;
   /** Week start (`YYYY-MM-DD` Monday) when stepping back through the week view. */
@@ -107,49 +112,6 @@ function routeDirHref(slug: string, base: URLSearchParams, dir: number | null): 
 }
 
 /**
- * Shift a `YYYY-MM-DD` date string by `days` calendar days (UTC arithmetic).
- * @param ymd - Source date.
- * @param days - Days to add (negative steps back).
- * @returns The shifted `YYYY-MM-DD`.
- */
-function shiftWeek(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-/**
- * Auckland-local day/month and year parts of a UTC instant.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
-}
-
-/**
- * Week label as `DD/MM to DD/MM`, adding the year on both sides only when the
- * week straddles New Year.
- * @param range - Half-open week range (`end` is the exclusive next Monday).
- * @returns The range label.
- */
-function weekRangeLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  const last = dmY(new Date(range.end.getTime() - 86_400_000));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
-}
-
-/**
  * Prev/next week stepper for the route week view. Omits a chevron when the
  * corresponding href is null (at the edge of the data range).
  * @param props - Component props.
@@ -167,31 +129,17 @@ function RouteWeekNav({
   prevHref: string | null;
   nextHref: string | null;
 }): JSX.Element {
-  const chevronClass = "block h-4 w-4";
-  const btnClass = "chip chip-off flex items-center";
   return (
     <div className="flex items-center gap-1">
       {prevHref ? (
-        <a href={prevHref} aria-label="Previous week" className={btnClass}>
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={chevronClass}>
-            <path
-              fillRule="evenodd"
-              d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <a href={prevHref} aria-label="Previous week" className="chip chip-off flex items-center">
+          <ChevronLeft className="block h-4 w-4" />
         </a>
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <a href={nextHref} aria-label="Next week" className={btnClass}>
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={chevronClass}>
-            <path
-              fillRule="evenodd"
-              d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <a href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
+          <ChevronRight className="block h-4 w-4" />
         </a>
       ) : null}
     </div>
@@ -199,34 +147,22 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle: two links rendered as a segmented control.
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
- * @returns The segmented control element.
+ * @returns The toggle element.
  */
 function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean }): JSX.Element {
   const base = `/route/${encodeURIComponent(slug)}`;
-  /**
-   * Render one segment link.
-   * @param label - Display text.
-   * @param href - Link target.
-   * @param active - Whether this segment is selected.
-   * @returns The segment anchor element.
-   */
-  const seg = (label: string, href: string, active: boolean): JSX.Element => (
-    <a
-      href={href}
-      className={`px-3 py-1.5 text-sm leading-none${active ? "bg-at-ink font-semibold text-at-surface" : "text-at-muted hover:bg-at-bg"}`}
-    >
-      {label}
-    </a>
-  );
   return (
-    <div className="flex overflow-hidden rounded-lg border border-at-border">
-      {seg("Day", base, !isWeekView)}
-      <span className="border-l border-at-border" />
-      {seg("Week", `${base}?window=week`, isWeekView)}
+    <div className="flex items-center gap-1">
+      <a href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+        Day
+      </a>
+      <a href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+        Week
+      </a>
     </div>
   );
 }
@@ -272,6 +208,7 @@ export default async function RoutePage({
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
     ? (sp.tsort as TripSort)
     : "off";
+  const isReversed = sp.trev === "1";
 
   // Service day from ?day (or the current one). In week view the day stats are
   // not displayed but we still need route metadata from getRouteStats.
@@ -380,6 +317,10 @@ export default async function RoutePage({
   );
 
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? `/route/${encodeURIComponent(slug)}`
+      : undefined;
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
   const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
   const nameByStop = Object.fromEntries(view.nameByStop);
@@ -402,6 +343,8 @@ export default async function RoutePage({
     dirStopIds == null ? view.stops : view.stops.filter((s) => dirStopIds.has(s.stop_id));
   const diagramDirections =
     activeDir == null ? view.directions : { [activeDir]: view.directions[activeDir] };
+
+  const sortedTrips = isReversed ? [...trips].reverse() : trips;
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
   const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
@@ -439,8 +382,8 @@ export default async function RoutePage({
 
   const dirTrips =
     activeDir == null
-      ? trips
-      : trips.filter((t) => {
+      ? sortedTrips
+      : sortedTrips.filter((t) => {
           if (t.direction_id != null)
             return (view.directionIdAliases.get(t.direction_id) ?? t.direction_id) === activeDir;
           if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
@@ -467,46 +410,69 @@ export default async function RoutePage({
   if (requestedDay) tripPreserved.day = requestedDay;
   if (sp.thresholdSec) tripPreserved.thresholdSec = sp.thresholdSec;
   if (activeDir != null) tripPreserved.dir = String(activeDir);
+  if (isReversed) tripPreserved.trev = "1";
 
   const title = route?.shortName ?? slug;
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {route && (
-              <ModeIcon
-                mode={route.mode}
-                shortName={route.shortName}
-                longName={route.longName}
-                colour={route.colour}
-                className="h-6 w-6"
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+              {route && (
+                <ModeIcon
+                  mode={route.mode}
+                  shortName={route.shortName}
+                  longName={route.longName}
+                  colour={route.colour}
+                  className="h-6 w-6"
+                />
+              )}
+              {title}
+            </h1>
+            {route?.longName && route.longName !== title && (
+              <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <ViewToggle slug={slug} isWeekView={isWeekView} />
+            {isWeekView ? (
+              <RouteWeekNav
+                label={weekPeriodLabel}
+                prevHref={weekPrevHref}
+                nextHref={weekNextHref}
+              />
+            ) : (
+              <DayNav
+                basePath={`/route/${encodeURIComponent(slug)}`}
+                serviceDate={serviceDate}
+                preservedParams={{
+                  ...(activeDir != null ? { dir: String(activeDir) } : {}),
+                  ...(tripSort !== "off" ? { tsort: tripSort } : {}),
+                }}
+                hasPrev={hasPrevDay}
+                hasNext={hasNextDay}
+                nextHref={nextDayHref}
               />
             )}
-            {title}
-          </h1>
-          {route?.longName && route.longName !== title && (
-            <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
-          )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewToggle slug={slug} isWeekView={isWeekView} />
-          {isWeekView ? (
-            <RouteWeekNav label={weekPeriodLabel} prevHref={weekPrevHref} nextHref={weekNextHref} />
-          ) : (
-            <DayNav
-              basePath={`/route/${encodeURIComponent(slug)}`}
-              serviceDate={serviceDate}
-              preservedParams={{
-                ...(activeDir != null ? { dir: String(activeDir) } : {}),
-                ...(tripSort !== "off" ? { tsort: tripSort } : {}),
-              }}
-              hasPrev={hasPrevDay}
-              hasNext={hasNextDay}
-            />
-          )}
-        </div>
+        {dirKeys.length > 1 && (
+          <DirectionChips
+            dirKeys={dirKeys}
+            activeDir={activeDir}
+            labels={Object.fromEntries(
+              dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
+            )}
+            hrefs={{
+              both: routeDirHref(slug, dirBase, null),
+              ...Object.fromEntries(
+                dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
+              ),
+            }}
+          />
+        )}
       </header>
 
       <AlertBanner alerts={routeAlerts} heading="Service alerts" routeNames={routeNames} />
@@ -603,6 +569,7 @@ export default async function RoutePage({
               routeId={slug}
               trips={pageTrips}
               sort={tripSort}
+              isReversed={isReversed}
               mode={routeMode}
               basePath={`/route/${encodeURIComponent(slug)}`}
               preservedParams={tripPreserved}
@@ -628,22 +595,6 @@ export default async function RoutePage({
               }
             />
           </div>
-
-          {dirKeys.length > 1 && (
-            <DirectionChips
-              dirKeys={dirKeys}
-              activeDir={activeDir}
-              labels={Object.fromEntries(
-                dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
-              )}
-              hrefs={{
-                both: routeDirHref(slug, dirBase, null),
-                ...Object.fromEntries(
-                  dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
-                ),
-              }}
-            />
-          )}
 
           <RouteLineDiagramClient
             directions={diagramDirections}

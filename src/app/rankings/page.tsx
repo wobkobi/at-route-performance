@@ -1,6 +1,5 @@
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
-import { ModeBreakdown } from "@/components/ModeBreakdown";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
@@ -11,9 +10,8 @@ import { WorstStopCard } from "@/components/WorstStopCard";
 import {
   getEarliestDataDay,
   getLatestEventDate,
-  getModeBreakdown,
   getRankings,
-  getShameOfDay,
+  getShameOfWeek,
   getWorstStops,
 } from "@/lib/data";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -32,6 +30,8 @@ import {
   nzMonthRange,
   nzWeekRange,
   nzWeekStart,
+  shiftWeek,
+  weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
 import type { JSX } from "react";
@@ -78,39 +78,6 @@ function monthLabel(d: Date): string {
 }
 
 /**
- * Auckland-local day/month and year parts of an instant.
- * @param d - The instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
-}
-
-/**
- * Week label as a `DD/MM to DD/MM` date range, adding the year on both ends only
- * when the week straddles New Year (its start and end fall in different years).
- * @param range - The week's half-open range (`end` is the next Monday).
- * @returns The range label.
- */
-function weekLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  // `end` is the exclusive next Monday; step back a day for the shown Sunday.
-  const last = dmY(new Date(range.end.getTime() - 86_400_000));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
-}
-
-/**
  * Resolve the active range + label, anchored to the latest day with data so a
  * quiet "today" still shows a populated period. The week view opens on the
  * rolling last 7 days; an explicit `period` is a calendar week (reached by
@@ -131,20 +98,9 @@ function resolveRange(
   }
   if (period) {
     const range = nzWeekRange(period);
-    return { range, label: weekLabel(range) };
+    return { range, label: weekRangeLabel(range) };
   }
   return { range: nzLast7DaysRange(anchor), label: "Last 7 days" };
-}
-
-/**
- * Shift a `YYYY-MM-DD` week-start (Monday) by whole days.
- * @param ymd - The Monday date.
- * @param days - Days to add (negative steps back).
- * @returns The shifted `YYYY-MM-DD`.
- */
-function shiftWeek(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 /**
@@ -223,12 +179,11 @@ export default async function RankingsPage({
   const latest = await getLatestEventDate();
   const anchor = latest ?? new Date();
   const { range, label } = resolveRange(window, sp.period, anchor);
-  const [rows, modes, worstStops, prevRows, shame] = await Promise.all([
+  const [rows, worstStops, prevRows, shame] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
-    getModeBreakdown(range, THRESHOLD_SEC, REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
     getRankings(resolvePrevRange(window, sp.period, anchor), THRESHOLD_SEC, REVALIDATE),
-    getShameOfDay(range, { mode, includeSchool }, REVALIDATE),
+    getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
   ]);
 
   // Week stepper: the rolling last-7-days view is the present (no next); stepping
@@ -328,14 +283,12 @@ export default async function RankingsPage({
         <ShameOfDay
           trip={shame.worst}
           period={window}
-          href={`/shame?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
+          href={`/shame/trip?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
         />
-        {shame.worst != null && (
-          <WorstStopCard
-            stop={worstStops[0] ?? null}
-            href={`/shame/stop?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
-          />
-        )}
+        <WorstStopCard
+          stop={worstStops[0] ?? null}
+          href={`/shame/stop?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -385,8 +338,6 @@ export default async function RankingsPage({
           routePeriod={sp.period}
         />
       </div>
-
-      <ModeBreakdown modes={modes} />
 
       <p className="text-xs text-at-muted">
         Rankings are built from real-time stop events and refresh hourly. Movement arrows compare

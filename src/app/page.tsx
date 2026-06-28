@@ -14,6 +14,7 @@ import {
   getMostRecentDataDay,
   getRankings,
   getShameOfDay,
+  getShameRouteStreak,
   getWorstStops,
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
@@ -27,7 +28,7 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -90,6 +91,10 @@ export default async function Home({
     getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
     getServiceAlerts(),
   ]);
+  // Needs shame.worst.route_id, so runs after the parallel batch.
+  const routeStreakDays = shame.worst
+    ? await getShameRouteStreak(shame.worst.route_id, range, TODAY_REVALIDATE)
+    : 0;
   const networkAlerts = networkWideAlerts(allAlerts);
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
   // Only pin ?day on route links for a past day; today's links stay clean so they
@@ -146,11 +151,14 @@ export default async function Home({
     dirPreserved.day = requestedDay;
   }
 
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/" : undefined;
+
   const shameParams = new URLSearchParams();
   if (serviceDate !== nzServiceDayString()) shameParams.set("day", serviceDate);
   if (includeSchool) shameParams.set("school", "1");
   if (mode) shameParams.set("mode", mode);
-  const shameHref = `/shame${shameParams.toString() ? `?${shameParams.toString()}` : ""}`;
+  const shameHref = `/shame/trip${shameParams.toString() ? `?${shameParams.toString()}` : ""}`;
 
   return (
     <main className="space-y-6">
@@ -164,6 +172,7 @@ export default async function Home({
           preservedParams={dayPreserved}
           hasPrev={hasPrevDay}
           hasNext={hasNextDay}
+          nextHref={nextDayHref}
         />
       </header>
 
@@ -173,14 +182,13 @@ export default async function Home({
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
       <div className="grid gap-4 md:grid-cols-2">
-        {shame.worst != null ? (
-          <ShameOfDay trip={shame.worst} href={shameHref} />
-        ) : worstStops[0] ? (
-          <WorstStopCard stop={worstStops[0]} day={linkDay} />
-        ) : (
-          <ShameOfDay trip={null} href={shameHref} />
-        )}
-        {shame.worst != null && <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />}
+        <ShameOfDay
+          trip={shame.worst}
+          href={shameHref}
+          hours={shame.hours}
+          routeStreakDays={routeStreakDays}
+        />
+        <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -223,13 +231,6 @@ export default async function Home({
           routeDay={linkDay}
         />
       </div>
-
-      <a
-        href="/rankings"
-        className="flex items-center justify-between gap-3 bg-at-ocean px-6 py-5 text-white transition-colors hover:bg-at-ocean/90"
-      >
-        <span className="text-lg font-ultra tracking-zero">Top routes</span>
-      </a>
 
       <details className="border border-at-border bg-at-surface">
         <summary className="cursor-pointer px-4 py-3 font-semibold">All routes</summary>
