@@ -2,10 +2,8 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-/**
- *
- */
-async function main() {
+/** Print DailyRouteSummary row counts per date and the last 5 aggregate ingest runs. */
+async function main(): Promise<void> {
   const rows = await prisma.dailyRouteSummary.groupBy({
     by: ["date"],
     _count: { routeId: true },
