@@ -1,11 +1,12 @@
 {
   "name": "at-route-performance",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": true,
   "type": "module",
   "scripts": {
     "analyze": "cross-env ANALYZE=true next build",
     "build": "next build",
+    "db:push": "prisma db push",
     "dev": "next dev --turbopack",
     "format": "prettier --write \"**/*.{js,ts,jsx,tsx,mjs,css,html,md,json,yml,yaml}\"",
     "postinstall": "prisma generate",
