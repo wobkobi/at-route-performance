@@ -15,6 +15,8 @@ export interface WorstTripsBoardProps {
   trips: PerTripStat[];
   /** Active ordering. */
   sort: TripSort;
+  /** Whether the active sort direction is reversed from its default. */
+  isReversed?: boolean;
   /** Route mode: heading noun + the mode's early/late colour banding. */
   mode?: string;
   /** Page path the sort + page links point at (the route page). */
@@ -67,6 +69,8 @@ function pageHref(
   sort: TripSort,
   page: number,
 ): string {
+  // `preserved` already contains trev when set; spread it first so tsort/tpage
+  // can override without losing other preserved params.
   const params = new URLSearchParams({
     ...preserved,
     ...(sort === "off" ? {} : { tsort: sort }),
@@ -105,6 +109,7 @@ function localTime(iso: string): string {
  * @param props.routeId - Route the trips belong to.
  * @param props.trips - The current page of trips, ordered by the active sort.
  * @param props.sort - The active ordering.
+ * @param props.isReversed
  * @param props.mode - Route mode, for the heading noun + colour banding.
  * @param props.basePath - Page path the sort + page links point at.
  * @param props.preservedParams - Query params to keep when changing sort/page.
@@ -118,6 +123,7 @@ export function WorstTripsBoard({
   routeId,
   trips,
   sort,
+  isReversed = false,
   mode,
   basePath,
   preservedParams,
@@ -133,18 +139,28 @@ export function WorstTripsBoard({
         <h2 className="text-base font-ultra tracking-zero text-at-ink">{noun} of the day</h2>
         <div className="flex flex-wrap gap-1">
           {SORTS.map((s) => {
+            const isActive = s.key === sort;
+            // Clicking the active chip toggles direction; clicking an inactive
+            // chip switches to it at its default direction (no trev).
             const params = new URLSearchParams({
               ...preservedParams,
               ...(s.key === "off" ? {} : { tsort: s.key }),
             });
+            if (isActive && !isReversed) {
+              params.set("trev", "1");
+            } else {
+              params.delete("trev");
+            }
+            params.delete("tpage");
             const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
             return (
               <a
                 key={s.key}
                 href={href}
-                className={cn("chip text-xs", s.key === sort ? "chip-on" : "chip-off")}
+                className={cn("chip text-xs", isActive ? "chip-on" : "chip-off")}
               >
                 {s.label}
+                {isActive && <span className="ml-0.5 opacity-60">{isReversed ? "↑" : "↓"}</span>}
               </a>
             );
           })}

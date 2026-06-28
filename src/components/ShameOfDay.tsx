@@ -17,6 +17,10 @@ export interface ShameOfDayProps {
    * Use `"week"` or `"month"` when rendering on the rankings page.
    */
   period?: "day" | "week" | "month";
+  /** All hourly shame entries for the day, used to count this route's appearances. */
+  hours?: ShameTrip[];
+  /** Consecutive days this route has been featured as worst shame trip. */
+  routeStreakDays?: number;
 }
 
 /**
@@ -26,9 +30,17 @@ export interface ShameOfDayProps {
  * @param props.trip - The day's worst run (or null).
  * @param props.href - Detail-page link (day + active filters).
  * @param props.period - Time period for empty-state copy (`"day"` by default).
+ * @param props.hours
+ * @param props.routeStreakDays
  * @returns The banner element.
  */
-export function ShameOfDay({ trip, href, period = "day" }: ShameOfDayProps): JSX.Element {
+export function ShameOfDay({
+  trip,
+  href,
+  period = "day",
+  hours,
+  routeStreakDays = 0,
+}: ShameOfDayProps): JSX.Element {
   const isDay = period === "day";
   // No data, or the worst trip's signed average is within the on-time window.
   if (
@@ -37,10 +49,8 @@ export function ShameOfDay({ trip, href, period = "day" }: ShameOfDayProps): JSX
     isOnTime(trip.avg_delay_sec ?? 0, trip.mode)
   ) {
     return (
-      <div className="flex flex-col justify-center gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">
-          Shame of the {period}
-        </p>
+      <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
+        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst trip</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">
           {isDay ? "No shame today" : `No shame this ${period}`}
         </span>
@@ -54,11 +64,13 @@ export function ShameOfDay({ trip, href, period = "day" }: ShameOfDayProps): JSX
   }
 
   const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
+  const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
   return (
     <a
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
+      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst trip</p>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={trip.mode}
@@ -98,6 +110,17 @@ export function ShameOfDay({ trip, href, period = "day" }: ShameOfDayProps): JSX
           </>
         )}
       </p>
+      {routeHourCount > 1 && (
+        <p className="text-xs text-at-muted">
+          worst trip in {routeHourCount} of today&apos;s hours
+        </p>
+      )}
+      {routeStreakDays >= 4 && (
+        <p className="text-sm font-bold text-at-late">Featured {routeStreakDays} days in a row</p>
+      )}
+      {routeStreakDays >= 2 && routeStreakDays < 4 && (
+        <p className="text-xs text-at-late">Featured {routeStreakDays} days in a row</p>
+      )}
     </a>
   );
 }

@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { JSX } from "react";
 import type { IconType } from "react-icons";
-import { FaBus, FaBusAlt, FaShip, FaTrain } from "react-icons/fa";
+import { FaBus, FaBusAlt, FaShip, FaSubway } from "react-icons/fa";
 
 /**
  * Branded-service short code to its Tailwind text colour. The six Link liveries
@@ -66,7 +66,7 @@ export function ModeIcon({
     colourClass = "text-at-disruption";
     label = "School bus";
   } else if (mode === "TRAIN") {
-    Icon = FaTrain;
+    Icon = FaSubway;
     colourClass = "text-at-cosmic";
     label = "Train";
   } else if (mode === "FERRY") {

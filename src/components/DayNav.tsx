@@ -17,6 +17,11 @@ export interface DayNavProps {
   hasPrev: boolean;
   /** Whether a next (later) day link should be offered (false on the latest day). */
   hasNext: boolean;
+  /**
+   * Override href for the next-day link. Pass the clean base URL when the next
+   * day is today so the server's `dropTodayParam` redirect is never triggered.
+   */
+  nextHref?: string;
 }
 
 /**
@@ -62,6 +67,7 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * @param props.preservedParams - Query params to keep when changing day.
  * @param props.hasPrev - Whether to offer a previous-day link.
  * @param props.hasNext - Whether to offer a next-day link.
+ * @param props.nextHref
  * @returns The day navigation element.
  */
 export function DayNav({
@@ -70,6 +76,7 @@ export function DayNav({
   preservedParams,
   hasPrev,
   hasNext,
+  nextHref,
 }: DayNavProps): JSX.Element {
   return (
     <div className="flex items-center gap-1">
@@ -86,7 +93,7 @@ export function DayNav({
       <span className="px-2 text-sm font-semibold tabular-nums">{dateLabel(serviceDate)}</span>
       {hasNext && (
         <Link
-          href={dayHref(basePath, preservedParams, shiftDate(serviceDate, 1))}
+          href={nextHref ?? dayHref(basePath, preservedParams, shiftDate(serviceDate, 1))}
           className="chip chip-off"
           aria-label="Next day"
         >

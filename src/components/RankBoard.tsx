@@ -26,19 +26,10 @@ function DeltaBadge({
   if (delta === 0)
     return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
   if (delta === null)
-    return (
-      <span className="text-xs leading-none font-semibold tracking-zero text-at-ocean uppercase">
-        new
-      </span>
-    );
+    return <span className="text-xs leading-none font-semibold text-at-muted">new</span>;
   const up = delta > 0;
-  const good = goodUp === undefined ? undefined : goodUp === up;
-  const colClass =
-    good === true ? "text-at-ontime" : good === false ? "text-at-late" : "text-at-muted";
   return (
-    <span
-      className={cn("flex items-center text-xs leading-none font-semibold tabular-nums", colClass)}
-    >
+    <span className="flex items-center text-xs leading-none font-semibold text-at-muted tabular-nums">
       {up ? (
         <FaCaretUp aria-hidden className="h-3 w-3 shrink-0" />
       ) : (
