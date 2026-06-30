@@ -1,6 +1,6 @@
-// src/app/shame/route/loading.tsx
+// src/app/shame/trip/loading.tsx
 /**
- * @description Loading skeleton for the worst-route shame page.
+ * @description Loading skeleton for the shame trip page.
  */
 import type { JSX } from "react";
 
@@ -33,8 +33,8 @@ function ListRow(): JSX.Element {
 }
 
 /**
- * Shame route page loading skeleton.
- * @returns Skeleton layout matching the shame route page structure.
+ * Shame trip page loading skeleton.
+ * @returns Skeleton layout matching the shame trip page structure.
  */
 export default function Loading(): JSX.Element {
   return (

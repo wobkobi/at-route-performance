@@ -1,3 +1,7 @@
+// src/lib/gtfs-settings.ts
+/**
+ * @description Read and write persisted key-value settings rows.
+ */
 import { prisma } from "@/lib/db";
 
 /**

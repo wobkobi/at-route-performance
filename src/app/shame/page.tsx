@@ -1,21 +1,18 @@
 // src/app/shame/page.tsx
-import { DayNav } from "@/components/DayNav";
+/**
+ * @description Shame dashboard summarising the worst trip, route, and stop of the day.
+ */
+import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import {
-  getEarliestDataDay,
-  getMostRecentDataDay,
-  getShameOfDay,
-  getShameRouteOfDay,
-  getWorstStops,
-} from "@/lib/data";
+import { getEarliestDataDay, getShameOfDay, getShameRouteOfDay, getWorstStops } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
+import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { buildShameHref, TODAY_REVALIDATE } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { JSX } from "react";
-
-const TODAY_REVALIDATE = 300;
 
 /** Query params for the Shame dashboard. */
 interface ShameSearchParams {
@@ -37,7 +34,7 @@ export default async function ShameDashboard({
   const sp = (await searchParams) ?? {};
   dropTodayParam("/shame", sp);
 
-  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  const requestedDay = resolveRequestedDay(sp.day);
   let range = nzServiceDayRange(requestedDay ?? new Date());
   let serviceDate = nzServiceDayString(range.start);
 
@@ -52,17 +49,19 @@ export default async function ShameDashboard({
   let routeShame = initialRoute;
   let stops = initialStops;
 
-  if (!requestedDay && tripShame.hours.length === 0 && routeShame.hours.length === 0) {
-    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
-    if (latestDay) {
-      range = nzServiceDayRange(latestDay);
-      serviceDate = nzServiceDayString(range.start);
-      [tripShame, routeShame, stops] = await Promise.all([
-        getShameOfDay(range, {}, TODAY_REVALIDATE),
-        getShameRouteOfDay(range, {}, TODAY_REVALIDATE),
-        getWorstStops(range, {}, 1, TODAY_REVALIDATE),
-      ]);
-    }
+  const fallbackDay = await maybeFallbackDay(
+    requestedDay,
+    tripShame.hours.length === 0 && routeShame.hours.length === 0,
+    MIN_BOARD_EVENTS,
+  );
+  if (fallbackDay) {
+    range = nzServiceDayRange(fallbackDay);
+    serviceDate = nzServiceDayString(range.start);
+    [tripShame, routeShame, stops] = await Promise.all([
+      getShameOfDay(range, {}, TODAY_REVALIDATE),
+      getShameRouteOfDay(range, {}, TODAY_REVALIDATE),
+      getWorstStops(range, {}, 1, TODAY_REVALIDATE),
+    ]);
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
@@ -71,41 +70,29 @@ export default async function ShameDashboard({
   const nextDayHref =
     hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/shame" : undefined;
 
-  const tripHref = linkDay ? `/shame/trip?day=${linkDay}` : "/shame/trip";
-  const routeHref = linkDay ? `/shame/route?day=${linkDay}` : "/shame/route";
-  const stopHref = linkDay ? `/shame/stop?day=${linkDay}` : "/shame/stop";
+  // Dashboard tabs carry no mode/school filter, only the active day.
+  const noFilter = { mode: null, includeSchool: false };
+  const tripHref = buildShameHref("/shame/trip", { day: linkDay }, noFilter);
+  const routeHref = buildShameHref("/shame/route", { day: linkDay }, noFilter);
+  const stopHref = buildShameHref("/shame/stop", { day: linkDay }, noFilter);
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">
-            Shame of the Day
-          </h1>
-          <p className="mt-0.5 text-sm text-at-muted">The worst trip, route, and stop</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1">
-            <a href={tripHref} className="chip chip-off">
-              Trips
-            </a>
-            <a href={routeHref} className="chip chip-off">
-              Routes
-            </a>
-            <a href={stopHref} className="chip chip-off">
-              Stops
-            </a>
-          </div>
-          <DayNav
-            basePath="/shame"
-            serviceDate={serviceDate}
-            preservedParams={{}}
-            hasPrev={hasPrevDay}
-            hasNext={hasNextDay}
-            nextHref={nextDayHref}
-          />
-        </div>
-      </header>
+      <ShameHeader
+        title="Shame of the Day"
+        subtitle="The worst trip, route, and stop"
+        activeTab="none"
+        tabHrefs={{ trip: tripHref, route: routeHref, stop: stopHref }}
+        nav={{
+          kind: "day",
+          basePath: "/shame",
+          serviceDate,
+          preserved: {},
+          hasPrev: hasPrevDay,
+          hasNext: hasNextDay,
+          nextHref: nextDayHref,
+        }}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ShameOfDay trip={tripShame.worst} href={tripHref} hours={tripShame.hours} />

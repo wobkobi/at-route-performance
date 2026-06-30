@@ -1,8 +1,12 @@
+// src/app/rankings/page.tsx
+/**
+ * @description Rankings page rendering week or month network performance.
+ */
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
+import { ModeFilter } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
-import { RouteTable, type RouteSort } from "@/components/RouteTable";
+import { RouteTable } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WindowControls } from "@/components/WindowControls";
@@ -15,6 +19,7 @@ import {
   getWorstStops,
 } from "@/lib/data";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { resolveWeekNav } from "@/lib/page-nav";
 import {
   computeRankDelta,
   deriveBoards,
@@ -22,134 +27,20 @@ import {
   MIN_BOARD_EVENTS,
   MIN_MODE_EVENTS,
   summariseRows,
-  type DelayDirection,
 } from "@/lib/rankings";
-import { isSchoolBus } from "@/lib/school-bus";
 import {
-  nzLast7DaysRange,
-  nzMonthRange,
-  nzWeekRange,
-  nzWeekStart,
-  shiftWeek,
-  weekRangeLabel,
-  type DateRange,
-} from "@/lib/time";
+  parseRankingsParams,
+  rankHref,
+  resolvePrevRange,
+  resolveRange,
+  type RankingsSearchParams,
+} from "@/lib/rankings-page";
+import { isSchoolBus } from "@/lib/school-bus";
 import type { JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const REVALIDATE = 3600; // 1 hour
-
-/** Query params for the rankings page. */
-interface RankingsSearchParams {
-  window?: string;
-  period?: string;
-  sort?: string;
-  mode?: string;
-  school?: string;
-  dir?: string;
-}
-
-/**
- * Month key like `2026-06` from an instant, in Auckland local time.
- * @param d - Instant.
- * @returns `YYYY-MM`.
- */
-function monthKey(d: Date): string {
-  const f = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
-    year: "numeric",
-    month: "2-digit",
-  });
-  return f.format(d);
-}
-
-/**
- * Human month label like `June 2026` from a range start.
- * @param d - Range start (UTC instant of local month start).
- * @returns Formatted label.
- */
-function monthLabel(d: Date): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(d.getTime() + 86_400_000));
-}
-
-/**
- * Resolve the active range + label, anchored to the latest day with data so a
- * quiet "today" still shows a populated period. The week view opens on the
- * rolling last 7 days; an explicit `period` is a calendar week (reached by
- * stepping back). Month defaults to the anchor's calendar month.
- * @param window - "week" or "month".
- * @param period - Explicit period (`YYYY-MM-DD` Monday or `YYYY-MM`), optional.
- * @param anchor - The latest day with data (or now).
- * @returns The range and a human label.
- */
-function resolveRange(
-  window: "week" | "month",
-  period: string | undefined,
-  anchor: Date,
-): { range: DateRange; label: string } {
-  if (window === "month") {
-    const range = nzMonthRange(period ?? monthKey(anchor));
-    return { range, label: monthLabel(range.start) };
-  }
-  if (period) {
-    const range = nzWeekRange(period);
-    return { range, label: weekRangeLabel(range) };
-  }
-  return { range: nzLast7DaysRange(anchor), label: "Last 7 days" };
-}
-
-/**
- * Build a rankings URL for a window/period, preserving the active filters.
- * @param window - The window.
- * @param period - The period (Monday `YYYY-MM-DD`), or null for the rolling default.
- * @param filters - The active mode / school / sort / direction filters.
- * @param filters.mode - Active mode, or null.
- * @param filters.school - Whether school services are shown.
- * @param filters.sort - Active table sort.
- * @param filters.dir - Active delay-direction filter, or null.
- * @returns The href.
- */
-function rankHref(
-  window: "week" | "month",
-  period: string | null,
-  filters: { mode: string | null; school: boolean; sort: string; dir: string | null },
-): string {
-  const p = new URLSearchParams({ window });
-  if (period) p.set("period", period);
-  if (filters.mode) p.set("mode", filters.mode);
-  if (filters.school) p.set("school", "1");
-  if (filters.sort !== "on_time") p.set("sort", filters.sort);
-  if (filters.dir) p.set("dir", filters.dir);
-  return `/rankings?${p.toString()}`;
-}
-
-/**
- * Range for the period immediately before the given window/period, used for
- * rank-movement comparison.
- * @param window - "week" or "month".
- * @param period - Explicit period key, or undefined for the rolling default.
- * @param anchor - Latest day with data.
- * @returns The previous period's half-open date range.
- */
-function resolvePrevRange(
-  window: "week" | "month",
-  period: string | undefined,
-  anchor: Date,
-): DateRange {
-  if (window === "month") {
-    const key = period ?? monthKey(anchor);
-    const [y, m] = key.split("-").map(Number);
-    const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-    return nzMonthRange(prev);
-  }
-  if (period) return nzWeekRange(shiftWeek(period, -7));
-  return nzLast7DaysRange(new Date(anchor.getTime() - 7 * 86_400_000));
-}
 
 /**
  * Rankings page: week or month network performance.
@@ -163,16 +54,7 @@ export default async function RankingsPage({
   searchParams?: Promise<RankingsSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const window = sp.window === "month" ? "month" : "week";
-  const sort = (
-    ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
-  ) as RouteSort;
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
-  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
-  // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
-  const includeSchool = sp.school === "1";
+  const { window, sort, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
 
   // Anchor every window to the latest day with data so a quiet "today" still
   // shows a populated period.
@@ -188,24 +70,22 @@ export default async function RankingsPage({
 
   // Week stepper: the rolling last-7-days view is the present (no next); stepping
   // back pages through calendar weeks. Prev stops at the earliest week with data.
-  const filters = { mode, school: includeSchool, sort, dir };
   let prevHref: string | null = null;
   let nextHref: string | null = null;
   if (window === "week") {
-    const thisWeekStart = nzWeekStart(anchor);
     const earliest = await getEarliestDataDay(1);
-    const earliestWeekStart = earliest ? nzWeekStart(earliest) : null;
-    const prevWeek = shiftWeek(sp.period ?? thisWeekStart, -7);
-    if (!earliestWeekStart || prevWeek >= earliestWeekStart) {
-      prevHref = rankHref(window, prevWeek, filters);
-    }
-    if (sp.period) {
-      const nextWeek = shiftWeek(sp.period, 7);
-      nextHref =
-        nextWeek >= thisWeekStart
-          ? rankHref(window, null, filters)
-          : rankHref(window, nextWeek, filters);
-    }
+    /**
+     * Build a rankings week link for a period, preserving the active filters.
+     * @param period - The week period, or null for the rolling current week.
+     * @returns The rankings href.
+     */
+    const weekHref = (period: string | null): string => rankHref("week", period, filters);
+    ({ prevHref, nextHref } = resolveWeekNav({
+      periodParam: sp.period ?? null,
+      earliestDay: earliest,
+      makeHref: weekHref,
+      now: anchor,
+    }));
   }
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
@@ -218,8 +98,14 @@ export default async function RankingsPage({
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the period.
   const availableModes = new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode));
-  const boards = deriveBoards(visible, { minEvents: boardMin });
-  const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
+  // Full ranked lists: the boards show the top 10 and expand to the rest in
+  // place, so deltas are computed across the whole list (current and previous).
+  const boards = deriveBoards(visible, { minEvents: boardMin, size: Infinity });
+  const offSchedule = deriveOffSchedule(visible, {
+    minEvents: boardMin,
+    direction: dir,
+    size: Infinity,
+  });
   const prevFiltered = (mode ? prevRows.filter((r) => r.mode === mode) : prevRows).filter(
     (r) => includeSchool || !isSchoolBus(r.short_name, r.long_name),
   );
@@ -227,14 +113,14 @@ export default async function RankingsPage({
     prevFiltered.length > 0
       ? computeRankDelta(
           offSchedule,
-          deriveOffSchedule(prevFiltered, { minEvents: boardMin, direction: dir }),
+          deriveOffSchedule(prevFiltered, { minEvents: boardMin, direction: dir, size: Infinity }),
         )
       : undefined;
   const reliableDeltas =
     prevFiltered.length > 0
       ? computeRankDelta(
           boards.reliable,
-          deriveBoards(prevFiltered, { minEvents: boardMin }).reliable,
+          deriveBoards(prevFiltered, { minEvents: boardMin, size: Infinity }).reliable,
         )
       : undefined;
 
@@ -323,9 +209,9 @@ export default async function RankingsPage({
           rows={offSchedule}
           metric="delay"
           deltas={offScheduleDeltas}
-
           routeWindow={window}
           routePeriod={sp.period}
+          collapseAt={10}
         />
         <RankBoard
           title="Most reliable"
@@ -333,9 +219,9 @@ export default async function RankingsPage({
           rows={boards.reliable}
           metric="onTime"
           deltas={reliableDeltas}
-
           routeWindow={window}
           routePeriod={sp.period}
+          collapseAt={10}
         />
       </div>
 

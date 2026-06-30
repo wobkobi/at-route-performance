@@ -1,6 +1,10 @@
+// src/components/WorstRouteCard.tsx
+/**
+ * @description Highlight card for the period's most off-schedule route, linking to its shame breakdown.
+ */
 import { ModeIcon } from "@/components/ModeIcon";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { isOnTime } from "@/lib/on-time";
+import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { ShameRouteRow } from "@/types/dashboard";
 import type { JSX } from "react";
@@ -25,8 +29,7 @@ export interface WorstRouteCardProps {
 export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Element | null {
   if (!route) return null;
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
-  const signedEqAbs =
-    Math.round(route.avg_abs_delay_sec) === Math.abs(Math.round(route.avg_delay_sec));
+  const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
   return (
     <a
       href={href}

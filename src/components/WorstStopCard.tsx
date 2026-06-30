@@ -1,3 +1,7 @@
+// src/components/WorstStopCard.tsx
+/**
+ * @description Render a card for the window's worst-performing stop.
+ */
 import { formatDuration } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import type { WorstStop } from "@/types/dashboard";

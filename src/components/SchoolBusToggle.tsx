@@ -1,4 +1,9 @@
+// src/components/SchoolBusToggle.tsx
+/**
+ * @description Toggle linking between including and excluding school bus services.
+ */
 import { cn } from "@/lib/cn";
+import { buildHref } from "@/lib/utils";
 import type { JSX } from "react";
 
 /** Props for {@link SchoolBusToggle}. */
@@ -25,11 +30,7 @@ export function SchoolBusToggle({
   basePath,
   preservedParams,
 }: SchoolBusToggleProps): JSX.Element {
-  const params = new URLSearchParams({
-    ...preservedParams,
-    ...(active ? {} : { school: "1" }),
-  });
-  const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
+  const href = buildHref(basePath, { ...preservedParams, school: active ? undefined : "1" });
   return (
     <a href={href} className={cn("chip", active ? "chip-on" : "chip-off")}>
       School buses

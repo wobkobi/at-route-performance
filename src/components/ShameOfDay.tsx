@@ -1,6 +1,10 @@
+// src/components/ShameOfDay.tsx
+/**
+ * @description Highlight card for the day's most off-schedule run, linking to its detail page.
+ */
 import { ModeIcon } from "@/components/ModeIcon";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { earlyToleranceFor, isOnTime } from "@/lib/on-time";
+import { earlyToleranceFor, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
@@ -86,7 +90,7 @@ export function ShameOfDay({
         </span>
       </div>
       <p className="text-sm text-at-muted">
-        {Math.round(trip.avg_abs_delay_sec) === Math.abs(Math.round(trip.avg_delay_sec)) ? (
+        {isConsistentlyLateOrEarly(trip.avg_delay_sec, trip.avg_abs_delay_sec) ? (
           // Single-direction run: absolute and signed averages are the same, so fold
           // the direction word in rather than printing the same time twice.
           <>

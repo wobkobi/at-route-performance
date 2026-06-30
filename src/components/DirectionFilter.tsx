@@ -1,11 +1,13 @@
-"use client";
-
+// src/components/DirectionFilter.tsx
+/**
+ * @description Chip row linking between a route's directions, with a "both" option for the unfiltered view.
+ */
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import type { JSX } from "react";
 
-/** Props for {@link DirectionChips}. */
-export interface DirectionChipsProps {
+/** Props for {@link DirectionFilter}. */
+export interface DirectionFilterProps {
   /** Sorted direction ids to show as chips. */
   dirKeys: number[];
   /** Currently active direction (null = both). */
@@ -26,12 +28,12 @@ export interface DirectionChipsProps {
  * @param props.hrefs - Pre-built hrefs keyed by direction id string and "both".
  * @returns The chips row element.
  */
-export function DirectionChips({
+export function DirectionFilter({
   dirKeys,
   activeDir,
   labels,
   hrefs,
-}: DirectionChipsProps): JSX.Element {
+}: DirectionFilterProps): JSX.Element {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs tracking-zero text-at-muted uppercase">Direction</span>

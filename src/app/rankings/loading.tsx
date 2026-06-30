@@ -1,3 +1,7 @@
+// src/app/rankings/loading.tsx
+/**
+ * @description Loading skeleton for the rankings page.
+ */
 import type { JSX } from "react";
 
 /**
@@ -78,6 +82,12 @@ export default function Loading(): JSX.Element {
       <div className="grid gap-4 md:grid-cols-2">
         <RankBoardSkeleton />
         <RankBoardSkeleton />
+      </div>
+
+      {/* Explanatory paragraph above the route table */}
+      <div className="space-y-1.5">
+        <Bone className="h-3.5 w-full max-w-xl" />
+        <Bone className="h-3.5 w-full max-w-md" />
       </div>
 
       {/* Route table */}

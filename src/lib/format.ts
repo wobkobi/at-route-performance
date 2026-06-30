@@ -1,4 +1,7 @@
 // src/lib/format.ts
+/**
+ * @description Formatting helpers for delays, dates and other display values.
+ */
 
 import { isOnTime } from "@/lib/on-time";
 

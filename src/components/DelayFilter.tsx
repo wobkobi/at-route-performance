@@ -1,5 +1,10 @@
+// src/components/DelayFilter.tsx
+/**
+ * @description Chip row filtering rankings by late, early, or all delay directions.
+ */
 import { cn } from "@/lib/cn";
 import type { DelayDirection } from "@/lib/rankings";
+import { buildHref } from "@/lib/utils";
 import type { JSX } from "react";
 
 /** Props for {@link DelayFilter}. */
@@ -31,11 +36,7 @@ export function DelayFilter({ active, basePath, preservedParams }: DelayFilterPr
   return (
     <div className="flex flex-wrap gap-2">
       {DIRS.map((d) => {
-        const params = new URLSearchParams({
-          ...preservedParams,
-          ...(d.key ? { dir: d.key } : {}),
-        });
-        const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
+        const href = buildHref(basePath, { ...preservedParams, dir: d.key || undefined });
         const isActive = (active ?? "") === d.key;
         return (
           <a

@@ -1,4 +1,9 @@
+// src/components/DayNav.tsx
+/**
+ * @description Date label with previous/next day stepper links for the shame views.
+ */
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -54,7 +59,7 @@ function dateLabel(ymd: string): string {
  * @returns The href.
  */
 function dayHref(basePath: string, preserved: Record<string, string>, day: string): string {
-  return `${basePath}?${new URLSearchParams({ ...preserved, day }).toString()}`;
+  return buildHref(basePath, { ...preserved, day });
 }
 
 /**
