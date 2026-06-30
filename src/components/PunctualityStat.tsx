@@ -1,4 +1,8 @@
 "use client";
+// src/components/PunctualityStat.tsx
+/**
+ * @description Render a punctuality breakdown of early, on-time, and late share bars.
+ */
 
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";

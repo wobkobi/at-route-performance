@@ -1,3 +1,7 @@
+// src/components/FlameCount.tsx
+/**
+ * @description Render flame icons whose colour scales with a tier-and-count severity.
+ */
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
 import { FaFire } from "react-icons/fa";

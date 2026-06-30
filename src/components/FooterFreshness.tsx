@@ -1,3 +1,7 @@
+// src/components/FooterFreshness.tsx
+/**
+ * @description Async server component that fetches data freshness and renders the footer line.
+ */
 import { DataFreshness } from "@/components/DataFreshness";
 import { getDataFreshness } from "@/lib/ingest-run";
 import type { JSX } from "react";

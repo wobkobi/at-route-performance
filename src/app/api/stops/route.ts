@@ -1,4 +1,7 @@
 // src/app/api/stops/route.ts
+/**
+ * @description POST handler that validates a request body and creates a new stop record.
+ */
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";

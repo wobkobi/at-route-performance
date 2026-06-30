@@ -1,4 +1,7 @@
 // src/app/api/ingest/gtfs/routes/route.ts
+/**
+ * @description POST ingest endpoint that syncs GTFS routes from AT v3 into the Route collection via batched upserts.
+ */
 import { requireCronAuth } from "@/lib/auth";
 import { syncRoutes } from "@/lib/ingest";
 import { NextResponse } from "next/server";

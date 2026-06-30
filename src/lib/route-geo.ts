@@ -1,4 +1,13 @@
 // src/lib/route-geo.ts
+/**
+ * @description Geometry for route polylines: offset a `[lat, lon]` path sideways
+ * by a fixed metric distance, perpendicular to its local direction, so a route's
+ * two directions draw as parallel lines either side of the road centreline rather
+ * than overlapping. Distances convert through a flat metres-per-degree
+ * approximation (with a longitude cos-latitude correction), which is accurate
+ * enough for an offset of a few metres anywhere; the shift uses the right-hand
+ * normal of each segment, flipped by `side` for the opposing direction.
+ */
 
 /** Metres per degree of latitude (close enough anywhere for a small offset). */
 const M_PER_DEG = 111_320;

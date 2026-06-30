@@ -1,4 +1,10 @@
 // src/lib/day-url.ts
+/**
+ * @description Redirect away a redundant `?day` param when it names the current
+ * service day, so today always shows a clean URL while every other param is
+ * preserved. The redirect throws (Next navigation), so it must run before any
+ * rendering; it is a no-op for past days or when `?day` is absent.
+ */
 import { nzServiceDayString } from "@/lib/time";
 import { redirect } from "next/navigation";
 

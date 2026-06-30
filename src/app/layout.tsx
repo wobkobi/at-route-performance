@@ -1,3 +1,7 @@
+// src/app/layout.tsx
+/**
+ * @description Root layout - AT-branded masthead, page container, and footer wrapping every route.
+ */
 import { FooterFreshness } from "@/components/FooterFreshness";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";

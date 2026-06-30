@@ -1,3 +1,7 @@
+// src/components/ModeIcon.tsx
+/**
+ * @description Render the transport-mode icon, colouring branded services by their livery.
+ */
 import { cn } from "@/lib/cn";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { JSX } from "react";

@@ -1,4 +1,16 @@
 // src/lib/route-view.ts
+/**
+ * @description Builds the map view data for a route - stops, direction-tagged
+ * path lines, and per-stop delay overlays - from the GTFS schedule pattern. The
+ * heavy lifting is normalising AT's messy data into one clean line per
+ * direction: train platforms and suffixed busway poles are collapsed to a single
+ * canonical station, near-identical variants are merged, interior short-workings
+ * the full line already covers are dropped, and directions that share terminals
+ * (or are a prefix/suffix extension of one another) are folded together so the
+ * diagram shows branches rather than duplicate panels. The static shape depends
+ * only on the schedule, so it is cached for 24 h; only the day's delay colouring
+ * is recomputed per request.
+ */
 import { getRecentStopIds } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { memCache } from "@/lib/mem-cache";
@@ -45,7 +57,7 @@ export interface RouteView {
   /**
    * Maps raw GTFS stop IDs to their canonical IDs (busway stops and station
    * variants are collapsed to a single representative ID). Used to translate
-   * AT alert `informed_entity.stop_id` values — which reference raw GTFS IDs —
+   * AT alert `informed_entity.stop_id` values - which reference raw GTFS IDs -
    * to the canonical IDs the SVG diagram renders.
    */
   rawToCanon: Map<string, string>;

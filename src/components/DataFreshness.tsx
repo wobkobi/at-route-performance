@@ -1,4 +1,8 @@
 "use client";
+// src/components/DataFreshness.tsx
+/**
+ * @description Live relative label showing when data was last refreshed and when the next refresh is due.
+ */
 
 import { useSyncExternalStore, type JSX } from "react";
 
@@ -77,7 +81,7 @@ function formatRelative(fromMs: number, nowMs: number): string {
  * Footer freshness line: the absolute Auckland-local time the data was last
  * updated, a live relative label that ticks as the page sits open, and the
  * projected next-update time (or "due now" once it has passed - the page is
- * served from a short ISR cache, so the moment can already be behind us).
+ * served from a short ISR cache, so the moment can already be in the past).
  *
  * The relative label and the due-now state depend on the client clock (supplied
  * via {@link useSyncExternalStore}), so they stay absent on the server and first

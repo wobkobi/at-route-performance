@@ -1,4 +1,12 @@
 // src/lib/db.ts
+/**
+ * @description Shared Prisma client plus a raw-command helper that retries
+ * transient Atlas connection resets. The client is cached on globalThis so hot
+ * reloads in development reuse one instance rather than exhausting the pool.
+ * Atlas closes idle TCP connections after ~30 s and Prisma does not retry
+ * `$runCommandRaw` the way it retries model operations, so the helper catches a
+ * reset, pauses briefly, and retries once on a fresh socket from the pool.
+ */
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };

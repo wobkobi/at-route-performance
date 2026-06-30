@@ -1,4 +1,13 @@
 // src/lib/at-static.ts
+/**
+ * @description Client for AT's GTFS v3 JSON:API static feed (routes, stops,
+ * trips, stoptimes). Wraps the JSON:API envelope with a fetcher that retries
+ * 429/5xx and network/timeout errors on exponential backoff, follows
+ * `links.next` to flatten paginated collections (with a hard guard against a
+ * runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
+ * subscription key is read once at module load into the shared header.
+ */
+import { sleep } from "@/lib/utils";
 
 // Base URL for AT GTFS v3 JSON:API.
 const AT_V3 = "https://api.at.govt.nz/gtfs/v3";
@@ -34,15 +43,6 @@ export interface StopAttr {
   stop_name: string;
   stop_lat: number;
   stop_lon: number;
-}
-
-/**
- * Sleep for a given number of milliseconds.
- * @param ms - Delay in milliseconds.
- * @returns A promise that resolves after the delay.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -147,7 +147,7 @@ export async function fetchStops(date?: string): Promise<StopAttr[]> {
 
 /**
  * Map GTFS route_type to project mode enum.
- * 2→TRAIN, 3→BUS, 4→FERRY, else BUS.
+ * 2 > TRAIN, 3 > BUS, 4 > FERRY, else BUS.
  * @param routeType - GTFS route_type.
  * @returns Mapped mode.
  */

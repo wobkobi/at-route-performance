@@ -1,4 +1,10 @@
 // src/lib/vehicles.ts
+/**
+ * @description Fetch live vehicle positions from AT's GTFS-RT vehicle-locations
+ * feed and join each to its trip's current schedule deviation from the trip-
+ * updates feed, yielding delay-aware {@link LiveVehicle} markers for the map.
+ * Cached briefly so map polling does not hammer the AT API.
+ */
 import { fetchATTripUpdates, type TripUpdate } from "@/lib/at";
 import { unstable_cache } from "@/lib/mem-cache";
 

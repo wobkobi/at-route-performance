@@ -1,4 +1,7 @@
 // src/app/api/routes/[id]/stats/route.ts
+/**
+ * @description GET handler returning a route's performance summary JSON over a window (defaults to the last 7 days).
+ */
 import { getRouteStats } from "@/lib/data";
 import { routeStatsQuery } from "@/lib/validate";
 import { NextResponse } from "next/server";

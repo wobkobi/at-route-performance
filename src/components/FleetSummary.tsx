@@ -1,3 +1,7 @@
+// src/components/FleetSummary.tsx
+/**
+ * @description Render the fleet KPI strip of trips, on-time %, average off-schedule, and routes.
+ */
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { formatDuration } from "@/lib/format";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
@@ -11,8 +15,8 @@ export interface FleetSummaryProps {
 
 /**
  * Render the fleet KPI strip (trips, on-time %, average off-schedule, routes).
- * The on-time and "off by" cards open a punctuality breakdown on click, so the
- * near-zero net average no longer looks at odds with the on-time share.
+ * The on-time and "off by" cards open a punctuality breakdown on click, so a
+ * near-zero net average does not look at odds with the on-time share.
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
  * @returns The KPI strip element.

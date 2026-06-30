@@ -1,4 +1,7 @@
 // src/lib/gtfs-trips.ts
+/**
+ * @description Fetch and parse per-trip headsign and direction from the AT GTFS feed's `trips.txt`.
+ */
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `trips.txt` holds headsign + direction per trip_id. */

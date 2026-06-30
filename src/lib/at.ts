@@ -1,4 +1,16 @@
 // src/lib/at.ts
+/**
+ * @description Types and fetcher for AT's GTFS-RT trip-update feed. AT's JSON
+ * deviates from the standard shape in ways the normaliser has to absorb: the
+ * payload may be wrapped in a legacy `response` envelope, a single stop-time
+ * update can arrive as an object rather than an array, and `delay` sometimes
+ * sits at the trip_update root. The fetcher retries 429s and transient 5xx with
+ * exponential backoff (capped at 60s) and a one-shot retry on the first
+ * timeout/network blip, since AT's realtime endpoint rate-limits and stalls
+ * under load.
+ */
+import { isObj, sleep } from "@/lib/utils";
+
 export interface DelayTime {
   time?: number;
   delay?: number | null;
@@ -32,16 +44,9 @@ export interface AtTripUpdates {
 }
 
 /**
- * Type guard for a non-null object.
- * @param v - Value to test.
- * @returns True when `v` is a non-null object.
- */
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
-
-/**
- * Normalize AT feed shape (handles legacy `response.entity` and singular STU).
+ * Normalise AT feed shape (handles legacy `response.entity` and singular STU).
  * @param raw - Arbitrary JSON.
- * @returns Normalized feed.
+ * @returns Normalised feed.
  */
 export function toTripUpdates(raw: unknown): AtTripUpdates {
   const root = isObj(raw) && isObj(raw.response) ? raw.response : raw;
@@ -62,15 +67,6 @@ export function toTripUpdates(raw: unknown): AtTripUpdates {
 }
 
 const DEFAULT_AT_URL = "https://api.at.govt.nz/realtime/legacy/tripupdates";
-
-/**
- * Sleep for a given number of milliseconds.
- * @param ms - Delay in milliseconds.
- * @returns A promise that resolves after the delay.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * Fetch Auckland Transport GTFS-RT trip updates (JSON) with retry logic for 429s.

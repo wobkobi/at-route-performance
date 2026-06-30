@@ -1,4 +1,15 @@
 "use client";
+// src/components/DiagramSvg.tsx
+/**
+ * @description Render the route line-diagram SVG with stop nodes, edges, and
+ * branch labels. The geometry arrives pre-laid-out; the work here is resolving
+ * each stop's delay label so it never crosses a drawn line or another label -
+ * each label tries its preferred side, then the opposite, then the horizontals,
+ * then growing offsets, sampling every segment (trunk turns and 45deg branch
+ * connectors) for clearance. Branch end labels resolve last so they dodge the
+ * denser time labels, and the viewBox is trimmed to the drawn content so every
+ * diagram in a section can share one width and render at the same scale.
+ */
 
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay } from "@/lib/format";

@@ -1,3 +1,7 @@
+// src/components/StopSchedule.tsx
+/**
+ * @description Render a stop's scheduled departures for a service date.
+ */
 import type { ScheduledDeparture } from "@/lib/at-stop-trips";
 import { formatGtfsTime } from "@/lib/format";
 import { nzServiceDayString } from "@/lib/time";

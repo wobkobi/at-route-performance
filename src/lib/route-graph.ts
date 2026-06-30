@@ -1,4 +1,15 @@
 // src/lib/route-graph.ts
+/**
+ * @description Lays out a route's stops as a metro-style diagram in pixel
+ * coordinates: nodes, edges, and label sides. The main line is the busiest
+ * variant, snake-wrapped (boustrophedon) so it stays within card width; other
+ * variants fork off as branches where they share an origin or a destination, with
+ * branch lanes stacked in the widened gaps between trunk rows and label sides
+ * alternated so text never lands on a line. Triangle and closed-loop shapes get
+ * their own dedicated layouts. The geometry choices (45deg connectors, parallel
+ * up/down lanes that cannot cross, outer-side labels) all exist to keep a dense
+ * diagram readable without overlaps.
+ */
 import type { RouteVariant } from "@/types/api";
 
 /** Which side of its line a stop's time label sits on (away from the line). */
@@ -140,7 +151,7 @@ export function buildTriangle(
   ];
 
   // closed: true tells DiagramSvg to add the first node to the end of the trunk
-  // polyline (A → middle → C → A), closing the triangle at uniform trunk weight.
+  // polyline (A > middle > C > A), closing the triangle at uniform trunk weight.
   // No separate edges needed.
   return {
     nodes,
@@ -271,7 +282,7 @@ export function buildBranchedSnake(
 
   // --- Pass 1: decide each non-trunk variant's branch (or set it aside) -------
   const tlen = trunk.stopIds.length;
-  // Any stop already on the trunk must not appear again on a branch — it would
+  // Any stop already on the trunk must not appear again on a branch - it would
   // be drawn twice at different positions, which is confusing and incorrect.
   const trunkStopSet = new Set(trunk.stopIds.map(canon));
   const forkSpecs: {

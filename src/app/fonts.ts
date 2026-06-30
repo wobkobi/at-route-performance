@@ -1,4 +1,7 @@
 // src/app/fonts.ts
+/**
+ * @description Local Gotham Narrow font face exposing the --font-gotham-narrow CSS variable.
+ */
 import localFont from "next/font/local";
 
 /**

@@ -1,4 +1,13 @@
 // src/lib/route-pattern.ts
+/**
+ * @description Build a route's directional stopping patterns from the AT GTFS
+ * schedule. Trips are grouped by `(direction_id, shape_id)`; each group's ordered
+ * stop list is resolved from one representative trip's stoptimes. AT exposes no
+ * route-shape endpoint, so every pattern costs a separate stoptimes call - hence
+ * resolving only the most-frequent patterns (capped at MAX_PATTERNS) to stay
+ * within the API quota. Only stop order is available here, no road geometry.
+ * Results are cached daily and keyed by route, since the schedule is static.
+ */
 import { fetchAll } from "@/lib/at-static";
 import { routeIdsForSlug } from "@/lib/data";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -19,7 +28,7 @@ interface StopTimeAttr {
 }
 
 /**
- * Cap on how many distinct patterns we resolve stop orders for. AT exposes no
+ * Cap on how many distinct patterns to resolve stop orders for. AT exposes no
  * route-shape geometry endpoint, so each pattern costs one stoptimes call;
  * resolving only the most-frequent patterns keeps well within the API quota.
  */

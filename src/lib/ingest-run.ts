@@ -1,4 +1,12 @@
 // src/lib/ingest-run.ts
+/**
+ * @description Record and read ingest-run outcomes, and project the footer's
+ * next-update time. Recording is best-effort so a logging failure never breaks
+ * the ingest request itself. Freshness prefers the last successful realtime run
+ * but falls back to the freshest recorded arrival until the first run is logged
+ * (e.g. just after deploy), clamping that fallback to now since a scheduled
+ * arrival can sit in the near future once the morning's timetable is loaded.
+ */
 import { getLatestEventDate } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";

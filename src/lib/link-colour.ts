@@ -1,4 +1,7 @@
 // src/lib/link-colour.ts
+/**
+ * @description Map AT Link service names to their Tailwind background colour utility.
+ */
 
 /**
  * Map of normalised AT Link service names to their Tailwind background utility.

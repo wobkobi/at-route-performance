@@ -1,4 +1,14 @@
 // src/lib/mem-cache.ts
+/**
+ * @description Re-export the Next.js Data Cache (`unstable_cache`) plus an
+ * in-process TTL store for the values it cannot hold. `unstable_cache` is
+ * file-backed and shared across worker threads but only stores JSON-serialisable
+ * data, so anything containing Maps or Sets goes through `memCache` instead - an
+ * in-process store anchored to globalThis (per worker thread, survives
+ * hot-reloads) that also dedupes concurrent in-flight fetches so a cold miss
+ * fires exactly one upstream call. The `force-dynamic` layout disables only
+ * route-level static generation, not these caches.
+ */
 // `unstable_cache` re-exported from `next/cache` so callers get the persistent
 // Data Cache (file-backed, shared across Turbopack worker threads). The
 // `force-dynamic` layout only disables route-level static generation; it does

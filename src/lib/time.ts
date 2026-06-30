@@ -1,4 +1,15 @@
 // src/lib/time.ts
+/**
+ * @description Auckland-timezone date helpers returning UTC half-open windows
+ * for calendar days, service days, weeks and months. Offsets are derived per
+ * instant via Intl so NZST/NZDT transitions are handled correctly rather than
+ * with a fixed offset. The key domain concept is the service day: a transit day
+ * runs from 5am to 5am, so a post-midnight run counts under the day it started,
+ * and a `YYYY-MM-DD` string is treated as a service date directly (for `?day=`).
+ * Rolling windows quantise to service-day boundaries so they cache by day rather
+ * than by the instant.
+ */
+import { dmY } from "@/lib/format";
 
 /** A UTC half-open window [start, end). */
 export interface DateRange {
@@ -247,8 +258,8 @@ export function nzClockTime(iso: string): string {
 }
 
 /**
- * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 -> "12am",
- * 13 -> "1pm". Used for the Shame board's per-hour headings.
+ * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 > "12am",
+ * 13 > "1pm". Used for the Shame board's per-hour headings.
  * @param hour - Hour of day, 0-23.
  * @returns The hour label.
  */
@@ -281,23 +292,4 @@ export function weekRangeLabel(range: DateRange): string {
   return first.y === last.y
     ? `${first.dm} to ${last.dm}`
     : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
-}
-
-/**
- * Auckland-local day/month and year parts of a UTC instant. Used by
- * {@link weekRangeLabel}.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
 }

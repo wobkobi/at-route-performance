@@ -1,14 +1,12 @@
 // src/lib/station.ts
-//
-// Auckland train stations expose each platform as its own GTFS stop, named
-// "<Station> Train Station <N>" (e.g. "Newmarket Train Station 1/2/4"), and bake
-// the platform number into trip headsigns ("Swanson 1 To Brit 2 Via Newmarket 2").
-// A train uses different platforms in each direction, so the same line splits
-// into near-duplicate variants and the same station appears as several stops.
-// These helpers collapse platforms to one logical station so the diagram, map,
-// and stats treat them as a single stop. Only platform-numbered train stops are
-// affected; every other stop is left untouched (so distinct bus stops that share
-// a name are never merged).
+/**
+ * @description Collapse Auckland train-station platform stops into one logical
+ * station. AT exposes each platform as its own GTFS stop ("Newmarket Train
+ * Station 1/2/4") and bakes the platform number into trip headsigns, so a line
+ * otherwise splits into near-duplicate variants and one station shows up as
+ * several stops; these helpers normalise platforms to a single stop for the
+ * diagram, map and stats. Only platform-numbered train stops are affected.
+ */
 
 /** Matches a platform-numbered train-station name, capturing the station part. */
 const PLATFORM_RE = /^(.*\bTrain Station)\s+\d+\s*$/i;

@@ -1,4 +1,8 @@
 "use client";
+// src/components/StopMap.tsx
+/**
+ * @description Render a Leaflet map of stops and live vehicles with delay-coloured markers.
+ */
 
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";

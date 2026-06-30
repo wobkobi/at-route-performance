@@ -1,4 +1,10 @@
 // src/lib/auth.ts
+/**
+ * @description Bearer-token guard for ingest endpoints. Compares the supplied
+ * Authorization header against CRON_SECRET in constant time so the secret cannot
+ * be recovered by timing the response. A missing secret is a 500 (server
+ * misconfiguration, fail closed rather than open); a mismatch is a logged 401.
+ */
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 

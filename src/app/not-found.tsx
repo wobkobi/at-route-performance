@@ -1,3 +1,7 @@
+// src/app/not-found.tsx
+/**
+ * @description Global 404 page with a page directory and the full route list.
+ */
 import { ModeIcon } from "@/components/ModeIcon";
 import { prisma } from "@/lib/db";
 import { routeSlug } from "@/lib/route-slug";
