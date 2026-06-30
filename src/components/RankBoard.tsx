@@ -1,10 +1,18 @@
+"use client";
+// src/components/RankBoard.tsx
+/**
+ * @description Ranked table of routes with position-movement badges and expandable delay detail.
+ */
+
+import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { EARLY_TOLERANCE_SEC, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { EARLY_TOLERANCE_SEC, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import type { JSX } from "react";
+import { useState } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
 
 /**
@@ -63,10 +71,18 @@ export interface RankBoardProps {
   routePeriod?: string;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
+  /**
+   * When set and there are more rows than this, collapse to this many and turn
+   * the heading into a toggle that reveals the full list. Omit to always show
+   * every row.
+   */
+  collapseAt?: number;
 }
 
 /**
- * Render a ranked board of routes (earliest, latest, or most reliable).
+ * Render a ranked board of routes (earliest, latest, or most reliable). When
+ * `collapseAt` is set and exceeded, the heading toggles between the top
+ * `collapseAt` rows and the full list.
  * @param props - Board props.
  * @param props.title - Board heading.
  * @param props.accentClass - Tailwind text-colour class for the heading.
@@ -76,6 +92,7 @@ export interface RankBoardProps {
  * @param props.routeWindow - Window to open on each route link when no day is pinned (optional).
  * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
+ * @param props.collapseAt - Collapse to this many rows behind a heading toggle (optional).
  * @returns The board element.
  */
 export function RankBoard({
@@ -87,10 +104,34 @@ export function RankBoard({
   routeWindow,
   routePeriod,
   deltas,
+  collapseAt,
 }: RankBoardProps): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = collapseAt != null && rows.length > collapseAt;
+  const visibleRows = collapsible && !expanded ? rows.slice(0, collapseAt) : rows;
   return (
     <section className="border border-at-border bg-at-surface p-4">
-      <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>{title}</h2>
+      <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            className="flex w-full items-center gap-1.5 text-left transition-opacity hover:opacity-80"
+          >
+            <span>{title}</span>
+            <ChevronRight
+              aria-hidden
+              className={cn("h-4 w-4 shrink-0 transition-transform", expanded && "rotate-90")}
+            />
+            <span className="ml-auto text-sm font-normal text-at-muted">
+              {expanded ? "Show less" : `Show all ${rows.length}`}
+            </span>
+          </button>
+        ) : (
+          title
+        )}
+      </h2>
       <div className="mb-3 min-h-5">
         {metric === "delay" && <p className="text-sm text-at-muted">{ON_TIME_CAPTION}</p>}
       </div>
@@ -98,7 +139,7 @@ export function RankBoard({
         <p className="text-base text-at-muted">Not enough data yet.</p>
       ) : (
         <ol>
-          {rows.map((r, i) => {
+          {visibleRows.map((r, i) => {
             // Ranked by abs deviation; display the same so the column numbers are
             // in descending order. When abs ≈ |signed| the route is consistently
             // late/early - show direction ("4m 8s late"). When they differ the
@@ -107,7 +148,7 @@ export function RankBoard({
             const abs = r.avg_abs_delay_sec ?? Math.abs(signed);
             const value =
               metric === "delay"
-                ? Math.round(abs) === Math.abs(Math.round(signed))
+                ? isConsistentlyLateOrEarly(signed, abs)
                   ? formatDelay(signed)
                   : `${formatDuration(abs)} off`
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
@@ -159,14 +200,7 @@ export function RankBoard({
                   <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
                     {value}
                   </span>
-                  <svg
-                    viewBox="0 0 20 20"
-                    className="h-4 w-4 shrink-0 text-at-muted"
-                    fill="currentColor"
-                    aria-hidden
-                  >
-                    <path d="M7.5 4.5 13 10l-5.5 5.5-1.06-1.06L10.88 10 6.44 5.56 7.5 4.5Z" />
-                  </svg>
+                  <ChevronRight className="shrink-0 text-at-muted" />
                 </a>
               </li>
             );

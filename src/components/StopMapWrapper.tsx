@@ -1,19 +1,27 @@
 "use client";
+// src/components/StopMapWrapper.tsx
+/**
+ * @description Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
+ */
 
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
 /**
- * Placeholder shown while the Leaflet map chunk loads.
+ * Placeholder shown while the Leaflet chunk loads. Fills its parent (`h-full`)
+ * rather than a fixed height, so it inherits the caller's height from the
+ * wrapper div - the dynamic `loading` option can't read props, so a hardcoded
+ * height here would mismatch callers and cause a jump when the map swaps in.
  * @returns A pulsing skeleton box.
  */
-function MapSkeleton(): JSX.Element {
-  return <div className="h-125 animate-pulse bg-at-bg" />;
+function MapPlaceholder(): JSX.Element {
+  return <div className="h-full w-full animate-pulse bg-at-bg" />;
 }
 
+// ssr: false defers the Leaflet chunk to the client.
 const StopMap = dynamic(() => import("@/components/StopMap"), {
   ssr: false,
-  loading: MapSkeleton,
+  loading: MapPlaceholder,
 });
 
 interface StopMapWrapperProps {
@@ -46,10 +54,19 @@ interface StopMapWrapperProps {
 }
 
 /**
- * Client component wrapper for StopMap to enable ssr: false in dynamic import.
- * @param props - Stop data and optional className
- * @returns StopMap component
+ * Client wrapper for {@link StopMap} that enables `ssr: false` in the dynamic
+ * import. Owns the map height via a wrapper div so the map and its loading
+ * placeholder share it (no layout jump when the Leaflet chunk swaps in).
+ * @param props - Component props (stop data plus the props {@link StopMap} accepts).
+ * @param props.className - Height/size classes applied to the wrapper div.
+ * @returns The sized map container.
  */
-export default function StopMapWrapper(props: StopMapWrapperProps): JSX.Element {
-  return <StopMap {...props} />;
+export default function StopMapWrapper({ className, ...props }: StopMapWrapperProps): JSX.Element {
+  // The wrapper owns the height so both the map and its loading placeholder
+  // (h-full) match it - no jump when the Leaflet chunk swaps in.
+  return (
+    <div className={className}>
+      <StopMap {...props} className="h-full w-full" />
+    </div>
+  );
 }

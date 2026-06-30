@@ -1,5 +1,11 @@
 // src/lib/at-alerts.ts
+/**
+ * @description Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
+ * fetches and normalises alerts (with retry and backoff), then selects the ones
+ * relevant to a given route, a given stop, or the whole network.
+ */
 import { unstable_cache } from "@/lib/mem-cache";
+import { isObj, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {
   text: string;
@@ -38,13 +44,6 @@ export interface AtServiceAlerts {
   header?: { timestamp?: number };
   alerts: ServiceAlert[];
 }
-
-/**
- * Type guard for a non-null plain object.
- * @param v - Value to test.
- * @returns True when `v` is a non-null object.
- */
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 /**
  * Returns the English translation from an `AlertText`, falling back to the
@@ -124,15 +123,6 @@ export function toServiceAlerts(raw: unknown): AtServiceAlerts {
 }
 
 const DEFAULT_ALERTS_URL = "https://api.at.govt.nz/realtime/legacy/servicealerts";
-
-/**
- * Sleep for a given number of milliseconds.
- * @param ms - Delay in milliseconds.
- * @returns A promise that resolves after the delay.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * Fetch Auckland Transport GTFS-RT service alerts (JSON) with retry logic for

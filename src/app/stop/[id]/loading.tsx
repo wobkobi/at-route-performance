@@ -1,3 +1,7 @@
+// src/app/stop/[id]/loading.tsx
+/**
+ * @description Loading skeleton for the stop detail page.
+ */
 import type { JSX } from "react";
 
 /**
@@ -67,13 +71,16 @@ export default function Loading(): JSX.Element {
         ))}
       </div>
 
-      {/* Schedule */}
-      <div className="border border-at-border bg-at-surface p-4">
-        <Bone className="mb-3 h-6 w-24" />
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Bone key={i} className="mb-1 h-12" />
-        ))}
-      </div>
+      {/* Schedule (StopSchedule: heading + table, not a bordered card) */}
+      <section className="flex flex-col gap-3">
+        <Bone className="h-4 w-32" />
+        <div className="space-y-2">
+          <Bone className="h-5 w-full" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Bone key={i} className="h-6 w-full" />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

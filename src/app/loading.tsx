@@ -1,3 +1,7 @@
+// src/app/loading.tsx
+/**
+ * @description Loading skeleton for the home page.
+ */
 import type { JSX } from "react";
 
 /**
@@ -11,7 +15,7 @@ function Bone({ className }: { className: string }): JSX.Element {
 }
 
 /**
- * Home page loading skeleton — shown by Next.js during navigation while the
+ * Home page loading skeleton - shown by Next.js during navigation while the
  * async page.tsx resolves. Mirrors the page layout so there is no layout shift.
  * @returns Skeleton markup.
  */
@@ -40,11 +44,12 @@ export default function Loading(): JSX.Element {
         <Bone className="h-32" />
       </div>
 
-      {/* Filter pills row */}
-      <div className="flex flex-wrap gap-3">
-        <Bone className="h-8 w-16 rounded-full" />
-        <Bone className="h-8 w-16 rounded-full" />
-        <Bone className="h-8 w-16 rounded-full" />
+      {/* Filter row: mode chips (All + up to 3) + school-bus toggle */}
+      <div className="flex flex-wrap items-center gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Bone key={i} className="h-8 w-16 rounded-full" />
+        ))}
+        <Bone className="h-8 w-24 rounded-full" />
       </div>
 
       {/* Delay filter (right-aligned) */}
@@ -66,6 +71,11 @@ export default function Loading(): JSX.Element {
             <Bone key={i} className="h-10" />
           ))}
         </div>
+      </div>
+
+      {/* Collapsed "All routes" summary bar */}
+      <div className="border border-at-border bg-at-surface px-4 py-3">
+        <Bone className="h-5 w-24" />
       </div>
     </main>
   );

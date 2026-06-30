@@ -1,20 +1,30 @@
 // src/app/stop/[id]/page.tsx
+/**
+ * @description Stop detail page showing a single stop's punctuality, worst routes,
+ * and map location for a service day. Day-focused like the route page: it falls
+ * back to the most recent populated day when the requested one has too few
+ * events, and the net-average wording stays mode-less because a stop mixes modes
+ * (no single on-time window). The service-alerts fetch is kicked off without
+ * awaiting and streamed in through Suspense so a cold alerts cache doesn't gate
+ * the page; station-prefixed ids skip the per-stop departures query.
+ */
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/RankBoard";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
-import { alertsForStop, getServiceAlerts } from "@/lib/at-alerts";
+import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { getStopTrips } from "@/lib/at-stop-trips";
-import { getEarliestDataDay, getMostRecentDataDay, getStopStats } from "@/lib/data";
+import { getEarliestDataDay, getStopStats } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { notFound } from "next/navigation";
-import type { JSX } from "react";
+import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
@@ -46,26 +56,30 @@ export default async function StopPage({
   const sp = (await searchParams) ?? {};
   dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
 
-  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  const requestedDay = resolveRequestedDay(sp.day);
   let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
   let serviceDate = nzServiceDayString(range.start);
-  // getEarliestDataDay is independent of the stop query - fire all three immediately.
-  const [initialStats, earliestDay, allAlerts] = await Promise.all([
+  // Start the service-alerts fetch off the critical path: the banner streams in
+  // via Suspense so a cold alerts cache (or dev reload) doesn't gate the page.
+  const alertsPromise = getServiceAlerts();
+  // getEarliestDataDay is independent of the stop query - fire both immediately.
+  const [initialStats, earliestDay] = await Promise.all([
     getStopStats(id, range, THRESHOLD_SEC, REVALIDATE),
     getEarliestDataDay(1),
-    getServiceAlerts(),
   ]);
   let stats = initialStats;
   if (!stats) notFound();
   // Fall back to the most recent populated day only when no day was requested.
-  if (!requestedDay && (stats.summary?.events ?? 0) === 0) {
-    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
-    if (latestDay) {
-      range = nzServiceDayRange(latestDay);
-      serviceDate = nzServiceDayString(range.start);
-      const refreshed = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
-      if (refreshed) stats = refreshed;
-    }
+  const fallbackDay = await maybeFallbackDay(
+    requestedDay,
+    (stats.summary?.events ?? 0) === 0,
+    MIN_BOARD_EVENTS,
+  );
+  if (fallbackDay) {
+    range = nzServiceDayRange(fallbackDay);
+    serviceDate = nzServiceDayString(range.start);
+    const refreshed = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
+    if (refreshed) stats = refreshed;
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
@@ -78,7 +92,6 @@ export default async function StopPage({
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
-  const stopAlerts = alertsForStop(allAlerts, stop.stop_id);
   const todaysTrips = id.startsWith("station:") ? [] : await getStopTrips(id, serviceDate);
   const routeNameMap = new Map(routes.map((r) => [r.route_id, r.short_name ?? null]));
   // Net-average wording stays mode-less: a stop mixes modes, so no single window.
@@ -107,7 +120,9 @@ export default async function StopPage({
         />
       </header>
 
-      <AlertBanner alerts={stopAlerts} heading="Service alerts" />
+      <Suspense fallback={null}>
+        <StopAlertBanner alertsPromise={alertsPromise} stopId={stop.stop_id} />
+      </Suspense>
 
       <section className="border border-at-border bg-at-surface">
         <div className="grid grid-cols-2 sm:grid-cols-4">
@@ -167,5 +182,26 @@ export default async function StopPage({
 
       <StopSchedule departures={todaysTrips} routeNames={routeNameMap} serviceDate={serviceDate} />
     </main>
+  );
+}
+
+/**
+ * Streamed "Service alerts" banner for the stop. Awaits the shared alerts feed
+ * off the critical path and keeps the alerts informing this stop; renders
+ * nothing while it streams (and when there are none).
+ * @param root0 - Props.
+ * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
+ * @param root0.stopId - Canonical stop id, to filter the alerts.
+ * @returns The alert banner.
+ */
+async function StopAlertBanner({
+  alertsPromise,
+  stopId,
+}: {
+  alertsPromise: Promise<ServiceAlert[]>;
+  stopId: string;
+}): Promise<JSX.Element> {
+  return (
+    <AlertBanner alerts={alertsForStop(await alertsPromise, stopId)} heading="Service alerts" />
   );
 }

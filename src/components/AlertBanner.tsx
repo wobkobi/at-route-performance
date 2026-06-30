@@ -1,3 +1,7 @@
+// src/components/AlertBanner.tsx
+/**
+ * @description Region listing active service alerts, rendering nothing when there are none.
+ */
 import { cleanAlertHeader, extractText, type ServiceAlert } from "@/lib/at-alerts";
 import { routeSlug } from "@/lib/route-slug";
 import type { JSX } from "react";
@@ -26,7 +30,7 @@ function fmtTime(unix: number): string {
 }
 
 /**
- * Collapsible service-disruption banner using `<details>/<summary>` — no
+ * Collapsible service-disruption banner using `<details>/<summary>` - no
  * client JS required. Open by default for a single alert; closed when
  * multiple so the page doesn't open with a wall of text.
  *
