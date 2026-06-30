@@ -1,4 +1,7 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
+/**
+ * @description Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
+ */
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
@@ -8,22 +11,9 @@ import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
-import { nzServiceDayRange } from "@/lib/time";
+import { nzClockTime, nzServiceDayRange } from "@/lib/time";
 import type { TripStop } from "@/types/api";
 import type { JSX } from "react";
-
-/**
- * Auckland-local clock time (e.g. `7:24am`) for an ISO instant.
- * @param iso - ISO instant string.
- * @returns The local time label.
- */
-function localTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 /**
  * Trip timeline page: one run's stop-by-stop scheduled-vs-actual punctuality.
@@ -124,7 +114,7 @@ export default async function TripPage({
           {title}
         </h1>
         <p className="text-at-muted">
-          {departing ? `Trip departing ${localTime(departing)}` : "Trip"}
+          {departing ? `Trip departing ${nzClockTime(departing)}` : "Trip"}
           {vehicle_id && ` · ${vehicle_id}`}
         </p>
       </header>
@@ -212,10 +202,10 @@ export default async function TripPage({
                           </>
                         ) : (
                           <>
-                            Sched <span className="text-at-ink">{localTime(s.scheduled_at)}</span> ·
-                            Actual{" "}
+                            Sched <span className="text-at-ink">{nzClockTime(s.scheduled_at)}</span>{" "}
+                            · Actual{" "}
                             <span className={cn(band)}>
-                              {localTime(
+                              {nzClockTime(
                                 new Date(
                                   new Date(s.scheduled_at).getTime() + s.deviation_sec * 1000,
                                 ).toISOString(),

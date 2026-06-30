@@ -1,4 +1,12 @@
 // src/lib/data.ts
+/**
+ * @description Central server-side data-access layer: builds the app's cached
+ * route, stop, trip and on-time views from MongoDB. Runs the heavy aggregations
+ * via `$runCommandRaw` (worst-of-day and worst-of-week boards, rankings, per-
+ * route and per-stop summaries, cancelled-trip lookups), splitting week queries
+ * per service day to stay under Atlas's in-memory sort limit, and wraps each
+ * result in `unstable_cache`/`memCache` with a purpose-fit TTL.
+ */
 import { fetchAll } from "@/lib/at-static";
 import { prisma, runCommand } from "@/lib/db";
 import { MAX_EARLY_SEC, MAX_LATE_SEC, plausibleDeviationMatch } from "@/lib/deviation";
@@ -20,6 +28,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   SERVICE_START_HOUR,
+  shiftWeek,
   type DateRange,
 } from "@/lib/time";
 import type {
@@ -100,7 +109,7 @@ export async function findCanonicalRouteSlug(slug: string): Promise<string | nul
   return unstable_cache(
     async () => {
       // Exact match first (indexed _id lookup); case-insensitive fallback for
-      // user-typed paths like /route/nx1 -> /route/NX1.
+      // user-typed paths like /route/nx1 > /route/NX1.
       const exact = await prisma.route.findFirst({
         where: { OR: [{ id: slug }, { id: { startsWith: `${slug}-` } }] },
         select: { id: true },
@@ -1011,6 +1020,49 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
   )();
 }
 
+/** A trip cancelled on a route for a service day, for the trip board. */
+export interface CancelledTripRow {
+  trip_id: string;
+  /** GTFS trip_headsign (destination), from TripMeta when known. */
+  headsign: string | null;
+}
+
+/**
+ * Trips cancelled on a route for a service day (from the realtime feed's
+ * CANCELED trip updates), with each one's headsign resolved from TripMeta.
+ * Empty for any day before cancellation capture began - the feed discards
+ * cancellations without storing them, so there is no history.
+ * @param routeId - Route slug.
+ * @param range - The service-day window; its `start` is the stored service date.
+ * @returns The day's cancelled trips, ordered by destination then trip id.
+ */
+export async function getCancelledTrips(
+  routeId: string,
+  range: DateRange,
+): Promise<CancelledTripRow[]> {
+  return unstable_cache(
+    async () => {
+      const routeIds = await routeIdsForSlug(routeId);
+      const rows = await prisma.cancelledTrip.findMany({
+        where: { routeId: { in: routeIds }, serviceDate: range.start },
+        select: { tripId: true },
+      });
+      if (rows.length === 0) return [];
+      const tripIds = [...new Set(rows.map((r) => r.tripId))];
+      const meta = await prisma.tripMeta.findMany({
+        where: { id: { in: tripIds } },
+        select: { id: true, headsign: true },
+      });
+      const headsignById = new Map(meta.map((m) => [m.id, m.headsign]));
+      return tripIds
+        .map((id) => ({ trip_id: id, headsign: headsignById.get(id) ?? null }))
+        .sort((a, b) => (a.headsign ?? a.trip_id).localeCompare(b.headsign ?? b.trip_id));
+    },
+    ["cancelled-trips", routeId, range.start.toISOString()],
+    { revalidate: 300 },
+  )();
+}
+
 /** Fewest stops a run must have to qualify for the Shame board (drops flukes). */
 const SHAME_MIN_STOPS = 5;
 
@@ -1392,7 +1444,7 @@ export async function getShameRouteStreak(
  * @param filter.mode - Restrict to this mode; null means all modes.
  * @param filter.includeSchool - Include school services (default false).
  * @param revalidate - Cache lifetime in seconds.
- * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` — streak
+ * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` - streak
  *   length (min 1), total hourly-slot appearances across *previous* streak days,
  *   and the count of consecutive prior days on which this route was also the
  *   worst of the day (highest avg absolute delay across all slots).
@@ -1521,7 +1573,7 @@ export async function getShameRouteStreaksBatch(
           },
         },
         // Sort so $first in the collect group picks the route with the highest
-        // single-slot delay — matching the page's worst-of-day criterion.
+        // single-slot delay - matching the page's worst-of-day criterion.
         { $sort: { "_id.serviceDay": 1, maxSlotDelay: -1 } },
         // Collect per-day: worst-of-day route id + array of { routeId, hourCount }.
         {
@@ -1642,8 +1694,8 @@ function routeShamePipelineBase(
       },
     },
     // Collapse to one row per (routeId, tripId) so the time bucket uses trip
-    // start time, not individual stop times. Overnight routes no longer bleed
-    // into post-midnight hour slots they don't actually start in.
+    // start time, not individual stop times. This keeps overnight routes from
+    // bleeding into post-midnight hour slots they don't actually start in.
     {
       $group: {
         _id: { routeId: "$routeId", tripId: "$tripId" },
@@ -1820,90 +1872,112 @@ export async function getShameRouteOfWeek(
   revalidate: number,
 ): Promise<ShameRouteOfWeek> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
-    async () => {
-      const pipeline = routeShamePipelineBase(range, mode, includeSchool, "serviceDay", {
-        serviceDay: {
-          $dateTrunc: {
-            date: {
-              $dateSubtract: {
-                startDate: "$trip_start",
-                unit: "hour",
-                amount: SERVICE_START_HOUR,
-              },
-            },
-            unit: "day",
-            timezone: "Pacific/Auckland",
-          },
-        },
-      });
-      pipeline.push(
-        { $sort: { avg_abs_delay_sec: -1 } },
-        {
-          $group: {
-            _id: "$_id.serviceDay",
-            route_id: { $first: "$_id.routeId" },
-            short_name: { $first: "$route.shortName" },
-            long_name: { $first: "$route.longName" },
-            mode: { $first: "$route.mode" },
-            colour: { $first: "$route.colour" },
-            events: { $first: "$events" },
-            avg_abs_delay_sec: { $first: "$avg_abs_delay_sec" },
-            avg_delay_sec: { $first: "$avg_delay_sec" },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            route_id: 1,
-            short_name: 1,
-            long_name: 1,
-            mode: 1,
-            colour: 1,
-            events: 1,
-            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-          },
-        },
-      );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: (Omit<ShameRouteRaw, "hour"> & { _id: unknown })[] };
-      };
+  // Resolve each service day independently (cached per day) and combine, so a
+  // busy live day never forces one heavy 7-day aggregation.
+  const days = (
+    await Promise.all(
+      serviceDatesInRange(range).map((date) =>
+        unstable_cache(
+          () => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool),
+          ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+          { revalidate },
+        )(),
+      ),
+    )
+  ).flat();
+  days.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  const worst = days.reduce<ShameRouteRow | null>(
+    (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
+    null,
+  );
+  return { worst, days };
+}
 
-      const days: ShameRouteRow[] = res.cursor.firstBatch.map((r) => ({
-        hour: 0,
-        date: nzDateString(r._id),
-        route_id: r.route_id,
-        short_name: r.short_name ?? null,
-        long_name: r.long_name ?? "",
-        mode: r.mode ?? "BUS",
-        colour: r.colour ?? null,
-        events: r.events,
-        avg_abs_delay_sec: r.avg_abs_delay_sec,
-        avg_delay_sec: r.avg_delay_sec,
-      }));
-      days.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-      const worst = days.reduce<ShameRouteRow | null>(
-        (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
-        null,
-      );
-      return { worst, days };
+/**
+ * The worst route of each service day within a range (one row per day with
+ * data). Used per-day by {@link getShameRouteOfWeek}; left uncached so the
+ * caller owns the per-day cache key.
+ * @param range - The window to aggregate (typically a single service day).
+ * @param mode - Route mode filter (null = all).
+ * @param includeSchool - Whether to include school services.
+ * @returns The per-service-day worst routes.
+ */
+async function worstRoutesForRange(
+  range: DateRange,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+): Promise<ShameRouteRow[]> {
+  const pipeline = routeShamePipelineBase(range, mode, includeSchool, "serviceDay", {
+    serviceDay: {
+      $dateTrunc: {
+        date: {
+          $dateSubtract: { startDate: "$trip_start", unit: "hour", amount: SERVICE_START_HOUR },
+        },
+        unit: "day",
+        timezone: "Pacific/Auckland",
+      },
     },
-    [
-      "shame-route-of-week-v2",
-      range.start.toISOString(),
-      range.end.toISOString(),
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-    ],
-    { revalidate },
-  )();
+  });
+  pipeline.push(
+    // Worst route per service day via a bounded per-group $top (one row per day)
+    // instead of a global blocking $sort, which can exceed the cluster's 32MB
+    // in-memory sort limit (the tier forbids disk spill).
+    {
+      $group: {
+        _id: "$_id.serviceDay",
+        worst: {
+          $top: {
+            sortBy: { avg_abs_delay_sec: -1 },
+            output: {
+              route_id: "$_id.routeId",
+              short_name: "$route.shortName",
+              long_name: "$route.longName",
+              mode: "$route.mode",
+              colour: "$route.colour",
+              events: "$events",
+              avg_abs_delay_sec: "$avg_abs_delay_sec",
+              avg_delay_sec: "$avg_delay_sec",
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        route_id: "$worst.route_id",
+        short_name: "$worst.short_name",
+        long_name: "$worst.long_name",
+        mode: "$worst.mode",
+        colour: "$worst.colour",
+        events: "$worst.events",
+        avg_abs_delay_sec: { $round: ["$worst.avg_abs_delay_sec", 1] },
+        avg_delay_sec: { $round: ["$worst.avg_delay_sec", 1] },
+      },
+    },
+  );
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: pipeline as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as {
+    cursor: { firstBatch: (Omit<ShameRouteRaw, "hour"> & { _id: unknown })[] };
+  };
+
+  return res.cursor.firstBatch.map((r) => ({
+    hour: 0,
+    date: nzDateString(r._id),
+    route_id: r.route_id,
+    short_name: r.short_name ?? null,
+    long_name: r.long_name ?? "",
+    mode: r.mode ?? "BUS",
+    colour: r.colour ?? null,
+    events: r.events,
+    avg_abs_delay_sec: r.avg_abs_delay_sec,
+    avg_delay_sec: r.avg_delay_sec,
+  }));
 }
 
 /**
@@ -2016,110 +2090,136 @@ export async function getShameOfWeek(
   revalidate: number,
 ): Promise<ShameOfWeek> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
-    async () => {
-      const pipeline = shamePipelineBase(range, mode, includeSchool);
-      pipeline.push(
-        {
-          $addFields: {
-            // Shift each trip back by the service-start offset then truncate to
-            // Auckland-local calendar day so post-midnight trips land on the correct
-            // service day.
-            serviceDay: {
-              $dateTrunc: {
-                date: {
-                  $dateSubtract: {
-                    startDate: "$scheduled_start",
-                    unit: "hour",
-                    amount: SERVICE_START_HOUR,
-                  },
-                },
-                unit: "day",
-                timezone: "Pacific/Auckland",
+  // Resolve each service day independently (cached per day) and combine, so a
+  // busy live day never forces one heavy 7-day aggregation. This also makes the
+  // per-day worst the day's actual worst run (AT reuses tripIds across days, so a
+  // single week-wide grouping would otherwise collapse a trip's daily runs).
+  const days = (
+    await Promise.all(
+      serviceDatesInRange(range).map((date) =>
+        unstable_cache(
+          () => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool),
+          ["shame-trip-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+          { revalidate },
+        )(),
+      ),
+    )
+  ).flat();
+  days.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  const worst = days.reduce<ShameTrip | null>(
+    (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
+    null,
+  );
+  return { worst, days };
+}
+
+/**
+ * The worst run of each service day within a range (one row per day with data).
+ * Used per-day by {@link getShameOfWeek}; left uncached so the caller owns the
+ * per-day cache key.
+ * @param range - The window to aggregate (typically a single service day).
+ * @param mode - Route mode filter (null = all).
+ * @param includeSchool - Whether to include school services.
+ * @returns The per-service-day worst runs.
+ */
+async function worstTripsForRange(
+  range: DateRange,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+): Promise<ShameTrip[]> {
+  const pipeline = shamePipelineBase(range, mode, includeSchool);
+  pipeline.push(
+    {
+      $addFields: {
+        // Shift each trip back by the service-start offset then truncate to
+        // Auckland-local calendar day so post-midnight trips land on the correct
+        // service day.
+        serviceDay: {
+          $dateTrunc: {
+            date: {
+              $dateSubtract: {
+                startDate: "$scheduled_start",
+                unit: "hour",
+                amount: SERVICE_START_HOUR,
               },
+            },
+            unit: "day",
+            timezone: "Pacific/Auckland",
+          },
+        },
+      },
+    },
+    // Worst run per service day via a bounded per-group $top (one row per day)
+    // instead of a global blocking $sort, which can exceed the cluster's 32MB
+    // in-memory sort limit (the tier forbids disk spill).
+    {
+      $group: {
+        _id: "$serviceDay",
+        worst: {
+          $top: {
+            sortBy: { avg_abs_delay_sec: -1 },
+            output: {
+              trip_id: { $toString: "$_id" },
+              route_id: "$route_id",
+              short_name: "$route.shortName",
+              long_name: "$route.longName",
+              mode: "$route.mode",
+              colour: "$route.colour",
+              scheduled_start: "$scheduled_start",
+              stops: "$stops",
+              avg_abs_delay_sec: "$avg_abs_delay_sec",
+              avg_delay_sec: "$avg_delay_sec",
+              worst_delay_sec: "$worst_delay_sec",
+              headsign: "$meta.headsign",
             },
           },
         },
-        { $sort: { avg_abs_delay_sec: -1 } },
-        {
-          $group: {
-            _id: "$serviceDay",
-            trip_id: { $first: { $toString: "$_id" } },
-            route_id: { $first: "$route_id" },
-            short_name: { $first: "$route.shortName" },
-            long_name: { $first: "$route.longName" },
-            mode: { $first: "$route.mode" },
-            colour: { $first: "$route.colour" },
-            scheduled_start: { $first: "$scheduled_start" },
-            stops: { $first: "$stops" },
-            avg_abs_delay_sec: { $first: "$avg_abs_delay_sec" },
-            avg_delay_sec: { $first: "$avg_delay_sec" },
-            worst_delay_sec: { $first: "$worst_delay_sec" },
-            headsign: { $first: "$meta.headsign" },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            trip_id: 1,
-            route_id: 1,
-            short_name: 1,
-            long_name: 1,
-            mode: 1,
-            colour: 1,
-            scheduled_start: 1,
-            stops: 1,
-            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            worst_delay_sec: 1,
-            headsign: 1,
-          },
-        },
-      );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: {
-          firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: unknown })[];
-        };
-      };
-
-      const days: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
-        hour: 0,
-        date: nzDateString(t._id),
-        trip_id: t.trip_id,
-        route_id: t.route_id,
-        short_name: t.short_name ?? null,
-        long_name: t.long_name ?? "",
-        mode: t.mode ?? "BUS",
-        colour: t.colour ?? null,
-        scheduled_start: toIso(t.scheduled_start),
-        stops: t.stops,
-        avg_abs_delay_sec: t.avg_abs_delay_sec,
-        avg_delay_sec: t.avg_delay_sec,
-        worst_delay_sec: t.worst_delay_sec,
-        headsign: t.headsign ?? null,
-      }));
-      days.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-      const worst = days.reduce<ShameTrip | null>(
-        (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
-        null,
-      );
-      return { worst, days };
+      },
     },
-    [
-      "shame-of-week",
-      range.start.toISOString(),
-      range.end.toISOString(),
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-    ],
-    { revalidate },
-  )();
+    {
+      $project: {
+        _id: 1,
+        trip_id: "$worst.trip_id",
+        route_id: "$worst.route_id",
+        short_name: "$worst.short_name",
+        long_name: "$worst.long_name",
+        mode: "$worst.mode",
+        colour: "$worst.colour",
+        scheduled_start: "$worst.scheduled_start",
+        stops: "$worst.stops",
+        avg_abs_delay_sec: { $round: ["$worst.avg_abs_delay_sec", 1] },
+        avg_delay_sec: { $round: ["$worst.avg_delay_sec", 1] },
+        worst_delay_sec: "$worst.worst_delay_sec",
+        headsign: "$worst.headsign",
+      },
+    },
+  );
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: pipeline as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as {
+    cursor: { firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: unknown })[] };
+  };
+
+  return res.cursor.firstBatch.map((t) => ({
+    hour: 0,
+    date: nzDateString(t._id),
+    trip_id: t.trip_id,
+    route_id: t.route_id,
+    short_name: t.short_name ?? null,
+    long_name: t.long_name ?? "",
+    mode: t.mode ?? "BUS",
+    colour: t.colour ?? null,
+    scheduled_start: toIso(t.scheduled_start),
+    stops: t.stops,
+    avg_abs_delay_sec: t.avg_abs_delay_sec,
+    avg_delay_sec: t.avg_delay_sec,
+    worst_delay_sec: t.worst_delay_sec,
+    headsign: t.headsign ?? null,
+  }));
 }
 
 /** Fewest events a stop needs per hour to appear in the Stop Shame hour board. */
@@ -2185,7 +2285,7 @@ function collapseWorstStops(rows: WorstStopRaw[]): WorstStop[] {
 }
 
 /**
- * All routes as a `routeId -> mode` map. Cached with a long TTL since routes
+ * All routes as a `routeId > mode` map. Cached with a long TTL since routes
  * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
  * @returns Map from route id to its mode.
  */
@@ -2459,6 +2559,23 @@ export async function getWorstStopsOfDay(
   )();
 }
 
+/**
+ * The Auckland service dates (`YYYY-MM-DD`) covered by a service-day-aligned
+ * range, earliest first. Lets the week boards resolve one day at a time.
+ * @param range - A service-day-aligned half-open window.
+ * @returns The service dates in the window.
+ */
+function serviceDatesInRange(range: DateRange): string[] {
+  const dates: string[] = [];
+  const last = nzServiceDayString(new Date(range.end.getTime() - 1));
+  let date = nzServiceDayString(range.start);
+  while (date <= last) {
+    dates.push(date);
+    date = shiftWeek(date, 1);
+  }
+  return dates;
+}
+
 /** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
 interface ShameDayStopRaw {
   _id: unknown; // service-day UTC midnight Date
@@ -2488,115 +2605,135 @@ export async function getWorstStopsOfWeek(
   revalidate: number,
 ): Promise<ShameStopOfWeek> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
-    async () => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
-      const match: Record<string, unknown> = {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
-        ...plausibleDeviationMatch,
-      };
-      if (routeIds) match.routeId = { $in: routeIds };
+  // Resolve each service day independently (cached per day) and combine, so a
+  // busy live day never forces one heavy 7-day aggregation. Past days stay
+  // cached; only the current day recomputes.
+  const days = (
+    await Promise.all(
+      serviceDatesInRange(range).map((date) =>
+        unstable_cache(
+          () => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool),
+          ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+          { revalidate },
+        )(),
+      ),
+    )
+  ).flat();
+  days.sort((a, b) => a.date.localeCompare(b.date));
+  const worst = days.reduce<ShameDayStop | null>(
+    (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
+    null,
+  );
+  return { worst, days };
+}
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            {
-              $group: {
-                _id: {
-                  serviceDay: {
-                    $dateTrunc: {
-                      date: {
-                        $dateSubtract: {
-                          startDate: "$scheduledAt",
-                          unit: "hour",
-                          amount: SERVICE_START_HOUR,
-                        },
-                      },
-                      unit: "day",
-                      timezone: "Pacific/Auckland",
+/**
+ * The worst stop of each service day within a range (one row per day with data).
+ * Used per-day by {@link getWorstStopsOfWeek}; left uncached so the caller owns
+ * the per-day cache key.
+ * @param range - The window to aggregate (typically a single service day).
+ * @param mode - Route mode filter (null = all).
+ * @param includeSchool - Whether to include school services.
+ * @returns The per-service-day worst stops.
+ */
+async function worstStopsForRange(
+  range: DateRange,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+): Promise<ShameDayStop[]> {
+  const routeIds = await worstStopRouteIds(mode, includeSchool);
+  const match: Record<string, unknown> = {
+    scheduledAt: {
+      $gte: { $date: range.start.toISOString() },
+      $lt: { $date: range.end.toISOString() },
+    },
+    ...plausibleDeviationMatch,
+  };
+  if (routeIds) match.routeId = { $in: routeIds };
+
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        { $match: match },
+        {
+          $group: {
+            _id: {
+              serviceDay: {
+                $dateTrunc: {
+                  date: {
+                    $dateSubtract: {
+                      startDate: "$scheduledAt",
+                      unit: "hour",
+                      amount: SERVICE_START_HOUR,
                     },
                   },
-                  stop_id: "$stopId",
+                  unit: "day",
+                  timezone: "Pacific/Auckland",
                 },
-                events: { $sum: 1 },
-                avg_delay_sec: { $avg: "$deviationSec" },
-                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                routeIds: { $addToSet: "$routeId" },
+              },
+              stop_id: "$stopId",
+            },
+            events: { $sum: 1 },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+            routeIds: { $addToSet: "$routeId" },
+          },
+        },
+        { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
+        // Worst stop per service day via a bounded per-group $top accumulator
+        // (one entry per day) rather than a global blocking $sort, which exceeds
+        // the cluster's 32MB in-memory sort limit (the tier forbids disk spill).
+        {
+          $group: {
+            _id: "$_id.serviceDay",
+            worst: {
+              $top: {
+                sortBy: { avg_abs_delay_sec: -1 },
+                output: {
+                  stop_id: "$_id.stop_id",
+                  events: "$events",
+                  avg_delay_sec: "$avg_delay_sec",
+                  avg_abs_delay_sec: "$avg_abs_delay_sec",
+                  routeIds: "$routeIds",
+                },
               },
             },
-            { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
-            {
-              $lookup: {
-                from: "Stop",
-                localField: "_id.stop_id",
-                foreignField: "_id",
-                as: "stop",
-              },
-            },
-            { $unwind: "$stop" },
-            { $sort: { avg_abs_delay_sec: -1 } },
-            {
-              $group: {
-                _id: "$_id.serviceDay",
-                stop_id: { $first: { $toString: "$_id.stop_id" } },
-                name: { $first: "$stop.name" },
-                events: { $first: "$events" },
-                avg_delay_sec: { $first: { $round: ["$avg_delay_sec", 1] } },
-                avg_abs_delay_sec: { $first: { $round: ["$avg_abs_delay_sec", 1] } },
-                routeIds: { $first: "$routeIds" },
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                stop_id: 1,
-                name: 1,
-                events: 1,
-                avg_delay_sec: 1,
-                avg_abs_delay_sec: 1,
-                routeIds: 1,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: {
-          firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: unknown } & { routeIds: string[] })[];
-        };
-      };
+          },
+        },
+        // Resolve the stop name for just the per-day winners.
+        { $lookup: { from: "Stop", localField: "worst.stop_id", foreignField: "_id", as: "stop" } },
+        { $unwind: "$stop" },
+        {
+          $project: {
+            _id: 1,
+            stop_id: { $toString: "$worst.stop_id" },
+            name: "$stop.name",
+            events: "$worst.events",
+            avg_delay_sec: { $round: ["$worst.avg_delay_sec", 1] },
+            avg_abs_delay_sec: { $round: ["$worst.avg_abs_delay_sec", 1] },
+            routeIds: "$worst.routeIds",
+          },
+        },
+      ] as never,
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as {
+    cursor: {
+      firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: unknown } & { routeIds: string[] })[];
+    };
+  };
 
-      const modeMap = mode ? null : await getRouteModeMap();
-      const days: ShameDayStop[] = res.cursor.firstBatch.map((r) => ({
-        date: nzDateString(r._id),
-        stop_id: r.stop_id,
-        name: r.name,
-        events: r.events,
-        avg_delay_sec: r.avg_delay_sec,
-        avg_abs_delay_sec: r.avg_abs_delay_sec,
-        mode: mode ?? dominantMode(r.routeIds, modeMap!),
-      }));
-      days.sort((a, b) => a.date.localeCompare(b.date));
-      const worst = days.reduce<ShameDayStop | null>(
-        (w, d) => (w == null || d.avg_abs_delay_sec > w.avg_abs_delay_sec ? d : w),
-        null,
-      );
-      return { worst, days };
-    },
-    [
-      "worst-stops-of-week",
-      range.start.toISOString(),
-      range.end.toISOString(),
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-    ],
-    { revalidate },
-  )();
+  const modeMap = mode ? null : await getRouteModeMap();
+  return res.cursor.firstBatch.map((r) => ({
+    date: nzDateString(r._id),
+    stop_id: r.stop_id,
+    name: r.name,
+    events: r.events,
+    avg_delay_sec: r.avg_delay_sec,
+    avg_abs_delay_sec: r.avg_abs_delay_sec,
+    mode: mode ?? dominantMode(r.routeIds, modeMap!),
+  }));
 }
 
 /** A canonical stop resolved to its underlying platform ids + display position. */

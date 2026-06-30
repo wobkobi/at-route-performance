@@ -1,9 +1,20 @@
 // src/app/api/ingest/at/route.ts
+/**
+ * @description Cron-only POST that pulls AT's GTFS-RT trip updates and writes
+ * stop-level arrival events, with a trip-level delay fallback when a trip only
+ * carries an aggregate delay. Several safeguards keep the data clean: physically
+ * impossible deviations are dropped as feed noise before they reach the DB,
+ * cancellations are recorded once per trip per service day, and the vehicle feed
+ * is joined best-effort so a feed outage leaves rows unnamed rather than failing.
+ * Inserts go through ordered:false bulk commands so duplicate polls are skipped
+ * in one round-trip per batch, making repeated runs idempotent.
+ */
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isPlausibleDeviation } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
+import { nzServiceDayRange } from "@/lib/time";
 import { fetchVehicleByTrip } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -51,7 +62,7 @@ interface DebugStats {
 
 /**
  * Coerce a GTFS-RT `stop_time_update` value to an array.
- * Handles single-object or array inputs and returns a normalized array.
+ * Handles single-object or array inputs and returns a normalised array.
  * @template T
  * @param v - The raw `stop_time_update` value from the feed.
  * @returns An array form of `stop_time_update` (empty if input is nullish).
@@ -128,13 +139,23 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const stopRows: StopRow[] = [];
     const tripRows: TripRow[] = [];
+    const cancelledRows: { tripId: string; routeId: string }[] = [];
+    // Service day a cancellation belongs to (the one in progress when ingest runs).
+    const serviceDate = nzServiceDayRange(new Date()).start;
 
     for (const e of feed.entity ?? []) {
       seen++;
       const tu = e.trip_update;
       if (!tu) continue;
-      // schedule_relationship 3 = CANCELED: no valid stop times, skip.
-      if (tu.trip.schedule_relationship === 3) continue;
+      // schedule_relationship 3 = CANCELED: no valid stop times, so it never
+      // becomes an ArrivalEvent. Record it (idempotent on the trip+day unique
+      // key) so the route board can flag the cancellation, then skip the rest.
+      if (tu.trip.schedule_relationship === 3) {
+        if (tu.trip.trip_id && tu.trip.route_id) {
+          cancelledRows.push({ tripId: tu.trip.trip_id, routeId: tu.trip.route_id });
+        }
+        continue;
+      }
       withTU++;
 
       // A) Stop-level rows (handle single-object or array STU).
@@ -236,6 +257,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       })),
     );
 
+    // Idempotent: the @@unique([tripId, serviceDate]) index drops repeat polls of
+    // the same cancellation (ordered: false), so this stays one row per trip per day.
+    const cancelledCount = await bulkInsert(
+      "CancelledTrip",
+      cancelledRows.map((r) => ({
+        tripId: r.tripId,
+        routeId: r.routeId,
+        serviceDate: { $date: serviceDate.toISOString() },
+        detectedAt: { $date: new Date().toISOString() },
+      })),
+    );
+
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
 
@@ -244,11 +277,15 @@ export async function POST(req: Request): Promise<NextResponse> {
       tried: stopRows.length,
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
+      cancelledInserted: cancelledCount,
+      cancelledTried: cancelledRows.length,
     } as {
       inserted: number;
       tried: number;
       tripInserted: number;
       tripTried: number;
+      cancelledInserted: number;
+      cancelledTried: number;
       debug?: DebugStats;
       sample?: StopRow | TripRow | null;
     };

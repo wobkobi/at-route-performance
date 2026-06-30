@@ -1,3 +1,7 @@
+// src/app/route/[id]/loading.tsx
+/**
+ * @description Loading skeleton for the route detail page.
+ */
 import type { JSX } from "react";
 
 /**
@@ -62,10 +66,10 @@ export default function Loading(): JSX.Element {
         </div>
       </section>
 
-      {/* Worst trips board + map side by side */}
+      {/* Worst trips board + map side by side (map renders at h-125) */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Bone className="h-96" />
-        <Bone className="h-96" />
+        <Bone className="h-125" />
       </div>
 
       {/* Route line diagram */}

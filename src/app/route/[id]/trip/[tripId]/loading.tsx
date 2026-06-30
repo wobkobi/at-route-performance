@@ -1,3 +1,7 @@
+// src/app/route/[id]/trip/[tripId]/loading.tsx
+/**
+ * @description Loading skeleton for the trip timeline page.
+ */
 import type { JSX } from "react";
 
 /**
@@ -35,9 +39,8 @@ export default function Loading(): JSX.Element {
         <Bone className="h-100" />
       </section>
 
-      {/* Stop timeline */}
+      {/* Stop timeline (no heading - the real page renders the list directly) */}
       <section className="border border-at-border bg-at-surface p-4">
-        <Bone className="mb-4 h-6 w-32" />
         <ol>
           {Array.from({ length: 8 }).map((_, i) => (
             <li key={i} className="flex items-start gap-3 py-3">

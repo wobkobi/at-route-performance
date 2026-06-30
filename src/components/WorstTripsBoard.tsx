@@ -1,9 +1,20 @@
+// src/components/WorstTripsBoard.tsx
+/**
+ * @description Paginated, sortable table of a route's worst trips with delay
+ * bands. Sort chips reset to page 1 and clicking the active chip toggles its
+ * direction, while the prev/next page links preserve the active sort so paging
+ * doesn't drop it. Cancelled trips carry no delay to rank, so they pin to the
+ * top of page 1 with a CANCELLED badge; running trips get a LIVE badge from the
+ * passed-in live id set, and the per-page rank number stays continuous across
+ * pages.
+ */
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
-import type { TripSort } from "@/lib/data";
+import type { CancelledTripRow, TripSort } from "@/lib/data";
 import { formatDelay } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
+import { nzClockTime } from "@/lib/time";
 import type { PerTripStat } from "@/types/api";
 import type { JSX } from "react";
 
@@ -31,6 +42,8 @@ export interface WorstTripsBoardProps {
   pageSize: number;
   /** Trip ids currently running live; those rows get a LIVE badge. */
   liveTripIds?: Set<string>;
+  /** Trips cancelled today; listed at the top of page 1 with a CANCELLED badge. */
+  cancelledTrips?: CancelledTripRow[];
 }
 
 /**
@@ -88,19 +101,6 @@ const SORTS: { key: TripSort; label: string }[] = [
 ];
 
 /**
- * Auckland-local clock time (e.g. `7:24am`) for an ISO instant.
- * @param iso - ISO instant string.
- * @returns The local time label.
- */
-function localTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-/**
  * Board of a route's runs for the day, ordered by the chosen sort (most
  * off-schedule, latest, earliest, or departure time). Each row shows the
  * scheduled start, vehicle, stop count, and signed average delay, and links to
@@ -117,6 +117,7 @@ function localTime(iso: string): string {
  * @param props.totalPages - Total number of pages.
  * @param props.pageSize - Trips per page (sets each row's continuous rank).
  * @param props.liveTripIds - Trip ids currently broadcasting a live position (highlighted).
+ * @param props.cancelledTrips - Trips cancelled today, listed atop page 1 with a CANCELLED badge.
  * @returns The board element.
  */
 export function WorstTripsBoard({
@@ -131,8 +132,11 @@ export function WorstTripsBoard({
   totalPages,
   pageSize,
   liveTripIds,
+  cancelledTrips = [],
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
+  // Cancelled trips have no delay to sort by, so they sit at the top of page 1.
+  const showCancelled = page === 1 && cancelledTrips.length > 0;
   return (
     <section className="border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -166,10 +170,25 @@ export function WorstTripsBoard({
           })}
         </div>
       </div>
-      {trips.length === 0 ? (
+      {trips.length === 0 && !showCancelled ? (
         <p className="text-sm text-at-muted">No trips recorded for this day yet.</p>
       ) : (
         <ol>
+          {showCancelled &&
+            cancelledTrips.map((c) => (
+              <li
+                key={`cancelled-${c.trip_id}`}
+                className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm first:border-0"
+              >
+                <span className="w-6 shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-at-muted line-through">
+                  {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
+                </span>
+                <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
+                  CANCELLED
+                </span>
+              </li>
+            ))}
           {trips.map((t, i) => {
             const avg = t.avg_delay_sec ?? 0;
             const band = delayBand(avg, mode ?? "BUS");
@@ -188,7 +207,7 @@ export function WorstTripsBoard({
                   className="min-w-0 flex-1 truncate"
                 >
                   <span className="font-semibold text-at-shore tabular-nums">
-                    {localTime(t.scheduled_start)}
+                    {nzClockTime(t.scheduled_start)}
                   </span>
                   <span className="text-at-muted">
                     {t.headsign ? ` to ${t.headsign}` : ""}
@@ -205,14 +224,7 @@ export function WorstTripsBoard({
                 <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
                   {t.avg_delay_sec == null ? "—" : formatDelay(avg)}
                 </span>
-                <svg
-                  viewBox="0 0 20 20"
-                  className="h-4 w-4 shrink-0 text-at-muted"
-                  fill="currentColor"
-                  aria-hidden
-                >
-                  <path d="M7.5 4.5 13 10l-5.5 5.5-1.06-1.06L10.88 10 6.44 5.56 7.5 4.5Z" />
-                </svg>
+                <ChevronRight className="shrink-0 text-at-muted" />
               </li>
             );
           })}
