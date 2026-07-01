@@ -1,5 +1,9 @@
+// src/lib/at-stop-trips.ts
+/**
+ * @description Fetches scheduled departures at a stop for a service date from AT's GTFS v3 feed.
+ */
 import { getJson } from "@/lib/at-static";
-import { unstable_cache } from "next/cache";
+import { unstable_cache } from "@/lib/mem-cache";
 
 // Raw GTFS trip attributes from AT v3 /stops/{id}/trips.
 export interface StopTripAttr {

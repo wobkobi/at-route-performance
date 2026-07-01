@@ -1,4 +1,7 @@
 // src/lib/gtfs-shapes.ts
+/**
+ * @description Fetch and simplify road geometry from the AT GTFS feed's `shapes.txt`.
+ */
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `shapes.txt` holds road geometry per shape_id. */

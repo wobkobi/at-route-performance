@@ -1,3 +1,7 @@
+// src/types/api.ts
+/**
+ * @description Shared API response shapes for routes, stops, trips and per-day route summaries.
+ */
 // Top routes row returned by /api/routes/top
 export interface TopRouteRow {
   route_id: string;

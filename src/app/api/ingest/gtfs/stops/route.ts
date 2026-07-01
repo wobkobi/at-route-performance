@@ -1,4 +1,7 @@
 // src/app/api/ingest/gtfs/stops/route.ts
+/**
+ * @description POST ingest endpoint that syncs GTFS stops from AT v3 into the Stop collection via batched upserts.
+ */
 import { requireCronAuth } from "@/lib/auth";
 import { syncStops } from "@/lib/ingest";
 import { NextResponse } from "next/server";

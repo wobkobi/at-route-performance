@@ -1,4 +1,16 @@
 "use client";
+// src/components/RouteLineDiagram.tsx
+/**
+ * @description Build a route's stop graph layout and render it as a line diagram.
+ * Stops sharing a base name (same display name, or the same name once busway
+ * "Stop A/B" pole suffixes are stripped) collapse to one canonical node, so
+ * variants differing only by pole merge onto the trunk instead of spawning
+ * separate diagrams. Each direction is laid out as a snake, box loop, or
+ * triangle, with disjoint variants becoming their own labelled sub-lines; all
+ * panels share one viewBox width for a consistent scale. Tiny routes drop the
+ * SVG for a 2-column grid or a flat stop table, and directions with no data yet
+ * render a "coming soon" placeholder.
+ */
 
 import { DiagramSvg, type DiagramNodeView } from "@/components/DiagramSvg";
 import { delayColour } from "@/lib/delay-colour";
@@ -181,11 +193,9 @@ export function RouteLineDiagram({
     .map(Number)
     .sort((a, b) => a - b);
 
-  // A direction has data if at least one of its scheduled stops appears in
-  // delayByStop (meaning at least one arrival event was recorded for it today).
-  // Directions with no observed trips yet are shown as a "coming soon" placeholder.
   /**
-   * True when at least one arrival event was recorded for the direction today.
+   * True when at least one arrival event was recorded for the direction today;
+   * directions with none are shown as a "coming soon" placeholder below.
    * @param dir - Direction key.
    * @returns True when `delayByStop` contains any stop in the direction.
    */

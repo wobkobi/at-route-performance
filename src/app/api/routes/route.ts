@@ -1,4 +1,7 @@
 // src/app/api/routes/route.ts
+/**
+ * @description POST handler that validates a request body and creates a new route record.
+ */
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";

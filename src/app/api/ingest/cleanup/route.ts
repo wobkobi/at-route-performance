@@ -1,4 +1,13 @@
 // src/app/api/ingest/cleanup/route.ts
+/**
+ * @description Cron-only POST that permanently deletes ArrivalEvents and
+ * TripDelays older than the retention window (default 14 days) to stay under the
+ * Atlas M0 storage cap. Must run after the daily aggregation, since deletion is
+ * irreversible. The cutoff snaps to the NZ service-day start (5am Auckland) so
+ * late-night runs are not dropped against the wrong calendar boundary, retention
+ * below 7 days is refused without ?force=1 to guard against an accidental purge,
+ * and each collection deletes independently so one failure never skips the rest.
+ */
 import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { recordIngestRun } from "@/lib/ingest-run";
@@ -144,7 +153,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...result,
     });
 
-    // Warning if we're approaching storage limits (heuristic)
+    // Warn when approaching storage limits (heuristic)
     const remainingEvents = await prisma.arrivalEvent.count();
     const estimatedMB = (remainingEvents * 250) / 1_000_000; // 250 bytes/event
 

@@ -332,8 +332,7 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
     const timing = await page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] as
-        | PerformanceNavigationTiming
-        | undefined;
+        PerformanceNavigationTiming | undefined;
       const fcp = performance
         .getEntriesByType("paint")
         .find((e) => e.name === "first-contentful-paint");

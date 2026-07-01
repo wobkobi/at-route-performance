@@ -1,3 +1,7 @@
+// src/lib/format.test.ts
+/**
+ * @description Unit tests for the delay and duration formatting helpers in format.ts.
+ */
 import { formatDelay } from "@/lib/format";
 import { describe, expect, it } from "vitest";
 

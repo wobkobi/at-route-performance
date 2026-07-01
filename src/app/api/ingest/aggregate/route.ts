@@ -1,4 +1,14 @@
 // src/app/api/ingest/aggregate/route.ts
+/**
+ * @description Cron-only POST that rolls a completed NZ service day's arrival
+ * events into per-route DailyRouteSummary stats. The window matches the live
+ * dashboard (5am Auckland, half-open) so numbers line up everywhere. Implausible
+ * deviations are kept in the raw `events` count but excluded from averages,
+ * percentiles and on-time rates, so ghost runs (a reused trip_id reporting ~60
+ * min late at every stop) cannot suppress a route below the rankings threshold
+ * yet never skew its stats. Upserts are keyed on (routeId, date) with
+ * ordered:false so overlapping cron runs on the same day stay safe.
+ */
 import { requireCronAuth } from "@/lib/auth";
 import { prisma, runCommand } from "@/lib/db";
 import { MAX_EARLY_SEC, MAX_LATE_SEC } from "@/lib/deviation";
@@ -69,8 +79,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // Ghost runs (AT reusing a trip_id against a later vehicle block) report
     // ~60 min late at every stop. The deviation filter is removed from the
-    // initial $match so every event contributes to the `events` count — a route
-    // that had ghost-run events is no longer hidden below the MIN_BOARD_EVENTS
+    // initial $match so every event contributes to the `events` count, keeping a
+    // route that had ghost-run events from being hidden below the MIN_BOARD_EVENTS
     // threshold in the rankings. Stats (averages, percentiles, on-time %) use
     // only the plausible subset via $filter / $cond guards.
     const plausible = {

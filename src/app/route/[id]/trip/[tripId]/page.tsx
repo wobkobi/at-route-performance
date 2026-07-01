@@ -1,4 +1,7 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
+/**
+ * @description Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
+ */
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
@@ -7,23 +10,10 @@ import { getTripScheduledStops, getTripTimeline, type ScheduledStop } from "@/li
 import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
-import type { MapStop } from "@/lib/route-view";
-import { nzServiceDayRange } from "@/lib/time";
+import { buildRouteView, type MapStop } from "@/lib/route-view";
+import { nzClockTime, nzServiceDayRange } from "@/lib/time";
 import type { TripStop } from "@/types/api";
 import type { JSX } from "react";
-
-/**
- * Auckland-local clock time (e.g. `7:24am`) for an ISO instant.
- * @param iso - ISO instant string.
- * @returns The local time label.
- */
-function localTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 /**
  * Trip timeline page: one run's stop-by-stop scheduled-vs-actual punctuality.
@@ -86,6 +76,14 @@ export default async function TripPage({
   }));
   const tripPath: Array<[number, number]> = mergedStops.map((s) => [s.lat, s.lon]);
 
+  // When no stops are available (AT API failure + no ArrivalEvents), fall back to
+  // the route shape from GTFS so at least the map renders.
+  let fallbackLines: Array<[number, number]>[] = [];
+  if (tripMapStops.length === 0) {
+    const fallback = await buildRouteView(slug, [], routeMode);
+    fallbackLines = fallback.routeLines.map((l) => l.points);
+  }
+
   const title = route?.shortName ?? slug;
   const firstServed = mergedStops.find(
     (s): s is { kind: "served" } & TripStop => s.kind === "served",
@@ -116,12 +114,12 @@ export default async function TripPage({
           {title}
         </h1>
         <p className="text-at-muted">
-          {departing ? `Trip departing ${localTime(departing)}` : "Trip"}
+          {departing ? `Trip departing ${nzClockTime(departing)}` : "Trip"}
           {vehicle_id && ` · ${vehicle_id}`}
         </p>
       </header>
 
-      {tripMapStops.length > 0 && (
+      {(tripMapStops.length > 0 || fallbackLines.length > 0) && (
         <section className="border border-at-border bg-at-surface p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
@@ -139,7 +137,7 @@ export default async function TripPage({
           </div>
           <StopMapWrapper
             stops={tripMapStops}
-            routeLines={tripPath.length > 1 ? [tripPath] : []}
+            routeLines={tripPath.length > 1 ? [tripPath] : fallbackLines}
             routeId={slug}
             filterTripId={tripId}
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
@@ -174,13 +172,22 @@ export default async function TripPage({
                     : "bg-at-ontime";
               return (
                 <li key={`${s.stop_id}-${i}`} className="flex items-stretch gap-3">
+                  {/* Rail: line above, dot, line below so the circle sits centred on a continuous rail. */}
                   <div className="flex w-3 flex-col items-center">
+                    <span
+                      className={cn("w-px flex-1", i > 0 ? "bg-at-border" : "")}
+                      aria-hidden="true"
+                    />
                     <span className={cn("h-3 w-3 shrink-0 rounded-full", dotColour)} />
-                    {i < mergedStops.length - 1 && (
-                      <span className="w-px flex-1 bg-at-border" aria-hidden="true" />
-                    )}
+                    <span
+                      className={cn(
+                        "w-px flex-1",
+                        i < mergedStops.length - 1 ? "bg-at-border" : "",
+                      )}
+                      aria-hidden="true"
+                    />
                   </div>
-                  <div className="flex flex-1 items-baseline justify-between gap-3 pb-4">
+                  <div className="flex flex-1 items-start justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <p className={cn("truncate font-medium", isFuture && "text-at-muted")}>
                         {s.name}
@@ -195,10 +202,10 @@ export default async function TripPage({
                           </>
                         ) : (
                           <>
-                            Sched <span className="text-at-ink">{localTime(s.scheduled_at)}</span> ·
-                            Actual{" "}
+                            Sched <span className="text-at-ink">{nzClockTime(s.scheduled_at)}</span>{" "}
+                            · Actual{" "}
                             <span className={cn(band)}>
-                              {localTime(
+                              {nzClockTime(
                                 new Date(
                                   new Date(s.scheduled_at).getTime() + s.deviation_sec * 1000,
                                 ).toISOString(),

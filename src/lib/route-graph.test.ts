@@ -1,3 +1,7 @@
+// src/lib/route-graph.test.ts
+/**
+ * @description Tests the branched snake diagram layout in route-graph.ts.
+ */
 import { buildBranchedSnake, type SnakeOpts } from "@/lib/route-graph";
 import type { RouteVariant } from "@/types/api";
 import { describe, expect, it } from "vitest";
@@ -59,7 +63,7 @@ describe("buildBranchedSnake", () => {
     expect(byId.get("a")).toBe("down"); // within 0: below, so the title owns the space above
     expect(byId.get("b")).toBe("up"); // within 1: above
     expect(byId.get("c")).toBe("down"); // within 2: below
-    expect(byId.get("d")).toBe("down"); // next row restarts at within 0 -> below
+    expect(byId.get("d")).toBe("down"); // next row restarts at within 0 > below
   });
 
   it("adds no branch when a variant just ends early (prefix of the trunk)", () => {
@@ -177,8 +181,8 @@ describe("buildBranchedSnake", () => {
   });
 
   it("divergent branch on odd trunk row extends leftward (trunk travel direction)", () => {
-    // With cols=3 the trunk wraps: row 0 left→right (stops 0–2), row 1 right→left
-    // (stops 3–5). A divergent fork anchored on row 1 must go left, not right.
+    // With cols=3 the trunk wraps: row 0 left>right (stops 0-2), row 1 right>left
+    // (stops 3-5). A divergent fork anchored on row 1 must go left, not right.
     const line = buildBranchedSnake(
       [
         variant(["a", "b", "c", "d", "e", "f", "g"], 20),

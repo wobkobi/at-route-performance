@@ -1,3 +1,7 @@
+// src/lib/route-geo.test.ts
+/**
+ * @description Unit tests for the road-line offset geometry helper in route-geo.ts.
+ */
 import { offsetPath } from "@/lib/route-geo";
 import { describe, expect, it } from "vitest";
 

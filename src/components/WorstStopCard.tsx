@@ -1,3 +1,7 @@
+// src/components/WorstStopCard.tsx
+/**
+ * @description Render a card for the window's worst-performing stop.
+ */
 import { formatDuration } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import type { WorstStop } from "@/types/dashboard";
@@ -34,7 +38,7 @@ export function WorstStopCard({
   return (
     <a
       href={href}
-      className="flex flex-col justify-center gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
+      className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
       <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst stop</p>
       <span className="text-2xl font-ultra tracking-zero text-at-ink">{stop.name}</span>

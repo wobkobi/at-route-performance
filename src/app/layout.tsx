@@ -1,11 +1,15 @@
-import { DataFreshness } from "@/components/DataFreshness";
+// src/app/layout.tsx
+/**
+ * @description Root layout - AT-branded masthead, page container, and footer wrapping every route.
+ */
+import { FooterFreshness } from "@/components/FooterFreshness";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
-import { getDataFreshness } from "@/lib/ingest-run";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import type { JSX } from "react";
+import { Suspense } from "react";
 import { gothamNarrow } from "./fonts";
 import "./globals.css";
 
@@ -24,13 +28,9 @@ export const dynamic = "force-dynamic";
  * @param props.children - The nested page elements.
  * @returns The root HTML layout.
  */
-export default async function RootLayout({
+export default function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>): Promise<JSX.Element> {
-  // Footer freshness: last successful realtime ingest (falls back to the freshest
-  // recorded arrival until the first run is logged). Null only when there is no data.
-  const freshness = await getDataFreshness();
-
+}: Readonly<{ children: React.ReactNode }>): JSX.Element {
   return (
     <html lang="en">
       <body
@@ -75,6 +75,7 @@ export default async function RootLayout({
                   alt="Auckland Transport"
                   width={40}
                   height={40}
+                  priority
                   className="h-9 w-auto"
                 />
                 <span className="font-ultra tracking-zero">Route Performance</span>
@@ -106,14 +107,9 @@ export default async function RootLayout({
               <p className="max-w-xs text-white/70">
                 An independent project, not affiliated with Auckland Transport.
               </p>
-              {freshness ? (
-                <DataFreshness
-                  lastUpdatedIso={freshness.lastUpdated.toISOString()}
-                  nextUpdateIso={freshness.nextUpdate.toISOString()}
-                />
-              ) : (
-                <p className="text-xs text-white/50">Awaiting first data.</p>
-              )}
+              <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
+                <FooterFreshness />
+              </Suspense>
             </div>
           </div>
           <div className="border-t border-white/10">

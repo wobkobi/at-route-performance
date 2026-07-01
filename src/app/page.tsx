@@ -1,3 +1,15 @@
+// src/app/page.tsx
+/**
+ * @description Home page rendering today's network performance dashboard. When
+ * no day is requested and the current service day is too sparse to fill the
+ * boards (early morning, or ingest catching up), it falls back to the most
+ * recent day that does. Mode, school-bus, delay-direction, and day filters each
+ * preserve the others' params so they compose in links, and the KPI strip is
+ * summarised from exactly the visible rows so the filters flow through without a
+ * separate fleet query. The service-alerts fetch is kicked off without awaiting
+ * and streamed in through Suspense so the dashboard shell doesn't wait on AT
+ * alert latency.
+ */
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
@@ -8,16 +20,17 @@ import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import { getServiceAlerts, networkWideAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
   getEarliestDataDay,
-  getMostRecentDataDay,
   getRankings,
   getShameOfDay,
+  getShameRouteStreak,
   getWorstStops,
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
   deriveBoards,
   deriveOffSchedule,
@@ -27,8 +40,9 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
-import type { JSX } from "react";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
+import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
@@ -67,30 +81,38 @@ export default async function Home({
   // Service day from ?day (or the current one). When no day is requested and the
   // current service day is too sparse to fill the boards (early morning, or
   // ingest catching up), fall back to the most recent service day that does.
-  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  const requestedDay = resolveRequestedDay(sp.day);
   let range = nzServiceDayRange(requestedDay ?? new Date());
   let serviceDate = nzServiceDayString(range.start);
   let rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  if (!requestedDay && !rows.some((r) => r.events >= MIN_BOARD_EVENTS)) {
-    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
-    if (latestDay) {
-      range = nzServiceDayRange(latestDay);
-      serviceDate = nzServiceDayString(range.start);
-      rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-    }
+  const fallbackDay = await maybeFallbackDay(
+    requestedDay,
+    !rows.some((r) => r.events >= MIN_BOARD_EVENTS),
+    MIN_BOARD_EVENTS,
+  );
+  if (fallbackDay) {
+    range = nzServiceDayRange(fallbackDay);
+    serviceDate = nzServiceDayString(range.start);
+    rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
   }
   const hasNextDay = serviceDate < nzServiceDayString();
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
   // Stepper bounds, and the "of the day" cards are all independent once the
   // service-day window is finalised - run them in a single round-trip.
-  const [earliestDay, shame, worstStops, allAlerts] = await Promise.all([
+  // Start the service-alerts fetch without blocking the page: the banner streams
+  // in via Suspense once it resolves, so a cold alerts cache (or dev reload)
+  // doesn't gate the rest of the dashboard behind ~1-2s of AT latency.
+  const alertsPromise = getServiceAlerts();
+  const [earliestDay, shame, worstStops] = await Promise.all([
     getEarliestDataDay(1),
     getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
-    getServiceAlerts(),
   ]);
-  const networkAlerts = networkWideAlerts(allAlerts);
+  // Needs shame.worst.route_id, so runs after the parallel batch.
+  const routeStreakDays = shame.worst
+    ? await getShameRouteStreak(shame.worst.route_id, range, TODAY_REVALIDATE)
+    : 0;
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
@@ -110,8 +132,13 @@ export default async function Home({
   const tableRows = includeSchool
     ? rows
     : rows.filter((r) => !isSchoolBus(r.short_name, r.long_name));
-  const boards = deriveBoards(visible, { minEvents: boardMin });
-  const offSchedule = deriveOffSchedule(visible, { minEvents: boardMin, direction: dir });
+  // Full ranked lists: the boards show the top 10 and expand to the rest in place.
+  const boards = deriveBoards(visible, { minEvents: boardMin, size: Infinity });
+  const offSchedule = deriveOffSchedule(visible, {
+    minEvents: boardMin,
+    direction: dir,
+    size: Infinity,
+  });
 
   // Each control preserves the others' params so the filters compose in links.
   const modePreserved: Record<string, string> = {};
@@ -146,11 +173,14 @@ export default async function Home({
     dirPreserved.day = requestedDay;
   }
 
-  const shameParams = new URLSearchParams();
-  if (serviceDate !== nzServiceDayString()) shameParams.set("day", serviceDate);
-  if (includeSchool) shameParams.set("school", "1");
-  if (mode) shameParams.set("mode", mode);
-  const shameHref = `/shame${shameParams.toString() ? `?${shameParams.toString()}` : ""}`;
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/" : undefined;
+
+  const shameHref = buildHref("/shame/trip", {
+    day: serviceDate !== nzServiceDayString() ? serviceDate : undefined,
+    school: includeSchool ? "1" : undefined,
+    mode: mode ?? undefined,
+  });
 
   return (
     <main className="space-y-6">
@@ -164,23 +194,25 @@ export default async function Home({
           preservedParams={dayPreserved}
           hasPrev={hasPrevDay}
           hasNext={hasNextDay}
+          nextHref={nextDayHref}
         />
       </header>
 
-      <AlertBanner alerts={networkAlerts} />
+      <Suspense fallback={null}>
+        <HomeAlertBanner alertsPromise={alertsPromise} />
+      </Suspense>
 
       <FleetSummary data={heroData} />
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
       <div className="grid gap-4 md:grid-cols-2">
-        {shame.worst != null ? (
-          <ShameOfDay trip={shame.worst} href={shameHref} />
-        ) : worstStops[0] ? (
-          <WorstStopCard stop={worstStops[0]} day={linkDay} />
-        ) : (
-          <ShameOfDay trip={null} href={shameHref} />
-        )}
-        {shame.worst != null && <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />}
+        <ShameOfDay
+          trip={shame.worst}
+          href={shameHref}
+          hours={shame.hours}
+          routeStreakDays={routeStreakDays}
+        />
+        <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -214,6 +246,7 @@ export default async function Home({
           rows={offSchedule}
           metric="delay"
           routeDay={linkDay}
+          collapseAt={10}
         />
         <RankBoard
           title="Most reliable"
@@ -221,15 +254,9 @@ export default async function Home({
           rows={boards.reliable}
           metric="onTime"
           routeDay={linkDay}
+          collapseAt={10}
         />
       </div>
-
-      <a
-        href="/rankings"
-        className="flex items-center justify-between gap-3 bg-at-ocean px-6 py-5 text-white transition-colors hover:bg-at-ocean/90"
-      >
-        <span className="text-lg font-ultra tracking-zero">Top routes</span>
-      </a>
 
       <details className="border border-at-border bg-at-surface">
         <summary className="cursor-pointer px-4 py-3 font-semibold">All routes</summary>
@@ -239,4 +266,20 @@ export default async function Home({
       </details>
     </main>
   );
+}
+
+/**
+ * Streamed network-wide service-alert banner. Awaits the shared alerts feed off
+ * the critical path so the dashboard shell renders without waiting on AT alert
+ * latency; renders nothing while it streams (and when there are no alerts).
+ * @param root0 - Props.
+ * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
+ * @returns The alert banner.
+ */
+async function HomeAlertBanner({
+  alertsPromise,
+}: {
+  alertsPromise: Promise<ServiceAlert[]>;
+}): Promise<JSX.Element> {
+  return <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />;
 }

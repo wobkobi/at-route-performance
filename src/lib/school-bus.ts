@@ -1,4 +1,7 @@
 // src/lib/school-bus.ts
+/**
+ * @description Recognise AT school-service routes by their `S###` code in a route name.
+ */
 
 /**
  * AT school services carry an `S` + three-digit code, optionally with a trailing

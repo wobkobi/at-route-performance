@@ -58,7 +58,11 @@ model TripMeta {
   @@map("tripMeta")
 }
 
-// ArrivalEvent and TripDelay use auto-generated ObjectIds.
+// One row per observed stop arrival: the scheduled vs actual time and the signed
+// deviation (deviationSec) every on-time stat is built from. `source` records how
+// it was derived ("AT_GTFSRT" with a real delay, or "AT_GTFSRT_NO_DELAY" for a
+// loose zero-delay row excluded from averages). The unique key dedupes the same
+// stop re-reported across polls; rows are pruned after the retention window.
 model ArrivalEvent {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId      String
@@ -83,6 +87,10 @@ model ArrivalEvent {
   @@index([routeId, stopId])
 }
 
+// Trip-level delay fallback for runs that report only a single `trip_update.delay`
+// with no usable stop times, so the trip still contributes a data point rather
+// than being dropped. Keyed per (trip, timestamp) to dedupe re-polls, and pruned
+// on the same retention schedule as ArrivalEvent.
 model TripDelay {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   tripId    String
@@ -124,7 +132,11 @@ model Setting {
   @@map("setting")
 }
 
-// Pre-aggregated daily stats (retained indefinitely for trend analysis)
+// Pre-aggregated per-route stats for one NZ service day, written by the aggregate
+// endpoint so the rankings and week views read summaries instead of rescanning
+// millions of raw events. Retained indefinitely for trend history: ArrivalEvent
+// and TripDelay are pruned after the retention window, so this is the only lasting
+// record of how a route performed.
 model DailyRouteSummary {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId        String
@@ -144,4 +156,21 @@ model DailyRouteSummary {
 
   @@unique([routeId, date])
   @@index([date])
+}
+
+// One row per cancelled trip per service day, captured from GTFS-RT trip updates
+// with schedule_relationship = CANCELED. Those updates carry no stop times, so a
+// cancelled trip never becomes an ArrivalEvent and is invisible to the on-time
+// stats; this records it so the route trip board can flag it. Forward-only -
+// nothing exists before capture began. The unique key lets the per-minute ingest
+// upsert idempotently (one row per trip per day, not per poll).
+model CancelledTrip {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId      String
+  routeId     String
+  serviceDate DateTime // NZ service-day start (5am Auckland, stored as UTC)
+  detectedAt  DateTime @default(now())
+
+  @@unique([tripId, serviceDate])
+  @@index([routeId, serviceDate])
 }

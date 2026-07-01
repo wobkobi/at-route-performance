@@ -1,12 +1,15 @@
 // src/lib/on-time.ts
-//
-// This project's on-time window is asymmetric and mode-specific:
-//   Bus / Train: on time from 1 minute early to 5 minutes late.
-//   Ferry:       on time within 5 minutes either side.
-// The late side (5 min) is uniform across modes; only the early tolerance
-// differs. This module is the single source of truth, shared by the Mongo
-// aggregations (the on-time %) and the client banding (dot/ring/label colours),
-// so it must stay free of server-only imports (e.g. Prisma).
+/**
+ * @description Single source of truth for the on-time window and delay banding,
+ * free of server-only imports so both client and Mongo callers share it. The
+ * window is deliberately asymmetric (up to 5 min late counts on time) and
+ * mode-specific (buses and trains hold at timepoints so they get only 1 min of
+ * early tolerance; ferries get the full 5). Aggregation pipelines that only learn
+ * a group's mode after a later `$lookup` get paired strict/ferry accumulators to
+ * pick between once the mode is known; pipelines that already resolved the mode
+ * in JS get a single-mode accumulator. Banding rounds first so the colour matches
+ * the displayed, rounded delay.
+ */
 
 /** Late tolerance in seconds: a service up to this late still counts on time. */
 export const ON_TIME_LATE_SEC = 5 * 60;
@@ -60,6 +63,19 @@ export function delayBand(deviationSec: number, mode: string): DelayBand {
   if (d > ON_TIME_LATE_SEC) return "late";
   if (d < -earlyToleranceFor(mode)) return "early";
   return "ontime";
+}
+
+/**
+ * Whether a run/route/stop ran essentially all one direction - its signed
+ * average equals its absolute average once rounded. Callers show a direction
+ * word ("6m late") when true and a bare magnitude ("12m off") when false (a
+ * mixed early/late entity whose signed average is partly cancelled out).
+ * @param avgDelaySec - Signed average deviation in seconds.
+ * @param avgAbsDelaySec - Average absolute deviation in seconds.
+ * @returns True when the entity is consistently late or consistently early.
+ */
+export function isConsistentlyLateOrEarly(avgDelaySec: number, avgAbsDelaySec: number): boolean {
+  return Math.round(avgAbsDelaySec) === Math.abs(Math.round(avgDelaySec));
 }
 
 // --- Mongo aggregation fragments -------------------------------------------

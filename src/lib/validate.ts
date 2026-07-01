@@ -1,4 +1,7 @@
 // src/lib/validate.ts
+/**
+ * @description Zod schemas for validating and normalising API query parameters.
+ */
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { z } from "zod";
 

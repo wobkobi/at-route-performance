@@ -1,4 +1,14 @@
 // src/lib/rankings.ts
+/**
+ * @description Aggregate, sort and rank per-route rows for the rankings page.
+ * Fleet totals are event-weighted so the KPI strip always reflects exactly the
+ * rows on screen - turning school buses off or filtering by mode drops their
+ * events too. Boards rank by signed delay (latest/earliest) or by average
+ * absolute deviation (off-schedule), the latter catching routes that swing
+ * wildly in both directions yet average out near zero. A lower event threshold
+ * applies for single-mode views so low-frequency services like ferries still
+ * populate their boards.
+ */
 import type { RouteSort } from "@/components/RouteTable";
 import type { TopRouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";

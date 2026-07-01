@@ -1,5 +1,10 @@
+// src/components/WindowControls.tsx
+/**
+ * @description Period switcher and previous/next stepper for the week or month window.
+ */
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -42,7 +47,7 @@ export function WindowControls({
         {tabs.map((t) => (
           <a
             key={t.key}
-            href={`/rankings?window=${t.key}`}
+            href={buildHref("/rankings", { window: t.key })}
             className={cn("chip", window === t.key ? "chip-on" : "chip-off")}
           >
             {t.label}

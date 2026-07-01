@@ -1,3 +1,7 @@
+// src/components/ModeBreakdown.tsx
+/**
+ * @description Render on-time bars per transport mode.
+ */
 import type { ModeStat } from "@/types/dashboard";
 import type { JSX } from "react";
 

@@ -1,4 +1,12 @@
 // src/lib/ingest.ts
+/**
+ * @description Bulk-upsert routes, stops, shapes and trips from the AT static
+ * and GTFS feeds. Writes go through the raw Mongo `update` command in batches
+ * rather than per-document `prisma.upsert`: far fewer round-trips, and each
+ * update is atomic on its own, so it sidesteps the multi-document transactions
+ * a replica set would otherwise demand. Batches stay well under Mongo's 1000-op
+ * cap and run unordered so one bad row does not abort the rest.
+ */
 import { fetchRoutes, fetchStops, mapRouteType } from "@/lib/at-static";
 import { prisma } from "@/lib/db";
 import { fetchShapes } from "@/lib/gtfs-shapes";

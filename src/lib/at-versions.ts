@@ -1,3 +1,7 @@
+// src/lib/at-versions.ts
+/**
+ * @description Fetches the current GTFS feed version string from AT's GTFS v3 /versions endpoint.
+ */
 import { getJson } from "@/lib/at-static";
 
 // Attributes for a single GTFS feed version entry from AT v3 /versions.

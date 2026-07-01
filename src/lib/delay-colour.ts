@@ -1,4 +1,12 @@
 // src/lib/delay-colour.ts
+/**
+ * @description Map a stop's schedule deviation to a band hue and fade strength,
+ * shared by the Leaflet map markers and the line-diagram nodes so the two always
+ * agree. Strength floors at a minimum so a near-on-time stop stays legibly
+ * coloured rather than washing out to grey against the light basemap. Hues are
+ * hard-coded RGB triples (not `color-mix`) so the result is a concrete `rgb(...)`
+ * valid in both an SVG attribute and a Leaflet marker.
+ */
 import { delayBand } from "@/lib/on-time";
 
 /** Deviation in minutes at which a stop's colour reaches full strength. */

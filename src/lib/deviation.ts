@@ -1,4 +1,15 @@
 // src/lib/deviation.ts
+/**
+ * @description Plausibility bounds for schedule deviation that filter GTFS-RT
+ * feed noise out of the stats. Two failure modes dominate: implausibly early
+ * reports (buses hold at timepoints, so a service reported far ahead of schedule
+ * is noise) and "ghosts" - AT reuses a trip_id against a later vehicle block, so
+ * a vehicle running ~1 h off its slot reports as ~60 min late at every stop and
+ * can float a quiet stop to the top of the worst-stops board. Capping early at
+ * 20 min and late at the timeline's 45 min ghost gap keeps both out. Exposed as
+ * a predicate (drop at ingest) and a Mongo `$match` fragment (exclude from
+ * aggregates without deleting raw rows).
+ */
 
 /**
  * Largest plausible *early* running, in seconds. Buses on this network hold at

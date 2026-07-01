@@ -1,4 +1,7 @@
 // src/lib/format.ts
+/**
+ * @description Formatting helpers for delays, dates and other display values.
+ */
 
 import { isOnTime } from "@/lib/on-time";
 
@@ -55,6 +58,24 @@ export function formatDuration(sec: number): string {
   if (mins > 0) parts.push(`${mins}m`);
   if (secs > 0 || mins === 0) parts.push(`${secs}s`);
   return parts.join(" ");
+}
+
+/**
+ * Auckland-local day/month and year parts of a UTC instant.
+ * @param d - UTC instant.
+ * @returns `{ dm: "DD/MM", y: "YYYY" }`.
+ */
+export function dmY(d: Date): { dm: string; y: string } {
+  const o: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(d)) {
+    o[part.type] = part.value;
+  }
+  return { dm: `${o.day}/${o.month}`, y: o.year };
 }
 
 /**

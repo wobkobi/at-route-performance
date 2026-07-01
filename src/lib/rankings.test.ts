@@ -1,3 +1,7 @@
+// src/lib/rankings.test.ts
+/**
+ * @description Unit tests for the ranking-board derivation and fleet-totals helpers in rankings.ts.
+ */
 import { deriveBoards } from "@/lib/rankings";
 import type { TopRouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";

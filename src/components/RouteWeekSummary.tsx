@@ -1,3 +1,7 @@
+// src/components/RouteWeekSummary.tsx
+/**
+ * @description Render a route's per-day on-time summary for the trailing week.
+ */
 import { formatDelay } from "@/lib/format";
 import type { RouteDay } from "@/types/api";
 import type { JSX } from "react";

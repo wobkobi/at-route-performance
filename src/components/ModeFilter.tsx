@@ -1,4 +1,9 @@
+// src/components/ModeFilter.tsx
+/**
+ * @description Chip row filtering by transport mode - bus, train, ferry, or all.
+ */
 import { cn } from "@/lib/cn";
+import { buildHref } from "@/lib/utils";
 import type { JSX } from "react";
 
 /** A transport mode, or null for "All". */
@@ -49,11 +54,7 @@ export function ModeFilter({
       {MODES.map((m) => {
         // Hide non-All chips when that mode has no qualifying data.
         if (m.key && availableModes && !availableModes.has(m.key)) return null;
-        const params = new URLSearchParams({
-          ...preservedParams,
-          ...(m.key ? { mode: m.key } : {}),
-        });
-        const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
+        const href = buildHref(basePath, { ...preservedParams, mode: m.key || undefined });
         const isActive = (active ?? "") === m.key;
         return (
           <a

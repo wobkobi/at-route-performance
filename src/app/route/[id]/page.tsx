@@ -1,18 +1,30 @@
 // src/app/route/[id]/page.tsx
+/**
+ * @description Route detail page with a day view (worst trips and route map) and
+ * a week view of aggregated stats, toggled in the header. Version-stripped and
+ * case-canonical slugs are enforced up front via redirects; the day view falls
+ * back to the most recent populated service day when the requested one is empty.
+ * The live AT calls (service alerts, live vehicles) are kicked off without
+ * awaiting and streamed in through Suspense - they feed only the alert banner,
+ * the diagram's alerted-stop rings/detour dashing, and the board's LIVE badges,
+ * so the shell never blocks on AT realtime latency (the main cold-cache cost).
+ * The week view skips the expensive trips query and the live vehicle fetch.
+ */
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
-import { DirectionChips } from "@/components/DirectionChips";
+import { DirectionFilter } from "@/components/DirectionFilter";
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
-import { alertsForRoute, getServiceAlerts } from "@/lib/at-alerts";
+import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
   findCanonicalRouteSlug,
+  getCancelledTrips,
   getEarliestDataDay,
-  getMostRecentDataDay,
   getRouteDailyStats,
   getRouteNames,
   getRouteStats,
@@ -21,6 +33,7 @@ import {
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
+import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView } from "@/lib/route-view";
@@ -28,14 +41,16 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
-  nzWeekStart,
+  shiftWeek,
+  weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
-import { getLiveVehicles } from "@/lib/vehicles";
+import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteDay, RouteVariant } from "@/types/api";
 import { notFound, redirect } from "next/navigation";
-import type { JSX } from "react";
+import { Suspense, type ComponentProps, type JSX } from "react";
 
 /** Trips shown per page on the "of the day" board. */
 const PAGE_SIZE = 10;
@@ -49,6 +64,8 @@ interface StatsSearchParams {
   day?: string;
   tsort?: string;
   tpage?: string;
+  /** Reverse the active sort direction when "1". */
+  trev?: string;
   dir?: string;
   window?: string;
   /** Week start (`YYYY-MM-DD` Monday) when stepping back through the week view. */
@@ -107,49 +124,6 @@ function routeDirHref(slug: string, base: URLSearchParams, dir: number | null): 
 }
 
 /**
- * Shift a `YYYY-MM-DD` date string by `days` calendar days (UTC arithmetic).
- * @param ymd - Source date.
- * @param days - Days to add (negative steps back).
- * @returns The shifted `YYYY-MM-DD`.
- */
-function shiftWeek(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-/**
- * Auckland-local day/month and year parts of a UTC instant.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
-}
-
-/**
- * Week label as `DD/MM to DD/MM`, adding the year on both sides only when the
- * week straddles New Year.
- * @param range - Half-open week range (`end` is the exclusive next Monday).
- * @returns The range label.
- */
-function weekRangeLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  const last = dmY(new Date(range.end.getTime() - 86_400_000));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
-}
-
-/**
  * Prev/next week stepper for the route week view. Omits a chevron when the
  * corresponding href is null (at the edge of the data range).
  * @param props - Component props.
@@ -167,31 +141,17 @@ function RouteWeekNav({
   prevHref: string | null;
   nextHref: string | null;
 }): JSX.Element {
-  const chevronClass = "block h-4 w-4";
-  const btnClass = "chip chip-off flex items-center";
   return (
     <div className="flex items-center gap-1">
       {prevHref ? (
-        <a href={prevHref} aria-label="Previous week" className={btnClass}>
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={chevronClass}>
-            <path
-              fillRule="evenodd"
-              d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <a href={prevHref} aria-label="Previous week" className="chip chip-off flex items-center">
+          <ChevronLeft className="block h-4 w-4" />
         </a>
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <a href={nextHref} aria-label="Next week" className={btnClass}>
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={chevronClass}>
-            <path
-              fillRule="evenodd"
-              d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <a href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
+          <ChevronRight className="block h-4 w-4" />
         </a>
       ) : null}
     </div>
@@ -199,34 +159,22 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle: two links rendered as a segmented control.
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
- * @returns The segmented control element.
+ * @returns The toggle element.
  */
 function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean }): JSX.Element {
   const base = `/route/${encodeURIComponent(slug)}`;
-  /**
-   * Render one segment link.
-   * @param label - Display text.
-   * @param href - Link target.
-   * @param active - Whether this segment is selected.
-   * @returns The segment anchor element.
-   */
-  const seg = (label: string, href: string, active: boolean): JSX.Element => (
-    <a
-      href={href}
-      className={`px-3 py-1.5 text-sm leading-none${active ? "bg-at-ink font-semibold text-at-surface" : "text-at-muted hover:bg-at-bg"}`}
-    >
-      {label}
-    </a>
-  );
   return (
-    <div className="flex overflow-hidden rounded-lg border border-at-border">
-      {seg("Day", base, !isWeekView)}
-      <span className="border-l border-at-border" />
-      {seg("Week", `${base}?window=week`, isWeekView)}
+    <div className="flex items-center gap-1">
+      <a href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+        Day
+      </a>
+      <a href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+        Week
+      </a>
     </div>
   );
 }
@@ -258,7 +206,7 @@ export default async function RoutePage({
     redirect(`/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`);
   }
 
-  // Case-insensitive lookup: /route/nx1 -> /route/NX1; unknown slug -> 404.
+  // Case-insensitive lookup: /route/nx1 > /route/NX1; unknown slug > 404.
   const canonSlug = await findCanonicalRouteSlug(slug);
   if (canonSlug === null) notFound();
   if (canonSlug !== slug) {
@@ -272,10 +220,11 @@ export default async function RoutePage({
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
     ? (sp.tsort as TripSort)
     : "off";
+  const isReversed = sp.trev === "1";
 
   // Service day from ?day (or the current one). In week view the day stats are
-  // not displayed but we still need route metadata from getRouteStats.
-  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
+  // not displayed but the route metadata from getRouteStats is still needed.
+  const requestedDay = resolveRequestedDay(sp.day);
   let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
   let serviceDate = nzServiceDayString(range.start);
   let stats = await getRouteStats({
@@ -285,18 +234,20 @@ export default async function RoutePage({
     thresholdSec,
   });
   // Day view: fall back to the most recent day with data when today is empty.
-  if (!isWeekView && !requestedDay && (stats.summary?.events ?? 0) === 0) {
-    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
-    if (latestDay) {
-      range = nzServiceDayRange(latestDay);
-      serviceDate = nzServiceDayString(range.start);
-      stats = await getRouteStats({
-        routeId: slug,
-        from: range.start,
-        to: range.end,
-        thresholdSec,
-      });
-    }
+  const fallbackDay = await maybeFallbackDay(
+    requestedDay,
+    !isWeekView && (stats.summary?.events ?? 0) === 0,
+    MIN_BOARD_EVENTS,
+  );
+  if (fallbackDay) {
+    range = nzServiceDayRange(fallbackDay);
+    serviceDate = nzServiceDayString(range.start);
+    stats = await getRouteStats({
+      routeId: slug,
+      from: range.start,
+      to: range.end,
+      thresholdSec,
+    });
   }
   const hasNextDay = serviceDate < nzServiceDayString();
   const { route, summary, byStop } = stats;
@@ -312,13 +263,23 @@ export default async function RoutePage({
 
   // Week view period: explicit ?period snaps to that calendar week; rolling
   // default (no param) fetches the 7 most recent records regardless of date.
-  const periodParam =
-    isWeekView && sp.period && /^\d{4}-\d{2}-\d{2}$/.test(sp.period) ? sp.period : null;
+  const periodParam = isWeekView ? resolveRequestedDay(sp.period) : null;
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
   const weekPeriodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
 
-  // Week view skips the expensive trips query and live vehicles fetch.
-  const [trips, view, earliestDay, allAlerts, liveVehicles, weekDays] = await Promise.all([
+  // Start the live AT calls without blocking the shell. They feed only the alert
+  // banner, the diagram's alerted-stop highlights, and the trip board's LIVE
+  // badges - all streamed in via Suspense once they resolve, so the page shell
+  // never waits on AT realtime/alert latency (the main page-load cost on a cold
+  // cache and on every dev reload).
+  const alertsPromise = getServiceAlerts();
+  const vehiclesPromise = isWeekView
+    ? Promise.resolve<LiveVehicle[]>([])
+    : getLiveVehicles().catch(() => []);
+
+  // Week view skips the expensive trips query. Block only on the fast, cached
+  // DB/geometry data the shell needs to render.
+  const [trips, view, earliestDay, weekDays, cancelledTrips] = await Promise.all([
     isWeekView
       ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
       : getWorstTripsOfDay({
@@ -330,56 +291,39 @@ export default async function RoutePage({
         }),
     buildRouteView(slug, byStop, routeMode),
     getEarliestDataDay(1),
-    getServiceAlerts(),
-    isWeekView
-      ? Promise.resolve([] as Awaited<ReturnType<typeof getLiveVehicles>>)
-      : getLiveVehicles().catch(() => []),
     // Rolling default uses take:7 (most recent records); fixed period uses a date range.
     getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
+    isWeekView
+      ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
+      : getCancelledTrips(slug, range),
   ]);
 
   // Week stepper navigation - computed after earliestDay is available.
   let weekPrevHref: string | null = null;
   let weekNextHref: string | null = null;
   if (isWeekView) {
-    const thisWeekStart = nzWeekStart(new Date());
-    const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
-    const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
-    if (!earliestWeekStart || prevWeek >= earliestWeekStart) {
-      weekPrevHref = `/route/${encodeURIComponent(slug)}?window=week&period=${prevWeek}`;
-    }
-    if (periodParam) {
-      const nextWeek = shiftWeek(periodParam, 7);
-      weekNextHref =
-        nextWeek >= thisWeekStart
-          ? `/route/${encodeURIComponent(slug)}?window=week`
-          : `/route/${encodeURIComponent(slug)}?window=week&period=${nextWeek}`;
-    }
+    /**
+     * Build a week link for this route, preserving the week window.
+     * @param period - The week period, or null for the rolling current week.
+     * @returns The route week href.
+     */
+    const weekHref = (period: string | null): string =>
+      buildHref(`/route/${encodeURIComponent(slug)}`, {
+        window: "week",
+        period: period ?? undefined,
+      });
+    ({ prevHref: weekPrevHref, nextHref: weekNextHref } = resolveWeekNav({
+      periodParam,
+      earliestDay,
+      makeHref: weekHref,
+    }));
   }
 
-  const routeAlerts = alertsForRoute(allAlerts, [slug]);
-  const hasDetour = routeAlerts.some((a) => a.effect === "DETOUR");
-  const alertRouteIds = [
-    ...new Set(
-      routeAlerts.flatMap((a) =>
-        a.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
-      ),
-    ),
-  ];
-  const routeNames = await getRouteNames(alertRouteIds);
-
-  const liveTripIds = new Set(
-    liveVehicles
-      .filter((v) => routeSlug(v.routeId) === slug && v.tripId !== null)
-      .map((v) => v.tripId as string),
-  );
-  const alertedStopIds = routeAlerts.flatMap((a) =>
-    a.informed_entity
-      .filter((e) => e.stop_id)
-      .map((e) => view.rawToCanon.get(e.stop_id!) ?? e.stop_id!),
-  );
-
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? `/route/${encodeURIComponent(slug)}`
+      : undefined;
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
   const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
   const nameByStop = Object.fromEntries(view.nameByStop);
@@ -402,6 +346,8 @@ export default async function RoutePage({
     dirStopIds == null ? view.stops : view.stops.filter((s) => dirStopIds.has(s.stop_id));
   const diagramDirections =
     activeDir == null ? view.directions : { [activeDir]: view.directions[activeDir] };
+
+  const sortedTrips = isReversed ? [...trips].reverse() : trips;
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
   const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
@@ -439,8 +385,8 @@ export default async function RoutePage({
 
   const dirTrips =
     activeDir == null
-      ? trips
-      : trips.filter((t) => {
+      ? sortedTrips
+      : sortedTrips.filter((t) => {
           if (t.direction_id != null)
             return (view.directionIdAliases.get(t.direction_id) ?? t.direction_id) === activeDir;
           if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
@@ -467,49 +413,74 @@ export default async function RoutePage({
   if (requestedDay) tripPreserved.day = requestedDay;
   if (sp.thresholdSec) tripPreserved.thresholdSec = sp.thresholdSec;
   if (activeDir != null) tripPreserved.dir = String(activeDir);
+  if (isReversed) tripPreserved.trev = "1";
 
   const title = route?.shortName ?? slug;
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {route && (
-              <ModeIcon
-                mode={route.mode}
-                shortName={route.shortName}
-                longName={route.longName}
-                colour={route.colour}
-                className="h-6 w-6"
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+              {route && (
+                <ModeIcon
+                  mode={route.mode}
+                  shortName={route.shortName}
+                  longName={route.longName}
+                  colour={route.colour}
+                  className="h-6 w-6"
+                />
+              )}
+              {title}
+            </h1>
+            {route?.longName && route.longName !== title && (
+              <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <ViewToggle slug={slug} isWeekView={isWeekView} />
+            {isWeekView ? (
+              <RouteWeekNav
+                label={weekPeriodLabel}
+                prevHref={weekPrevHref}
+                nextHref={weekNextHref}
+              />
+            ) : (
+              <DayNav
+                basePath={`/route/${encodeURIComponent(slug)}`}
+                serviceDate={serviceDate}
+                preservedParams={{
+                  ...(activeDir != null ? { dir: String(activeDir) } : {}),
+                  ...(tripSort !== "off" ? { tsort: tripSort } : {}),
+                }}
+                hasPrev={hasPrevDay}
+                hasNext={hasNextDay}
+                nextHref={nextDayHref}
               />
             )}
-            {title}
-          </h1>
-          {route?.longName && route.longName !== title && (
-            <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
-          )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <ViewToggle slug={slug} isWeekView={isWeekView} />
-          {isWeekView ? (
-            <RouteWeekNav label={weekPeriodLabel} prevHref={weekPrevHref} nextHref={weekNextHref} />
-          ) : (
-            <DayNav
-              basePath={`/route/${encodeURIComponent(slug)}`}
-              serviceDate={serviceDate}
-              preservedParams={{
-                ...(activeDir != null ? { dir: String(activeDir) } : {}),
-                ...(tripSort !== "off" ? { tsort: tripSort } : {}),
-              }}
-              hasPrev={hasPrevDay}
-              hasNext={hasNextDay}
-            />
-          )}
-        </div>
+        {dirKeys.length > 1 && (
+          <DirectionFilter
+            dirKeys={dirKeys}
+            activeDir={activeDir}
+            labels={Object.fromEntries(
+              dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
+            )}
+            hrefs={{
+              both: routeDirHref(slug, dirBase, null),
+              ...Object.fromEntries(
+                dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
+              ),
+            }}
+          />
+        )}
       </header>
 
-      <AlertBanner alerts={routeAlerts} heading="Service alerts" routeNames={routeNames} />
+      <Suspense fallback={null}>
+        <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
+      </Suspense>
 
       {isWeekView ? (
         <>
@@ -553,14 +524,17 @@ export default async function RoutePage({
             routeId={slug}
             mode={routeMode}
           />
-          <RouteLineDiagramClient
-            directions={view.directions}
-            delayByStop={{}}
-            nameByStop={nameByStop}
-            mode={routeMode}
-            alertStopIds={alertedStopIds}
-            hasDetour={hasDetour}
-          />
+          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+            <RouteDiagramSection
+              alertsPromise={alertsPromise}
+              slug={slug}
+              rawToCanon={view.rawToCanon}
+              directions={view.directions}
+              delayByStop={{}}
+              nameByStop={nameByStop}
+              mode={routeMode}
+            />
+          </Suspense>
         </>
       ) : (
         <>
@@ -599,18 +573,22 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <WorstTripsBoard
-              routeId={slug}
-              trips={pageTrips}
-              sort={tripSort}
-              mode={routeMode}
-              basePath={`/route/${encodeURIComponent(slug)}`}
-              preservedParams={tripPreserved}
-              page={tripPage}
-              totalPages={totalPages}
-              pageSize={PAGE_SIZE}
-              liveTripIds={liveTripIds}
-            />
+            <Suspense fallback={<div className="h-96 animate-pulse rounded bg-at-border" />}>
+              <RouteTripBoardSection
+                vehiclesPromise={vehiclesPromise}
+                routeId={slug}
+                trips={pageTrips}
+                sort={tripSort}
+                isReversed={isReversed}
+                mode={routeMode}
+                basePath={`/route/${encodeURIComponent(slug)}`}
+                preservedParams={tripPreserved}
+                page={tripPage}
+                totalPages={totalPages}
+                pageSize={PAGE_SIZE}
+                cancelledTrips={cancelledTrips}
+              />
+            </Suspense>
             <RouteMapDiagram
               stops={mapStops}
               routeLines={mapLines}
@@ -629,30 +607,17 @@ export default async function RoutePage({
             />
           </div>
 
-          {dirKeys.length > 1 && (
-            <DirectionChips
-              dirKeys={dirKeys}
-              activeDir={activeDir}
-              labels={Object.fromEntries(
-                dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
-              )}
-              hrefs={{
-                both: routeDirHref(slug, dirBase, null),
-                ...Object.fromEntries(
-                  dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
-                ),
-              }}
+          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+            <RouteDiagramSection
+              alertsPromise={alertsPromise}
+              slug={slug}
+              rawToCanon={view.rawToCanon}
+              directions={diagramDirections}
+              delayByStop={delayByStop}
+              nameByStop={nameByStop}
+              mode={routeMode}
             />
-          )}
-
-          <RouteLineDiagramClient
-            directions={diagramDirections}
-            delayByStop={delayByStop}
-            nameByStop={nameByStop}
-            mode={routeMode}
-            alertStopIds={alertedStopIds}
-            hasDetour={hasDetour}
-          />
+          </Suspense>
 
           {byStop.length > 0 && (
             <details className="border border-at-border bg-at-surface">
@@ -697,4 +662,83 @@ export default async function RoutePage({
       )}
     </main>
   );
+}
+
+/**
+ * Streamed "Service alerts" banner: awaits the shared alerts feed off the
+ * critical path, keeps the alerts informing this route, and resolves the names
+ * of any other routes they mention. Renders nothing while it streams.
+ * @param root0 - Props.
+ * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
+ * @param root0.slug - This route's slug, to filter the alerts.
+ * @returns The alert banner.
+ */
+async function RouteAlertBannerSection({
+  alertsPromise,
+  slug,
+}: {
+  alertsPromise: Promise<ServiceAlert[]>;
+  slug: string;
+}): Promise<JSX.Element> {
+  const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
+  const alertRouteIds = [
+    ...new Set(
+      routeAlerts.flatMap((a) =>
+        a.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
+      ),
+    ),
+  ];
+  const routeNames = await getRouteNames(alertRouteIds);
+  return <AlertBanner alerts={routeAlerts} heading="Service alerts" routeNames={routeNames} />;
+}
+
+/**
+ * Streamed line diagram: awaits the shared alerts feed off the critical path to
+ * derive the alerted-stop highlights and detour flag, then renders the diagram
+ * with everything else passed straight through.
+ * @param root0 - Props (the diagram's own props plus the alert inputs).
+ * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
+ * @param root0.slug - This route's slug, to filter the alerts.
+ * @param root0.rawToCanon - Maps raw stop ids to their station-canonical ids.
+ * @returns The route line diagram.
+ */
+async function RouteDiagramSection({
+  alertsPromise,
+  slug,
+  rawToCanon,
+  ...diagram
+}: Omit<ComponentProps<typeof RouteLineDiagramClient>, "alertStopIds" | "hasDetour"> & {
+  alertsPromise: Promise<ServiceAlert[]>;
+  slug: string;
+  rawToCanon: Map<string, string>;
+}): Promise<JSX.Element> {
+  const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
+  const hasDetour = routeAlerts.some((a) => a.effect === "DETOUR");
+  const alertStopIds = routeAlerts.flatMap((a) =>
+    a.informed_entity.filter((e) => e.stop_id).map((e) => rawToCanon.get(e.stop_id!) ?? e.stop_id!),
+  );
+  return <RouteLineDiagramClient {...diagram} alertStopIds={alertStopIds} hasDetour={hasDetour} />;
+}
+
+/**
+ * Streamed worst-trips board: awaits the shared live-vehicles feed off the
+ * critical path to flag the running trips, then renders the board with
+ * everything else passed straight through.
+ * @param root0 - Props (the board's own props plus the live-vehicles input).
+ * @param root0.vehiclesPromise - The in-flight network-wide live-vehicles fetch.
+ * @returns The worst-trips board.
+ */
+async function RouteTripBoardSection({
+  vehiclesPromise,
+  ...board
+}: Omit<ComponentProps<typeof WorstTripsBoard>, "liveTripIds"> & {
+  vehiclesPromise: Promise<LiveVehicle[]>;
+}): Promise<JSX.Element> {
+  const liveVehicles = await vehiclesPromise;
+  const liveTripIds = new Set(
+    liveVehicles
+      .filter((v) => routeSlug(v.routeId) === board.routeId && v.tripId !== null)
+      .map((v) => v.tripId as string),
+  );
+  return <WorstTripsBoard {...board} liveTripIds={liveTripIds} />;
 }

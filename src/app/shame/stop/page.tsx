@@ -1,135 +1,45 @@
 // src/app/shame/stop/page.tsx
-import { DayNav } from "@/components/DayNav";
+/**
+ * @description Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
+ */
+import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
+import { ShameHeader } from "@/components/shame/ShameHeader";
+import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
-import {
-  getEarliestDataDay,
-  getMostRecentDataDay,
-  getWorstStopsOfDay,
-  getWorstStopsOfWeek,
-} from "@/lib/data";
+import { getEarliestDataDay, getWorstStopsOfDay, getWorstStopsOfWeek } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
+import {
+  filterLiveHours,
+  maybeFallbackDay,
+  resolveActiveWeekRange,
+  resolveRequestedDay,
+  resolveWeekNav,
+} from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
-  nzHourLabel,
-  nzLast7DaysRange,
-  nzServiceDayRange,
-  nzServiceDayString,
-  nzWeekRange,
-  nzWeekStart,
-  type DateRange,
-} from "@/lib/time";
+  buildShameHref,
+  countById,
+  isCrownable,
+  parseShameParams,
+  pickWorst,
+  TODAY_REVALIDATE,
+  WEEK_REVALIDATE,
+  type ShameSearchParams,
+} from "@/lib/shame-page";
+import { nzHourLabel, nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { JSX } from "react";
 
-const TODAY_REVALIDATE = 300;
-const WEEK_REVALIDATE = 3600;
-
-/** Query params for the Stop Shame page. */
-interface StopShameSearchParams {
-  day?: string;
-  mode?: string;
-  school?: string;
-  window?: string;
-  period?: string;
-}
+const BASE = "/shame/stop";
 
 /**
- * Shift a `YYYY-MM-DD` date string by `days` calendar days (UTC arithmetic).
- * @param ymd - Source date.
- * @param days - Days to add (negative steps back).
- * @returns The shifted `YYYY-MM-DD`.
+ * Plain-English count of how often a stop was bad ("twice" / "3 times").
+ * @param count - The number of slots the stop was bad in.
+ * @returns The phrase, e.g. "twice" or "3 times".
  */
-function shiftWeek(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-/**
- * Auckland-local day/month and year parts of a UTC instant.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
-}
-
-/**
- * Week label as `DD/MM to DD/MM`, adding the year on both sides only when the
- * week straddles New Year.
- * @param range - Half-open week range (`end` is the exclusive next Monday).
- * @returns The range label.
- */
-function weekRangeLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  const last = dmY(new Date(range.end.getTime() - 86_400_000));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
-}
-
-/**
- * Build a stop-shame-page URL preserving the active mode/school filter params.
- * @param nav - Window and period params to include.
- * @param nav.window - `day`, `week`, or `month`.
- * @param nav.period - ISO week-start date when `window` is `week`.
- * @param filter - Active mode/school filter.
- * @param filter.mode - Route mode string, or null for all modes.
- * @param filter.includeSchool - Whether school services are included.
- * @returns The href.
- */
-function buildHref(
-  nav: { window?: string; period?: string },
-  filter: { mode: string | null; includeSchool: boolean },
-): string {
-  const p = new URLSearchParams();
-  if (nav.window) p.set("window", nav.window);
-  if (nav.period) p.set("period", nav.period);
-  if (filter.mode) p.set("mode", filter.mode);
-  if (filter.includeSchool) p.set("school", "1");
-  const qs = p.toString();
-  return `/shame/stop${qs ? `?${qs}` : ""}`;
-}
-
-/**
- * Inline left-chevron SVG icon.
- * @returns Left-chevron SVG.
- */
-function ChevronLeftIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className="block h-4 w-4">
-      <path
-        fillRule="evenodd"
-        d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-/**
- * Inline right-chevron SVG icon.
- * @returns Right-chevron SVG.
- */
-function ChevronRightIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className="block h-4 w-4">
-      <path
-        fillRule="evenodd"
-        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
+function badTimes(count: number): string {
+  return count === 2 ? "twice" : `${count} times`;
 }
 
 /**
@@ -143,287 +53,216 @@ function ChevronRightIcon(): JSX.Element {
 export default async function StopShamePage({
   searchParams,
 }: {
-  searchParams?: Promise<StopShameSearchParams>;
+  searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  dropTodayParam("/shame/stop", sp);
-  const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as
-    | "BUS"
-    | "TRAIN"
-    | "FERRY"
-    | null;
-  const includeSchool = sp.school === "1";
-  const filter = { mode, includeSchool };
-  const isWeekView = sp.window === "week";
-
-  const preserved: Record<string, string> = {};
-  if (mode) preserved.mode = mode;
-  if (includeSchool) preserved.school = "1";
+  dropTodayParam(BASE, sp);
+  const { filter, isWeekView, preserved } = parseShameParams(sp);
 
   if (isWeekView) {
-    const periodParam = sp.period && /^\d{4}-\d{2}-\d{2}$/.test(sp.period) ? sp.period : null;
-    const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-    const activeWeekRange = fixedWeekRange ?? nzLast7DaysRange(new Date());
+    const periodParam = resolveRequestedDay(sp.period);
+    const { activeWeekRange } = resolveActiveWeekRange(periodParam);
     const [shame, earliestDay] = await Promise.all([
       getWorstStopsOfWeek(activeWeekRange, filter, WEEK_REVALIDATE),
       getEarliestDataDay(1),
     ]);
-    const periodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
-    const thisWeekStart = nzWeekStart(new Date());
-    const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
-    const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
-    const prevHref =
-      !earliestWeekStart || prevWeek >= earliestWeekStart
-        ? buildHref({ window: "week", period: prevWeek }, filter)
-        : null;
-    let nextHref: string | null = null;
-    if (periodParam) {
-      const nextWeek = shiftWeek(periodParam, 7);
-      nextHref =
-        nextWeek >= thisWeekStart
-          ? buildHref({ window: "week" }, filter)
-          : buildHref({ window: "week", period: nextWeek }, filter);
-    }
+    /**
+     * Build a week link for this page, preserving the active filter.
+     * @param period - ISO week-start date, or null for the rolling current week.
+     * @returns The week href.
+     */
+    const weekHref = (period: string | null): string =>
+      buildShameHref(BASE, { window: "week", period: period ?? undefined }, filter);
+    const { periodLabel, prevHref, nextHref } = resolveWeekNav({
+      periodParam,
+      earliestDay,
+      makeHref: weekHref,
+    });
 
     const worstId = shame.worst?.stop_id ?? null;
+    const stopDayCounts = countById(shame.days, (d) => d.stop_id);
+    const weekNav = { window: "week" as const, period: periodParam ?? undefined };
+
+    /**
+     * Render one week-view day row.
+     * @param s - The day's worst stop.
+     * @param ctx - Surface context from the board.
+     * @returns The row anchor element.
+     */
+    const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
+      const isWorst = s.stop_id === worstId;
+      const [, m, d] = s.date.split("-");
+      const dayLabel = new Intl.DateTimeFormat("en-NZ", {
+        timeZone: "Pacific/Auckland",
+        weekday: "short",
+      }).format(new Date(s.date + "T12:00:00Z"));
+      const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
+      return (
+        <a
+          href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
+          className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
+        >
+          <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
+            {dayLabel} {d}/{m}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="font-semibold text-at-ink">{s.name}</span>
+              {isWorst && <ShameWorstBadge />}
+            </span>
+            <span className="block text-xs text-at-muted">{s.events} events</span>
+            {weekCount > 1 && (
+              <span className="block text-xs text-at-muted">
+                {s.name} was bad {badTimes(weekCount)} this week
+              </span>
+            )}
+          </span>
+          <span
+            className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
+            title="Average deviation from the scheduled arrival time"
+          >
+            {formatDuration(s.avg_abs_delay_sec)} off
+          </span>
+        </a>
+      );
+    };
 
     return (
       <main className="space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">
-              Worst Stop of the Week
-            </h1>
-            <p className="mt-0.5 text-sm text-at-muted">The most off-schedule stop of each day</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <a href={buildHref({}, filter)} className="chip chip-off text-sm">
-              Day
-            </a>
-            <div className="flex items-center gap-1">
-              {prevHref ? (
-                <a
-                  href={prevHref}
-                  aria-label="Previous week"
-                  className="chip chip-off flex items-center"
-                >
-                  <ChevronLeftIcon />
-                </a>
-              ) : null}
-              <span className="px-1 text-sm font-semibold tabular-nums">{periodLabel}</span>
-              {nextHref ? (
-                <a
-                  href={nextHref}
-                  aria-label="Next week"
-                  className="chip chip-off flex items-center"
-                >
-                  <ChevronRightIcon />
-                </a>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        {shame.days.length === 0 ? (
-          <p className="border border-at-border bg-at-surface p-4 text-at-muted">
-            No stop data recorded for this week.
-          </p>
-        ) : (
-          <div className="border border-at-border bg-at-surface">
-            <ul>
-              {shame.days.map((s, i) => (
-                <DayStopRow key={s.date} stop={s} isWorst={s.stop_id === worstId} index={i} />
-              ))}
-            </ul>
-          </div>
-        )}
+        <ShameHeader
+          title="Worst Stop of the Week"
+          subtitle="The most off-schedule stop of each day"
+          activeTab="stop"
+          tabHrefs={{
+            trip: buildShameHref("/shame/trip", weekNav, filter),
+            route: buildShameHref("/shame/route", weekNav, filter),
+            stop: buildShameHref(BASE, weekNav, filter),
+          }}
+          nav={{
+            kind: "week",
+            dayToggleHref: buildShameHref(BASE, {}, filter),
+            periodLabel,
+            prevHref,
+            nextHref,
+          }}
+        />
+        <ShameBoard
+          layout="week"
+          items={shame.days}
+          keyOf={(s) => s.date}
+          emptyMessage="No stop data recorded for this week."
+          renderRow={renderWeekRow}
+        />
       </main>
     );
   }
 
   // Day view: worst stop per hour.
-  const requestedDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null;
-  let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
-  let serviceDate = nzServiceDayString(range.start);
+  const requestedDay = resolveRequestedDay(sp.day);
+  const initialRange = nzServiceDayRange(requestedDay ?? new Date());
   const [initialShame, earliestDay] = await Promise.all([
-    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
+    getWorstStopsOfDay(initialRange, filter, TODAY_REVALIDATE),
     getEarliestDataDay(1),
   ]);
+  let range = initialRange;
+  let serviceDate = nzServiceDayString(range.start);
   let shame = initialShame;
-  if (!requestedDay && shame.hours.length === 0) {
-    const latestDay = await getMostRecentDataDay(MIN_BOARD_EVENTS);
-    if (latestDay) {
-      range = nzServiceDayRange(latestDay);
-      serviceDate = nzServiceDayString(range.start);
-      shame = await getWorstStopsOfDay(range, filter, TODAY_REVALIDATE);
-    }
+  const fallbackDay = await maybeFallbackDay(
+    requestedDay,
+    shame.hours.length === 0,
+    MIN_BOARD_EVENTS,
+  );
+  if (fallbackDay) {
+    range = nzServiceDayRange(fallbackDay);
+    serviceDate = nzServiceDayString(range.start);
+    shame = await getWorstStopsOfDay(range, filter, TODAY_REVALIDATE);
   }
+
   const hasNextDay = serviceDate < nzServiceDayString();
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
-  const worstId = shame.worst?.stop_id ?? null;
 
-  const ITEMS_PER_COL = 10;
-  const col1 = shame.hours.slice(0, ITEMS_PER_COL);
-  const col2 = shame.hours.slice(ITEMS_PER_COL, ITEMS_PER_COL * 2);
+  const visibleHours = filterLiveHours(shame.hours, serviceDate);
+  const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
+  const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
+  const nextDayHref =
+    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? buildShameHref(BASE, {}, filter)
+      : undefined;
 
-  return (
-    <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">
-            Worst Stop of the Day
-          </h1>
-          <p className="mt-0.5 text-sm text-at-muted">The most off-schedule stop of each hour</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <a href={buildHref({ window: "week" }, filter)} className="chip chip-off text-sm">
-            Week
-          </a>
-          <DayNav
-            basePath="/shame/stop"
-            serviceDate={serviceDate}
-            preservedParams={preserved}
-            hasPrev={hasPrevDay}
-            hasNext={hasNextDay}
-          />
-        </div>
-      </header>
+  const worst = pickWorst(visibleHours);
+  const worstId = worst && isCrownable(worst) ? worst.stop_id : null;
+  const noneNotablyBad = visibleHours.length > 0 && worstId === null;
 
-      {shame.hours.length === 0 ? (
-        <p className="border border-at-border bg-at-surface p-4 text-at-muted">
-          No stop data recorded for this day.
-        </p>
-      ) : (
-        <div className="border border-at-border bg-at-surface">
-          <div className="grid grid-cols-1 md:grid-cols-2">
-            <ul>
-              {col1.map((s, i) => (
-                <HourStopRow
-                  key={`${s.hour}-${s.stop_id}`}
-                  stop={s}
-                  isWorst={s.stop_id === worstId}
-                  index={i}
-                />
-              ))}
-            </ul>
-            {col2.length > 0 && (
-              <ul className="border-t border-at-border md:border-t-0 md:border-l">
-                {col2.map((s, i) => (
-                  <HourStopRow
-                    key={`${s.hour}-${s.stop_id}`}
-                    stop={s}
-                    isWorst={s.stop_id === worstId}
-                    index={i}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-    </main>
-  );
-}
-
-/**
- * Single row for the day view (worst stop per hour).
- * @param props - Row props.
- * @param props.stop - The stop entry.
- * @param props.isWorst - Whether this is the day's overall worst stop.
- * @param props.index - Position within its column (drives the border).
- * @returns The list item element.
- */
-function HourStopRow({
-  stop: s,
-  isWorst,
-  index,
-}: {
-  stop: ShameStop;
-  isWorst: boolean;
-  index: number;
-}): JSX.Element {
-  return (
-    <li>
+  /**
+   * Render one day-view hour row.
+   * @param s - The hour's worst stop.
+   * @param ctx - Surface context from the board.
+   * @returns The row anchor element.
+   */
+  const renderDayRow = (s: ShameStop, ctx: ShameRowContext): JSX.Element => {
+    const isWorst = s.stop_id === worstId;
+    const hourCount = stopHourCounts.get(s.stop_id) ?? 0;
+    return (
       <a
         href={`/stop/${encodeURIComponent(s.stop_id)}`}
-        className={cn(
-          "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale",
-          index > 0 && "border-t border-at-border",
-          isWorst && "bg-at-late/5",
-        )}
+        className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
-        <span className="w-12 shrink-0 text-sm font-semibold text-at-muted tabular-nums">
+        <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
           {nzHourLabel(s.hour)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="font-semibold text-at-ink">{s.name}</span>
-            {isWorst && (
-              <span className="bg-at-late px-1.5 py-0.5 text-[10px] font-bold tracking-zero text-white uppercase">
-                Worst
-              </span>
-            )}
+            {isWorst && <ShameWorstBadge />}
           </span>
           <span className="block text-xs text-at-muted">{s.events} events</span>
+          {hourCount > 1 && (
+            <span className="block text-xs text-at-muted">
+              {s.name} was bad {badTimes(hourCount)} today
+            </span>
+          )}
         </span>
-        <span className="shrink-0 font-semibold text-at-late tabular-nums">
+        <span
+          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
+          title="Average deviation from the scheduled arrival time"
+        >
           {formatDuration(s.avg_abs_delay_sec)} off
         </span>
       </a>
-    </li>
-  );
-}
+    );
+  };
 
-/**
- * Single row for the week view (worst stop per service day).
- * @param props - Row props.
- * @param props.stop - The day stop entry.
- * @param props.isWorst - Whether this is the week's overall worst stop.
- * @param props.index - Row index (drives the border).
- * @returns The list item element.
- */
-function DayStopRow({
-  stop: s,
-  isWorst,
-  index,
-}: {
-  stop: ShameDayStop;
-  isWorst: boolean;
-  index: number;
-}): JSX.Element {
-  const [, m, d] = s.date.split("-");
-  const dayLabel = new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    weekday: "short",
-  }).format(new Date(s.date + "T12:00:00Z"));
   return (
-    <li>
-      <a
-        href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
-        className={cn(
-          "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale",
-          index > 0 && "border-t border-at-border",
-          isWorst && "bg-at-late/5",
-        )}
-      >
-        <span className="w-16 shrink-0 text-sm font-semibold text-at-muted tabular-nums">
-          {dayLabel} {d}/{m}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="font-semibold text-at-ink">{s.name}</span>
-            {isWorst && (
-              <span className="bg-at-late px-1.5 py-0.5 text-[10px] font-bold tracking-zero text-white uppercase">
-                Worst
-              </span>
-            )}
-          </span>
-          <span className="block text-xs text-at-muted">{s.events} events</span>
-        </span>
-        <span className="shrink-0 font-semibold text-at-late tabular-nums">
-          {formatDuration(s.avg_abs_delay_sec)} off
-        </span>
-      </a>
-    </li>
+    <main className="space-y-6">
+      <ShameHeader
+        title="Worst Stop of the Day"
+        subtitle="The most off-schedule stop of each hour"
+        activeTab="stop"
+        tabHrefs={{
+          trip: buildShameHref("/shame/trip", { day: linkDay }, filter),
+          route: buildShameHref("/shame/route", { day: linkDay }, filter),
+          stop: buildShameHref(BASE, { day: linkDay }, filter),
+        }}
+        nav={{
+          kind: "day",
+          weekToggleHref: buildShameHref(BASE, { window: "week" }, filter),
+          basePath: BASE,
+          serviceDate,
+          preserved,
+          hasPrev: hasPrevDay,
+          hasNext: hasNextDay,
+          nextHref: nextDayHref,
+        }}
+      />
+      <ShameBoard
+        layout="day"
+        items={visibleHours}
+        keyOf={(s) => `${s.hour}-${s.stop_id}`}
+        emptyMessage="No stop data recorded for this day."
+        footerMessage="No stops were notably off-schedule during these hours."
+        showFooter={noneNotablyBad}
+        renderRow={renderDayRow}
+      />
+    </main>
   );
 }

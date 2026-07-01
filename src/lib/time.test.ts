@@ -1,3 +1,7 @@
+// src/lib/time.test.ts
+/**
+ * @description Unit tests for the Auckland-timezone day, week and month range helpers in time.ts.
+ */
 import { nzDayRange, nzMonthRange, nzWeekRange, nzWeekStart } from "@/lib/time";
 import { describe, expect, it } from "vitest";
 

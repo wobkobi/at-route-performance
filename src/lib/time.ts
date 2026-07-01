@@ -1,4 +1,15 @@
 // src/lib/time.ts
+/**
+ * @description Auckland-timezone date helpers returning UTC half-open windows
+ * for calendar days, service days, weeks and months. Offsets are derived per
+ * instant via Intl so NZST/NZDT transitions are handled correctly rather than
+ * with a fixed offset. The key domain concept is the service day: a transit day
+ * runs from 5am to 5am, so a post-midnight run counts under the day it started,
+ * and a `YYYY-MM-DD` string is treated as a service date directly (for `?day=`).
+ * Rolling windows quantise to service-day boundaries so they cache by day rather
+ * than by the instant.
+ */
+import { dmY } from "@/lib/format";
 
 /** A UTC half-open window [start, end). */
 export interface DateRange {
@@ -247,12 +258,38 @@ export function nzClockTime(iso: string): string {
 }
 
 /**
- * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 -> "12am",
- * 13 -> "1pm". Used for the Shame board's per-hour headings.
+ * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 > "12am",
+ * 13 > "1pm". Used for the Shame board's per-hour headings.
  * @param hour - Hour of day, 0-23.
  * @returns The hour label.
  */
 export function nzHourLabel(hour: number): string {
   const h = ((hour % 12) + 12) % 12 || 12;
   return `${h}${hour < 12 ? "am" : "pm"}`;
+}
+
+/**
+ * Shift a `YYYY-MM-DD` date string by whole days (UTC arithmetic). Shared
+ * across the shame and route pages for week stepping.
+ * @param ymd - Source date.
+ * @param days - Days to add (negative steps back).
+ * @returns The shifted `YYYY-MM-DD`.
+ */
+export function shiftWeek(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
+ * week straddles New Year.
+ * @param range - Half-open week range (`end` is the exclusive next Monday).
+ * @returns The range label.
+ */
+export function weekRangeLabel(range: DateRange): string {
+  const first = dmY(range.start);
+  const last = dmY(new Date(range.end.getTime() - 86_400_000));
+  return first.y === last.y
+    ? `${first.dm} to ${last.dm}`
+    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
 }
