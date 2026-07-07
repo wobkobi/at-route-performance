@@ -20,7 +20,9 @@ import {
   filterLiveHours,
   maybeFallbackDay,
   resolveActiveWeekRange,
+  resolveMonthNav,
   resolveRequestedDay,
+  resolveRequestedMonth,
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -37,6 +39,7 @@ import {
 } from "@/lib/shame-page";
 import {
   nzHourLabel,
+  nzMonthRange,
   nzServiceDayRange,
   nzServiceDayString,
   shiftWeek,
@@ -61,31 +64,34 @@ export default async function RoutesShamePage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   dropTodayParam(BASE, sp);
-  const { filter, isWeekView, preserved, subtitle } = parseShameParams(sp);
+  const { filter, view, preserved, subtitle } = parseShameParams(sp);
 
-  if (isWeekView) {
-    const periodParam = resolveRequestedDay(sp.period);
-    const { activeWeekRange } = resolveActiveWeekRange(periodParam);
+  if (view !== "day") {
+    const isMonth = view === "month";
+    const monthParam = isMonth ? resolveRequestedMonth(sp.period) : null;
+    const periodParam = isMonth ? null : resolveRequestedDay(sp.period);
+    const activeRange = isMonth
+      ? nzMonthRange(monthParam ?? undefined)
+      : resolveActiveWeekRange(periodParam).activeWeekRange;
     const [shame, earliestDay] = await Promise.all([
-      getShameRouteOfWeek(activeWeekRange, filter, WEEK_REVALIDATE),
+      getShameRouteOfWeek(activeRange, filter, WEEK_REVALIDATE),
       getEarliestDataDay(1),
     ]);
     /**
-     * Build a week link for this page, preserving the active filter.
-     * @param period - ISO week-start date, or null for the rolling current week.
-     * @returns The week href.
+     * Build a link to this view for a period, preserving the active filter.
+     * @param period - ISO week-start date or `YYYY-MM` month key, or null for the rolling default.
+     * @returns The href.
      */
-    const weekHref = (period: string | null): string =>
-      buildShameHref(BASE, { window: "week", period: period ?? undefined }, filter);
-    const { periodLabel, prevHref, nextHref } = resolveWeekNav({
-      periodParam,
-      earliestDay,
-      makeHref: weekHref,
-    });
+    const rangeHref = (period: string | null): string =>
+      buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
+    const { periodLabel, prevHref, nextHref } = isMonth
+      ? resolveMonthNav({ periodParam: monthParam, earliestDay, makeHref: rangeHref })
+      : resolveWeekNav({ periodParam, earliestDay, makeHref: rangeHref });
 
+    const periodNoun = isMonth ? "month" : "week";
     const worstKey = shame.worst?.date ?? null;
     const routeDayCounts = countById(shame.days, (d) => d.route_id);
-    const weekNav = { window: "week" as const, period: periodParam ?? undefined };
+    const rangeNav = { window: view, period: (isMonth ? monthParam : periodParam) ?? undefined };
 
     /**
      * Render one week-view day row.
@@ -97,9 +103,12 @@ export default async function RoutesShamePage({
       const isWorst = r.date === worstKey;
       const name = r.short_name || r.long_name || routeSlug(r.route_id);
       const slug = routeSlug(r.route_id);
-      // Keep the drill-down on the same fixed week: the route page's week view
-      // reads ?period=, not ?day=.
-      const href = `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&period=${periodParam}` : ""}`;
+      // Keep the drill-down on the same fixed week (the route page's week view
+      // reads ?period=, not ?day=); month rows open the route's day view for
+      // that date since the route page has no month window.
+      const href = isMonth
+        ? `/route/${encodeURIComponent(slug)}?day=${r.date}`
+        : `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&period=${periodParam}` : ""}`;
       const [, m, d] = (r.date ?? "").split("-");
       const dayLabel = r.date ? weekdayShort(r.date) : "";
       const dayCount = routeDayCounts.get(r.route_id) ?? 0;
@@ -124,7 +133,7 @@ export default async function RoutesShamePage({
                   tier="week"
                   count={dayCount}
                   worst={isWorst}
-                  label={`${name} was the worst route on ${dayCount} days this week`}
+                  label={`${name} was the worst route on ${dayCount} days this ${periodNoun}`}
                 />
               )}
             </span>
@@ -142,16 +151,17 @@ export default async function RoutesShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title="Worst Route of the Week"
+          title={`Worst Route of the ${isMonth ? "Month" : "Week"}`}
           subtitle={`The most off-schedule route of each day · ${subtitle}`}
           activeTab="route"
           tabHrefs={{
-            trip: buildShameHref("/shame/trip", weekNav, filter),
-            route: buildShameHref(BASE, weekNav, filter),
-            stop: buildShameHref("/shame/stop", weekNav, filter),
+            trip: buildShameHref("/shame/trip", rangeNav, filter),
+            route: buildShameHref(BASE, rangeNav, filter),
+            stop: buildShameHref("/shame/stop", rangeNav, filter),
           }}
           nav={{
             kind: "week",
+            unit: periodNoun,
             dayToggleHref: buildShameHref(BASE, {}, filter),
             periodLabel,
             prevHref,
@@ -162,7 +172,7 @@ export default async function RoutesShamePage({
           layout="week"
           items={shame.days}
           keyOf={(r, i) => r.date ?? String(i)}
-          emptyMessage="No route data recorded for this week."
+          emptyMessage={`No route data recorded for this ${periodNoun}.`}
           renderRow={renderWeekRow}
         />
       </main>

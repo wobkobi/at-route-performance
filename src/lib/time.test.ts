@@ -3,12 +3,15 @@
  * @description Unit tests for the Auckland-timezone day, week and month range helpers in time.ts.
  */
 import {
+  monthRangeLabel,
   nzDayRange,
   nzLast7DaysRange,
+  nzMonthKey,
   nzMonthRange,
   nzWeekRange,
   nzWeekStart,
   serviceDatesInRange,
+  shiftMonth,
   weekdayShort,
 } from "@/lib/time";
 import { describe, expect, it } from "vitest";
@@ -98,6 +101,22 @@ describe("serviceDatesInRange", () => {
     // NZDT starts Sun 27 Sep 2026 and ends Sun 5 Apr 2026.
     expect(serviceDatesInRange(nzWeekRange("2026-09-21"))).toHaveLength(7);
     expect(serviceDatesInRange(nzWeekRange("2026-03-30"))).toHaveLength(7);
+  });
+});
+
+describe("month helpers", () => {
+  it("shiftMonth steps across year boundaries in both directions", () => {
+    expect(shiftMonth("2026-06", 1)).toBe("2026-07");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-06", -18)).toBe("2024-12");
+  });
+  it("nzMonthKey labels an instant with its Auckland month", () => {
+    // 2026-06-30 13:00 UTC == 1 Jul 01:00 NZST.
+    expect(nzMonthKey(new Date("2026-06-30T13:00:00Z"))).toBe("2026-07");
+  });
+  it("monthRangeLabel names the month of the range", () => {
+    expect(monthRangeLabel(nzMonthRange("2026-06"))).toBe("June 2026");
   });
 });
 

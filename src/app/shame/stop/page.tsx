@@ -13,7 +13,9 @@ import {
   filterLiveHours,
   maybeFallbackDay,
   resolveActiveWeekRange,
+  resolveMonthNav,
   resolveRequestedDay,
+  resolveRequestedMonth,
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -29,6 +31,7 @@ import {
 } from "@/lib/shame-page";
 import {
   nzHourLabel,
+  nzMonthRange,
   nzServiceDayRange,
   nzServiceDayString,
   shiftWeek,
@@ -63,31 +66,34 @@ export default async function StopShamePage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   dropTodayParam(BASE, sp);
-  const { filter, isWeekView, preserved } = parseShameParams(sp);
+  const { filter, view, preserved } = parseShameParams(sp);
 
-  if (isWeekView) {
-    const periodParam = resolveRequestedDay(sp.period);
-    const { activeWeekRange } = resolveActiveWeekRange(periodParam);
+  if (view !== "day") {
+    const isMonth = view === "month";
+    const monthParam = isMonth ? resolveRequestedMonth(sp.period) : null;
+    const periodParam = isMonth ? null : resolveRequestedDay(sp.period);
+    const activeRange = isMonth
+      ? nzMonthRange(monthParam ?? undefined)
+      : resolveActiveWeekRange(periodParam).activeWeekRange;
     const [shame, earliestDay] = await Promise.all([
-      getWorstStopsOfWeek(activeWeekRange, filter, WEEK_REVALIDATE),
+      getWorstStopsOfWeek(activeRange, filter, WEEK_REVALIDATE),
       getEarliestDataDay(1),
     ]);
     /**
-     * Build a week link for this page, preserving the active filter.
-     * @param period - ISO week-start date, or null for the rolling current week.
-     * @returns The week href.
+     * Build a link to this view for a period, preserving the active filter.
+     * @param period - ISO week-start date or `YYYY-MM` month key, or null for the rolling default.
+     * @returns The href.
      */
-    const weekHref = (period: string | null): string =>
-      buildShameHref(BASE, { window: "week", period: period ?? undefined }, filter);
-    const { periodLabel, prevHref, nextHref } = resolveWeekNav({
-      periodParam,
-      earliestDay,
-      makeHref: weekHref,
-    });
+    const rangeHref = (period: string | null): string =>
+      buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
+    const { periodLabel, prevHref, nextHref } = isMonth
+      ? resolveMonthNav({ periodParam: monthParam, earliestDay, makeHref: rangeHref })
+      : resolveWeekNav({ periodParam, earliestDay, makeHref: rangeHref });
 
+    const periodNoun = isMonth ? "month" : "week";
     const worstId = shame.worst?.stop_id ?? null;
     const stopDayCounts = countById(shame.days, (d) => d.stop_id);
-    const weekNav = { window: "week" as const, period: periodParam ?? undefined };
+    const rangeNav = { window: view, period: (isMonth ? monthParam : periodParam) ?? undefined };
 
     /**
      * Render one week-view day row.
@@ -116,7 +122,7 @@ export default async function StopShamePage({
             <span className="block text-xs text-at-muted">{s.events} events</span>
             {weekCount > 1 && (
               <span className="block text-xs text-at-muted">
-                {s.name} was bad {badTimes(weekCount)} this week
+                {s.name} was bad {badTimes(weekCount)} this {periodNoun}
               </span>
             )}
           </span>
@@ -133,16 +139,17 @@ export default async function StopShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title="Worst Stop of the Week"
+          title={`Worst Stop of the ${isMonth ? "Month" : "Week"}`}
           subtitle="The most off-schedule stop of each day"
           activeTab="stop"
           tabHrefs={{
-            trip: buildShameHref("/shame/trip", weekNav, filter),
-            route: buildShameHref("/shame/route", weekNav, filter),
-            stop: buildShameHref(BASE, weekNav, filter),
+            trip: buildShameHref("/shame/trip", rangeNav, filter),
+            route: buildShameHref("/shame/route", rangeNav, filter),
+            stop: buildShameHref(BASE, rangeNav, filter),
           }}
           nav={{
             kind: "week",
+            unit: periodNoun,
             dayToggleHref: buildShameHref(BASE, {}, filter),
             periodLabel,
             prevHref,
@@ -153,7 +160,7 @@ export default async function StopShamePage({
           layout="week"
           items={shame.days}
           keyOf={(s) => s.date}
-          emptyMessage="No stop data recorded for this week."
+          emptyMessage={`No stop data recorded for this ${periodNoun}.`}
           renderRow={renderWeekRow}
         />
       </main>

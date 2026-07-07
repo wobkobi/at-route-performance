@@ -2,7 +2,13 @@
 /**
  * @description Unit tests for the page-nav helpers resolveRequestedDay, resolveWeekNav and filterLiveHours in page-nav.ts.
  */
-import { filterLiveHours, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
+import {
+  filterLiveHours,
+  resolveMonthNav,
+  resolveRequestedDay,
+  resolveRequestedMonth,
+  resolveWeekNav,
+} from "@/lib/page-nav";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -56,6 +62,50 @@ describe("filterLiveHours", () => {
       { hour: 6 },
       { hour: 18 },
     ]);
+  });
+});
+
+describe("resolveRequestedMonth", () => {
+  it("accepts a valid month key and rejects everything else", () => {
+    expect(resolveRequestedMonth("2026-06")).toBe("2026-06");
+    expect(resolveRequestedMonth("2026-13")).toBeNull();
+    expect(resolveRequestedMonth("2026-00")).toBeNull();
+    expect(resolveRequestedMonth("2026-06-15")).toBeNull();
+    expect(resolveRequestedMonth(undefined)).toBeNull();
+  });
+});
+
+describe("resolveMonthNav", () => {
+  // 2026-07-07 12:00 NZST: the current month is 2026-07.
+  const now = new Date("2026-07-07T00:00:00Z");
+  const oldEarliest = new Date("2026-01-01T00:00:00Z");
+  /**
+   * Test stub encoding a month period as a recognisable href.
+   * @param period - The month period, or null for the current month.
+   * @returns A stub href like "month:2026-06" or "month:current".
+   */
+  const monthHref = (period: string | null): string => `month:${period ?? "current"}`;
+
+  it("current month: label, prev steps back, no next", () => {
+    const nav = resolveMonthNav({
+      periodParam: null,
+      earliestDay: oldEarliest,
+      makeHref: monthHref,
+      now,
+    });
+    expect(nav.periodLabel).toBe("July 2026");
+    expect(nav.prevHref).toBe("month:2026-06");
+    expect(nav.nextHref).toBeNull();
+  });
+  it("fixed past month: next snaps to the current month; prev bounded by earliest", () => {
+    const nav = resolveMonthNav({
+      periodParam: "2026-06",
+      earliestDay: new Date("2026-06-10T00:00:00Z"),
+      makeHref: monthHref,
+      now,
+    });
+    expect(nav.nextHref).toBe("month:current");
+    expect(nav.prevHref).toBeNull();
   });
 });
 

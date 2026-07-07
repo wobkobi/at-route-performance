@@ -233,6 +233,46 @@ export function nzMonthRange(ym?: string): DateRange {
 }
 
 /**
+ * Month key like `2026-06` for an instant, in Auckland local time.
+ * @param at - The instant to label (default now).
+ * @returns The month as `YYYY-MM`.
+ */
+export function nzMonthKey(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+  }).format(at);
+}
+
+/**
+ * Shift a `YYYY-MM` month key by whole months.
+ * @param ym - Source month key.
+ * @param months - Months to add (negative steps back).
+ * @returns The shifted `YYYY-MM`.
+ */
+export function shiftMonth(ym: string, months: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const total = y * 12 + (m - 1) + months;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Human month label like `June 2026` for a month range.
+ * @param range - Half-open month range from {@link nzMonthRange}.
+ * @returns The formatted label.
+ */
+export function monthRangeLabel(range: DateRange): string {
+  // The start instant is local midnight on the 1st; nudge a day in so the
+  // formatter can never land in the previous month.
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(range.start.getTime() + 86_400_000));
+}
+
+/**
  * Rolling "last 7 days" window, quantised to service-day boundaries so it caches
  * by day rather than by the instant. Covers the seven service days ending with
  * the given day's service day.

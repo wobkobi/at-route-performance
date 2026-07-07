@@ -19,7 +19,7 @@ import {
   getWorstStops,
 } from "@/lib/data";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveWeekNav } from "@/lib/page-nav";
+import { resolveMonthNav, resolveRequestedMonth, resolveWeekNav } from "@/lib/page-nav";
 import {
   computeRankDelta,
   deriveBoards,
@@ -68,25 +68,29 @@ export default async function RankingsPage({
     getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
   ]);
 
-  // Week stepper: the rolling last-7-days view is the present (no next); stepping
-  // back pages through calendar weeks. Prev stops at the earliest week with data.
-  let prevHref: string | null = null;
-  let nextHref: string | null = null;
-  if (window === "week") {
-    const earliest = await getEarliestDataDay(1);
-    /**
-     * Build a rankings week link for a period, preserving the active filters.
-     * @param period - The week period, or null for the rolling current week.
-     * @returns The rankings href.
-     */
-    const weekHref = (period: string | null): string => rankHref("week", period, filters);
-    ({ prevHref, nextHref } = resolveWeekNav({
-      periodParam: sp.period ?? null,
-      earliestDay: earliest,
-      makeHref: weekHref,
-      now: anchor,
-    }));
-  }
+  // Period stepper: the rolling week / current month is the present (no next);
+  // stepping back pages through calendar periods, bounded by the earliest data.
+  const earliest = await getEarliestDataDay(1);
+  /**
+   * Build a rankings link for a period, preserving the active filters.
+   * @param period - The week or month period, or null for the rolling default.
+   * @returns The rankings href.
+   */
+  const periodHref = (period: string | null): string => rankHref(window, period, filters);
+  const { prevHref, nextHref } =
+    window === "week"
+      ? resolveWeekNav({
+          periodParam: sp.period ?? null,
+          earliestDay: earliest,
+          makeHref: periodHref,
+          now: anchor,
+        })
+      : resolveMonthNav({
+          periodParam: resolveRequestedMonth(sp.period),
+          earliestDay: earliest,
+          makeHref: periodHref,
+          now: anchor,
+        });
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered

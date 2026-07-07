@@ -25,6 +25,8 @@ export type ShameNav =
     }
   | {
       kind: "week";
+      /** Stepper unit for the aria labels; the week shape also serves month views. */
+      unit?: "week" | "month";
       /** Link back to the day view. */
       dayToggleHref: string;
       periodLabel: string;
@@ -118,7 +120,7 @@ export function ShameHeader({
               {nav.prevHref ? (
                 <a
                   href={nav.prevHref}
-                  aria-label="Previous week"
+                  aria-label={`Previous ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
                   <ChevronLeft className="block h-4 w-4" />
@@ -128,7 +130,7 @@ export function ShameHeader({
               {nav.nextHref ? (
                 <a
                   href={nav.nextHref}
-                  aria-label="Next week"
+                  aria-label={`Next ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
                   <ChevronRight className="block h-4 w-4" />
