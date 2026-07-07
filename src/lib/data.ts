@@ -102,7 +102,8 @@ export async function routeIdsForSlug(slug: string): Promise<string[]> {
  * Find the canonical version-stripped slug for a route, case-insensitively.
  * Returns the exact slug when it exists (fast path), or the slug of the first
  * case-insensitive match (for URLs typed in the wrong case), or null when no
- * route exists. Not cached - used at request time before any data fetch.
+ * route exists. Cached hourly per lowercased slug; route ids only change on
+ * the GTFS static sync.
  * @param slug - A version-stripped route slug to look up.
  * @returns The canonical slug, or null when unknown.
  */
@@ -2477,13 +2478,24 @@ export async function getWorstStops(
   revalidate: number,
 ): Promise<WorstStop[]> {
   const { mode = null, includeSchool = false } = filter;
+  // Align midnight-aligned week/month windows to service-day edges so the
+  // worst-stops card counts the same events as the per-day shame boards. A
+  // service-day-aligned range maps to itself, so day callers are unaffected.
+  const days = serviceDatesInRange(range);
+  const aligned =
+    days.length > 0
+      ? {
+          start: nzServiceDayRange(days[0]).start,
+          end: nzServiceDayRange(days[days.length - 1]).end,
+        }
+      : range;
   return unstable_cache(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
         scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
+          $gte: { $date: aligned.start.toISOString() },
+          $lt: { $date: aligned.end.toISOString() },
         },
         ...plausibleDeviationMatch,
       };
@@ -2538,13 +2550,13 @@ export async function getWorstStops(
     },
     [
       "worst-stops",
-      range.start.toISOString(),
-      range.end.toISOString(),
+      aligned.start.toISOString(),
+      aligned.end.toISOString(),
       mode ?? "all",
       includeSchool ? "school" : "no-school",
       String(limit),
     ],
-    { revalidate: rangeRevalidate(range, revalidate) },
+    { revalidate: rangeRevalidate(aligned, revalidate) },
   )();
 }
 
