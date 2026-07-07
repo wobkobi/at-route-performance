@@ -11,6 +11,8 @@ import { recordIngestRun } from "@/lib/ingest-run";
 import { NextResponse } from "next/server";
 
 // Downloads + parses AT's full GTFS zip (large); give it generous headroom.
+// 300s needs fluid compute on the Hobby plan (classic serverless caps at 60s);
+// verify it is enabled under Project > Settings > Functions before relying on it.
 export const maxDuration = 300;
 
 /**

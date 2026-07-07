@@ -10,10 +10,14 @@
  * these helpers stay pure and unit-testable.
  */
 import {
+  monthRangeLabel,
   nzLast7DaysRange,
+  nzMonthKey,
+  nzMonthRange,
   nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
+  shiftMonth,
   shiftWeek,
   weekRangeLabel,
   type DateRange,
@@ -22,19 +26,41 @@ import {
 /** Matches an ISO `YYYY-MM-DD` date string. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Matches an ISO `YYYY-MM` month key with a real month number. */
+const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * Validate a `?period=` query value as an ISO `YYYY-MM` month key.
+ * @param value - The raw query value, if any.
+ * @returns The value when it is a valid month key, else null.
+ */
+export function resolveRequestedMonth(value: string | undefined): string | null {
+  return value && ISO_MONTH.test(value) ? value : null;
+}
+
 /**
  * Validate a `?day=` / `?period=` query value as an ISO `YYYY-MM-DD` date.
+ * Rejects shape-valid but impossible dates (2026-02-31): `Date.UTC` would
+ * silently normalise those onto a different day, so the components must
+ * round-trip unchanged.
  * @param value - The raw query value, if any.
- * @returns The value when it is a valid ISO date, else null.
+ * @returns The value when it is a real calendar date, else null.
  */
 export function resolveRequestedDay(value: string | undefined): string | null {
-  return value && ISO_DATE.test(value) ? value : null;
+  if (!value || !ISO_DATE.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+  return real ? value : null;
 }
 
 /**
  * Drop hours that have not started yet on a live (today) day, so AT realtime
  * predicted-future slots don't show as phantom on-time entries. A no-op for any
- * past day. Pre-5am the whole day is shown (the service day starts at 5am).
+ * past day. The service day runs 5am > 5am, so its post-midnight hours (0-4)
+ * come chronologically LAST: pre-5am the daytime hours 5-23 have all happened
+ * (the previous calendar evening) plus the post-midnight hours up to now, while
+ * from 5am onward only hours 5..now have.
  * @param hours - The day's hourly rows (each carrying its `hour` of day, 0-23).
  * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
  * @param now - The current instant (injectable for tests).
@@ -54,7 +80,9 @@ export function filterLiveHours<H extends { hour: number }>(
     }).format(now),
     10,
   );
-  return hours.filter((h) => (h.hour >= 5 ? h.hour <= nowHourNZ : nowHourNZ < 5));
+  return hours.filter((h) =>
+    nowHourNZ < 5 ? h.hour >= 5 || h.hour <= nowHourNZ : h.hour >= 5 && h.hour <= nowHourNZ,
+  );
 }
 
 /**
@@ -116,6 +144,81 @@ export function resolveWeekNav({
     nextHref = nextWeek >= thisWeekStart ? makeHref(null) : makeHref(nextWeek);
   }
   return { periodLabel, prevHref, nextHref };
+}
+
+/**
+ * Compute the month stepper: the period label plus prev/next links, bounded by
+ * the earliest month with data on one side and the present month on the other.
+ * Mirrors {@link resolveWeekNav} for `window=month` views.
+ * @param root0 - Inputs.
+ * @param root0.periodParam - Validated `YYYY-MM` month key, or null for the current month.
+ * @param root0.earliestDay - Earliest service day with data, or null when unknown.
+ * @param root0.makeHref - Builds a month link for a period (null = the current month).
+ * @param root0.now - The current instant (injectable for tests).
+ * @returns The label and the bounded prev/next links.
+ */
+export function resolveMonthNav({
+  periodParam,
+  earliestDay,
+  makeHref,
+  now = new Date(),
+}: {
+  periodParam: string | null;
+  earliestDay: Date | null;
+  makeHref: (period: string | null) => string;
+  now?: Date;
+}): WeekNav {
+  const currentKey = nzMonthKey(now);
+  const activeKey = periodParam ?? currentKey;
+  const periodLabel = monthRangeLabel(nzMonthRange(activeKey));
+  const prevMonth = shiftMonth(activeKey, -1);
+  const earliestKey = earliestDay ? nzMonthKey(earliestDay) : null;
+  const prevHref = !earliestKey || prevMonth >= earliestKey ? makeHref(prevMonth) : null;
+  let nextHref: string | null = null;
+  if (periodParam && periodParam < currentKey) {
+    const nextMonth = shiftMonth(periodParam, 1);
+    nextHref = nextMonth >= currentKey ? makeHref(null) : makeHref(nextMonth);
+  }
+  return { periodLabel, prevHref, nextHref };
+}
+
+/** Resolved state for a week or month board view: range, label and stepper. */
+export interface RangeViewNav extends WeekNav {
+  /** Whether the month variant is active. */
+  isMonth: boolean;
+  /** Copy noun for the period ("week" / "month"). */
+  periodNoun: "week" | "month";
+  /** Validated period param (week-start date or month key), or null for the rolling default. */
+  periodParam: string | null;
+  /** The half-open window to query. */
+  activeRange: DateRange;
+}
+
+/**
+ * Resolve everything a week/month board needs from its raw `?period=` value:
+ * the validated period, the window to query, and the bounded stepper. Shared by
+ * the three shame boards so the view plumbing lives in one place.
+ * @param view - The active non-day view.
+ * @param rawPeriod - The raw `?period=` query value, if any.
+ * @param earliestDay - Earliest service day with data, or null when unknown.
+ * @param makeHref - Builds a link for a period (null = the rolling default).
+ * @returns The resolved view state.
+ */
+export function resolveRangeView(
+  view: "week" | "month",
+  rawPeriod: string | undefined,
+  earliestDay: Date | null,
+  makeHref: (period: string | null) => string,
+): RangeViewNav {
+  const isMonth = view === "month";
+  const periodParam = isMonth ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
+  const activeRange = isMonth
+    ? nzMonthRange(periodParam ?? undefined)
+    : resolveActiveWeekRange(periodParam).activeWeekRange;
+  const nav = isMonth
+    ? resolveMonthNav({ periodParam, earliestDay, makeHref })
+    : resolveWeekNav({ periodParam, earliestDay, makeHref });
+  return { isMonth, periodNoun: isMonth ? "month" : "week", periodParam, activeRange, ...nav };
 }
 
 /**

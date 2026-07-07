@@ -42,12 +42,15 @@ export const MODE_LABEL: Record<string, string> = {
   FERRY: "Ferries",
 };
 
+/** Which board view is active: the hourly day board or a per-day range board. */
+export type ShameView = "day" | "week" | "month";
+
 /** Parsed shame-page params: the active filter plus its derived view state. */
 export interface ParsedShameParams {
   mode: ShameMode;
   includeSchool: boolean;
   filter: ShameFilter;
-  isWeekView: boolean;
+  view: ShameView;
   /** Params to preserve on `DayNav` links (mode/school only). */
   preserved: Record<string, string>;
   /** Subtitle describing the active filter ("Buses" / "All services" / …). */
@@ -58,7 +61,7 @@ export interface ParsedShameParams {
  * Parse and validate the shame-page query params into the active filter and the
  * derived view state shared by all three boards.
  * @param sp - The raw search params.
- * @returns The mode/school filter, week-view flag, preserved params, and subtitle.
+ * @returns The mode/school filter, active view, preserved params, and subtitle.
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
@@ -71,11 +74,12 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const preserved: Record<string, string> = {};
   if (mode) preserved.mode = mode;
   if (includeSchool) preserved.school = "1";
+  const view: ShameView = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
   return {
     mode,
     includeSchool,
     filter: { mode, includeSchool },
-    isWeekView: sp.window === "week",
+    view,
     preserved,
     subtitle,
   };

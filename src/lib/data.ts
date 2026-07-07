@@ -28,6 +28,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   SERVICE_START_HOUR,
+  serviceDatesInRange,
   shiftWeek,
   type DateRange,
 } from "@/lib/time";
@@ -101,7 +102,8 @@ export async function routeIdsForSlug(slug: string): Promise<string[]> {
  * Find the canonical version-stripped slug for a route, case-insensitively.
  * Returns the exact slug when it exists (fast path), or the slug of the first
  * case-insensitive match (for URLs typed in the wrong case), or null when no
- * route exists. Not cached - used at request time before any data fetch.
+ * route exists. Cached hourly per lowercased slug; route ids only change on
+ * the GTFS static sync.
  * @param slug - A version-stripped route slug to look up.
  * @returns The canonical slug, or null when unknown.
  */
@@ -438,6 +440,101 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   };
 }
 
+/** Cache TTL for a completed service day's aggregation (seconds). */
+const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
+
+/**
+ * Per-day cache TTL for date-scoped ArrivalEvent aggregations: completed
+ * service days are immutable (ingest is real-time and cleanup only deletes
+ * whole expired days), so they hold for a week; the current service day keeps
+ * the caller's short TTL. A week bounds staleness if a past day is ever
+ * re-ingested while still covering a day's ~2-week navigable life in one
+ * computation.
+ * @param date - The service date being aggregated (`YYYY-MM-DD`).
+ * @param liveRevalidate - TTL for the still-running day, in seconds.
+ * @returns The TTL to use, in seconds.
+ */
+function dayRevalidate(date: string, liveRevalidate: number): number {
+  return date < nzServiceDayString() ? COMPLETED_DAY_REVALIDATE : liveRevalidate;
+}
+
+/**
+ * Range form of {@link dayRevalidate}: a window that ends at or before the
+ * current service day's start contains only completed (immutable) days.
+ * @param range - The queried half-open window.
+ * @param liveRevalidate - TTL when the window touches the live day, in seconds.
+ * @returns The TTL to use, in seconds.
+ */
+function rangeRevalidate(range: DateRange, liveRevalidate: number): number {
+  return range.end <= nzServiceDayRange().start ? COMPLETED_DAY_REVALIDATE : liveRevalidate;
+}
+
+/**
+ * The cached worst runs for one service day. Key and TTL live here so the week
+ * and month boards and the cache pre-warm route hit the same Data Cache entries.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param mode - Route mode filter (null = every mode).
+ * @param includeSchool - Whether school services are included.
+ * @param revalidate - TTL for the live day, in seconds.
+ * @returns The day's worst runs.
+ */
+export function cachedWorstTripsOfDay(
+  date: string,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+  revalidate: number,
+): Promise<ShameTrip[]> {
+  return unstable_cache(
+    () => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool),
+    ["shame-trip-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    { revalidate: dayRevalidate(date, revalidate) },
+  )();
+}
+
+/**
+ * The cached worst routes for one service day. Same key/TTL ownership as
+ * {@link cachedWorstTripsOfDay}.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param mode - Route mode filter (null = every mode).
+ * @param includeSchool - Whether school services are included.
+ * @param revalidate - TTL for the live day, in seconds.
+ * @returns The day's worst routes.
+ */
+export function cachedWorstRoutesOfDay(
+  date: string,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+  revalidate: number,
+): Promise<ShameRouteRow[]> {
+  return unstable_cache(
+    () => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool),
+    ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    { revalidate: dayRevalidate(date, revalidate) },
+  )();
+}
+
+/**
+ * The cached worst stops for one service day. Same key/TTL ownership as
+ * {@link cachedWorstTripsOfDay}.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param mode - Route mode filter (null = every mode).
+ * @param includeSchool - Whether school services are included.
+ * @param revalidate - TTL for the live day, in seconds.
+ * @returns The day's worst stops.
+ */
+export function cachedWorstStopsOfDay(
+  date: string,
+  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  includeSchool: boolean,
+  revalidate: number,
+): Promise<ShameDayStop[]> {
+  return unstable_cache(
+    () => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool),
+    ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    { revalidate: dayRevalidate(date, revalidate) },
+  )();
+}
+
 /**
  * Summarise a route's performance over a window (defaults to the last 7 days).
  * Cached briefly; shared by the route page and the API route.
@@ -454,7 +551,9 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
       p.to?.toISOString() ?? "",
       String(p.thresholdSec),
     ],
-    { revalidate: 300 },
+    // Explicit windows over completed days are immutable; the rolling default
+    // (no from/to) tracks the live day and keeps the short TTL.
+    { revalidate: p.from && p.to ? rangeRevalidate({ start: p.from, end: p.to }, 300) : 300 },
   )();
 }
 
@@ -822,7 +921,9 @@ export async function getEarliestDataDay(minEvents: number): Promise<Date | null
       return typeof raw === "string" ? raw : raw.$date;
     },
     ["earliest-data-day", String(minEvents)],
-    { revalidate: 600 },
+    // Only moves when the nightly cleanup prunes the oldest day, so 6h is safe;
+    // the freshness-sensitive latest/most-recent markers stay at 600.
+    { revalidate: 21_600 },
   )();
   if (!iso) return null;
   // The bucket is the service day's local midnight; return its local noon so the
@@ -1016,7 +1117,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
       String(limit),
       sort,
     ],
-    { revalidate: 300 },
+    { revalidate: rangeRevalidate(p.range, 300) },
   )();
 }
 
@@ -1059,7 +1160,7 @@ export async function getCancelledTrips(
         .sort((a, b) => (a.headsign ?? a.trip_id).localeCompare(b.headsign ?? b.trip_id));
     },
     ["cancelled-trips", routeId, range.start.toISOString()],
-    { revalidate: 300 },
+    { revalidate: rangeRevalidate(range, 300) },
   )();
 }
 
@@ -1253,7 +1354,7 @@ export async function getShameOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate },
+    { revalidate: rangeRevalidate(range, revalidate) },
   )();
 }
 
@@ -1322,10 +1423,16 @@ export async function getShameStreak(
       }));
 
       // Walk backwards from the most recent day counting consecutive bad days.
+      // A date with no summary row is absent from `rows`, so require each row
+      // to be exactly one day before the last counted one - otherwise a missing
+      // day would be silently bridged and overstate the streak.
       let count = 0;
+      let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
+        if (expectedDate !== null && rows[i].date !== expectedDate) break;
         if ((rows[i].avgAbsDelaySec ?? 0) >= STREAK_THRESHOLD_SEC) {
           count++;
+          expectedDate = shiftWeek(rows[i].date, -1);
         } else {
           break;
         }
@@ -1411,10 +1518,15 @@ export async function getShameRouteStreak(
       };
 
       const rows = res.cursor.firstBatch;
+      // Require day-on-day adjacency so a date with no summary row breaks the
+      // run instead of being silently bridged.
       let count = 0;
+      let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
+        if (expectedDate !== null && rows[i].date !== expectedDate) break;
         if (rows[i].topRouteId === routeId) {
           count++;
+          expectedDate = shiftWeek(rows[i].date, -1);
         } else {
           break;
         }
@@ -1443,7 +1555,6 @@ export async function getShameRouteStreak(
  * @param filter - Mode/school filter matching the active shame page view.
  * @param filter.mode - Restrict to this mode; null means all modes.
  * @param filter.includeSchool - Include school services (default false).
- * @param revalidate - Cache lifetime in seconds.
  * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` - streak
  *   length (min 1), total hourly-slot appearances across *previous* streak days,
  *   and the count of consecutive prior days on which this route was also the
@@ -1453,7 +1564,6 @@ export async function getShameRouteStreaksBatch(
   routeIds: string[],
   currentRange: DateRange,
   filter: ShameFilter,
-  revalidate: number,
 ): Promise<Map<string, { count: number; prevHours: number; prevWorstOfDayDays: number }>> {
   if (routeIds.length === 0) return new Map();
   const { mode = null, includeSchool = false } = filter;
@@ -1609,7 +1719,10 @@ export async function getShameRouteStreaksBatch(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate },
+    // The 14-day window ends at the current day's start, so the result never
+    // includes the live day and is immutable for the whole service day (the
+    // key is day-scoped) - safe to hold long regardless of the caller's TTL.
+    { revalidate: COMPLETED_DAY_REVALIDATE },
   )();
 
   // Build lookup structures from the cached data (fast O(n), runs outside cache).
@@ -1636,9 +1749,10 @@ export async function getShameRouteStreaksBatch(
     let count = 1; // today is always day 1 (caller confirmed)
     let prevHours = 0;
     let prevWorstOfDayDays = 0;
-    let expectedStart = new Date(currentRange.start.getTime() - MS_IN_DAY);
+    // Step by date string, not fixed 24h of milliseconds: a millisecond step
+    // drifts an hour off the 5am boundary across a DST change and skips a day.
+    let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
     for (let d = 0; d < 14; d++) {
-      const dayKey = nzServiceDayString(expectedStart);
       const daySet = shameDays.get(dayKey);
       if (!daySet || !daySet.has(routeId)) break;
       count++;
@@ -1647,7 +1761,7 @@ export async function getShameRouteStreaksBatch(
       if (d === prevWorstOfDayDays && worstOfDayPerDay.get(dayKey) === routeId) {
         prevWorstOfDayDays++;
       }
-      expectedStart = new Date(expectedStart.getTime() - MS_IN_DAY);
+      dayKey = shiftWeek(dayKey, -1);
     }
     result.set(routeId, { count, prevHours, prevWorstOfDayDays });
   }
@@ -1850,7 +1964,7 @@ export async function getShameRouteOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate },
+    { revalidate: rangeRevalidate(range, revalidate) },
   )();
 }
 
@@ -1877,11 +1991,7 @@ export async function getShameRouteOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        unstable_cache(
-          () => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool),
-          ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-          { revalidate },
-        )(),
+        cachedWorstRoutesOfDay(date, mode, includeSchool, revalidate),
       ),
     )
   ).flat();
@@ -2097,11 +2207,7 @@ export async function getShameOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        unstable_cache(
-          () => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool),
-          ["shame-trip-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-          { revalidate },
-        )(),
+        cachedWorstTripsOfDay(date, mode, includeSchool, revalidate),
       ),
     )
   ).flat();
@@ -2372,13 +2478,24 @@ export async function getWorstStops(
   revalidate: number,
 ): Promise<WorstStop[]> {
   const { mode = null, includeSchool = false } = filter;
+  // Align midnight-aligned week/month windows to service-day edges so the
+  // worst-stops card counts the same events as the per-day shame boards. A
+  // service-day-aligned range maps to itself, so day callers are unaffected.
+  const days = serviceDatesInRange(range);
+  const aligned =
+    days.length > 0
+      ? {
+          start: nzServiceDayRange(days[0]).start,
+          end: nzServiceDayRange(days[days.length - 1]).end,
+        }
+      : range;
   return unstable_cache(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
         scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
+          $gte: { $date: aligned.start.toISOString() },
+          $lt: { $date: aligned.end.toISOString() },
         },
         ...plausibleDeviationMatch,
       };
@@ -2433,13 +2550,13 @@ export async function getWorstStops(
     },
     [
       "worst-stops",
-      range.start.toISOString(),
-      range.end.toISOString(),
+      aligned.start.toISOString(),
+      aligned.end.toISOString(),
       mode ?? "all",
       includeSchool ? "school" : "no-school",
       String(limit),
     ],
-    { revalidate },
+    { revalidate: rangeRevalidate(aligned, revalidate) },
   )();
 }
 
@@ -2555,25 +2672,8 @@ export async function getWorstStopsOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate },
+    { revalidate: rangeRevalidate(range, revalidate) },
   )();
-}
-
-/**
- * The Auckland service dates (`YYYY-MM-DD`) covered by a service-day-aligned
- * range, earliest first. Lets the week boards resolve one day at a time.
- * @param range - A service-day-aligned half-open window.
- * @returns The service dates in the window.
- */
-function serviceDatesInRange(range: DateRange): string[] {
-  const dates: string[] = [];
-  const last = nzServiceDayString(new Date(range.end.getTime() - 1));
-  let date = nzServiceDayString(range.start);
-  while (date <= last) {
-    dates.push(date);
-    date = shiftWeek(date, 1);
-  }
-  return dates;
 }
 
 /** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
@@ -2611,11 +2711,7 @@ export async function getWorstStopsOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        unstable_cache(
-          () => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool),
-          ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-          { revalidate },
-        )(),
+        cachedWorstStopsOfDay(date, mode, includeSchool, revalidate),
       ),
     )
   ).flat();
@@ -2926,7 +3022,7 @@ export async function getStopStats(
       };
     },
     ["stop-stats", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate },
+    { revalidate: rangeRevalidate(range, revalidate) },
   )();
 }
 
@@ -3071,7 +3167,9 @@ export async function getTripTimeline(
       };
     },
     ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
-    { revalidate: 300 },
+    // Day-scoped timelines for completed days are immutable; the "all" variant
+    // follows the trip's latest day and stays short-lived.
+    { revalidate: day ? rangeRevalidate(day, 300) : 300 },
   )();
 }
 

@@ -49,6 +49,31 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
   return inserted;
 }
 
+/**
+ * Upsert arrival events keyed on the stop visit `(tripId, stopId, scheduledAt)`
+ * in batches. GTFS-RT re-polls keep revising a stop's predicted arrival, so the
+ * latest write wins per visit and converges on the final observation instead of
+ * accumulating one row per revision (the old `actualAt` key admitted that).
+ * @param docs - Extended-JSON arrival documents (dates as `{ $date }`).
+ * @returns Count of rows written (matched or upserted).
+ */
+async function bulkUpsertArrivals(docs: Record<string, unknown>[]): Promise<number> {
+  let written = 0;
+  for (let i = 0; i < docs.length; i += INSERT_BATCH) {
+    const res = (await prisma.$runCommandRaw({
+      update: "ArrivalEvent",
+      updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
+        q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
+        u: { $set: doc },
+        upsert: true,
+      })) as never,
+      ordered: false,
+    })) as unknown as { n?: number };
+    written += res.n ?? 0;
+  }
+  return written;
+}
+
 interface DebugStats {
   seen: number;
   withTU: number;
@@ -230,10 +255,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
     }
 
-    // Bulk-insert with ordered:false: duplicate (tripId, stopId, actualAt) rows
-    // are skipped in one round-trip per batch instead of a slow per-row fallback.
-    const stopCount = await bulkInsert(
-      "ArrivalEvent",
+    // Upsert per stop visit so a revised prediction replaces the earlier row
+    // rather than inserting a duplicate alongside it.
+    const stopCount = await bulkUpsertArrivals(
       stopRows.map((r) => ({
         routeId: r.routeId,
         stopId: r.stopId,

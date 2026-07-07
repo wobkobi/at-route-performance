@@ -2,35 +2,8 @@
 /**
  * @description Loading skeleton for the shame trip page.
  */
+import { Bone, ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
-
-/**
- * Pulse-placeholder skeleton element.
- * @param root0 - Props.
- * @param root0.className - Tailwind size and shape classes.
- * @returns The bone element.
- */
-function Bone({ className }: { className: string }): JSX.Element {
-  return <div className={`animate-pulse rounded bg-at-border ${className}`} />;
-}
-
-/**
- * Skeleton for a single shame list row.
- * @returns The list item placeholder.
- */
-function ListRow(): JSX.Element {
-  return (
-    <li className="flex items-start gap-3 border-t border-at-border px-4 py-3">
-      <Bone className="mt-0.5 h-4 w-12 shrink-0" />
-      <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-      <div className="flex-1 space-y-1.5">
-        <Bone className="h-4 w-32" />
-        <Bone className="h-3 w-52" />
-      </div>
-      <Bone className="mt-0.5 h-4 w-20 shrink-0" />
-    </li>
-  );
-}
 
 /**
  * Shame trip page loading skeleton.
@@ -60,43 +33,7 @@ export default function Loading(): JSX.Element {
         </div>
       </header>
 
-      {/* List */}
-      <div className="border border-at-border bg-at-surface">
-        {/* Mobile: single column */}
-        <ul className="md:hidden">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <ListRow key={i} />
-          ))}
-        </ul>
-        {/* Desktop: 2-column grid matching the real page layout */}
-        <ul className="hidden md:grid md:grid-cols-2">
-          {Array.from({ length: 20 }).map((_, i) => {
-            const isRight = i >= 10;
-            const rowIdx = isRight ? i - 10 : i;
-            return (
-              <li
-                key={i}
-                className={[
-                  "flex items-start gap-3 px-4 py-3",
-                  rowIdx > 0 ? "border-t border-at-border" : "",
-                  isRight ? "border-l border-at-border" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{ gridColumn: isRight ? 2 : 1, gridRow: rowIdx + 1 }}
-              >
-                <Bone className="mt-0.5 h-4 w-12 shrink-0" />
-                <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-                <div className="flex-1 space-y-1.5">
-                  <Bone className="h-4 w-32" />
-                  <Bone className="h-3 w-52" />
-                </div>
-                <Bone className="mt-0.5 h-4 w-20 shrink-0" />
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      <ShameBoardSkeleton layout="day" />
     </main>
   );
 }

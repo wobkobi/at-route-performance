@@ -4,6 +4,64 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.4] - 2026-07-08
+
+### Fixed
+
+- Dedupe script gains `--since=<hours>` so a recent-only rescan can win the race against the
+  2-minute ingest cadence when rebuilding the unique index.
+
+## [1.7.3] - 2026-07-08
+
+### Fixed
+
+- `db:push` now runs only on production builds. It sat in the shared Vercel `buildCommand`, so any
+  preview build of a stale branch (e.g. a Dependabot PR based on main) synced its old schema against
+  the production database - dropping the new ArrivalEvent unique index and letting duplicates
+  accumulate unchecked.
+
+## [1.7.2] - 2026-07-07
+
+### Fixed
+
+- Shame week boards showed eight day-rows ("Monday to Monday"): the day list now clamps to service
+  days starting inside the window, and the rolling week no longer gains or loses a day across DST.
+- Weekday labels on the week boards were one day ahead of the dates beside them.
+- The hourly shame boards went nearly empty between midnight and 5am NZ (the live-hours filter
+  dropped the whole daytime instead of the not-yet-started hours).
+- Route service alerts never matched: the feed's versioned route ids ("NX1-202409") are now
+  normalised before comparing, restoring the route alert banner, detour dashing and stop disruption
+  rings.
+- The trip timeline page returned a 500 for a malformed `?d=`; impossible calendar dates like
+  `2026-02-31` no longer silently normalise onto a different day; a raw `%` in a stop URL no longer
+  throws.
+- Worst-route week rows drilled down to the rolling "Last 7 days" instead of the week being viewed.
+- Routes with no measurable delay data showed "on time" instead of a dash in the tables and boards.
+- Streak counts bridged missing days as consecutive and skipped a day across the spring DST change.
+- The daily aggregate silently dropped events for routes not yet in the static GTFS sync.
+- The realtime ingest stored duplicate rows per stop visit as predictions were revised (~5% of all
+  events); arrival events now upsert on the stop visit and existing duplicates were removed.
+- The backfill script parsed dates with a fixed +12:00 offset (wrong during NZDT).
+
+### Security
+
+- Removed the unauthenticated `POST /api/routes` and `POST /api/stops` write endpoints.
+
+### Added
+
+- Month view for the three shame boards (`?window=month`), with month stepping; the rankings month
+  cards now land on it, and the rankings page gained prev/next month navigation.
+- `/api/warm` cron endpoint that pre-computes yesterday's boards after the nightly ingest.
+
+### Performance
+
+- Completed service days now cache for a week across the data layer (they are immutable), so week
+  and month views are warm after their first computation.
+- The shame boards, rankings, home cards and stop departures stream in behind an instant header
+  shell instead of blocking the whole page on cold aggregations.
+- The rankings stepper bound is fetched alongside the anchor query instead of after the batch, and
+  the earliest-day marker's cache lifetime reflects how rarely it moves.
+
 ## [1.0.0] - 2026-06-25
 
 ### New pages

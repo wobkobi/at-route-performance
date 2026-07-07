@@ -3,6 +3,7 @@
  * @description Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
  */
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
+import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
@@ -12,9 +13,8 @@ import { formatDuration } from "@/lib/format";
 import {
   filterLiveHours,
   maybeFallbackDay,
-  resolveActiveWeekRange,
+  resolveRangeView,
   resolveRequestedDay,
-  resolveWeekNav,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
@@ -25,11 +25,19 @@ import {
   pickWorst,
   TODAY_REVALIDATE,
   WEEK_REVALIDATE,
+  type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzHourLabel, nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import {
+  nzHourLabel,
+  nzServiceDayRange,
+  nzServiceDayString,
+  shiftWeek,
+  weekdayShort,
+  type DateRange,
+} from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
-import type { JSX } from "react";
+import { Suspense, type JSX } from "react";
 
 const BASE = "/shame/stop";
 
@@ -40,6 +48,81 @@ const BASE = "/shame/stop";
  */
 function badTimes(count: number): string {
   return count === 2 ? "twice" : `${count} times`;
+}
+
+/**
+ * Week/month board body: runs the per-day worst-stop fan-out and renders one
+ * row per service day. Streams in behind the header so the shell never waits on
+ * a cold period.
+ * @param root0 - Props.
+ * @param root0.range - The active window.
+ * @param root0.filter - Active mode/school filter.
+ * @param root0.periodNoun - Copy noun for the period ("week" / "month").
+ * @returns The populated board.
+ */
+async function StopRangeBoard({
+  range,
+  filter,
+  periodNoun,
+}: {
+  range: DateRange;
+  filter: ShameFilter;
+  periodNoun: "week" | "month";
+}): Promise<JSX.Element> {
+  const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);
+  const worstId = shame.worst?.stop_id ?? null;
+  const stopDayCounts = countById(shame.days, (d) => d.stop_id);
+
+  /**
+   * Render one range-view day row.
+   * @param s - The day's worst stop.
+   * @param ctx - Surface context from the board.
+   * @returns The row anchor element.
+   */
+  const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
+    const isWorst = s.stop_id === worstId;
+    const [, m, d] = s.date.split("-");
+    const dayLabel = weekdayShort(s.date);
+    const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
+    return (
+      <a
+        href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
+        className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
+      >
+        <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
+          {dayLabel} {d}/{m}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="font-semibold text-at-ink">{s.name}</span>
+            {isWorst && <ShameWorstBadge />}
+          </span>
+          <span className="block text-xs text-at-muted">{s.events} events</span>
+          {weekCount > 1 && (
+            <span className="block text-xs text-at-muted">
+              {s.name} was bad {badTimes(weekCount)} this {periodNoun}
+            </span>
+          )}
+        </span>
+        <span
+          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
+          title="Average deviation from the scheduled arrival time"
+        >
+          {formatDuration(s.avg_abs_delay_sec)} off
+        </span>
+      </a>
+    );
+  };
+
+  return (
+    <ShameBoard
+      layout="week"
+      items={shame.days}
+      keyOf={(s) => s.date}
+      emptyMessage={`No stop data recorded for this ${periodNoun}.`}
+      renderRow={renderWeekRow}
+    />
+  );
 }
 
 /**
@@ -57,102 +140,46 @@ export default async function StopShamePage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   dropTodayParam(BASE, sp);
-  const { filter, isWeekView, preserved } = parseShameParams(sp);
+  const { filter, view, preserved } = parseShameParams(sp);
 
-  if (isWeekView) {
-    const periodParam = resolveRequestedDay(sp.period);
-    const { activeWeekRange } = resolveActiveWeekRange(periodParam);
-    const [shame, earliestDay] = await Promise.all([
-      getWorstStopsOfWeek(activeWeekRange, filter, WEEK_REVALIDATE),
-      getEarliestDataDay(1),
-    ]);
+  if (view !== "day") {
     /**
-     * Build a week link for this page, preserving the active filter.
-     * @param period - ISO week-start date, or null for the rolling current week.
-     * @returns The week href.
+     * Build a link to this view for a period, preserving the active filter.
+     * @param period - ISO week-start date or `YYYY-MM` month key, or null for the rolling default.
+     * @returns The href.
      */
-    const weekHref = (period: string | null): string =>
-      buildShameHref(BASE, { window: "week", period: period ?? undefined }, filter);
-    const { periodLabel, prevHref, nextHref } = resolveWeekNav({
-      periodParam,
-      earliestDay,
-      makeHref: weekHref,
-    });
-
-    const worstId = shame.worst?.stop_id ?? null;
-    const stopDayCounts = countById(shame.days, (d) => d.stop_id);
-    const weekNav = { window: "week" as const, period: periodParam ?? undefined };
-
-    /**
-     * Render one week-view day row.
-     * @param s - The day's worst stop.
-     * @param ctx - Surface context from the board.
-     * @returns The row anchor element.
-     */
-    const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
-      const isWorst = s.stop_id === worstId;
-      const [, m, d] = s.date.split("-");
-      const dayLabel = new Intl.DateTimeFormat("en-NZ", {
-        timeZone: "Pacific/Auckland",
-        weekday: "short",
-      }).format(new Date(s.date + "T12:00:00Z"));
-      const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
-      return (
-        <a
-          href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
-          className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
-        >
-          <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-            {dayLabel} {d}/{m}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2">
-              <span className="font-semibold text-at-ink">{s.name}</span>
-              {isWorst && <ShameWorstBadge />}
-            </span>
-            <span className="block text-xs text-at-muted">{s.events} events</span>
-            {weekCount > 1 && (
-              <span className="block text-xs text-at-muted">
-                {s.name} was bad {badTimes(weekCount)} this week
-              </span>
-            )}
-          </span>
-          <span
-            className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
-            title="Average deviation from the scheduled arrival time"
-          >
-            {formatDuration(s.avg_abs_delay_sec)} off
-          </span>
-        </a>
-      );
-    };
+    const rangeHref = (period: string | null): string =>
+      buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
+    // Cheap cached bound for the stepper; the heavy per-day fan-out streams in
+    // behind the header via Suspense.
+    const earliestDay = await getEarliestDataDay(1);
+    const { isMonth, periodNoun, periodParam, activeRange, periodLabel, prevHref, nextHref } =
+      resolveRangeView(view, sp.period, earliestDay, rangeHref);
+    const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
       <main className="space-y-6">
         <ShameHeader
-          title="Worst Stop of the Week"
+          title={`Worst Stop of the ${isMonth ? "Month" : "Week"}`}
           subtitle="The most off-schedule stop of each day"
           activeTab="stop"
           tabHrefs={{
-            trip: buildShameHref("/shame/trip", weekNav, filter),
-            route: buildShameHref("/shame/route", weekNav, filter),
-            stop: buildShameHref(BASE, weekNav, filter),
+            trip: buildShameHref("/shame/trip", rangeNav, filter),
+            route: buildShameHref("/shame/route", rangeNav, filter),
+            stop: buildShameHref(BASE, rangeNav, filter),
           }}
           nav={{
             kind: "week",
+            unit: periodNoun,
             dayToggleHref: buildShameHref(BASE, {}, filter),
             periodLabel,
             prevHref,
             nextHref,
           }}
         />
-        <ShameBoard
-          layout="week"
-          items={shame.days}
-          keyOf={(s) => s.date}
-          emptyMessage="No stop data recorded for this week."
-          renderRow={renderWeekRow}
-        />
+        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+          <StopRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
+        </Suspense>
       </main>
     );
   }

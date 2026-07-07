@@ -233,6 +233,46 @@ export function nzMonthRange(ym?: string): DateRange {
 }
 
 /**
+ * Month key like `2026-06` for an instant, in Auckland local time.
+ * @param at - The instant to label (default now).
+ * @returns The month as `YYYY-MM`.
+ */
+export function nzMonthKey(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+  }).format(at);
+}
+
+/**
+ * Shift a `YYYY-MM` month key by whole months.
+ * @param ym - Source month key.
+ * @param months - Months to add (negative steps back).
+ * @returns The shifted `YYYY-MM`.
+ */
+export function shiftMonth(ym: string, months: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const total = y * 12 + (m - 1) + months;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Human month label like `June 2026` for a month range.
+ * @param range - Half-open month range from {@link nzMonthRange}.
+ * @returns The formatted label.
+ */
+export function monthRangeLabel(range: DateRange): string {
+  // The start instant is local midnight on the 1st; nudge a day in so the
+  // formatter can never land in the previous month.
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(range.start.getTime() + 86_400_000));
+}
+
+/**
  * Rolling "last 7 days" window, quantised to service-day boundaries so it caches
  * by day rather than by the instant. Covers the seven service days ending with
  * the given day's service day.
@@ -241,7 +281,36 @@ export function nzMonthRange(ym?: string): DateRange {
  */
 export function nzLast7DaysRange(at: Date = new Date()): DateRange {
   const day = nzServiceDayRange(at);
-  return { start: new Date(day.end.getTime() - 604_800_000), end: day.end };
+  // Step back six service days by date string rather than subtracting a fixed
+  // 7 * 24h of milliseconds, which lands an hour off the 5am boundary when the
+  // window straddles a DST transition.
+  const start = nzServiceDayRange(shiftWeek(nzServiceDayString(at), -6)).start;
+  return { start, end: day.end };
+}
+
+/**
+ * The Auckland service dates (`YYYY-MM-DD`) whose service days start inside a
+ * half-open window, earliest first. Handles both midnight-aligned calendar
+ * ranges ({@link nzWeekRange}, {@link nzMonthRange}) and 5am service-day-aligned
+ * ranges ({@link nzLast7DaysRange}): a service day is included only when its
+ * 5am start lies inside `[start, end)`, so a midnight week start no longer
+ * drags in the previous service day. Lets the week boards resolve one day at
+ * a time.
+ * @param range - A half-open UTC window.
+ * @returns The service dates in the window, earliest first.
+ */
+export function serviceDatesInRange(range: DateRange): string[] {
+  // The service day containing range.start; when its 5am start precedes the
+  // window (a midnight-aligned range), it belongs to the previous window > skip.
+  let date = nzServiceDayString(range.start);
+  if (nzServiceDayRange(date).start < range.start) date = shiftWeek(date, 1);
+  const last = nzServiceDayString(new Date(range.end.getTime() - 1));
+  const dates: string[] = [];
+  while (date <= last) {
+    dates.push(date);
+    date = shiftWeek(date, 1);
+  }
+  return dates;
 }
 
 /**
@@ -278,6 +347,20 @@ export function nzHourLabel(hour: number): string {
 export function shiftWeek(ymd: string, days: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Short weekday label ("Mon") for a `YYYY-MM-DD` date string. Formats the
+ * calendar date itself at UTC midnight in the UTC zone; formatting an
+ * NZ-noon-UTC instant in Pacific/Auckland lands on the NEXT local day and
+ * shifts every label one weekday ahead.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The short weekday label, e.g. "Mon".
+ */
+export function weekdayShort(ymd: string): string {
+  return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short" }).format(
+    new Date(`${ymd}T00:00:00Z`),
+  );
 }
 
 /**

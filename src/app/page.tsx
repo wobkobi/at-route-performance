@@ -18,6 +18,7 @@ import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts, type ServiceAlert } from "@/lib/at-alerts";
@@ -40,7 +41,7 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import { Suspense, type JSX } from "react";
 
@@ -98,21 +99,13 @@ export default async function Home({
   const hasNextDay = serviceDate < nzServiceDayString();
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
-  // Stepper bounds, and the "of the day" cards are all independent once the
-  // service-day window is finalised - run them in a single round-trip.
   // Start the service-alerts fetch without blocking the page: the banner streams
   // in via Suspense once it resolves, so a cold alerts cache (or dev reload)
-  // doesn't gate the rest of the dashboard behind ~1-2s of AT latency.
+  // doesn't gate the rest of the dashboard behind ~1-2s of AT latency. The
+  // heavier "of the day" cards stream the same way; only the cheap stepper
+  // bound blocks the shell.
   const alertsPromise = getServiceAlerts();
-  const [earliestDay, shame, worstStops] = await Promise.all([
-    getEarliestDataDay(1),
-    getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
-    getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
-  ]);
-  // Needs shame.worst.route_id, so runs after the parallel batch.
-  const routeStreakDays = shame.worst
-    ? await getShameRouteStreak(shame.worst.route_id, range, TODAY_REVALIDATE)
-    : 0;
+  const earliestDay = await getEarliestDataDay(1);
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
@@ -205,15 +198,22 @@ export default async function Home({
       <FleetSummary data={heroData} />
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        <ShameOfDay
-          trip={shame.worst}
-          href={shameHref}
-          hours={shame.hours}
-          routeStreakDays={routeStreakDays}
+      <Suspense
+        fallback={
+          <div className="grid gap-4 md:grid-cols-2">
+            <Bone className="h-32" />
+            <Bone className="h-32" />
+          </div>
+        }
+      >
+        <HomeShameCards
+          range={range}
+          mode={mode}
+          includeSchool={includeSchool}
+          shameHref={shameHref}
+          linkDay={linkDay}
         />
-        <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
-      </div>
+      </Suspense>
 
       <div className="flex flex-wrap items-center gap-3">
         <ModeFilter
@@ -265,6 +265,52 @@ export default async function Home({
         </div>
       </details>
     </main>
+  );
+}
+
+/**
+ * Streamed "of the day" cards: the worst run and the worst stop. Awaits the two
+ * heavy day aggregations (and the streak, which needs the worst run's route)
+ * off the critical path so the dashboard shell renders immediately.
+ * @param root0 - Props.
+ * @param root0.range - The resolved service-day window.
+ * @param root0.mode - Active mode filter, or null for every mode.
+ * @param root0.includeSchool - Whether school services are included.
+ * @param root0.shameHref - Link to the full shame board for the day.
+ * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
+ * @returns The two-card grid.
+ */
+async function HomeShameCards({
+  range,
+  mode,
+  includeSchool,
+  shameHref,
+  linkDay,
+}: {
+  range: DateRange;
+  mode: ModeFilterValue;
+  includeSchool: boolean;
+  shameHref: string;
+  linkDay: string | undefined;
+}): Promise<JSX.Element> {
+  const [shame, worstStops] = await Promise.all([
+    getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
+    getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
+  ]);
+  // Needs shame.worst.route_id, so runs after the parallel pair.
+  const routeStreakDays = shame.worst
+    ? await getShameRouteStreak(shame.worst.route_id, range, TODAY_REVALIDATE)
+    : 0;
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <ShameOfDay
+        trip={shame.worst}
+        href={shameHref}
+        hours={shame.hours}
+        routeStreakDays={routeStreakDays}
+      />
+      <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
+    </div>
   );
 }
 

@@ -21,6 +21,7 @@ import {
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
+import { resolveRequestedDay } from "@/lib/page-nav";
 import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import { NextResponse } from "next/server";
 
@@ -52,10 +53,16 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     const url = new URL(req.url);
-    const dateParam = url.searchParams.get("date");
+    const rawDate = url.searchParams.get("date");
+    // Calendar-valid check, not just shape: an impossible date (2026-02-31)
+    // would silently normalise onto a different service day.
+    const dateParam = resolveRequestedDay(rawDate ?? undefined);
 
-    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-      return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
+    if (rawDate && !dateParam) {
+      return NextResponse.json(
+        { error: "Invalid date. Use a real YYYY-MM-DD calendar date" },
+        { status: 400 },
+      );
     }
 
     // Default to the most recently completed service day (24 h ago is always done).
@@ -124,7 +131,11 @@ export async function POST(req: Request): Promise<NextResponse> {
           },
           // Resolve the route's mode, then pick the matching on-time + early counts.
           { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
-          { $unwind: "$route" },
+          // Preserve routes missing from the static Route collection (seen in
+          // realtime before the nightly GTFS sync catches up): a bare $unwind
+          // would drop their whole day of events. With no route doc the mode
+          // picks below fall through to the strict (bus) rule.
+          { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
           {
             $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode },
           },

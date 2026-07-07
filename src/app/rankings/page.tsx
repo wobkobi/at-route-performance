@@ -6,6 +6,7 @@ import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
+import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { RouteTable } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { ShameOfDay } from "@/components/ShameOfDay";
@@ -19,7 +20,7 @@ import {
   getWorstStops,
 } from "@/lib/data";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveWeekNav } from "@/lib/page-nav";
+import { resolveMonthNav, resolveRequestedMonth, resolveWeekNav } from "@/lib/page-nav";
 import {
   computeRankDelta,
   deriveBoards,
@@ -27,6 +28,7 @@ import {
   MIN_BOARD_EVENTS,
   MIN_MODE_EVENTS,
   summariseRows,
+  type DelayDirection,
 } from "@/lib/rankings";
 import {
   parseRankingsParams,
@@ -34,59 +36,59 @@ import {
   resolvePrevRange,
   resolveRange,
   type RankingsSearchParams,
+  type RankMode,
+  type RankSort,
+  type RankWindow,
 } from "@/lib/rankings-page";
 import { isSchoolBus } from "@/lib/school-bus";
-import type { JSX } from "react";
+import type { DateRange } from "@/lib/time";
+import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const REVALIDATE = 3600; // 1 hour
 
 /**
- * Rankings page: week or month network performance.
- * @param root0 - Page props.
- * @param root0.searchParams - Window, period, and sort params.
- * @returns Page markup.
+ * Rankings body: runs the four-query ranking batch and derives the KPI strip,
+ * shame cards, rank boards and route table. Streams in behind the header so
+ * the shell never waits on a cold period (a cold month fans out to ~30 per-day
+ * aggregations).
+ * @param root0 - Props.
+ * @param root0.window - The active window.
+ * @param root0.sort - Route-table sort column.
+ * @param root0.mode - Active mode filter, or null for every mode.
+ * @param root0.dir - Delay-direction filter for the off-schedule board.
+ * @param root0.includeSchool - Whether school services are included.
+ * @param root0.period - Raw `?period=` value, used for prev-range and row links.
+ * @param root0.range - The active window's date range.
+ * @param root0.anchor - The latest day with data (or now).
+ * @returns The rankings body markup.
  */
-export default async function RankingsPage({
-  searchParams,
+async function RankingsBody({
+  window,
+  sort,
+  mode,
+  dir,
+  includeSchool,
+  period,
+  range,
+  anchor,
 }: {
-  searchParams?: Promise<RankingsSearchParams>;
+  window: RankWindow;
+  sort: RankSort;
+  mode: RankMode;
+  dir: DelayDirection;
+  includeSchool: boolean;
+  period: string | undefined;
+  range: DateRange;
+  anchor: Date;
 }): Promise<JSX.Element> {
-  const sp = (await searchParams) ?? {};
-  const { window, sort, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
-
-  // Anchor every window to the latest day with data so a quiet "today" still
-  // shows a populated period.
-  const latest = await getLatestEventDate();
-  const anchor = latest ?? new Date();
-  const { range, label } = resolveRange(window, sp.period, anchor);
   const [rows, worstStops, prevRows, shame] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
-    getRankings(resolvePrevRange(window, sp.period, anchor), THRESHOLD_SEC, REVALIDATE),
+    getRankings(resolvePrevRange(window, period, anchor), THRESHOLD_SEC, REVALIDATE),
     getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
   ]);
-
-  // Week stepper: the rolling last-7-days view is the present (no next); stepping
-  // back pages through calendar weeks. Prev stops at the earliest week with data.
-  let prevHref: string | null = null;
-  let nextHref: string | null = null;
-  if (window === "week") {
-    const earliest = await getEarliestDataDay(1);
-    /**
-     * Build a rankings week link for a period, preserving the active filters.
-     * @param period - The week period, or null for the rolling current week.
-     * @returns The rankings href.
-     */
-    const weekHref = (period: string | null): string => rankHref("week", period, filters);
-    ({ prevHref, nextHref } = resolveWeekNav({
-      periodParam: sp.period ?? null,
-      earliestDay: earliest,
-      makeHref: weekHref,
-      now: anchor,
-    }));
-  }
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered
@@ -127,10 +129,10 @@ export default async function RankingsPage({
   const modePreserved: Record<string, string> = { window };
   const schoolPreserved: Record<string, string> = { window };
   const dirPreserved: Record<string, string> = { window };
-  if (sp.period) {
-    modePreserved.period = sp.period;
-    schoolPreserved.period = sp.period;
-    dirPreserved.period = sp.period;
+  if (period) {
+    modePreserved.period = period;
+    schoolPreserved.period = period;
+    dirPreserved.period = period;
   }
   if (mode) {
     schoolPreserved.mode = mode;
@@ -151,17 +153,7 @@ export default async function RankingsPage({
   }
 
   return (
-    <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Top routes</h1>
-        <WindowControls
-          window={window}
-          periodLabel={label}
-          prevHref={prevHref}
-          nextHref={nextHref}
-        />
-      </header>
-
+    <>
       <FleetSummary data={heroData} />
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the {window}</h2>
@@ -169,11 +161,11 @@ export default async function RankingsPage({
         <ShameOfDay
           trip={shame.worst}
           period={window}
-          href={`/shame/trip?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
+          href={`/shame/trip?window=${window}${period ? `&period=${period}` : ""}`}
         />
         <WorstStopCard
           stop={worstStops[0] ?? null}
-          href={`/shame/stop?window=${window}${sp.period ? `&period=${sp.period}` : ""}`}
+          href={`/shame/stop?window=${window}${period ? `&period=${period}` : ""}`}
         />
       </div>
 
@@ -210,7 +202,7 @@ export default async function RankingsPage({
           metric="delay"
           deltas={offScheduleDeltas}
           routeWindow={window}
-          routePeriod={sp.period}
+          routePeriod={period}
           collapseAt={10}
         />
         <RankBoard
@@ -220,7 +212,7 @@ export default async function RankingsPage({
           metric="onTime"
           deltas={reliableDeltas}
           routeWindow={window}
-          routePeriod={sp.period}
+          routePeriod={period}
           collapseAt={10}
         />
       </div>
@@ -230,7 +222,80 @@ export default async function RankingsPage({
         each route to its position in the previous {window === "month" ? "month" : "week"}.
       </p>
 
-      <RouteTable rows={visible} sort={sort} routeWindow={window} routePeriod={sp.period} />
+      <RouteTable rows={visible} sort={sort} routeWindow={window} routePeriod={period} />
+    </>
+  );
+}
+
+/**
+ * Rankings page: week or month network performance. The header and period
+ * stepper render immediately from cheap cached lookups; the ranking batch
+ * streams in behind them.
+ * @param root0 - Page props.
+ * @param root0.searchParams - Window, period, and sort params.
+ * @returns Page markup.
+ */
+export default async function RankingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RankingsSearchParams>;
+}): Promise<JSX.Element> {
+  const sp = (await searchParams) ?? {};
+  const { window, sort, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
+
+  // Anchor every window to the latest day with data so a quiet "today" still
+  // shows a populated period. Both lookups are cheap cached point queries.
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  const anchor = latest ?? new Date();
+  const { range, label } = resolveRange(window, sp.period, anchor);
+
+  // Period stepper: the rolling week / current month is the present (no next);
+  // stepping back pages through calendar periods, bounded by the earliest data.
+  /**
+   * Build a rankings link for a period, preserving the active filters.
+   * @param period - The week or month period, or null for the rolling default.
+   * @returns The rankings href.
+   */
+  const periodHref = (period: string | null): string => rankHref(window, period, filters);
+  const { prevHref, nextHref } =
+    window === "week"
+      ? resolveWeekNav({
+          periodParam: sp.period ?? null,
+          earliestDay: earliest,
+          makeHref: periodHref,
+          now: anchor,
+        })
+      : resolveMonthNav({
+          periodParam: resolveRequestedMonth(sp.period),
+          earliestDay: earliest,
+          makeHref: periodHref,
+          now: anchor,
+        });
+
+  return (
+    <main className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Top routes</h1>
+        <WindowControls
+          window={window}
+          periodLabel={label}
+          prevHref={prevHref}
+          nextHref={nextHref}
+        />
+      </header>
+
+      <Suspense fallback={<RankingsBodySkeleton />}>
+        <RankingsBody
+          window={window}
+          sort={sort}
+          mode={mode}
+          dir={dir}
+          includeSchool={includeSchool}
+          period={sp.period}
+          range={range}
+          anchor={anchor}
+        />
+      </Suspense>
     </main>
   );
 }

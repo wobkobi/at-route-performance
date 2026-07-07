@@ -9,9 +9,12 @@
  */
 import { type DelayDirection } from "@/lib/rankings";
 import {
+  monthRangeLabel,
   nzLast7DaysRange,
+  nzMonthKey,
   nzMonthRange,
   nzWeekRange,
+  shiftMonth,
   shiftWeek,
   weekRangeLabel,
   type DateRange,
@@ -76,32 +79,6 @@ export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsPar
 }
 
 /**
- * Month key like `2026-06` from an instant, in Auckland local time.
- * @param d - Instant.
- * @returns `YYYY-MM`.
- */
-function monthKey(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
-    year: "numeric",
-    month: "2-digit",
-  }).format(d);
-}
-
-/**
- * Human month label like `June 2026` from a range start.
- * @param d - Range start (UTC instant of local month start).
- * @returns Formatted label.
- */
-function monthLabel(d: Date): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(d.getTime() + 86_400_000));
-}
-
-/**
  * Resolve the active range + label, anchored to the latest day with data so a
  * quiet "today" still shows a populated period. The week view opens on the
  * rolling last 7 days; an explicit `period` is a calendar week (reached by
@@ -117,8 +94,8 @@ export function resolveRange(
   anchor: Date,
 ): { range: DateRange; label: string } {
   if (window === "month") {
-    const range = nzMonthRange(period ?? monthKey(anchor));
-    return { range, label: monthLabel(range.start) };
+    const range = nzMonthRange(period ?? nzMonthKey(anchor));
+    return { range, label: monthRangeLabel(range) };
   }
   if (period) {
     const range = nzWeekRange(period);
@@ -141,10 +118,7 @@ export function resolvePrevRange(
   anchor: Date,
 ): DateRange {
   if (window === "month") {
-    const key = period ?? monthKey(anchor);
-    const [y, m] = key.split("-").map(Number);
-    const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-    return nzMonthRange(prev);
+    return nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1));
   }
   if (period) return nzWeekRange(shiftWeek(period, -7));
   return nzLast7DaysRange(new Date(anchor.getTime() - 7 * 86_400_000));

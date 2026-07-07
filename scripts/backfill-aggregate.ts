@@ -12,6 +12,7 @@
  * overrides the default http://localhost:3000.
  */
 
+import { shiftWeek } from "@/lib/time";
 import fs from "node:fs";
 
 /* ---------------------------------------------------------------- env load */
@@ -95,15 +96,15 @@ async function main(): Promise<void> {
   const dates: string[] = [];
 
   if (from && to) {
-    // Explicit range: iterate day by day from `from` to `to` inclusive.
-    const start = new Date(`${from}T00:00:00+12:00`);
-    const end = new Date(`${to}T00:00:00+12:00`);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    // Explicit range: the flags already ARE NZ service dates, so step them as
+    // pure date strings, `from` to `to` inclusive. The old wall-clock parse
+    // hardcoded +12:00 (wrong during NZDT) and iterated in the host timezone.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       console.error("Invalid --from or --to date (expected YYYY-MM-DD)");
       process.exit(1);
     }
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      dates.push(toNzDateStr(d));
+    for (let d = from; d <= to; d = shiftWeek(d, 1)) {
+      dates.push(d);
     }
   } else {
     // --days=N: last N completed service days (excludes today's ongoing day).

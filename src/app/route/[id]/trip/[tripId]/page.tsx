@@ -33,8 +33,10 @@ export default async function TripPage({
   const slug = routeSlug(id);
   const { d } = (await searchParams) ?? {};
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
-  // do not interleave; falls back to the trip's latest day when `d` is absent.
-  const day = d ? nzServiceDayRange(new Date(d)) : undefined;
+  // do not interleave; falls back to the trip's latest day when `d` is absent
+  // or unparseable (an Invalid Date would throw inside nzServiceDayRange).
+  const dAt = d ? new Date(d) : null;
+  const day = dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : undefined;
   const [timeline, scheduledStops] = await Promise.all([
     getTripTimeline(tripId, slug, day),
     getTripScheduledStops(tripId),

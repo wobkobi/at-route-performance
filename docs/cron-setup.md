@@ -35,6 +35,7 @@ All endpoints are **POST**. Create one cron-job.org job per row.
 | GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 13:10 UTC | Refresh route geometry (shapes) |
 | Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 13:30 UTC  | Roll up DailyRouteSummary       |
 | Cleanup          | `/api/ingest/cleanup`     | POST   | daily 14:00 UTC  | Apply retention                 |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 14:15 UTC  | Pre-compute yesterday's boards  |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
