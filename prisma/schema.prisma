@@ -61,8 +61,10 @@ model TripMeta {
 // One row per observed stop arrival: the scheduled vs actual time and the signed
 // deviation (deviationSec) every on-time stat is built from. `source` records how
 // it was derived ("AT_GTFSRT" with a real delay, or "AT_GTFSRT_NO_DELAY" for a
-// loose zero-delay row excluded from averages). The unique key dedupes the same
-// stop re-reported across polls; rows are pruned after the retention window.
+// loose zero-delay row excluded from averages). The unique key is the stop VISIT
+// (scheduledAt is stable across GTFS-RT re-polls while the predicted actualAt
+// keeps moving), so revised predictions upsert the same row instead of
+// accumulating one row per revision; rows are pruned after the retention window.
 model ArrivalEvent {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId      String
@@ -77,7 +79,7 @@ model ArrivalEvent {
   route Route @relation(fields: [routeId], references: [id])
   stop  Stop  @relation(fields: [stopId], references: [id])
 
-  @@unique([tripId, stopId, actualAt])
+  @@unique([tripId, stopId, scheduledAt])
   @@index([routeId, scheduledAt])
   @@index([stopId, scheduledAt])
   @@index([scheduledAt])
