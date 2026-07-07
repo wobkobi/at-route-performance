@@ -208,7 +208,6 @@ export default async function RoutesShamePage({
     [...routeHourCounts.keys()],
     range,
     filter,
-    TODAY_REVALIDATE,
   );
   const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
   const nextDayHref =
