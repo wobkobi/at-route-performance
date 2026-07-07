@@ -241,7 +241,36 @@ export function nzMonthRange(ym?: string): DateRange {
  */
 export function nzLast7DaysRange(at: Date = new Date()): DateRange {
   const day = nzServiceDayRange(at);
-  return { start: new Date(day.end.getTime() - 604_800_000), end: day.end };
+  // Step back six service days by date string rather than subtracting a fixed
+  // 7 * 24h of milliseconds, which lands an hour off the 5am boundary when the
+  // window straddles a DST transition.
+  const start = nzServiceDayRange(shiftWeek(nzServiceDayString(at), -6)).start;
+  return { start, end: day.end };
+}
+
+/**
+ * The Auckland service dates (`YYYY-MM-DD`) whose service days start inside a
+ * half-open window, earliest first. Handles both midnight-aligned calendar
+ * ranges ({@link nzWeekRange}, {@link nzMonthRange}) and 5am service-day-aligned
+ * ranges ({@link nzLast7DaysRange}): a service day is included only when its
+ * 5am start lies inside `[start, end)`, so a midnight week start no longer
+ * drags in the previous service day. Lets the week boards resolve one day at
+ * a time.
+ * @param range - A half-open UTC window.
+ * @returns The service dates in the window, earliest first.
+ */
+export function serviceDatesInRange(range: DateRange): string[] {
+  // The service day containing range.start; when its 5am start precedes the
+  // window (a midnight-aligned range), it belongs to the previous window > skip.
+  let date = nzServiceDayString(range.start);
+  if (nzServiceDayRange(date).start < range.start) date = shiftWeek(date, 1);
+  const last = nzServiceDayString(new Date(range.end.getTime() - 1));
+  const dates: string[] = [];
+  while (date <= last) {
+    dates.push(date);
+    date = shiftWeek(date, 1);
+  }
+  return dates;
 }
 
 /**

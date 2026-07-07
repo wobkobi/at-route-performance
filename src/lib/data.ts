@@ -28,7 +28,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   SERVICE_START_HOUR,
-  shiftWeek,
+  serviceDatesInRange,
   type DateRange,
 } from "@/lib/time";
 import type {
@@ -2557,23 +2557,6 @@ export async function getWorstStopsOfDay(
     ],
     { revalidate },
   )();
-}
-
-/**
- * The Auckland service dates (`YYYY-MM-DD`) covered by a service-day-aligned
- * range, earliest first. Lets the week boards resolve one day at a time.
- * @param range - A service-day-aligned half-open window.
- * @returns The service dates in the window.
- */
-function serviceDatesInRange(range: DateRange): string[] {
-  const dates: string[] = [];
-  const last = nzServiceDayString(new Date(range.end.getTime() - 1));
-  let date = nzServiceDayString(range.start);
-  while (date <= last) {
-    dates.push(date);
-    date = shiftWeek(date, 1);
-  }
-  return dates;
 }
 
 /** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
