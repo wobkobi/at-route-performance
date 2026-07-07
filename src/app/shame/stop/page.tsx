@@ -70,10 +70,9 @@ export default async function StopShamePage({
 
   if (view !== "day") {
     const isMonth = view === "month";
-    const monthParam = isMonth ? resolveRequestedMonth(sp.period) : null;
-    const periodParam = isMonth ? null : resolveRequestedDay(sp.period);
+    const periodParam = isMonth ? resolveRequestedMonth(sp.period) : resolveRequestedDay(sp.period);
     const activeRange = isMonth
-      ? nzMonthRange(monthParam ?? undefined)
+      ? nzMonthRange(periodParam ?? undefined)
       : resolveActiveWeekRange(periodParam).activeWeekRange;
     const [shame, earliestDay] = await Promise.all([
       getWorstStopsOfWeek(activeRange, filter, WEEK_REVALIDATE),
@@ -87,13 +86,13 @@ export default async function StopShamePage({
     const rangeHref = (period: string | null): string =>
       buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
     const { periodLabel, prevHref, nextHref } = isMonth
-      ? resolveMonthNav({ periodParam: monthParam, earliestDay, makeHref: rangeHref })
+      ? resolveMonthNav({ periodParam, earliestDay, makeHref: rangeHref })
       : resolveWeekNav({ periodParam, earliestDay, makeHref: rangeHref });
 
     const periodNoun = isMonth ? "month" : "week";
     const worstId = shame.worst?.stop_id ?? null;
     const stopDayCounts = countById(shame.days, (d) => d.stop_id);
-    const rangeNav = { window: view, period: (isMonth ? monthParam : periodParam) ?? undefined };
+    const rangeNav = { window: view, period: periodParam ?? undefined };
 
     /**
      * Render one week-view day row.

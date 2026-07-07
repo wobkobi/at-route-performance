@@ -68,10 +68,9 @@ export default async function RoutesShamePage({
 
   if (view !== "day") {
     const isMonth = view === "month";
-    const monthParam = isMonth ? resolveRequestedMonth(sp.period) : null;
-    const periodParam = isMonth ? null : resolveRequestedDay(sp.period);
+    const periodParam = isMonth ? resolveRequestedMonth(sp.period) : resolveRequestedDay(sp.period);
     const activeRange = isMonth
-      ? nzMonthRange(monthParam ?? undefined)
+      ? nzMonthRange(periodParam ?? undefined)
       : resolveActiveWeekRange(periodParam).activeWeekRange;
     const [shame, earliestDay] = await Promise.all([
       getShameRouteOfWeek(activeRange, filter, WEEK_REVALIDATE),
@@ -85,13 +84,13 @@ export default async function RoutesShamePage({
     const rangeHref = (period: string | null): string =>
       buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
     const { periodLabel, prevHref, nextHref } = isMonth
-      ? resolveMonthNav({ periodParam: monthParam, earliestDay, makeHref: rangeHref })
+      ? resolveMonthNav({ periodParam, earliestDay, makeHref: rangeHref })
       : resolveWeekNav({ periodParam, earliestDay, makeHref: rangeHref });
 
     const periodNoun = isMonth ? "month" : "week";
     const worstKey = shame.worst?.date ?? null;
     const routeDayCounts = countById(shame.days, (d) => d.route_id);
-    const rangeNav = { window: view, period: (isMonth ? monthParam : periodParam) ?? undefined };
+    const rangeNav = { window: view, period: periodParam ?? undefined };
 
     /**
      * Render one week-view day row.
