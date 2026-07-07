@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.8] - 2026-07-08
+
+### Fixed
+
+- Dropped the single-field `scheduledAt` index on ArrivalEvent (64.6MB at 3.2M events): the
+  `[scheduledAt, routeId]` compound serves every plain scheduledAt range and sort via its prefix,
+  confirmed with explain plans after the drop (no in-memory sort). Applied directly to the
+  production cluster; the schema change keeps `db:push` consistent.
+- The cleanup storage warning now reports real on-disk sizes from `dbStats` (compressed data +
+  indexes, with the allowance overridable via `STORAGE_LIMIT_MB`) instead of a 250-bytes/event
+  estimate that overstated usage by ~2x, and no longer asserts the cluster is an Atlas M0.
+
 ## [1.7.7] - 2026-07-08
 
 ### Fixed

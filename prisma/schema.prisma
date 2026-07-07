@@ -82,8 +82,9 @@ model ArrivalEvent {
   @@unique([tripId, stopId, scheduledAt])
   @@index([routeId, scheduledAt])
   @@index([stopId, scheduledAt])
-  @@index([scheduledAt])
-  // Supports the weekly top/aggregate: date-range filter then group by routeId.
+  // Supports the weekly top/aggregate (date-range filter then group by routeId)
+  // and, via its prefix, every plain scheduledAt range and sort - a single-field
+  // scheduledAt index would be fully redundant (~65MB at 3M events).
   @@index([scheduledAt, routeId])
   // Supports the per-route by-stop stats: filter by routeId, group by stopId.
   @@index([routeId, stopId])
