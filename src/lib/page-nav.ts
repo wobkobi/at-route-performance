@@ -24,11 +24,18 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Validate a `?day=` / `?period=` query value as an ISO `YYYY-MM-DD` date.
+ * Rejects shape-valid but impossible dates (2026-02-31): `Date.UTC` would
+ * silently normalise those onto a different day, so the components must
+ * round-trip unchanged.
  * @param value - The raw query value, if any.
- * @returns The value when it is a valid ISO date, else null.
+ * @returns The value when it is a real calendar date, else null.
  */
 export function resolveRequestedDay(value: string | undefined): string | null {
-  return value && ISO_DATE.test(value) ? value : null;
+  if (!value || !ISO_DATE.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+  return real ? value : null;
 }
 
 /**

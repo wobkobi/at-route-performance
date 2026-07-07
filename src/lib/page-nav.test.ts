@@ -25,6 +25,14 @@ describe("resolveRequestedDay", () => {
     expect(resolveRequestedDay(undefined)).toBeNull();
     expect(resolveRequestedDay("")).toBeNull();
   });
+  it("rejects shape-valid but impossible calendar dates", () => {
+    expect(resolveRequestedDay("2026-02-31")).toBeNull();
+    expect(resolveRequestedDay("2026-13-01")).toBeNull();
+    expect(resolveRequestedDay("2026-00-10")).toBeNull();
+    // Leap-day handling: 2024 is a leap year, 2026 is not.
+    expect(resolveRequestedDay("2024-02-29")).toBe("2024-02-29");
+    expect(resolveRequestedDay("2026-02-29")).toBeNull();
+  });
 });
 
 describe("filterLiveHours", () => {

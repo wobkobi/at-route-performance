@@ -21,6 +21,7 @@ import {
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
+import { resolveRequestedDay } from "@/lib/page-nav";
 import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import { NextResponse } from "next/server";
 
@@ -52,10 +53,16 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     const url = new URL(req.url);
-    const dateParam = url.searchParams.get("date");
+    const rawDate = url.searchParams.get("date");
+    // Calendar-valid check, not just shape: an impossible date (2026-02-31)
+    // would silently normalise onto a different service day.
+    const dateParam = resolveRequestedDay(rawDate ?? undefined);
 
-    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-      return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD" }, { status: 400 });
+    if (rawDate && !dateParam) {
+      return NextResponse.json(
+        { error: "Invalid date. Use a real YYYY-MM-DD calendar date" },
+        { status: 400 },
+      );
     }
 
     // Default to the most recently completed service day (24 h ago is always done).

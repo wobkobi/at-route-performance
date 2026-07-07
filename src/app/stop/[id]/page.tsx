@@ -52,7 +52,15 @@ export default async function StopPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StopSearchParams>;
 }): Promise<JSX.Element> {
-  const id = decodeURIComponent((await params).id);
+  // Decode the segment when it decodes cleanly; a raw "%" in a hand-typed URL
+  // would otherwise throw URIError and 500 the page.
+  const rawId = (await params).id;
+  let id: string;
+  try {
+    id = decodeURIComponent(rawId);
+  } catch {
+    id = rawId;
+  }
   const sp = (await searchParams) ?? {};
   dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
 
