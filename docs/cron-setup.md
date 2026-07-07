@@ -1,7 +1,7 @@
-﻿# Scheduled ingest (cron-job.org)
+# Scheduled ingest (cron-job.org)
 
 The ingest endpoints are triggered by an external scheduler instead of Vercel Cron (the Hobby plan
-caps cron jobs at 2/day, and this project needs four â€” one of them every couple of minutes).
+caps cron jobs at 2/day, and this project needs four — one of them every couple of minutes).
 [cron-job.org](https://cron-job.org/) (free) calls the endpoints over HTTPS on a schedule.
 
 ## Prerequisites
@@ -35,6 +35,7 @@ All endpoints are **POST**. Create one cron-job.org job per row.
 | GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 13:10 UTC | Refresh route geometry (shapes) |
 | Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 13:30 UTC  | Roll up DailyRouteSummary       |
 | Cleanup          | `/api/ingest/cleanup`     | POST   | daily 14:00 UTC  | Apply retention                 |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 14:15 UTC  | Pre-compute yesterday's boards  |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
