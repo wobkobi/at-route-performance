@@ -57,8 +57,9 @@ export default async function RankingsPage({
   const { window, sort, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
 
   // Anchor every window to the latest day with data so a quiet "today" still
-  // shows a populated period.
-  const latest = await getLatestEventDate();
+  // shows a populated period. The earliest-day bound only feeds the stepper, so
+  // it rides along rather than waiting behind the ranking batch.
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
   const anchor = latest ?? new Date();
   const { range, label } = resolveRange(window, sp.period, anchor);
   const [rows, worstStops, prevRows, shame] = await Promise.all([
@@ -70,7 +71,6 @@ export default async function RankingsPage({
 
   // Period stepper: the rolling week / current month is the present (no next);
   // stepping back pages through calendar periods, bounded by the earliest data.
-  const earliest = await getEarliestDataDay(1);
   /**
    * Build a rankings link for a period, preserving the active filters.
    * @param period - The week or month period, or null for the rolling default.
