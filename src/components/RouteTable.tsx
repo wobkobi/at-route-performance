@@ -192,7 +192,7 @@ export function RouteTable({
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{r.events}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
-                      {formatDelay(r.avg_delay_sec ?? 0)}
+                      {r.avg_delay_sec == null ? "—" : formatDelay(r.avg_delay_sec)}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
                       {r.on_time_pct?.toFixed(1) ?? "—"}

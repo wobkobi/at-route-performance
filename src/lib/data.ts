@@ -29,6 +29,7 @@ import {
   nzServiceDayString,
   SERVICE_START_HOUR,
   serviceDatesInRange,
+  shiftWeek,
   type DateRange,
 } from "@/lib/time";
 import type {
@@ -1322,10 +1323,16 @@ export async function getShameStreak(
       }));
 
       // Walk backwards from the most recent day counting consecutive bad days.
+      // A date with no summary row is absent from `rows`, so require each row
+      // to be exactly one day before the last counted one - otherwise a missing
+      // day would be silently bridged and overstate the streak.
       let count = 0;
+      let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
+        if (expectedDate !== null && rows[i].date !== expectedDate) break;
         if ((rows[i].avgAbsDelaySec ?? 0) >= STREAK_THRESHOLD_SEC) {
           count++;
+          expectedDate = shiftWeek(rows[i].date, -1);
         } else {
           break;
         }
@@ -1411,10 +1418,15 @@ export async function getShameRouteStreak(
       };
 
       const rows = res.cursor.firstBatch;
+      // Require day-on-day adjacency so a date with no summary row breaks the
+      // run instead of being silently bridged.
       let count = 0;
+      let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
+        if (expectedDate !== null && rows[i].date !== expectedDate) break;
         if (rows[i].topRouteId === routeId) {
           count++;
+          expectedDate = shiftWeek(rows[i].date, -1);
         } else {
           break;
         }
@@ -1636,9 +1648,10 @@ export async function getShameRouteStreaksBatch(
     let count = 1; // today is always day 1 (caller confirmed)
     let prevHours = 0;
     let prevWorstOfDayDays = 0;
-    let expectedStart = new Date(currentRange.start.getTime() - MS_IN_DAY);
+    // Step by date string, not fixed 24h of milliseconds: a millisecond step
+    // drifts an hour off the 5am boundary across a DST change and skips a day.
+    let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
     for (let d = 0; d < 14; d++) {
-      const dayKey = nzServiceDayString(expectedStart);
       const daySet = shameDays.get(dayKey);
       if (!daySet || !daySet.has(routeId)) break;
       count++;
@@ -1647,7 +1660,7 @@ export async function getShameRouteStreaksBatch(
       if (d === prevWorstOfDayDays && worstOfDayPerDay.get(dayKey) === routeId) {
         prevWorstOfDayDays++;
       }
-      expectedStart = new Date(expectedStart.getTime() - MS_IN_DAY);
+      dayKey = shiftWeek(dayKey, -1);
     }
     result.set(routeId, { count, prevHours, prevWorstOfDayDays });
   }

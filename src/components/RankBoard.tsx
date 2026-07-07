@@ -146,11 +146,16 @@ export function RankBoard({
             // route is mixed - show magnitude only ("5m off").
             const signed = r.avg_delay_sec ?? 0;
             const abs = r.avg_abs_delay_sec ?? Math.abs(signed);
+            // A row with no plausible deviations has null delays - show a dash
+            // rather than coercing to 0 and rendering a spurious "on time".
+            const noDelayData = r.avg_delay_sec == null && r.avg_abs_delay_sec == null;
             const value =
               metric === "delay"
-                ? isConsistentlyLateOrEarly(signed, abs)
-                  ? formatDelay(signed)
-                  : `${formatDuration(abs)} off`
+                ? noDelayData
+                  ? "—"
+                  : isConsistentlyLateOrEarly(signed, abs)
+                    ? formatDelay(signed)
+                    : `${formatDuration(abs)} off`
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
             const valueClass =
               metric === "onTime"

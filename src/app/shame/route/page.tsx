@@ -97,7 +97,9 @@ export default async function RoutesShamePage({
       const isWorst = r.date === worstKey;
       const name = r.short_name || r.long_name || routeSlug(r.route_id);
       const slug = routeSlug(r.route_id);
-      const href = `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&day=${r.date}` : ""}`;
+      // Keep the drill-down on the same fixed week: the route page's week view
+      // reads ?period=, not ?day=.
+      const href = `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&period=${periodParam}` : ""}`;
       const [, m, d] = (r.date ?? "").split("-");
       const dayLabel = r.date ? weekdayShort(r.date) : "";
       const dayCount = routeDayCounts.get(r.route_id) ?? 0;
