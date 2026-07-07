@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.4] - 2026-07-08
+
+### Fixed
+
+- Dedupe script gains `--since=<hours>` so a recent-only rescan can win the race against the
+  2-minute ingest cadence when rebuilding the unique index.
+
 ## [1.7.3] - 2026-07-08
 
 ### Fixed
