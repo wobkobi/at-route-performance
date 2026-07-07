@@ -46,8 +46,12 @@ job if you prefer to schedule in NZ local time.
 
 - The realtime job is the one that fills the home page's "today" view. Lower the frequency to every
   5 minutes if you want fewer invocations.
+- The slow jobs (gtfs sync, shapes, aggregate, cleanup) respond `202 { started: true }` immediately
+  and finish after the response - cron-job.org drops requests at 30 s, and these can run for
+  minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
+  indicator (IngestRun) or the Vercel function logs for the actual outcome.
 - The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
   so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
-- `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, actualAt)` drops duplicate
-  arrivals, so overlapping runs are safe.
+- `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
+  predictions onto the same stop visit, so overlapping runs are safe.
 - cron-job.org's free tier supports down to 1-minute intervals and custom headers.
