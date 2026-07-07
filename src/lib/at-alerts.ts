@@ -5,6 +5,7 @@
  * relevant to a given route, a given stop, or the whole network.
  */
 import { unstable_cache } from "@/lib/mem-cache";
+import { routeSlug } from "@/lib/route-slug";
 import { isObj, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {
@@ -223,15 +224,18 @@ export async function getServiceAlerts(): Promise<ServiceAlert[]> {
 }
 
 /**
- * Returns alerts that affect at least one of the given route ids.
+ * Returns alerts that affect at least one of the given route ids. The feed's
+ * `informed_entity.route_id` carries AT's GTFS feed-version suffix (e.g.
+ * "NX1-202409") while callers pass version-stripped slugs, so both sides are
+ * normalised through {@link routeSlug} before comparing.
  * @param alerts - Pool of alerts to filter.
- * @param routeIds - Route ids to match against informed entities.
+ * @param routeIds - Route ids or slugs to match against informed entities.
  * @returns Alerts that affect at least one of the given routes.
  */
 export function alertsForRoute(alerts: ServiceAlert[], routeIds: string[]): ServiceAlert[] {
-  const set = new Set(routeIds);
+  const set = new Set(routeIds.map(routeSlug));
   return alerts.filter((a) =>
-    a.informed_entity.some((e) => e.route_id !== undefined && set.has(e.route_id)),
+    a.informed_entity.some((e) => e.route_id !== undefined && set.has(routeSlug(e.route_id))),
   );
 }
 
