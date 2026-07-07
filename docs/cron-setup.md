@@ -1,7 +1,7 @@
-# Scheduled ingest (cron-job.org)
+﻿# Scheduled ingest (cron-job.org)
 
 The ingest endpoints are triggered by an external scheduler instead of Vercel Cron (the Hobby plan
-caps cron jobs at 2/day, and this project needs four — one of them every couple of minutes).
+caps cron jobs at 2/day, and this project needs four â€” one of them every couple of minutes).
 [cron-job.org](https://cron-job.org/) (free) calls the endpoints over HTTPS on a schedule.
 
 ## Prerequisites
