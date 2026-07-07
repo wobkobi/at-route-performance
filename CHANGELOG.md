@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.6] - 2026-07-08
+
+### Fixed
+
+- The earliest/most-recent data-day markers and the latest-event lookup no longer scan the whole
+  ArrivalEvent collection (~17 s each at 3.2M events on the shared cluster). They now read the
+  collection's endpoint event via the `scheduledAt` index and, when a qualifying threshold is set,
+  count candidate service days with indexed range counts (~30-200 ms). `getEarliestDataDay` sits on
+  every page's critical path, so cache misses were the 17-27 s page loads.
+
 ## [1.7.5] - 2026-07-08
 
 ### Fixed
