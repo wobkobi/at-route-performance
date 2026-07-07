@@ -12,6 +12,7 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/RankBoard";
+import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
@@ -100,7 +101,6 @@ export default async function StopPage({
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
-  const todaysTrips = id.startsWith("station:") ? [] : await getStopTrips(id, serviceDate);
   const routeNameMap = new Map(routes.map((r) => [r.route_id, r.short_name ?? null]));
   // Net-average wording stays mode-less: a stop mixes modes, so no single window.
   const punctuality: PunctualityBreakdown = {
@@ -188,9 +188,33 @@ export default async function StopPage({
         routeDay={linkDay}
       />
 
-      <StopSchedule departures={todaysTrips} routeNames={routeNameMap} serviceDate={serviceDate} />
+      <Suspense fallback={<Bone className="h-40" />}>
+        <StopScheduleSection id={id} serviceDate={serviceDate} routeNames={routeNameMap} />
+      </Suspense>
     </main>
   );
+}
+
+/**
+ * Streamed departures board. Awaits the external AT stop-trips call off the
+ * critical path so the stop shell and stats render without waiting on it.
+ * @param root0 - Props.
+ * @param root0.id - Stop id (station groups have no single departure board).
+ * @param root0.serviceDate - The resolved service date being shown.
+ * @param root0.routeNames - Route id to short-name map for the rows.
+ * @returns The departures board.
+ */
+async function StopScheduleSection({
+  id,
+  serviceDate,
+  routeNames,
+}: {
+  id: string;
+  serviceDate: string;
+  routeNames: Map<string, string | null>;
+}): Promise<JSX.Element> {
+  const departures = id.startsWith("station:") ? [] : await getStopTrips(id, serviceDate);
+  return <StopSchedule departures={departures} routeNames={routeNames} serviceDate={serviceDate} />;
 }
 
 /**

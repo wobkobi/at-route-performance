@@ -182,6 +182,45 @@ export function resolveMonthNav({
   return { periodLabel, prevHref, nextHref };
 }
 
+/** Resolved state for a week or month board view: range, label and stepper. */
+export interface RangeViewNav extends WeekNav {
+  /** Whether the month variant is active. */
+  isMonth: boolean;
+  /** Copy noun for the period ("week" / "month"). */
+  periodNoun: "week" | "month";
+  /** Validated period param (week-start date or month key), or null for the rolling default. */
+  periodParam: string | null;
+  /** The half-open window to query. */
+  activeRange: DateRange;
+}
+
+/**
+ * Resolve everything a week/month board needs from its raw `?period=` value:
+ * the validated period, the window to query, and the bounded stepper. Shared by
+ * the three shame boards so the view plumbing lives in one place.
+ * @param view - The active non-day view.
+ * @param rawPeriod - The raw `?period=` query value, if any.
+ * @param earliestDay - Earliest service day with data, or null when unknown.
+ * @param makeHref - Builds a link for a period (null = the rolling default).
+ * @returns The resolved view state.
+ */
+export function resolveRangeView(
+  view: "week" | "month",
+  rawPeriod: string | undefined,
+  earliestDay: Date | null,
+  makeHref: (period: string | null) => string,
+): RangeViewNav {
+  const isMonth = view === "month";
+  const periodParam = isMonth ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
+  const activeRange = isMonth
+    ? nzMonthRange(periodParam ?? undefined)
+    : resolveActiveWeekRange(periodParam).activeWeekRange;
+  const nav = isMonth
+    ? resolveMonthNav({ periodParam, earliestDay, makeHref })
+    : resolveWeekNav({ periodParam, earliestDay, makeHref });
+  return { isMonth, periodNoun: isMonth ? "month" : "week", periodParam, activeRange, ...nav };
+}
+
 /**
  * The fallback service day for an empty day view: when no specific day was
  * requested and the current day has no data yet, the most recent service day
