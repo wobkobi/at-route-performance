@@ -38,6 +38,17 @@ describe("filterLiveHours", () => {
   it("returns every hour unchanged for a past day", () => {
     expect(filterLiveHours(hours, "2026-06-10", now)).toBe(hours);
   });
+  it("pre-5am keeps the whole daytime plus elapsed post-midnight hours", () => {
+    // 2026-06-15T14:30Z == 2026-06-16 02:30 NZST: still service day 2026-06-15, hour 2.
+    const overnight = new Date("2026-06-15T14:30:00Z");
+    const fullDay = [{ hour: 0 }, { hour: 2 }, { hour: 3 }, { hour: 6 }, { hour: 18 }];
+    expect(filterLiveHours(fullDay, "2026-06-15", overnight)).toEqual([
+      { hour: 0 },
+      { hour: 2 },
+      { hour: 6 },
+      { hour: 18 },
+    ]);
+  });
 });
 
 describe("resolveWeekNav", () => {

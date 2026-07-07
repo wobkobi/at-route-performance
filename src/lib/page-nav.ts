@@ -34,7 +34,10 @@ export function resolveRequestedDay(value: string | undefined): string | null {
 /**
  * Drop hours that have not started yet on a live (today) day, so AT realtime
  * predicted-future slots don't show as phantom on-time entries. A no-op for any
- * past day. Pre-5am the whole day is shown (the service day starts at 5am).
+ * past day. The service day runs 5am > 5am, so its post-midnight hours (0-4)
+ * come chronologically LAST: pre-5am the daytime hours 5-23 have all happened
+ * (the previous calendar evening) plus the post-midnight hours up to now, while
+ * from 5am onward only hours 5..now have.
  * @param hours - The day's hourly rows (each carrying its `hour` of day, 0-23).
  * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
  * @param now - The current instant (injectable for tests).
@@ -54,7 +57,9 @@ export function filterLiveHours<H extends { hour: number }>(
     }).format(now),
     10,
   );
-  return hours.filter((h) => (h.hour >= 5 ? h.hour <= nowHourNZ : nowHourNZ < 5));
+  return hours.filter((h) =>
+    nowHourNZ < 5 ? h.hour >= 5 || h.hour <= nowHourNZ : h.hour >= 5 && h.hour <= nowHourNZ,
+  );
 }
 
 /**
