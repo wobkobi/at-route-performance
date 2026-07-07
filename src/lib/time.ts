@@ -310,6 +310,20 @@ export function shiftWeek(ymd: string, days: number): string {
 }
 
 /**
+ * Short weekday label ("Mon") for a `YYYY-MM-DD` date string. Formats the
+ * calendar date itself at UTC midnight in the UTC zone; formatting an
+ * NZ-noon-UTC instant in Pacific/Auckland lands on the NEXT local day and
+ * shifts every label one weekday ahead.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The short weekday label, e.g. "Mon".
+ */
+export function weekdayShort(ymd: string): string {
+  return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short" }).format(
+    new Date(`${ymd}T00:00:00Z`),
+  );
+}
+
+/**
  * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
  * week straddles New Year.
  * @param range - Half-open week range (`end` is the exclusive next Monday).

@@ -41,6 +41,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   shiftWeek,
+  weekdayShort,
 } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
 import type { JSX } from "react";
@@ -109,12 +110,7 @@ export default async function TripShamePage({
       const isWorst = t.date === worstKey;
       const name = t.short_name || t.long_name || routeSlug(t.route_id);
       const [, m, d] = (t.date ?? "").split("-");
-      const dayLabel = t.date
-        ? new Intl.DateTimeFormat("en-NZ", {
-            timeZone: "Pacific/Auckland",
-            weekday: "short",
-          }).format(new Date(t.date + "T12:00:00Z"))
-        : "";
+      const dayLabel = t.date ? weekdayShort(t.date) : "";
       const dayCount = routeDayCounts.get(t.route_id) ?? 0;
       return (
         <a href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>

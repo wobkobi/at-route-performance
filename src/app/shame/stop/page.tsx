@@ -27,7 +27,13 @@ import {
   WEEK_REVALIDATE,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzHourLabel, nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import {
+  nzHourLabel,
+  nzServiceDayRange,
+  nzServiceDayString,
+  shiftWeek,
+  weekdayShort,
+} from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -92,10 +98,7 @@ export default async function StopShamePage({
     const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
       const isWorst = s.stop_id === worstId;
       const [, m, d] = s.date.split("-");
-      const dayLabel = new Intl.DateTimeFormat("en-NZ", {
-        timeZone: "Pacific/Auckland",
-        weekday: "short",
-      }).format(new Date(s.date + "T12:00:00Z"));
+      const dayLabel = weekdayShort(s.date);
       const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
       return (
         <a

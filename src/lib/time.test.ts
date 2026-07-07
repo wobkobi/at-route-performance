@@ -9,6 +9,7 @@ import {
   nzWeekRange,
   nzWeekStart,
   serviceDatesInRange,
+  weekdayShort,
 } from "@/lib/time";
 import { describe, expect, it } from "vitest";
 
@@ -97,6 +98,16 @@ describe("serviceDatesInRange", () => {
     // NZDT starts Sun 27 Sep 2026 and ends Sun 5 Apr 2026.
     expect(serviceDatesInRange(nzWeekRange("2026-09-21"))).toHaveLength(7);
     expect(serviceDatesInRange(nzWeekRange("2026-03-30"))).toHaveLength(7);
+  });
+});
+
+describe("weekdayShort", () => {
+  it("labels dates with the weekday of the date itself", () => {
+    expect(weekdayShort("2026-06-29")).toBe("Mon");
+    expect(weekdayShort("2026-07-05")).toBe("Sun");
+    // NZDT-season date and the DST-transition day itself.
+    expect(weekdayShort("2026-01-15")).toBe("Thu");
+    expect(weekdayShort("2026-09-27")).toBe("Sun");
   });
 });
 

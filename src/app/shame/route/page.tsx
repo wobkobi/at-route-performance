@@ -35,7 +35,13 @@ import {
   WEEK_REVALIDATE,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzHourLabel, nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import {
+  nzHourLabel,
+  nzServiceDayRange,
+  nzServiceDayString,
+  shiftWeek,
+  weekdayShort,
+} from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -93,12 +99,7 @@ export default async function RoutesShamePage({
       const slug = routeSlug(r.route_id);
       const href = `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&day=${r.date}` : ""}`;
       const [, m, d] = (r.date ?? "").split("-");
-      const dayLabel = r.date
-        ? new Intl.DateTimeFormat("en-NZ", {
-            timeZone: "Pacific/Auckland",
-            weekday: "short",
-          }).format(new Date(r.date + "T12:00:00Z"))
-        : "";
+      const dayLabel = r.date ? weekdayShort(r.date) : "";
       const dayCount = routeDayCounts.get(r.route_id) ?? 0;
       return (
         <a href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
