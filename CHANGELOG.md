@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.3] - 2026-07-08
+
+### Fixed
+
+- `db:push` now runs only on production builds. It sat in the shared Vercel `buildCommand`, so any
+  preview build of a stale branch (e.g. a Dependabot PR based on main) synced its old schema against
+  the production database - dropping the new ArrivalEvent unique index and letting duplicates
+  accumulate unchecked.
+
 ## [1.7.2] - 2026-07-07
 
 ### Fixed
