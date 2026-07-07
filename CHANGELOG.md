@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.7] - 2026-07-08
+
+### Fixed
+
+- Vercel functions now run in `syd1` (Sydney) beside the Atlas cluster instead of the default `iad1`
+  (US East). Every DB round trip was paying ~210 ms iad1 > Sydney; uncached renders issue several
+  sequential round trips, and NZ visitors also reach Sydney faster than US East.
+
 ## [1.7.6] - 2026-07-08
 
 ### Fixed
