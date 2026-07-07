@@ -131,7 +131,11 @@ export async function POST(req: Request): Promise<NextResponse> {
           },
           // Resolve the route's mode, then pick the matching on-time + early counts.
           { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
-          { $unwind: "$route" },
+          // Preserve routes missing from the static Route collection (seen in
+          // realtime before the nightly GTFS sync catches up): a bare $unwind
+          // would drop their whole day of events. With no route doc the mode
+          // picks below fall through to the strict (bus) rule.
+          { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
           {
             $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode },
           },
