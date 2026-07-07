@@ -22,8 +22,8 @@ import {
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
 import { resolveRequestedDay } from "@/lib/page-nav";
-import { nzServiceDayRange, nzServiceDayString } from "@/lib/time";
-import { NextResponse } from "next/server";
+import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import { after, NextResponse } from "next/server";
 
 interface DailyStats {
   _id: string; // routeId
@@ -38,45 +38,24 @@ interface DailyStats {
 }
 
 /**
- * Compute DailyRouteSummary for all routes on a given NZ service day (defaults to
- * the most recently completed one). The window matches the live dashboard: 5am
- * Auckland to 5am the next day, half-open `[start, end)`.
- * @param req - Request with optional `?date=YYYY-MM-DD` query param (treated as
- *   the NZ service date; defaults to the service day that ended before now).
- * @returns JSON `{ aggregated, date, duration_ms }`, 401/400/500 on failure.
+ * Run the aggregation pipeline and summary upserts, recording the outcome.
+ * Invoked via `after` so the 202 response is sent first - a full day can take
+ * longer than the external scheduler's 30s request timeout.
+ * @param startTime - Epoch ms when the request arrived.
+ * @param range - The service-day window to aggregate.
+ * @param serviceDate - The window's service date (`YYYY-MM-DD`).
  */
-export async function POST(req: Request): Promise<NextResponse> {
-  const startTime = Date.now();
+async function runAggregate(
+  startTime: number,
+  range: DateRange,
+  serviceDate: string,
+): Promise<void> {
+  // Stable BSON-date representation used in both the query filter and the $set.
+  const dateBson = { $date: range.start.toISOString() };
 
-  const denied = requireCronAuth(req);
-  if (denied) return denied;
+  const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC), 10);
 
   try {
-    const url = new URL(req.url);
-    const rawDate = url.searchParams.get("date");
-    // Calendar-valid check, not just shape: an impossible date (2026-02-31)
-    // would silently normalise onto a different service day.
-    const dateParam = resolveRequestedDay(rawDate ?? undefined);
-
-    if (rawDate && !dateParam) {
-      return NextResponse.json(
-        { error: "Invalid date. Use a real YYYY-MM-DD calendar date" },
-        { status: 400 },
-      );
-    }
-
-    // Default to the most recently completed service day (24 h ago is always done).
-    const rangeTarget = dateParam ?? new Date(Date.now() - 86_400_000);
-    const range = nzServiceDayRange(rangeTarget);
-    const serviceDate = nzServiceDayString(range.start);
-    // Stable BSON-date representation used in both the query filter and the $set.
-    const dateBson = { $date: range.start.toISOString() };
-
-    const thresholdSec = parseInt(
-      process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC),
-      10,
-    );
-
     console.log("[AGGREGATE] Starting aggregation", {
       date: serviceDate,
       start: range.start.toISOString(),
@@ -243,8 +222,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       success: true,
       count: upserted,
     });
-
-    return NextResponse.json({ aggregated: upserted, date: serviceDate, duration_ms: duration });
   } catch (error) {
     const duration = Date.now() - startTime;
     const msg = error instanceof Error ? error.message : "Unknown error";
@@ -261,7 +238,44 @@ export async function POST(req: Request): Promise<NextResponse> {
       success: false,
       error: msg,
     });
-
-    return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+/**
+ * Compute DailyRouteSummary for all routes on a given NZ service day (defaults to
+ * the most recently completed one). The window matches the live dashboard: 5am
+ * Auckland to 5am the next day, half-open `[start, end)`. Validates the date,
+ * acknowledges, then aggregates after the response; the outcome is recorded in
+ * IngestRun and the function logs.
+ * @param req - Request with optional `?date=YYYY-MM-DD` query param (treated as
+ *   the NZ service date; defaults to the service day that ended before now).
+ * @returns 202 JSON `{ started, date }`; 400/401 on bad input.
+ */
+export async function POST(req: Request): Promise<NextResponse> {
+  const startTime = Date.now();
+
+  const denied = requireCronAuth(req);
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const rawDate = url.searchParams.get("date");
+  // Calendar-valid check, not just shape: an impossible date (2026-02-31)
+  // would silently normalise onto a different service day.
+  const dateParam = resolveRequestedDay(rawDate ?? undefined);
+
+  if (rawDate && !dateParam) {
+    return NextResponse.json(
+      { error: "Invalid date. Use a real YYYY-MM-DD calendar date" },
+      { status: 400 },
+    );
+  }
+
+  // Default to the most recently completed service day (24 h ago is always done).
+  const rangeTarget = dateParam ?? new Date(Date.now() - 86_400_000);
+  const range = nzServiceDayRange(rangeTarget);
+  const serviceDate = nzServiceDayString(range.start);
+
+  after(() => runAggregate(startTime, range, serviceDate));
+
+  return NextResponse.json({ started: true, date: serviceDate }, { status: 202 });
 }

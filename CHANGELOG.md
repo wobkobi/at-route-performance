@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.7.5] - 2026-07-08
+
+### Fixed
+
+- The slow cron jobs (gtfs sync, shapes, aggregate, cleanup) now acknowledge with 202 and run after
+  the response: cron-job.org drops requests at 30 s, so a ~40 s cleanup reported "Failed (timeout)"
+  even though it completed. Outcomes are recorded in IngestRun and the function logs.
+
 ## [1.7.4] - 2026-07-08
 
 ### Fixed

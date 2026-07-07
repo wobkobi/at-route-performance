@@ -7,64 +7,32 @@
  * late-night runs are not dropped against the wrong calendar boundary, retention
  * below 7 days is refused without ?force=1 to guard against an accidental purge,
  * and each collection deletes independently so one failure never skips the rest.
+ * Responds 202 before the deletes run: a full day's delete takes ~40s on the M0
+ * tier, past the external scheduler's 30s request timeout; the outcome is
+ * recorded in IngestRun and the function logs.
  */
 import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { nzServiceDayRange } from "@/lib/time";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 /**
- * Delete ArrivalEvents and TripDelays older than retentionDays (default 14).
- * Deletes data permanently - must run AFTER the daily aggregation.
- * @param req - Request with optional `?retentionDays=N` and `?force=1` params.
- * @returns JSON `{ deletedEvents, deletedTrips, olderThan, retentionDays, duration_ms }`.
+ * Run the retention deletes and record the outcome. Invoked via `after` so the
+ * 202 response is sent first; success/failure lands in IngestRun, not the HTTP
+ * response.
+ * @param startTime - Epoch ms when the request arrived.
+ * @param cutoffDate - Delete rows scheduled before this instant.
+ * @param retentionDays - Retention window, for the logs.
+ * @param summaryDays - Optional DailyRouteSummary retention in days.
  */
-export async function POST(req: Request): Promise<NextResponse> {
-  const startTime = Date.now();
-
-  const denied = requireCronAuth(req);
-  if (denied) return denied;
-
+async function runCleanup(
+  startTime: number,
+  cutoffDate: Date,
+  retentionDays: number,
+  summaryDays: number | null,
+): Promise<void> {
   try {
-    const url = new URL(req.url);
-
-    // Parse retention period (default to env var, then 14 days)
-    const retentionParam = url.searchParams.get("retentionDays");
-    const retentionDays = retentionParam
-      ? parseInt(retentionParam, 10)
-      : parseInt(process.env.RETENTION_DAYS || "14", 10);
-
-    // Optional: prune DailyRouteSummary records older than N days.
-    const summaryDaysParam = url.searchParams.get("summaryDays");
-    const summaryDays = summaryDaysParam ? parseInt(summaryDaysParam, 10) : null;
-
-    if (isNaN(retentionDays) || retentionDays < 1) {
-      return NextResponse.json({ error: "Invalid retentionDays. Must be >= 1" }, { status: 400 });
-    }
-    if (summaryDays !== null && (isNaN(summaryDays) || summaryDays < 1)) {
-      return NextResponse.json({ error: "Invalid summaryDays. Must be >= 1" }, { status: 400 });
-    }
-
-    // Safety check: don't allow retention < 7 days unless explicitly forced
-    if (retentionDays < 7 && !url.searchParams.has("force")) {
-      return NextResponse.json(
-        {
-          error: "Retention < 7 days requires ?force=1 parameter",
-          hint: "This prevents accidental aggressive deletion",
-        },
-        { status: 400 },
-      );
-    }
-
-    // Cutoff at the NZ service-day START (5am NZ local) for the day that was
-    // retentionDays Auckland calendar days ago. Using UTC midnight would snap
-    // to the wrong boundary and silently drop late-night runs (11pm-1am) that
-    // belong to the service day before the cutoff.
-    const { start: cutoffDate } = nzServiceDayRange(
-      new Date(Date.now() - retentionDays * 86_400_000),
-    );
-
     console.log("[CLEANUP] Starting cleanup", {
       retentionDays,
       cutoffDate: cutoffDate.toISOString(),
@@ -136,7 +104,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
 
-    const result = {
+    console.log("[CLEANUP] Complete", {
+      timestamp: new Date().toISOString(),
       deletedEvents,
       deletedTrips,
       deletedSummaries,
@@ -146,11 +115,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...(eventsError ? { eventsError } : {}),
       ...(tripsError ? { tripsError } : {}),
       ...(summariesError ? { summariesError } : {}),
-    };
-
-    console.log("[CLEANUP] Complete", {
-      timestamp: new Date().toISOString(),
-      ...result,
     });
 
     // Warn when approaching storage limits (heuristic)
@@ -174,25 +138,77 @@ export async function POST(req: Request): Promise<NextResponse> {
       count: deletedEvents + deletedTrips + deletedSummaries,
       ...(partialFailure ? { error: partialFailure } : {}),
     });
-
-    return NextResponse.json(result, { status: partialFailure ? 500 : 200 });
   } catch (error) {
-    const duration = Date.now() - startTime;
     const msg = error instanceof Error ? error.message : "Unknown error";
-
     console.error("[CLEANUP] Failed", {
       timestamp: new Date().toISOString(),
       error: msg,
-      duration_ms: duration,
+      duration_ms: Date.now() - startTime,
     });
-
     await recordIngestRun({
       endpoint: "cleanup",
       startedAt: new Date(startTime),
       success: false,
       error: msg,
     });
-
-    return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+/**
+ * Delete ArrivalEvents and TripDelays older than retentionDays (default 14).
+ * Deletes data permanently - must run AFTER the daily aggregation. Validates
+ * the params, acknowledges, then runs the deletes after the response.
+ * @param req - Request with optional `?retentionDays=N` and `?force=1` params.
+ * @returns 202 JSON `{ started, retentionDays, olderThan }`; 400/401 on bad input.
+ */
+export async function POST(req: Request): Promise<NextResponse> {
+  const startTime = Date.now();
+
+  const denied = requireCronAuth(req);
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+
+  // Parse retention period (default to env var, then 14 days)
+  const retentionParam = url.searchParams.get("retentionDays");
+  const retentionDays = retentionParam
+    ? parseInt(retentionParam, 10)
+    : parseInt(process.env.RETENTION_DAYS || "14", 10);
+
+  // Optional: prune DailyRouteSummary records older than N days.
+  const summaryDaysParam = url.searchParams.get("summaryDays");
+  const summaryDays = summaryDaysParam ? parseInt(summaryDaysParam, 10) : null;
+
+  if (isNaN(retentionDays) || retentionDays < 1) {
+    return NextResponse.json({ error: "Invalid retentionDays. Must be >= 1" }, { status: 400 });
+  }
+  if (summaryDays !== null && (isNaN(summaryDays) || summaryDays < 1)) {
+    return NextResponse.json({ error: "Invalid summaryDays. Must be >= 1" }, { status: 400 });
+  }
+
+  // Safety check: don't allow retention < 7 days unless explicitly forced
+  if (retentionDays < 7 && !url.searchParams.has("force")) {
+    return NextResponse.json(
+      {
+        error: "Retention < 7 days requires ?force=1 parameter",
+        hint: "This prevents accidental aggressive deletion",
+      },
+      { status: 400 },
+    );
+  }
+
+  // Cutoff at the NZ service-day START (5am NZ local) for the day that was
+  // retentionDays Auckland calendar days ago. Using UTC midnight would snap
+  // to the wrong boundary and silently drop late-night runs (11pm-1am) that
+  // belong to the service day before the cutoff.
+  const { start: cutoffDate } = nzServiceDayRange(
+    new Date(Date.now() - retentionDays * 86_400_000),
+  );
+
+  after(() => runCleanup(startTime, cutoffDate, retentionDays, summaryDays));
+
+  return NextResponse.json(
+    { started: true, retentionDays, olderThan: cutoffDate.toISOString() },
+    { status: 202 },
+  );
 }
