@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.8.0] - 2026-07-08
+
+### Added
+
+- Self-hosted MongoDB support: the database can now run as a MongoDB 8 app on TrueNAS SCALE
+  (single-node replica set for Prisma, TLS + SCRAM auth, non-default port) instead of Atlas, for
+  $0/mo hosting with room to grow retention. `docs/self-host-mongodb.md` is the full runbook -
+  setup, cert renewal, ZFS-snapshot and nightly-dump backups, Atlas dump/restore migration with a
+  crons-paused cutover, and rollback. No code changes required; `DATABASE_URL` and the existing
+  `STORAGE_LIMIT_MB` / `RETENTION_DAYS` env vars carry the switch.
+
+### Changed
+
+- Comments in `src/lib/db.ts` and `src/lib/data.ts` no longer describe the idle-reset retry and the
+  in-memory sort limit as Atlas-specific, and `docs/cron-setup.md` points at the new runbook for the
+  connection string.
+
 ## [1.7.8] - 2026-07-08
 
 ### Fixed

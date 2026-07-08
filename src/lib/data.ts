@@ -4,7 +4,7 @@
  * route, stop, trip and on-time views from MongoDB. Runs the heavy aggregations
  * via `$runCommandRaw` (worst-of-day and worst-of-week boards, rankings, per-
  * route and per-stop summaries, cancelled-trip lookups), splitting week queries
- * per service day to stay under Atlas's in-memory sort limit, and wraps each
+ * per service day to stay under MongoDB's in-memory sort limit, and wraps each
  * result in `unstable_cache`/`memCache` with a purpose-fit TTL.
  */
 import { fetchAll } from "@/lib/at-static";
