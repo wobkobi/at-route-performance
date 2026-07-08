@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.0] - 2026-07-09
+
+### Added
+
+- `GET /api/freshness`: public read-only endpoint returning the footer's last-updated/next-update
+  instants, backed by the same 60s-cached lookup the server render uses.
+
+### Fixed
+
+- The footer freshness line went permanently red ("update due now") on any tab left open longer than
+  the 2-minute ingest cadence: the instants were rendered once on the server and only the relative
+  label ticked client-side. An open tab now re-polls `/api/freshness` every 60s (skipping hidden
+  tabs, catching up on return), and the newest instant wins between the server render and the poll.
+
 ## [1.8.1] - 2026-07-09
 
 ### Fixed
