@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.8.1] - 2026-07-09
+
+### Fixed
+
+- Self-host runbook corrected against the real TrueNAS install: the catalogue MongoDB app is
+  unusable (no extra-args field, forced user creation) so the Custom App YAML is the only path;
+  MongoDB 8.2.x needs `--setParameter tlsUseSystemCA=true` (chain-of-trust startup failure) plus
+  `--tlsAllowConnectionsWithoutCertificates` (else it demands client certs); the combined PEM needs
+  a newline between cert and key ("PEM routines::bad end line"); TrueNAS ACME issues
+  `<name>-acme.crt`/`-acme.key` (the plain `.key` is the CSR's); added the `vm.max_map_count` sysctl
+  prerequisite.
+
 ## [1.8.0] - 2026-07-08
 
 ### Added

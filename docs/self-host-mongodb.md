@@ -21,7 +21,11 @@ Two hard requirements drive the setup:
    NAS. A non-default port avoids drive-by scans of 27017.
 3. A TLS certificate issued **before** first start (`requireTLS` needs the PEM at boot). Use the
    TrueNAS built-in ACME support (Credentials > Certificates > ACME) with a DNS-01 challenge - it
-   works behind NAT. TrueNAS writes certs to `/etc/certificates/<name>.crt` and `.key`.
+   works behind NAT. Naming trap: for a CSR named `mongo`, the issued files are
+   `/etc/certificates/mongo-acme.crt` and `mongo-acme.key` - the plain `mongo.key` is the CSR's key,
+   not the issued cert's.
+4. Raise `vm.max_map_count` or mongod warns at startup: `sysctl -w vm.max_map_count=262144` now, and
+   persist it via System Settings > Advanced > Sysctl (`vm.max_map_count` = `262144`).
 
 ## Datasets
 
@@ -39,30 +43,23 @@ The mongo image runs as uid 999, so `chown -R 999:999` the data and config paths
 
 ```
 openssl rand -base64 756 > /mnt/media/apps/mongodb-config/keyfile
-cat /etc/certificates/<name>.crt /etc/certificates/<name>.key > /mnt/media/apps/mongodb-config/mongodb.pem
+cat /etc/certificates/<name>-acme.crt > /mnt/media/apps/mongodb-config/mongodb.pem
+echo "" >> /mnt/media/apps/mongodb-config/mongodb.pem
+cat /etc/certificates/<name>-acme.key >> /mnt/media/apps/mongodb-config/mongodb.pem
 chmod 400 /mnt/media/apps/mongodb-config/keyfile /mnt/media/apps/mongodb-config/mongodb.pem
 chown 999:999 /mnt/media/apps/mongodb-config/keyfile /mnt/media/apps/mongodb-config/mongodb.pem
 ```
 
 The keyfile enables internal replica-set auth and implies `--auth` for clients (SCRAM). The PEM is
-the certificate and private key concatenated - mongod wants them in one file.
+the certificate and private key concatenated - mongod wants them in one file, and the `echo ""`
+newline between them is required: without it mongod fails at startup with
+`PEM routines::bad end line`.
 
 ## Install the app
 
-**Preferred: the catalogue app.** Apps > Discover Apps > MongoDB (community train). Configure:
-
-- Storage: host path `mongodb-data` for the data dir, `mongodb-config` mounted read-only at
-  `/etc/mongo`, `mongodb-backups` at `/dump`.
-- Port: `27019`.
-- Additional mongod arguments:
-  `--replSet rs0 --keyFile /etc/mongo/keyfile --tlsMode requireTLS --tlsCertificateKeyFile /etc/mongo/mongodb.pem --wiredTigerCacheSizeGB 1.5`
-- Leave the root username/password fields empty (the image entrypoint's auto user creation
-  misbehaves combined with `--replSet`; users are created manually below).
-- Memory limit ~3 GB. The explicit WiredTiger cache size matters because WT sizes itself from the
-  host's RAM, not the container limit.
-
-**Fallback: Custom App via YAML** (Apps > Discover Apps > Custom App) if the catalogue app does not
-expose extra arguments or read-only mounts:
+The catalogue MongoDB app is unusable for this setup: it exposes no field for extra mongod arguments
+(so no `--replSet` or TLS) and forces entrypoint user creation. Install via **Apps > Discover Apps >
+Custom App > Install via YAML** instead:
 
 ```yaml
 services:
@@ -71,7 +68,9 @@ services:
     container_name: at-mongodb
     command: >
       mongod --replSet rs0 --port 27019 --bind_ip_all --keyFile /etc/mongo/keyfile --tlsMode
-      requireTLS --tlsCertificateKeyFile /etc/mongo/mongodb.pem --wiredTigerCacheSizeGB 1.5
+      requireTLS --tlsCertificateKeyFile /etc/mongo/mongodb.pem
+      --tlsAllowConnectionsWithoutCertificates --setParameter tlsUseSystemCA=true
+      --wiredTigerCacheSizeGB 1.5
     ports:
       - "27019:27019"
     volumes:
@@ -84,9 +83,19 @@ services:
     restart: unless-stopped
 ```
 
-The `extra_hosts` entry maps the public domain to loopback inside the container so `rs.initiate`
-with the public hostname passes mongod's is-self check without relying on NAT hairpin, and so
-in-container `mongosh` can validate the certificate hostname.
+Flag notes, all learned against MongoDB 8.2.x:
+
+- `--setParameter tlsUseSystemCA=true` is required or mongod refuses to start with a chain-of-trust
+  error (it cannot validate its own Let's Encrypt cert without the system CA store).
+- `--tlsAllowConnectionsWithoutCertificates` is required alongside it or mongod demands client
+  certificates and rejects every connection with `No SSL certificate provided by peer`.
+- `--keyFile` implies `--auth` for clients (SCRAM); users must be created via the localhost
+  exception before anything else can connect.
+- The explicit WiredTiger cache size matters because WT sizes itself from the host's RAM, not the
+  container limit; `mem_limit: 3g` leaves headroom over the 1.5 GB cache.
+- `extra_hosts` maps the public domain to loopback inside the container so `rs.initiate` with the
+  public hostname passes mongod's is-self check without relying on NAT hairpin, and so in-container
+  `mongosh` can validate the certificate hostname.
 
 ## Initialise the replica set and users
 
@@ -135,7 +144,9 @@ TrueNAS ACME renews the `.crt`/`.key` pair automatically, but mongod reads the c
 nothing rebuilds. Add a TrueNAS Cron Job (System > Advanced > Cron Jobs, monthly):
 
 ```
-cat /etc/certificates/<name>.crt /etc/certificates/<name>.key > /mnt/media/apps/mongodb-config/mongodb.pem \
+cat /etc/certificates/<name>-acme.crt > /mnt/media/apps/mongodb-config/mongodb.pem \
+  && echo "" >> /mnt/media/apps/mongodb-config/mongodb.pem \
+  && cat /etc/certificates/<name>-acme.key >> /mnt/media/apps/mongodb-config/mongodb.pem \
   && chown 999:999 /mnt/media/apps/mongodb-config/mongodb.pem \
   && chmod 400 /mnt/media/apps/mongodb-config/mongodb.pem \
   && docker exec at-mongodb mongosh "mongodb://root:<pass>@db.example.nz:27019/admin?tls=true&directConnection=true" \
