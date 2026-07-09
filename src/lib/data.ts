@@ -822,9 +822,9 @@ async function endpointEventTime(direction: 1 | -1): Promise<Date | null> {
 
 /**
  * How many service days {@link findQualifyingDataDay} walks inward from the
- * collection's edge before giving up. Retention is ~14 days, so a marker more
- * than 21 days from the edge means the qualifying threshold is effectively
- * never met.
+ * collection's edge before giving up. Independent of the retention window: 21
+ * consecutive sub-threshold days at an edge means the qualifying threshold is
+ * effectively never met, and each step costs an indexed count.
  */
 const DATA_DAY_WALK_LIMIT = 21;
 

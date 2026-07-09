@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.1] - 2026-07-09
+
+### Changed
+
+- Retention policy raised to ten years (`RETENTION_DAYS=3650`, `STORAGE_LIMIT_MB=262144`) for the
+  self-hosted database. The runbook gains a sizing section (~23 GB/year, ~230 GB steady state from
+  measured per-document costs), WiredTiger cache guidance, and a backup-strategy shift: nightly
+  logical dumps retire in favour of ZFS snapshots + replication once the archive outgrows them. The
+  day-marker walk-limit comment no longer assumes 14-day retention.
+
 ## [1.9.0] - 2026-07-09
 
 ### Added

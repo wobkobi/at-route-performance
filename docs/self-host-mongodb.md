@@ -172,8 +172,10 @@ watch the first renewal.
     --gzip --archive=/dump/at-$(date +\%F).archive.gz
   ```
 
-  plus a prune of archives older than 30 days. A gzipped dump is ~200-300 MB; replicate or rsync the
-  backups dataset off-box so a pool loss is not a data loss.
+  plus a prune of archives older than 30 days. A gzipped dump is ~200-300 MB at 14-day retention but
+  scales with the data: at a year's retention expect several GB and a dump window well past an hour,
+  at which point drop the cadence to weekly and lean on the ZFS snapshots as the primary recovery
+  path. Replicate or rsync the backups dataset off-box so a pool loss is not a data loss.
 
 ## Migration from Atlas (one-off)
 
@@ -207,8 +209,27 @@ full re-dump with `--drop`):
 6. Smoke-check the deployed app, then re-enable the cron jobs, realtime first.
 7. Keep the Atlas cluster paused and intact for 14 days as the rollback path: swap `DATABASE_URL`
    back and redeploy (loses only data ingested since cutover).
-8. After 14 days: optionally raise `RETENTION_DAYS` (disk is no longer scarce), then delete the
-   Atlas cluster and rotate the old credentials.
+8. After 14 days: delete the Atlas cluster and rotate the old credentials.
+
+## Retention at ten years
+
+The target retention is `RETENTION_DAYS=3650` with `STORAGE_LIMIT_MB=262144` (256 GB allowance,
+warns at 80% = ~205 GB). Raise `RETENTION_DAYS` in the Vercel env as soon as the decision is made -
+the nightly cleanup permanently deletes the oldest day, so every day it runs at 14 keeps the archive
+at two weeks. The archive accumulates forward from the raise; nothing older can be recovered.
+
+Sizing, extrapolated from measured per-document costs (~108 B data + ~162 B index on disk at
+lz4/WiredTiger compression, ~235k events/day): ~86M events/year > ~9 GB data + ~14 GB indexes, so
+~23 GB per year and ~230 GB at the ten-year steady state. Queries stay day-bounded (see the query
+rule in `src/lib/data.ts`), so the hot working set remains the recent days plus index interiors, not
+the archive - but raise `--wiredTigerCacheSizeGB` toward 4 (and `mem_limit` to ~6g) once the archive
+passes a few months, and revisit as index interiors grow.
+
+At this scale logical dumps stop being a workable backup: a full `mongodump` would run for hours and
+produce tens of GB nightly. Keep the nightly dump only while the data set is small (first year or
+so), then retire it in favour of the ZFS snapshots plus replication of `mongodb-data` to a second
+pool or off-box target - snapshot restore is the recovery path, and it restores the whole dataset at
+a point in time.
 
 ## Verification checklist
 
