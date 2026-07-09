@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.2] - 2026-07-09
+
+### Fixed
+
+- Runbook connection-string section pointed at a stale example storage allowance; it now defers to
+  the retention section for `STORAGE_LIMIT_MB` and `RETENTION_DAYS`.
+
 ## [1.9.1] - 2026-07-09
 
 ### Changed

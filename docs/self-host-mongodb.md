@@ -135,8 +135,8 @@ conflict. Prisma only needs the server to be a replica-set member; transactions 
 direct connection to the primary.
 
 Set this as `DATABASE_URL` in Vercel (Production, and Preview if previews share the database) and in
-`.env.local`. Also set `STORAGE_LIMIT_MB` (e.g. `4096`) so the cleanup route's storage warning
-reflects the new allowance.
+`.env.local`. Also set `STORAGE_LIMIT_MB` and `RETENTION_DAYS` per the retention section below so
+the cleanup route enforces the intended policy from the first run.
 
 ## Certificate renewal
 
