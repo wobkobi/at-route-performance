@@ -4,7 +4,7 @@
  * @description Live relative label showing when data was last refreshed and when the next refresh is due.
  */
 
-import { useSyncExternalStore, type JSX } from "react";
+import { useEffect, useState, useSyncExternalStore, type JSX } from "react";
 
 /** Props for {@link DataFreshness}. */
 export interface DataFreshnessProps {
@@ -16,6 +16,18 @@ export interface DataFreshnessProps {
 
 /** How often the relative label re-evaluates while the page sits open. */
 const TICK_MS = 1_000;
+
+/**
+ * How often an open tab re-polls `/api/freshness`. The server caches the lookup
+ * for 60s, so polling faster only returns the same value.
+ */
+const REFRESH_MS = 60_000;
+
+/** Freshness instants as returned by `/api/freshness`. */
+interface FreshnessTimes {
+  lastUpdated: string;
+  nextUpdate: string;
+}
 
 /**
  * Subscribe a re-render to a periodic clock tick.
@@ -80,8 +92,14 @@ function formatRelative(fromMs: number, nowMs: number): string {
 /**
  * Footer freshness line: the absolute Auckland-local time the data was last
  * updated, a live relative label that ticks as the page sits open, and the
- * projected next-update time (or "due now" once it has passed - the page is
- * served from a short ISR cache, so the moment can already be in the past).
+ * projected next-update time (or "due now" once it has passed).
+ *
+ * The server-rendered instants go stale the moment the ingest cadence laps the
+ * page view, so an open tab re-polls `/api/freshness` every {@link REFRESH_MS}
+ * and on returning to a hidden tab - otherwise a tab left open reads
+ * "update due now" forever while ingest is in fact running. The newest instant
+ * wins between the props and the poll, so a client-side navigation with a
+ * fresher server render is never downgraded.
  *
  * The relative label and the due-now state depend on the client clock (supplied
  * via {@link useSyncExternalStore}), so they stay absent on the server and first
@@ -93,9 +111,46 @@ function formatRelative(fromMs: number, nowMs: number): string {
  */
 export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessProps): JSX.Element {
   const nowMs = useSyncExternalStore(subscribeToClock, getClockSnapshot, getServerClockSnapshot);
+  const [polled, setPolled] = useState<FreshnessTimes | null>(null);
 
-  const lastMs = new Date(lastUpdatedIso).getTime();
-  const nextMs = new Date(nextUpdateIso).getTime();
+  useEffect(() => {
+    let cancelled = false;
+    /** Poll `/api/freshness` and adopt the result, skipping hidden tabs. */
+    const refresh = async (): Promise<void> => {
+      // Skip hidden tabs; the visibilitychange listener catches up on return.
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/freshness");
+        if (!res.ok) return;
+        const data = (await res.json()) as Partial<FreshnessTimes>;
+        if (!cancelled && data.lastUpdated && data.nextUpdate) {
+          setPolled({ lastUpdated: data.lastUpdated, nextUpdate: data.nextUpdate });
+        }
+      } catch {
+        // Keep showing the last known instants; the next tick retries.
+      }
+    };
+    const id = setInterval(() => void refresh(), REFRESH_MS);
+    /** Catch up immediately when a hidden tab becomes visible again. */
+    const onVisible = (): void => {
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+  // Newest instant wins (ISO UTC strings compare lexicographically).
+  const shown =
+    polled && polled.lastUpdated > lastUpdatedIso
+      ? { lastUpdatedIso: polled.lastUpdated, nextUpdateIso: polled.nextUpdate }
+      : { lastUpdatedIso, nextUpdateIso };
+
+  const lastMs = new Date(shown.lastUpdatedIso).getTime();
+  const nextMs = new Date(shown.nextUpdateIso).getTime();
   // Use a live Date.now() so the relative label is never skewed by the bucket
   // floor: if lastMs falls within the current 15-second bucket, nowMs (floored)
   // would be < lastMs and produce "in X seconds" instead of "X seconds ago".
@@ -107,8 +162,8 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
   return (
     <p className="text-xs leading-relaxed text-white/70">
       Last updated{" "}
-      <time dateTime={lastUpdatedIso} className="font-semibold text-white">
-        {nzClock(lastUpdatedIso)}
+      <time dateTime={shown.lastUpdatedIso} className="font-semibold text-white">
+        {nzClock(shown.lastUpdatedIso)}
       </time>
       {relative ? ` (${relative})` : null}
       <span className="px-1.5 text-white/40">&middot;</span>
@@ -117,8 +172,8 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
       ) : (
         <>
           next update by{" "}
-          <time dateTime={nextUpdateIso} className="font-semibold text-white">
-            {nzClock(nextUpdateIso)}
+          <time dateTime={shown.nextUpdateIso} className="font-semibold text-white">
+            {nzClock(shown.nextUpdateIso)}
           </time>
         </>
       )}

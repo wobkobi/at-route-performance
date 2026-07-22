@@ -115,7 +115,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
   };
 
   const [pattern, activeStops] = await Promise.all([
-    getRoutePattern(routeId).catch(() => ({ directions: {} }) as RoutePattern),
+    getRoutePattern(routeId).catch(() => ({ directions: {} })),
     getRecentStopIds(routeId).catch(() => new Set<string>()),
   ]);
 

@@ -144,7 +144,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           withTripDelay: Number(hasTripDelay),
           dropped: 0,
           loose,
-        } as DebugStats,
+        },
         sample: null,
       });
     }
@@ -210,7 +210,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           dropped++;
           continue;
         }
-        const time = a.time as number;
+        const time = a.time;
         const actualAt = new Date(time * 1000);
         const scheduledAt = new Date((time - delay) * 1000);
 

@@ -58,7 +58,7 @@ async function runShapesSync(startTime: number): Promise<void> {
  * @param req - Incoming request; requires the CRON_SECRET bearer token.
  * @returns 202 JSON `{ started }`; 401/500 on auth/config failure.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export function POST(req: Request): NextResponse {
   const startTime = Date.now();
 
   const denied = requireCronAuth(req);

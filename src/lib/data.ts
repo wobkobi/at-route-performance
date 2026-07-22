@@ -4,7 +4,7 @@
  * route, stop, trip and on-time views from MongoDB. Runs the heavy aggregations
  * via `$runCommandRaw` (worst-of-day and worst-of-week boards, rankings, per-
  * route and per-stop summaries, cancelled-trip lookups), splitting week queries
- * per service day to stay under Atlas's in-memory sort limit, and wraps each
+ * per service day to stay under MongoDB's in-memory sort limit, and wraps each
  * result in `unstable_cache`/`memCache` with a purpose-fit TTL.
  */
 import { fetchAll } from "@/lib/at-static";
@@ -796,25 +796,86 @@ export async function getModeBreakdown(
 }
 
 /**
+ * The scheduled time of the event at one end of the collection, read via the
+ * `scheduledAt` index (sort + limit 1) so it stays cheap as the collection
+ * grows. The `$group`/`$max` alternative scans every document - at 3M+ events
+ * that is a 15s+ query on the shared cluster.
+ * @param direction - 1 for the earliest event, -1 for the latest.
+ * @returns That event's `scheduledAt`, or null when the collection is empty.
+ */
+async function endpointEventTime(direction: 1 | -1): Promise<Date | null> {
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: [
+        { $sort: { scheduledAt: direction } },
+        { $limit: 1 },
+        { $project: { _id: 0, scheduledAt: 1 } },
+      ] as never,
+      cursor: {},
+    }),
+  )) as unknown as { cursor: { firstBatch: { scheduledAt?: { $date: string } | string }[] } };
+  const raw = res.cursor.firstBatch[0]?.scheduledAt;
+  if (!raw) return null;
+  return new Date(typeof raw === "string" ? raw : raw.$date);
+}
+
+/**
+ * How many service days {@link findQualifyingDataDay} walks inward from the
+ * collection's edge before giving up. Independent of the retention window: 21
+ * consecutive sub-threshold days at an edge means the qualifying threshold is
+ * effectively never met, and each step costs an indexed count.
+ */
+const DATA_DAY_WALK_LIMIT = 21;
+
+/**
+ * The service day nearest one end of the collection with at least `minEvents`
+ * events: starts at the end event's own service day and steps inward one day at
+ * a time, checking each with an indexed range count. The end event's day always
+ * holds at least one event, so `minEvents <= 1` resolves with no counting and a
+ * higher threshold typically counts a single day.
+ * @param direction - 1 to search from the earliest event forward, -1 from the latest back.
+ * @param minEvents - Minimum events a service day needs to qualify.
+ * @returns The qualifying service date (`YYYY-MM-DD`), or null when none is found.
+ */
+async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Promise<string | null> {
+  const endpoint = await endpointEventTime(direction);
+  if (!endpoint) return null;
+  let day = nzServiceDayString(endpoint);
+  for (let i = 0; i < DATA_DAY_WALK_LIMIT; i++) {
+    if (i === 0 && minEvents <= 1) return day;
+    const range = nzServiceDayRange(day);
+    const n = await prisma.arrivalEvent.count({
+      where: { scheduledAt: { gte: range.start, lt: range.end } },
+    });
+    if (n >= minEvents) return day;
+    // Step inward: forward from the earliest end, back from the latest.
+    day = shiftWeek(day, direction);
+  }
+  return null;
+}
+
+/**
+ * A Date at local noon within a service day, so `nzServiceDayRange` anchors on
+ * the right day regardless of DST offset.
+ * @param day - Service date as `YYYY-MM-DD`.
+ * @returns Noon (Auckland-local) within that service day.
+ */
+function dataDayNoon(day: string): Date {
+  // The range starts at SERVICE_START_HOUR (5am local); +7h lands at local noon.
+  return new Date(nzServiceDayRange(day).start.getTime() + 7 * 60 * 60 * 1000);
+}
+
+/**
  * The most recent event's scheduled time, for empty-window fallback.
  * @returns The max `scheduledAt`, or null when there are no events.
  */
 export async function getLatestEventDate(): Promise<Date | null> {
-  // Full-collection $max, so cache it: the latest event only advances once per
-  // ingest cycle, and this sits on the rankings page's critical path.
+  // Indexed endpoint lookup; still cached because the latest event only
+  // advances once per ingest cycle and this sits on the rankings page's
+  // critical path.
   const iso = await unstable_cache(
-    async () => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [{ $group: { _id: null, maxSched: { $max: "$scheduledAt" } } }] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { maxSched?: { $date: string } | string }[] } };
-      const raw = res.cursor.firstBatch[0]?.maxSched;
-      if (!raw) return null;
-      return typeof raw === "string" ? raw : raw.$date;
-    },
+    async () => (await endpointEventTime(-1))?.toISOString() ?? null,
     ["latest-event-date"],
     { revalidate: 600 },
   )();
@@ -824,111 +885,37 @@ export async function getLatestEventDate(): Promise<Date | null> {
 /**
  * The most recent Auckland-local **service day** that has at least `minEvents`
  * events. Day-focused pages fall back to this when the current service day is
- * sparse. Events are bucketed by service day (shift back by `SERVICE_START_HOUR`
- * then truncate), so a post-midnight run counts under the day it started.
+ * sparse. Service-day bucketing matches `nzServiceDayString`, so a post-midnight
+ * run counts under the day it started.
  * @param minEvents - Minimum events a service day needs to qualify.
  * @returns A Date inside that service day (its local noon), or null when empty.
  */
 export async function getMostRecentDataDay(minEvents: number): Promise<Date | null> {
-  const iso = await unstable_cache(
-    async () => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $group: {
-                _id: {
-                  $dateTrunc: {
-                    date: {
-                      $dateSubtract: {
-                        startDate: "$scheduledAt",
-                        unit: "hour",
-                        amount: SERVICE_START_HOUR,
-                      },
-                    },
-                    unit: "day",
-                    timezone: "Pacific/Auckland",
-                  },
-                },
-                n: { $sum: 1 },
-              },
-            },
-            { $match: { n: { $gte: minEvents } } },
-            { $sort: { _id: -1 } },
-            { $limit: 1 },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
-      const raw = res.cursor.firstBatch[0]?._id;
-      if (!raw) return null;
-      return typeof raw === "string" ? raw : raw.$date;
-    },
+  const day = await unstable_cache(
+    () => findQualifyingDataDay(-1, minEvents),
     ["most-recent-data-day", String(minEvents)],
     { revalidate: 600 },
   )();
-  if (!iso) return null;
-  // The bucket is the service-day local midnight; +12h lands at noon within
-  // the service day so nzServiceDayRange anchors on the right day.
-  return new Date(new Date(iso).getTime() + 12 * 60 * 60 * 1000);
+  return day ? dataDayNoon(day) : null;
 }
 
 /**
  * The earliest Auckland-local **service day** that has at least `minEvents`
  * events. Day-focused pages use this to stop the day stepper paging back past
- * where data exists. Buckets match {@link getMostRecentDataDay} (shift back by
- * `SERVICE_START_HOUR`, then truncate), so the boundary is symmetric.
+ * where data exists. Buckets match {@link getMostRecentDataDay}, so the
+ * boundary is symmetric.
  * @param minEvents - Minimum events a service day needs to qualify.
  * @returns A Date inside that service day (its local noon), or null when empty.
  */
 export async function getEarliestDataDay(minEvents: number): Promise<Date | null> {
-  // Full-collection group-by-service-day, so cache it: the earliest day never
-  // moves back, and day-stepper prev-page hits it on every render.
-  const iso = await unstable_cache(
-    async () => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $group: {
-                _id: {
-                  $dateTrunc: {
-                    date: {
-                      $dateSubtract: {
-                        startDate: "$scheduledAt",
-                        unit: "hour",
-                        amount: SERVICE_START_HOUR,
-                      },
-                    },
-                    unit: "day",
-                    timezone: "Pacific/Auckland",
-                  },
-                },
-                n: { $sum: 1 },
-              },
-            },
-            { $match: { n: { $gte: minEvents } } },
-            { $sort: { _id: 1 } },
-            { $limit: 1 },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id?: { $date: string } | string }[] } };
-      const raw = res.cursor.firstBatch[0]?._id;
-      if (!raw) return null;
-      return typeof raw === "string" ? raw : raw.$date;
-    },
+  const day = await unstable_cache(
+    () => findQualifyingDataDay(1, minEvents),
     ["earliest-data-day", String(minEvents)],
     // Only moves when the nightly cleanup prunes the oldest day, so 6h is safe;
     // the freshness-sensitive latest/most-recent markers stay at 600.
     { revalidate: 21_600 },
   )();
-  if (!iso) return null;
-  // The bucket is the service day's local midnight; return its local noon so the
-  // hour sits safely inside the service day for nzServiceDayRange.
-  return new Date(new Date(iso).getTime() + 12 * 60 * 60 * 1000);
+  return day ? dataDayNoon(day) : null;
 }
 
 /**

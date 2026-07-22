@@ -9,7 +9,7 @@ caps cron jobs at 2/day, and this project needs four — one of them every coupl
 1. Deploy the app to Vercel and note the production URL (e.g. `https://your-app.vercel.app`).
 2. Set these environment variables in the Vercel project (Settings > Environment Variables), since
    the functions read them at runtime:
-   - `DATABASE_URL` - the MongoDB Atlas connection string (the `at-buses` cluster).
+   - `DATABASE_URL` - the MongoDB connection string (see `docs/self-host-mongodb.md`).
    - `AT_API_KEY` - Auckland Transport API key (needed by `/api/ingest/at`).
    - `CRON_SECRET` - a long random string; cron-job.org sends it as the bearer token.
 

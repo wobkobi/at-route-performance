@@ -2,17 +2,17 @@
 /**
  * @description Cron-only POST that permanently deletes ArrivalEvents and
  * TripDelays older than the retention window (default 14 days) to stay under the
- * Atlas M0 storage cap. Must run after the daily aggregation, since deletion is
+ * cluster's storage allowance. Must run after the daily aggregation, since deletion is
  * irreversible. The cutoff snaps to the NZ service-day start (5am Auckland) so
  * late-night runs are not dropped against the wrong calendar boundary, retention
  * below 7 days is refused without ?force=1 to guard against an accidental purge,
  * and each collection deletes independently so one failure never skips the rest.
- * Responds 202 before the deletes run: a full day's delete takes ~40s on the M0
- * tier, past the external scheduler's 30s request timeout; the outcome is
+ * Responds 202 before the deletes run: a full day's delete takes ~40s on the
+ * shared tier, past the external scheduler's 30s request timeout; the outcome is
  * recorded in IngestRun and the function logs.
  */
 import { requireCronAuth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { prisma, runCommand } from "@/lib/db";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { nzServiceDayRange } from "@/lib/time";
 import { after, NextResponse } from "next/server";
@@ -117,16 +117,28 @@ async function runCleanup(
       ...(summariesError ? { summariesError } : {}),
     });
 
-    // Warn when approaching storage limits (heuristic)
-    const remainingEvents = await prisma.arrivalEvent.count();
-    const estimatedMB = (remainingEvents * 250) / 1_000_000; // 250 bytes/event
+    // Warn when nearing the cluster storage allowance, using real on-disk
+    // sizes from dbStats (compressed data + indexes) - a per-event byte
+    // estimate overstated usage by ~2x. Override the allowance with
+    // STORAGE_LIMIT_MB when the cluster tier changes.
+    const limitMB = parseInt(process.env.STORAGE_LIMIT_MB || "512", 10);
+    const stats = (await runCommand(() => prisma.$runCommandRaw({ dbStats: 1 }))) as {
+      storageSize?: number;
+      indexSize?: number;
+      objects?: number;
+    };
+    const dataMB = Number(stats.storageSize ?? 0) / 1_048_576;
+    const indexMB = Number(stats.indexSize ?? 0) / 1_048_576;
+    const usedMB = dataMB + indexMB;
 
-    if (estimatedMB > 400) {
+    if (usedMB > limitMB * 0.8) {
       console.warn("[CLEANUP] ⚠️  Storage warning", {
-        remainingEvents,
-        estimatedMB: estimatedMB.toFixed(0),
-        limitMB: 512,
-        message: "Approaching Atlas M0 storage limit. Consider reducing retention.",
+        usedMB: usedMB.toFixed(0),
+        dataMB: dataMB.toFixed(0),
+        indexMB: indexMB.toFixed(0),
+        limitMB,
+        objects: Number(stats.objects ?? 0),
+        message: "Nearing the cluster storage allowance. Consider reducing retention.",
       });
     }
 
@@ -161,7 +173,7 @@ async function runCleanup(
  * @param req - Request with optional `?retentionDays=N` and `?force=1` params.
  * @returns 202 JSON `{ started, retentionDays, olderThan }`; 400/401 on bad input.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export function POST(req: Request): NextResponse {
   const startTime = Date.now();
 
   const denied = requireCronAuth(req);

@@ -251,7 +251,7 @@ async function runAggregate(
  *   the NZ service date; defaults to the service day that ended before now).
  * @returns 202 JSON `{ started, date }`; 400/401 on bad input.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export function POST(req: Request): NextResponse {
   const startTime = Date.now();
 
   const denied = requireCronAuth(req);

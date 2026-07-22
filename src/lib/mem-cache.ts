@@ -64,6 +64,6 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
       throw err;
     });
 
-  inflight.set(key, promise as Promise<unknown>);
+  inflight.set(key, promise);
   return promise;
 }

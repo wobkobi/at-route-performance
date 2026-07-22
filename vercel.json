@@ -1,3 +1,4 @@
 {
-  "buildCommand": "([ \"$VERCEL_ENV\" != \"production\" ] || npm run db:push) && npm run build"
+  "buildCommand": "([ \"$VERCEL_ENV\" != \"production\" ] || npm run db:push) && npm run build",
+  "regions": ["syd1"]
 }

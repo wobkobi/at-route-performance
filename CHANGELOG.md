@@ -4,6 +4,132 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.5] - 2026-07-23
+
+### Fixed
+
+- Service-alert ids arriving as non-strings from the GTFS-RT feed no longer stringify objects into
+  `"[object Object]"` (caught by the new `no-base-to-string` rule): numeric ids still convert,
+  anything else falls back to an empty id.
+- The acknowledge-then-run cron handlers (aggregate, cleanup, shapes) are plain synchronous
+  functions now; they never awaited anything before their 202 response.
+
+## [1.9.4] - 2026-07-23
+
+### Changed
+
+- Dropped the type assertions the new type-aware lint pass proved redundant (ingest debug stats,
+  mem-cache inflight promise, rankings test rows, route-view pattern fallback). The triangle
+  layout's mid-node map keeps its `labelDir` type via an annotated callback return instead - the
+  literal widened to `string` without one, which the removed cast had been masking.
+
+## [1.9.3] - 2026-07-23
+
+### Changed
+
+- Lint/format toolchain overhaul: core ESLint recommended rules now apply (the Next presets never
+  enabled them), type-aware `typescript-eslint` rules run over `src/` (async-correctness checks on;
+  the `no-unsafe-*` family stays off until the SDK/JSON boundaries are typed), and the new
+  `tailwind-canonical-classes` rule collapses arbitrary values that have a scale equivalent.
+  Prettier now sorts Tailwind classes inside `cn()`/`clsx()`/`twMerge()` calls, not just `className`
+  attributes.
+- Hooks tightened: pre-commit re-stages `package.json`, auto-fixes staged files
+  (`eslint --fix --no-warn-ignored`) and runs a full typecheck; pre-push reuses the fresh build for
+  the smoke test via `--skip-build`.
+- Dependency refresh: Next 16.2.11, React 19.2.8, TypeScript pinned at 6.0.3, ESLint pinned at
+  9.39.5, `sharp` added with a version override, and `cross-env` swapped for `dotenv-cli` (the
+  `analyze` script now goes through it).
+
+## [1.9.2] - 2026-07-09
+
+### Fixed
+
+- Runbook connection-string section pointed at a stale example storage allowance; it now defers to
+  the retention section for `STORAGE_LIMIT_MB` and `RETENTION_DAYS`.
+
+## [1.9.1] - 2026-07-09
+
+### Changed
+
+- Retention policy raised to ten years (`RETENTION_DAYS=3650`, `STORAGE_LIMIT_MB=262144`) for the
+  self-hosted database. The runbook gains a sizing section (~23 GB/year, ~230 GB steady state from
+  measured per-document costs), WiredTiger cache guidance, and a backup-strategy shift: nightly
+  logical dumps retire in favour of ZFS snapshots + replication once the archive outgrows them. The
+  day-marker walk-limit comment no longer assumes 14-day retention.
+
+## [1.9.0] - 2026-07-09
+
+### Added
+
+- `GET /api/freshness`: public read-only endpoint returning the footer's last-updated/next-update
+  instants, backed by the same 60s-cached lookup the server render uses.
+
+### Fixed
+
+- The footer freshness line went permanently red ("update due now") on any tab left open longer than
+  the 2-minute ingest cadence: the instants were rendered once on the server and only the relative
+  label ticked client-side. An open tab now re-polls `/api/freshness` every 60s (skipping hidden
+  tabs, catching up on return), and the newest instant wins between the server render and the poll.
+
+## [1.8.1] - 2026-07-09
+
+### Fixed
+
+- Self-host runbook corrected against the real TrueNAS install: the catalogue MongoDB app is
+  unusable (no extra-args field, forced user creation) so the Custom App YAML is the only path;
+  MongoDB 8.2.x needs `--setParameter tlsUseSystemCA=true` (chain-of-trust startup failure) plus
+  `--tlsAllowConnectionsWithoutCertificates` (else it demands client certs); the combined PEM needs
+  a newline between cert and key ("PEM routines::bad end line"); TrueNAS ACME issues
+  `<name>-acme.crt`/`-acme.key` (the plain `.key` is the CSR's); added the `vm.max_map_count` sysctl
+  prerequisite.
+
+## [1.8.0] - 2026-07-08
+
+### Added
+
+- Self-hosted MongoDB support: the database can now run as a MongoDB 8 app on TrueNAS SCALE
+  (single-node replica set for Prisma, TLS + SCRAM auth, non-default port) instead of Atlas, for
+  $0/mo hosting with room to grow retention. `docs/self-host-mongodb.md` is the full runbook -
+  setup, cert renewal, ZFS-snapshot and nightly-dump backups, Atlas dump/restore migration with a
+  crons-paused cutover, and rollback. No code changes required; `DATABASE_URL` and the existing
+  `STORAGE_LIMIT_MB` / `RETENTION_DAYS` env vars carry the switch.
+
+### Changed
+
+- Comments in `src/lib/db.ts` and `src/lib/data.ts` no longer describe the idle-reset retry and the
+  in-memory sort limit as Atlas-specific, and `docs/cron-setup.md` points at the new runbook for the
+  connection string.
+
+## [1.7.8] - 2026-07-08
+
+### Fixed
+
+- Dropped the single-field `scheduledAt` index on ArrivalEvent (64.6MB at 3.2M events): the
+  `[scheduledAt, routeId]` compound serves every plain scheduledAt range and sort via its prefix,
+  confirmed with explain plans after the drop (no in-memory sort). Applied directly to the
+  production cluster; the schema change keeps `db:push` consistent.
+- The cleanup storage warning now reports real on-disk sizes from `dbStats` (compressed data +
+  indexes, with the allowance overridable via `STORAGE_LIMIT_MB`) instead of a 250-bytes/event
+  estimate that overstated usage by ~2x, and no longer asserts the cluster is an Atlas M0.
+
+## [1.7.7] - 2026-07-08
+
+### Fixed
+
+- Vercel functions now run in `syd1` (Sydney) beside the Atlas cluster instead of the default `iad1`
+  (US East). Every DB round trip was paying ~210 ms iad1 > Sydney; uncached renders issue several
+  sequential round trips, and NZ visitors also reach Sydney faster than US East.
+
+## [1.7.6] - 2026-07-08
+
+### Fixed
+
+- The earliest/most-recent data-day markers and the latest-event lookup no longer scan the whole
+  ArrivalEvent collection (~17 s each at 3.2M events on the shared cluster). They now read the
+  collection's endpoint event via the `scheduledAt` index and, when a qualifying threshold is set,
+  count candidate service days with indexed range counts (~30-200 ms). `getEarliestDataDay` sits on
+  every page's critical path, so cache misses were the 17-27 s page loads.
+
 ## [1.7.5] - 2026-07-08
 
 ### Fixed
