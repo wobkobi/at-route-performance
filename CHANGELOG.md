@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.3] - 2026-07-23
+
+### Changed
+
+- Lint/format toolchain overhaul: core ESLint recommended rules now apply (the Next presets never
+  enabled them), type-aware `typescript-eslint` rules run over `src/` (async-correctness checks on;
+  the `no-unsafe-*` family stays off until the SDK/JSON boundaries are typed), and the new
+  `tailwind-canonical-classes` rule collapses arbitrary values that have a scale equivalent.
+  Prettier now sorts Tailwind classes inside `cn()`/`clsx()`/`twMerge()` calls, not just `className`
+  attributes.
+- Hooks tightened: pre-commit re-stages `package.json`, auto-fixes staged files
+  (`eslint --fix --no-warn-ignored`) and runs a full typecheck; pre-push reuses the fresh build for
+  the smoke test via `--skip-build`.
+- Dependency refresh: Next 16.2.11, React 19.2.8, TypeScript pinned at 6.0.3, ESLint pinned at
+  9.39.5, `sharp` added with a version override, and `cross-env` swapped for `dotenv-cli` (the
+  `analyze` script now goes through it).
+
 ## [1.9.2] - 2026-07-09
 
 ### Fixed

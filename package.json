@@ -1,10 +1,10 @@
 {
   "name": "at-route-performance",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "private": true,
   "type": "module",
   "scripts": {
-    "analyze": "cross-env ANALYZE=true next build",
+    "analyze": "dotenv -v ANALYZE=true -- next build",
     "build": "next build",
     "db:push": "prisma db push",
     "dev": "next dev --turbopack",
@@ -20,13 +20,13 @@
     "typecheck": "tsc --noEmit"
   },
   "simple-git-hooks": {
-    "pre-commit": "npm install --package-lock-only && git add package-lock.json && npx lint-staged",
-    "pre-push": "npm run lint && npm run build && npm run smoke"
+    "pre-commit": "npm install --package-lock-only && git add package-lock.json package.json && npx lint-staged && npm run typecheck",
+    "pre-push": "npm run lint && npm run build && npm run smoke -- --skip-build"
   },
   "lint-staged": {
     "**/*.{js,jsx,ts,tsx}": [
       "prettier --write",
-      "eslint --max-warnings=0"
+      "eslint --fix --max-warnings=0 --no-warn-ignored"
     ],
     "**/*.{css,html,json,md,mjs,yml,yaml}": "prettier --write"
   },
@@ -37,50 +37,53 @@
     "edge >= 93"
   ],
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "sharp": "$sharp"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
+    "@prisma/client": "6.19.3",
     "clsx": "^2.1.1",
     "fflate": "^0.8.3",
     "leaflet": "^1.9.4",
-    "next": "16.2.10",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "next": "16.2.11",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-icons": "^5.7.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
-    "@eslint/js": "^9.39.4",
-    "@next/bundle-analyzer": "^16.2.10",
-    "@tailwindcss/postcss": "^4.3.2",
+    "@eslint/js": "9.39.4",
+    "@next/bundle-analyzer": "^16.2.11",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/leaflet": "^1.9.21",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.63.0",
-    "@typescript-eslint/parser": "^8.63.0",
-    "cross-env": "^10.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "dotenv": "^17.4.2",
-    "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.10",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "^16.2.11",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-jsdoc": "^63.0.12",
+    "eslint-plugin-jsdoc": "^63.2.0",
     "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-tailwind-canonical-classes": "^1.4.1",
     "globals": "^17.7.0",
-    "lint-staged": "^17.0.8",
-    "postcss": "^8.5.16",
-    "prettier": "^3.9.4",
+    "lint-staged": "^17.1.1",
+    "postcss": "^8.5.22",
+    "prettier": "^3.9.6",
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-packagejson": "^3.0.2",
-    "prettier-plugin-tailwindcss": "^0.8.0",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "prisma": "^6.19.3",
+    "sharp": "^0.35.3",
     "simple-git-hooks": "^2.13.1",
-    "tailwindcss": "^4.3.2",
-    "tsx": "^4.23.0",
-    "typescript": "^6",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
   },
   "engines": {
