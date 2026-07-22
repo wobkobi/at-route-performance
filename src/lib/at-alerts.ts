@@ -85,7 +85,9 @@ export function toServiceAlerts(raw: unknown): AtServiceAlerts {
     const a = isObj(e.alert) ? e.alert : null;
     if (!a) continue;
 
-    const id = typeof e.id === "string" ? e.id : String(e.id ?? "");
+    // Ids are usually strings; numeric ids still convert, but anything else
+    // (objects, null) falls back to "" rather than "[object Object]".
+    const id = typeof e.id === "string" ? e.id : typeof e.id === "number" ? String(e.id) : "";
 
     const active_period = Array.isArray(a.active_period)
       ? (a.active_period as unknown[]).filter(isObj).map((p) => ({

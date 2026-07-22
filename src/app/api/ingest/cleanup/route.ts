@@ -173,7 +173,7 @@ async function runCleanup(
  * @param req - Request with optional `?retentionDays=N` and `?force=1` params.
  * @returns 202 JSON `{ started, retentionDays, olderThan }`; 400/401 on bad input.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export function POST(req: Request): NextResponse {
   const startTime = Date.now();
 
   const denied = requireCronAuth(req);

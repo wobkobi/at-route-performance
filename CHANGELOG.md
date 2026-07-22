@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.5] - 2026-07-23
+
+### Fixed
+
+- Service-alert ids arriving as non-strings from the GTFS-RT feed no longer stringify objects into
+  `"[object Object]"` (caught by the new `no-base-to-string` rule): numeric ids still convert,
+  anything else falls back to an empty id.
+- The acknowledge-then-run cron handlers (aggregate, cleanup, shapes) are plain synchronous
+  functions now; they never awaited anything before their 202 response.
+
 ## [1.9.4] - 2026-07-23
 
 ### Changed
