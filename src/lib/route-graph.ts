@@ -140,12 +140,12 @@ export function buildTriangle(
 
   const nodes: DiagramNode[] = [
     { stopId: A, cx: cxA, cy: baseY, branch: 0, labelDir: "down" },
-    ...middle.map((id, i) => ({
+    ...middle.map((id, i): DiagramNode => ({
       stopId: id,
       cx: padX + (i + 1) * legRun,
       cy: apexY,
-      branch: 0 as const,
-      labelDir: "up" as LabelDir,
+      branch: 0,
+      labelDir: "up",
     })),
     { stopId: C, cx: cxC, cy: baseY, branch: 0, labelDir: "down" },
   ];

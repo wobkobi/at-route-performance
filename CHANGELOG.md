@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.9.4] - 2026-07-23
+
+### Changed
+
+- Dropped the type assertions the new type-aware lint pass proved redundant (ingest debug stats,
+  mem-cache inflight promise, rankings test rows, route-view pattern fallback). The triangle
+  layout's mid-node map keeps its `labelDir` type via an annotated callback return instead - the
+  literal widened to `string` without one, which the removed cast had been masking.
+
 ## [1.9.3] - 2026-07-23
 
 ### Changed

@@ -21,7 +21,7 @@ function row(p: Partial<TopRouteRow> & { route_id: string }): TopRouteRow {
     avg_abs_delay_sec: 0,
     on_time_pct: 90,
     ...p,
-  } as TopRouteRow;
+  };
 }
 
 describe("deriveBoards", () => {
