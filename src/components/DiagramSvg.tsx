@@ -1,15 +1,13 @@
 "use client";
 // src/components/DiagramSvg.tsx
-/**
- * @description Render the route line-diagram SVG with stop nodes, edges, and
- * branch labels. The geometry arrives pre-laid-out; the work here is resolving
- * each stop's delay label so it never crosses a drawn line or another label -
- * each label tries its preferred side, then the opposite, then the horizontals,
- * then growing offsets, sampling every segment (trunk turns and 45deg branch
- * connectors) for clearance. Branch end labels resolve last so they dodge the
- * denser time labels, and the viewBox is trimmed to the drawn content so every
- * diagram in a section can share one width and render at the same scale.
- */
+// Render the route line-diagram SVG with stop nodes, edges, and
+// branch labels. The geometry arrives pre-laid-out; the work here is resolving
+// each stop's delay label so it never crosses a drawn line or another label -
+// each label tries its preferred side, then the opposite, then the horizontals,
+// then growing offsets, sampling every segment (trunk turns and 45deg branch
+// connectors) for clearance. Branch end labels resolve last so they dodge the
+// denser time labels, and the viewBox is trimmed to the drawn content so every
+// diagram in a section can share one width and render at the same scale.
 
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay } from "@/lib/format";
@@ -220,21 +218,21 @@ export function DiagramSvg({
   const [hovered, setHovered] = useState<number | null>(null);
 
   const trunk = nodes.filter((n) => n.branch === 0);
-  // Close the loop by returning to the first stop when `closed`.
-  const trunkPoints = [...trunk, ...(closed && trunk.length > 0 ? [trunk[0]] : [])]
-    .map((n) => `${n.cx},${n.cy}`)
-    .join(" ");
   const first = trunk[0];
-  const last = trunk[trunk.length - 1];
+  const last = trunk.at(-1);
+  // The spine is the trunk plus, when `closed`, a return to the first stop.
+  const spine = closed && first ? [...trunk, first] : trunk;
+  const trunkPoints = spine.map((n) => `${n.cx},${n.cy}`).join(" ");
   const tip = hovered == null ? null : nodes[hovered];
 
   // Every drawn line a time label must avoid: the trunk spine (incl. the loop-
   // closing edge) and every 45deg branch connector. Labels resolve against these
   // so none is ever drawn across a line, diagonal connectors included.
-  const spine = [...trunk, ...(closed && trunk.length > 0 ? [trunk[0]] : [])];
   const segs: [number, number, number, number][] = [];
-  for (let i = 1; i < spine.length; i++) {
-    segs.push([spine[i - 1].cx, spine[i - 1].cy, spine[i].cx, spine[i].cy]);
+  let prev: DiagramNodeView | undefined;
+  for (const n of spine) {
+    if (prev) segs.push([prev.cx, prev.cy, n.cx, n.cy]);
+    prev = n;
   }
   for (const e of edges) if (e.branch) segs.push([e.x1, e.y1, e.x2, e.y2]);
 
@@ -302,11 +300,11 @@ export function DiagramSvg({
   // so those can dodge the dense time labels rather than the other way round. The
   // terminus shows its own delay like any other stop - the direction title at the
   // top names the line, so the end node carries no separate name label.
-  const nodeLabels = nodes.map((n) => {
-    const value = n.delay == null ? null : formatDelay(n.delay);
-    if (value == null) return { value: null as string | null, lp: null };
-    const lp = place(n.cx, n.cy, n.labelDir, value.length * 7, LABEL_H);
-    return { value, lp };
+  const nodeLabels = nodes.map((node) => {
+    const value = node.delay == null ? null : formatDelay(node.delay);
+    if (value == null) return { node, value: null as string | null, lp: null };
+    const lp = place(node.cx, node.cy, node.labelDir, value.length * 7, LABEL_H);
+    return { node, value, lp };
   });
 
   // Branch end labels (origin / divergent terminus) go last, nudged down until
@@ -315,8 +313,11 @@ export function DiagramSvg({
   const placedEndLabels: { x0: number; x1: number; y: number }[] = [];
   const endLabels = labels.map((l) => {
     const head = l.headsign ?? "variant";
-    const parts = head.split(" To ");
-    const raw = parts.length < 2 ? head : l.toLeft ? parts[0] : parts.slice(1).join(" To ");
+    // "Origin To Destination": keep the origin for a left-pointing label and the
+    // destination for a right-pointing one. `split` always yields a first part,
+    // so the default only satisfies the type.
+    const [origin = head, ...rest] = head.split(" To ");
+    const raw = rest.length === 0 ? head : l.toLeft ? origin : rest.join(" To ");
     // Strip "Via ..." qualifier - redundant in a short branch label.
     const display = raw.replace(/\s+Via\s+.*/i, "").trim();
     const text =
@@ -369,28 +370,22 @@ export function DiagramSvg({
     }
     placedEndLabels.push({ x0, x1, y });
     placedBoxes.push(endBox(y));
-    return { text, y, endOff };
+    return { label: l, text, y, endOff };
   });
 
   // Trim the viewBox to the actual drawn content (nodes + every label) so the
   // diagram fills the width instead of leaving the fixed reserves as blank margin.
   // A minimum width keeps short routes from blowing up to fill the card.
   const xs: number[] = [];
-  nodes.forEach((n, i) => {
+  for (const { node: n, value, lp } of nodeLabels) {
     const r = n.branch === 0 && (n === first || n === last) ? TERMINUS_R : NODE_R;
     xs.push(n.cx - r, n.cx + r);
-    const nl = nodeLabels[i];
-    if (nl.value && nl.lp) {
-      const w = nl.value.length * 7;
-      const lx =
-        nl.lp.anchor === "end"
-          ? nl.lp.x - w
-          : nl.lp.anchor === "middle"
-            ? nl.lp.x - w / 2
-            : nl.lp.x;
+    if (value && lp) {
+      const w = value.length * 7;
+      const lx = lp.anchor === "end" ? lp.x - w : lp.anchor === "middle" ? lp.x - w / 2 : lp.x;
       xs.push(lx, lx + w);
     }
-  });
+  }
   for (const p of placedEndLabels) xs.push(p.x0, p.x1);
   // (The direction title is centred in the final width below, so it doesn't drive bounds.)
   let minX = Infinity;
@@ -445,8 +440,7 @@ export function DiagramSvg({
                 strokeDasharray={hasDetour ? "8 4" : undefined}
               />
             ))}
-          {nodes.map((n, idx) => {
-            const { value, lp } = nodeLabels[idx];
+          {nodeLabels.map(({ node: n, value, lp }, idx) => {
             const terminus = n.branch === 0 && (n === first || n === last);
             const r = terminus ? TERMINUS_R : NODE_R;
             const selected = selectedStopId != null && n.stopId === selectedStopId;
@@ -525,17 +519,17 @@ export function DiagramSvg({
           {/* Branch end labels (origin or divergent terminus), on the branch's side. */}
           {/* Branch end labels: named by the end that differs from the trunk (a
               convergent branch by its origin, a divergent one by its destination). */}
-          {labels.map((l, i) => (
+          {endLabels.map(({ label: l, text, y, endOff }, i) => (
             <text
               key={`l${i}`}
               x={l.cx}
-              y={endLabels[i].y}
-              dx={l.toLeft ? -endLabels[i].endOff : endLabels[i].endOff}
+              y={y}
+              dx={l.toLeft ? -endOff : endOff}
               dy={4}
               textAnchor={l.toLeft ? "end" : "start"}
               className="fill-at-muted text-[14px] font-bold"
             >
-              {endLabels[i].text}
+              {text}
             </text>
           ))}
         </svg>

@@ -1,7 +1,5 @@
 // src/lib/gtfs-trips.ts
-/**
- * @description Fetch and parse per-trip headsign and direction from the AT GTFS feed's `trips.txt`.
- */
+// Fetch and parse per-trip headsign and direction from the AT GTFS feed's `trips.txt`.
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `trips.txt` holds headsign + direction per trip_id. */
@@ -31,13 +29,15 @@ function parseTrips(txt: string): TripRecord[] {
 
   const out: TripRecord[] = [];
   for (let i = 1; i < lines.length; i++) {
-    if (!lines[i]) continue;
-    const c = lines[i].split(",");
+    const line = lines[i];
+    if (!line) continue;
+    const c = line.split(",");
     const id = c[iId]?.trim();
     const routeId = c[iRoute]?.trim();
     if (!id || !routeId) continue;
     const headsign = iHeadsign >= 0 ? c[iHeadsign]?.trim() || null : null;
-    const dirRaw = iDir >= 0 ? parseInt(c[iDir], 10) : NaN;
+    // A missing direction column parses to NaN, same as an empty cell.
+    const dirRaw = iDir >= 0 ? parseInt(c[iDir] ?? "", 10) : NaN;
     out.push({ id, routeId, headsign, directionId: Number.isFinite(dirRaw) ? dirRaw : null });
   }
   return out;

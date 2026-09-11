@@ -1,12 +1,10 @@
 // src/lib/data.ts
-/**
- * @description Central server-side data-access layer: builds the app's cached
- * route, stop, trip and on-time views from MongoDB. Runs the heavy aggregations
- * via `$runCommandRaw` (worst-of-day and worst-of-week boards, rankings, per-
- * route and per-stop summaries, cancelled-trip lookups), splitting week queries
- * per service day to stay under MongoDB's in-memory sort limit, and wraps each
- * result in `unstable_cache`/`memCache` with a purpose-fit TTL.
- */
+// Central server-side data-access layer: builds the app's cached
+// route, stop, trip and on-time views from MongoDB. Runs the heavy aggregations
+// via `$runCommandRaw` (worst-of-day and worst-of-week boards, rankings, per-
+// route and per-stop summaries, cancelled-trip lookups), splitting week queries
+// per service day to stay under MongoDB's in-memory sort limit, and wraps each
+// result in `unstable_cache`/`memCache` with a purpose-fit TTL.
 import { fetchAll } from "@/lib/at-static";
 import { prisma, runCommand } from "@/lib/db";
 import {
@@ -254,10 +252,10 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
   const now = new Date();
   let year = now.getUTCFullYear();
   let week: number | undefined;
-  const m = iso?.match(/^(\d{4})-W(\d{1,2})$/);
-  if (m) {
-    year = parseInt(m[1], 10);
-    week = parseInt(m[2], 10);
+  const [, yearPart, weekPart] = iso?.match(/^(\d{4})-W(\d{1,2})$/) ?? [];
+  if (yearPart !== undefined && weekPart !== undefined) {
+    year = parseInt(yearPart, 10);
+    week = parseInt(weekPart, 10);
   }
   const jan4 = new Date(Date.UTC(year, 0, 4));
   const day = jan4.getUTCDay() || 7;
@@ -1633,10 +1631,12 @@ export async function getShameStreak(
       let count = 0;
       let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
-        if (expectedDate !== null && rows[i].date !== expectedDate) break;
-        if ((rows[i].avgAbsDelaySec ?? 0) >= STREAK_THRESHOLD_SEC) {
+        const row = rows[i];
+        if (row === undefined) break;
+        if (expectedDate !== null && row.date !== expectedDate) break;
+        if ((row.avgAbsDelaySec ?? 0) >= STREAK_THRESHOLD_SEC) {
           count++;
-          expectedDate = shiftWeek(rows[i].date, -1);
+          expectedDate = shiftWeek(row.date, -1);
         } else {
           break;
         }
@@ -1646,8 +1646,8 @@ export async function getShameStreak(
       let trend: "worsening" | "improving" | "stable" = "stable";
       if (count >= 2) {
         const streakRows = rows.slice(rows.length - count);
-        const first = streakRows[0].avgAbsDelaySec ?? 0;
-        const last = streakRows[streakRows.length - 1].avgAbsDelaySec ?? 0;
+        const first = streakRows.at(0)?.avgAbsDelaySec ?? 0;
+        const last = streakRows.at(-1)?.avgAbsDelaySec ?? 0;
         const delta = last - first;
         if (delta > 10) trend = "worsening";
         else if (delta < -10) trend = "improving";
@@ -1727,10 +1727,12 @@ export async function getShameRouteStreak(
       let count = 0;
       let expectedDate: string | null = null;
       for (let i = rows.length - 1; i >= 0; i--) {
-        if (expectedDate !== null && rows[i].date !== expectedDate) break;
-        if (rows[i].topRouteId === routeId) {
+        const row = rows[i];
+        if (row === undefined) break;
+        if (expectedDate !== null && row.date !== expectedDate) break;
+        if (row.topRouteId === routeId) {
           count++;
-          expectedDate = shiftWeek(rows[i].date, -1);
+          expectedDate = shiftWeek(row.date, -1);
         } else {
           break;
         }
@@ -3116,8 +3118,8 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
               where: { parentStation: id.slice(STATION_PREFIX.length) },
               select: { id: true, name: true, lat: true, lon: true, platformCode: true },
             });
-        if (members.length === 0) return null;
         const first = members[0];
+        if (first === undefined) return null;
         return {
           id,
           ids: members.map((s) => s.id),

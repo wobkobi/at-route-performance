@@ -1,10 +1,8 @@
 // src/lib/at-alerts.ts
-/**
- * @description Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
- * fetches and normalises alerts (with retry and backoff), then selects the ones
- * relevant to a given route, a given stop, or the whole network, and grades how
- * loudly each should be presented.
- */
+// Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
+// fetches and normalises alerts (with retry and backoff), then selects the ones
+// relevant to a given route, a given stop, or the whole network, and grades how
+// loudly each should be presented.
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
 import { isObj, sleep } from "@/lib/utils";
@@ -56,7 +54,8 @@ export interface AtServiceAlerts {
 export function extractText(field?: AlertText): string | null {
   if (!field?.translation?.length) return null;
   const en = field.translation.find((t) => t.language === "en");
-  return (en ?? field.translation[0]).text ?? null;
+  const chosen = en ?? field.translation[0];
+  return chosen?.text ?? null;
 }
 
 /**
