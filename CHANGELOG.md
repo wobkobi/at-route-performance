@@ -4,6 +4,41 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.10.0] - 2026-08-07
+
+### Added
+
+- Train lines now read as their published names. AT sets every train route's `route_long_name` to
+  the bare code, so the header showed only "STH"; it now shows "Southern Line" beside the code, and
+  covers the City Rail Link codes that replace them on 13 September 2026 ("S-C" > "South City Line",
+  "E-W" > "East West Line", "O-W" > "Onehunga West Line") plus "HUIA" > "Te Huia".
+- Route history survives the CRL rename. The cutover retires `STH`, `EAST`, `WEST` and `ONE` and
+  introduces `S-C`, `E-W` and `O-W` (Eastern and Western merge into one line), which would strand
+  every retained `DailyRouteSummary` under a slug that never receives another event and restart the
+  replacement from zero. Route reads now aggregate a line together with the lines it replaced, and a
+  retired line's URL redirects to its successor once that appears in the feed. Both hyphenated and
+  flattened forms of the new codes are recognised, since AT has not yet published the ids.
+
+### Fixed
+
+- The fleet KPI strip labelled its headline count "Trips" when it counts stop arrivals - one trip
+  contributes one row per stop it serves, so the number read 20-40x higher than the trips it
+  claimed, and contradicted the "Of all arrivals" popover directly beneath it. Now "Arrivals".
+- The GTFS static sync read `version` from AT's `/versions` payload, which only carries
+  `feed_version` - so the version always came back `undefined`, the sync's version gate never
+  engaged, and `gtfs_version` was never stored. The version is now read correctly and selected by
+  the `feed_start_date`/`feed_end_date` window covering the service day, since AT sends no
+  `is_current` flag. This is the gate that pulls in the renamed routes at the cutover.
+- The stop sync no longer stores AT's ~140 `location_type: 1` parent stations. Nothing departs from
+  one, so they could never gain an arrival event, and each duplicates the name of the platforms
+  beneath it in the stop directory.
+
+### Changed
+
+- Stops keep their GTFS `parent_station` and `platform_code`, so station collapsing can key off AT's
+  own grouping rather than off stop names, which AT renames (Britomart > Waitemata, Mount Eden
+  > Maungawhau).
+
 ## [1.9.5] - 2026-07-23
 
 ### Fixed

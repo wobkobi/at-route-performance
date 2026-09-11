@@ -30,13 +30,19 @@ model Route {
   @@index([mode])
 }
 
+// Boardable GTFS stops only; AT's location_type=1 parent stations are dropped at
+// ingest. `parentStation` and `platformCode` are AT's own grouping of platforms
+// and poles into one station, kept so station collapsing can key off the feed
+// instead of stop names.
 model Stop {
-  id     String         @id @map("_id")
-  name   String
-  code   String?
-  lat    Float
-  lon    Float
-  events ArrivalEvent[]
+  id            String         @id @map("_id")
+  name          String
+  code          String?
+  lat           Float
+  lon           Float
+  parentStation String?
+  platformCode  String?
+  events        ArrivalEvent[]
 
   @@index([name])
 }

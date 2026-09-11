@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Merge Dependabot PRs
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -34,10 +34,10 @@ jobs:
               });
 
               // Queue the squash merge instead of merging immediately. GitHub
-              // runs it once every required check passes (CI test / CI
-              // type-check / Vercel), so this no longer races the still-pending
-              // Vercel deployment - an immediate merge here returns 405
-              // "Required status check Vercel is pending" and fails the job.
+              // runs it once every required check passes (CodeQL / Vercel /
+              // type-check), so this no longer races the still-pending Vercel
+              // deployment - an immediate merge here returns 405 "Required
+              // status check Vercel is pending" and fails the job.
               try {
                 await github.graphql(
                   `mutation($id: ID!) {

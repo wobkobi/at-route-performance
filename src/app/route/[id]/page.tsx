@@ -23,6 +23,7 @@ import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
   findCanonicalRouteSlug,
+  findSuccessorRouteSlug,
   getCancelledTrips,
   getEarliestDataDay,
   getRouteDailyStats,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
+import { lineName } from "@/lib/line-name";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
@@ -212,6 +214,15 @@ export default async function RoutePage({
   if (canonSlug !== slug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
     redirect(`/route/${encodeURIComponent(canonSlug)}${qs ? `?${qs}` : ""}`);
+  }
+
+  // A train line retired by the CRL rename keeps its Route row, so /route/STH
+  // resolves rather than 404s; send it to the line that replaced it, which reads
+  // both lines' history. Only redirects once the successor is in the feed.
+  const successorSlug = await findSuccessorRouteSlug(slug);
+  if (successorSlug) {
+    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
+    redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
   dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp);
@@ -416,6 +427,9 @@ export default async function RoutePage({
   if (isReversed) tripPreserved.trev = "1";
 
   const title = route?.shortName ?? slug;
+  // AT sets every train route's long name to its bare code ("STH", "S-C"), so
+  // the published line name is the only readable label the header can show.
+  const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
 
   return (
     <main className="space-y-6">
@@ -434,8 +448,8 @@ export default async function RoutePage({
               )}
               {title}
             </h1>
-            {route?.longName && route.longName !== title && (
-              <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
+            {subtitle && subtitle !== title && (
+              <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
