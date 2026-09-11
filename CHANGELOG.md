@@ -4,6 +4,45 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.10.1] - 2026-09-11
+
+### Fixed
+
+- The self-hosted database could not build indexes at all. mongod presents one certificate for both
+  client traffic and its own replication connections, and a replication connection is a client
+  connection, so the certificate needs the `clientAuth` extended key usage. Let's Encrypt stopped
+  issuing that usage, so from the 8 July renewal onward mongod rejected its own replication
+  connections with `unsuitable certificate purpose` and every `createIndex` hung forever. Reads,
+  writes and index drops stayed fast throughout, which is why nothing looked wrong. A separate
+  self-signed cluster certificate (`--tlsClusterFile` / `--tlsClusterCAFile`) now carries
+  member-to-member TLS, so an ACME renewal cannot break replication again.
+- `npm run smoke` never ran from a clean install: `scripts/smoke-test.ts` imports puppeteer, which
+  was not a dependency. It only worked while a stray copy sat in `node_modules`, so `pre-push` was
+  failing for anyone starting fresh.
+- `npm run analyze` was dead for the same class of reason. The `dotenv` package ships no CLI, so
+  `dotenv -v ANALYZE=true -- next build` had no binary to run; `dotenv-cli` supplies it.
+- The runbook claimed `mongorestore` rebuilds every index. It does not reliably: the builds are a
+  per-collection final phase, and an interrupted restore leaves the documents in place with some
+  collections holding only `_id_`. Nothing reports the gap, so the verification checklist now starts
+  with an explicit index check.
+
+### Changed
+
+- Dependencies advanced 17 packages. Five majors are held back deliberately: Prisma 7 has no MongoDB
+  connector (Prisma's own docs recommend 6.19 for MongoDB), ESLint 10 conflicts with the
+  `eslint-plugin-react` peer that `eslint-config-next` pins, and TypeScript 7, Vitest 5 and
+  `eslint-plugin-jsdoc` 64 are untested majors.
+- CI now builds Dependabot pull requests instead of skipping them, because auto-merge treats a green
+  run as the signal that a bump still compiles; skipping the build while auto-merging meant merging
+  bumps nothing had built. Auto-merge parses the version pair in the title and holds back majors,
+  and pre-1.0 minors, for a person to judge. Push runs are limited to `main`, since the
+  `pull_request` event already covers every branch with an open pull request.
+- `tsconfig.json` gains `noImplicitOverride` and `noFallthroughCasesInSwitch`, both clean at zero
+  errors. `noUncheckedIndexedAccess` is not adopted: it reports 198. `ignoreDeprecations` and
+  `baseUrl` are dropped as vestigial.
+- `lint` and `lint:fix` cache to `.eslintcache`, and the pre-commit hook refreshes the lockfile at
+  most once a day rather than on every commit.
+
 ## [1.10.0] - 2026-08-07
 
 ### Added

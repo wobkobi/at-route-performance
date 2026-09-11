@@ -55,6 +55,31 @@ the certificate and private key concatenated - mongod wants them in one file, an
 newline between them is required: without it mongod fails at startup with
 `PEM routines::bad end line`.
 
+A second, self-signed certificate carries the member-to-member connection. Generate it once; it
+never needs renewing:
+
+```
+cd /mnt/media/apps/mongodb-config
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -keyout cluster.key -out cluster.crt \
+  -subj "/CN=db.example.nz" \
+  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+  -addext "subjectAltName=DNS:db.example.nz,IP:127.0.0.1"
+cat cluster.crt cluster.key > cluster.pem
+chmod 400 cluster.pem cluster.crt
+chown 999:999 cluster.pem cluster.crt
+openssl x509 -in cluster.crt -noout -ext extendedKeyUsage   # must list BOTH usages
+```
+
+Why a second certificate: mongod opens a replication connection to itself, and that connection is a
+**client** connection, so the certificate it presents needs the `clientAuth` extended key usage.
+Let's Encrypt issues `serverAuth` only, so pointing the cluster at the ACME cert leaves mongod
+rejecting its own replication connections with
+`SSL peer certificate validation failed: unsuitable certificate purpose`, logged against
+`NetworkInterfaceTL-ReplNetwork`. Keeping the two roles on separate certificates also means an ACME
+renewal can never break replication again. The `Client connecting with server's own TLS certificate`
+warning afterwards is benign - both certificates share a CN.
+
 ## Install the app
 
 The catalogue MongoDB app is unusable for this setup: it exposes no field for extra mongod arguments
@@ -64,12 +89,13 @@ Custom App > Install via YAML** instead:
 ```yaml
 services:
   mongodb:
-    image: mongo:8
+    image: mongo:8.3.9
     container_name: at-mongodb
     command: >
       mongod --replSet rs0 --port 27019 --bind_ip_all --keyFile /etc/mongo/keyfile --tlsMode
       requireTLS --tlsCertificateKeyFile /etc/mongo/mongodb.pem
-      --tlsAllowConnectionsWithoutCertificates --setParameter tlsUseSystemCA=true
+      --tlsAllowConnectionsWithoutCertificates --tlsCAFile /etc/ssl/certs/ca-certificates.crt
+      --tlsClusterFile /etc/mongo/cluster.pem --tlsClusterCAFile /etc/mongo/cluster.crt
       --wiredTigerCacheSizeGB 1.5
     ports:
       - "27019:27019"
@@ -83,12 +109,19 @@ services:
     restart: unless-stopped
 ```
 
-Flag notes, all learned against MongoDB 8.2.x:
+Pin the image to an exact version. `mongo:8` floats, so a restart can move the server across minor
+versions without warning and change behaviour under a data set written by the previous one.
 
-- `--setParameter tlsUseSystemCA=true` is required or mongod refuses to start with a chain-of-trust
-  error (it cannot validate its own Let's Encrypt cert without the system CA store).
-- `--tlsAllowConnectionsWithoutCertificates` is required alongside it or mongod demands client
-  certificates and rejects every connection with `No SSL certificate provided by peer`.
+Flag notes, verified against MongoDB 8.3.9:
+
+- `--tlsCAFile` pointing at the image's system bundle replaces the older
+  `--setParameter tlsUseSystemCA=true`: mongod still needs the public roots to validate the Let's
+  Encrypt chain, and `--tlsClusterCAFile` refuses to load unless `--tlsCAFile` is set too.
+- `--tlsClusterFile` / `--tlsClusterCAFile` put member-to-member TLS on the self-signed cluster
+  certificate. Without them every index build hangs forever; see the Bootstrap files section.
+- `--tlsAllowConnectionsWithoutCertificates` is required or mongod demands client certificates and
+  rejects every connection with `No SSL certificate provided by peer`. Vercel presents no client
+  certificate.
 - `--keyFile` implies `--auth` for clients (SCRAM); users must be created via the localhost
   exception before anything else can connect.
 - The explicit WiredTiger cache size matters because WT sizes itself from the host's RAM, not the
@@ -138,6 +171,16 @@ Set this as `DATABASE_URL` in Vercel (Production, and Preview if previews share 
 `.env.local`. Also set `STORAGE_LIMIT_MB` and `RETENTION_DAYS` per the retention section below so
 the cleanup route enforces the intended policy from the first run.
 
+Paste the value into Vercel **unquoted**. `.env.local` wraps it in double quotes; carrying those
+into the Vercel env field makes the last option parse as `true"` and the production build dies at
+`prisma db push` with `P1013: connection string 'retrywrites' option must be a boolean`. Vercel
+stores the value verbatim, quotes included, and the dashboard renders it indistinguishably from a
+clean one - the only symptom is the failed build.
+
+Removing the variable from one environment removes it from every environment it covers: a single
+entry spanning Production and Preview disappears entirely when removed from Production alone. Re-add
+it to both.
+
 ## Certificate renewal
 
 TrueNAS ACME renews the `.crt`/`.key` pair automatically, but mongod reads the combined PEM, which
@@ -177,39 +220,53 @@ watch the first renewal.
   at which point drop the cadence to weekly and lean on the ZFS snapshots as the primary recovery
   path. Replicate or rsync the backups dataset off-box so a pool loss is not a data loss.
 
-## Migration from Atlas (one-off)
+## Migration from Atlas (done)
 
-Run the tools from inside the container - the mongo:8 image ships matching Database Tools, and
-Atlas > NAS is one network hop.
+The Atlas cluster is deleted. The NAS holds the only copy of the data, so there is no rollback
+target: the Backups section above is the sole recovery path, not belt-and-braces.
 
-Rehearsal (Atlas stays live, zero risk):
+## Verify indexes after any restore
+
+`mongorestore` does **not** reliably leave collections indexed. The archive carries the index
+definitions, but the builds run as a per-collection final phase, and an interrupted restore exits
+with every document in place and some collections holding only `_id_`. Nothing reports the gap:
+pages still render, just off collection scans.
+
+Check explicitly, then let `prisma db push` create whatever is missing:
 
 ```
-docker exec at-mongodb mongodump --uri="<atlas SRV uri>" \
-  --readPreference=secondaryPreferred --gzip -o /dump/rehearsal
-docker exec at-mongodb mongorestore \
-  --uri="mongodb://root:<pass>@db.example.nz:27019/?tls=true&authSource=admin&directConnection=true" \
-  --nsInclude="at-route-performance.*" --gzip --drop /dump/rehearsal
+docker exec at-mongodb mongosh "<uri>" --quiet --eval \
+  'db.getCollectionNames().sort().forEach(c=>print(c+": "+db.getCollection(c).getIndexes().map(i=>i.name).join(", ")))'
 ```
 
-The dump includes index definitions; restore rebuilds all of them, including the unique
-`(tripId, stopId, scheduledAt)` index. Point local dev at the new box and click around before any
-cutover.
+`ArrivalEvent` is the one that matters. Ingest upserts on `(tripId, stopId, scheduledAt)` (see
+`bulkUpsertArrivals` in `src/app/api/ingest/at/route.ts`), so without that unique index every upsert
+degrades to a collection scan of the whole archive, and `ordered: false` lets concurrent writes race
+duplicates in. Ingest does not fail loudly - it slows until the function times out.
 
-Cutover (~30-45 min; overlap is harmless because ArrivalEvent upserts are idempotent, but a gap
-loses realtime rows permanently, and `mongorestore` never updates existing documents - hence the
-full re-dump with `--drop`):
+## When index builds hang
 
-1. Disable all cron-job.org jobs; wait 2 minutes for in-flight runs.
-2. Full re-dump from Atlas > full `mongorestore --drop` (commands above).
-3. Verify per-collection `countDocuments()` matches Atlas exactly (crons are paused).
-4. Swap `DATABASE_URL` in Vercel and set `STORAGE_LIMIT_MB`.
-5. Redeploy production (env changes need one). The build's `prisma db push` should no-op - it
-   doubles as a schema/index sanity check.
-6. Smoke-check the deployed app, then re-enable the cron jobs, realtime first.
-7. Keep the Atlas cluster paused and intact for 14 days as the rollback path: swap `DATABASE_URL`
-   back and redeploy (loses only data ingested since cutover).
-8. After 14 days: delete the Atlas cluster and rotate the old credentials.
+A mongod that serves reads, writes and index _drops_ at normal speed while every `createIndex` hangs
+indefinitely has a broken replication network interface. Two-phase index builds are the only routine
+operation that has to round-trip through it to reach commit, so it is the one thing that breaks
+while the database otherwise looks perfectly healthy.
+
+**Check the mongod log first.** Every hypothesis reachable from a client connection is a dead end,
+and each costs a slow round of elimination: the hang reproduces on an empty collection (so it is not
+data volume), with `commitQuorum: 0` (not the quorum wait), against fast `w:"majority"` writes (not
+a stalled commit point), on 1.5 TB of free disk, with a clean catalogue, and it survives a restart.
+The log names the cause on the first line.
+
+```
+docker logs --tail 50 at-mongodb | grep -i replnetwork
+```
+
+`unsuitable certificate purpose` there means the cluster certificate is missing `clientAuth`; see
+the Bootstrap files section. A real build, by contrast, reports a `progress` field in
+`db.currentOp()` and advances; a blocked one reports none.
+
+Aborted builds leave `internal-sideWrites-*` idents behind. The `TimestampMonitor` drops them on the
+next startup, which is normal cleanup rather than a further fault.
 
 ## Retention at ten years
 
@@ -233,12 +290,13 @@ a point in time.
 
 ## Verification checklist
 
-1. Per-collection counts match Atlas at cutover; `ArrivalEvent` exact.
-2. `db.ArrivalEvent.getIndexes()` shows the unique index plus the three compounds from
-   `prisma/schema.prisma`.
+1. `db.ArrivalEvent.getIndexes()` shows the unique index plus the three compounds from
+   `prisma/schema.prisma`, and every other collection matches its schema block. Do this first: the
+   checks below all pass against an unindexed database, just slowly.
+2. `prisma db push` runs clean against the box in under a minute. The production build runs it, so a
+   push that hangs is a failed deploy.
 3. A `$percentile` aggregation over one day runs via `mongosh` (proves 7.0+ features).
-4. Home page, a route page, rankings, and week view load on production with historical numbers
-   identical to pre-cutover.
+4. Home page, a route page, rankings, and week view load on production.
 5. Two realtime ingest runs succeed (`IngestRun` rows, ~1.6k rows/run growth).
 6. A manual cleanup run returns 202 then records success, with the storage warning quiet.
 7. Vercel function durations stay sane: the week boards fan out per-day with `Promise.all`, so the

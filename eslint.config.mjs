@@ -137,6 +137,9 @@ export default defineConfig([
     "dist/**",
     "coverage/**",
     ".turbo/**",
+    // Static assets, not source. The lint script already only covers
+    // {src,scripts}; this keeps editor-integrated linting off them too.
+    "public/**",
     ".eslintcache",
     "next.config.ts",
     "postcss.config.mjs",

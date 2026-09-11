@@ -24,6 +24,18 @@ Authorization: Bearer <CRON_SECRET>
 
 (Use the same value as the `CRON_SECRET` env var in Vercel.)
 
+## Deployment protection blocks the scheduler
+
+`CRON_SECRET` is checked inside the app, which the request only reaches if Vercel lets it through
+first. With Vercel Authentication (SSO) enabled, every `*.vercel.app` URL answers `302` to
+`vercel.com/sso-api` and no route ever runs; cron-job.org records the 302 as a result, so the jobs
+look scheduled while nothing ingests.
+
+Check Settings > Deployment Protection. The common setting is "all except custom domains", which
+protects nothing only once a custom domain exists - on a project with no custom domain it covers
+every URL, including production. Either attach a custom domain and point the jobs at it, disable SSO
+protection, or append a protection-bypass secret to each job URL.
+
 ## Jobs
 
 All endpoints are **POST**. Create one cron-job.org job per row.
