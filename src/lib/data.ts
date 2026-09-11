@@ -192,9 +192,9 @@ const ROUTE_STALE_MS = 2 * MS_IN_DAY;
  *
  * Retired routes keep their row - they hold years of retained summaries, and
  * their URLs still redirect - so listing every row would show lines that no
- * longer run. Four train lines retire at once at the CRL cutover. Rows written
- * before `lastSeenAt` existed carry no stamp and are treated as current until
- * the next sync writes one.
+ * longer run. Four train lines retire at once at the CRL cutover. A row with
+ * no stamp was absent from the last sync, so once any stamp exists it counts
+ * as retired too; only a database no sync has ever stamped lists every row.
  * @returns Current routes, ordered by short name.
  */
 export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
@@ -209,7 +209,7 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
         ? new Date(newest.lastSeenAt.getTime() - ROUTE_STALE_MS)
         : null;
       return prisma.route.findMany({
-        where: cutoff ? { OR: [{ lastSeenAt: null }, { lastSeenAt: { gte: cutoff } }] } : {},
+        where: cutoff ? { lastSeenAt: { gte: cutoff } } : {},
         select: { id: true, shortName: true, longName: true, mode: true, colour: true },
         orderBy: { shortName: "asc" },
       });

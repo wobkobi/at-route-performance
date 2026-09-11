@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.2] - 2026-09-12
+
+### Fixed
+
+- `Route.lastSeenAt` was being stored as an ISO string. The routes sync handed a JS `Date` to
+  `$runCommandRaw`, which JSON-serialises its arguments, so every stamp landed as text: Prisma then
+  refused to read the field as `DateTime` (P2023), `GET /api/routes` answered 500, and the 404 page
+  silently dropped its route directory. The stamp now goes through extended JSON (`{ $date }`) like
+  every other raw write, a unit test pins that shape, and `scripts/migrate-last-seen-at.ts` converts
+  the stored strings in place.
+- The route directory no longer lists rows that carry no `lastSeenAt` once any stamp exists. A row
+  the last sync did not touch is one AT no longer publishes; treating it as current kept nine
+  superseded route versions beside their replacements and six retired routes in the directory.
+
 ## [1.11.1] - 2026-09-12
 
 ### Changed
