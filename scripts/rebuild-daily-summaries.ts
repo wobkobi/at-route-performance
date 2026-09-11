@@ -8,7 +8,7 @@
  *   npx tsx --env-file=.env.local scripts/rebuild-daily-summaries.ts 2026-06-19 2026-06-20 ...
  *   (no args = last 7 completed NZ service days)
  */
-import { MAX_EARLY_SEC, MAX_LATE_SEC } from "@/lib/deviation";
+import { NO_DELAY_SOURCE, realDeviationExpr } from "@/lib/deviation";
 import {
   earlyTwoCounts,
   lateSum,
@@ -39,9 +39,7 @@ console.log(
 
 const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC), 10);
 
-const plausible = {
-  $and: [{ $gte: ["$deviationSec", -MAX_EARLY_SEC] }, { $lte: ["$deviationSec", MAX_LATE_SEC] }],
-};
+const plausible = realDeviationExpr;
 
 let ok = 0;
 let failed = 0;
@@ -60,7 +58,7 @@ for (const dateStr of dates) {
               $gte: { $date: range.start.toISOString() },
               $lt: { $date: range.end.toISOString() },
             },
-            source: { $ne: "AT_GTFSRT_NO_DELAY" },
+            source: { $ne: NO_DELAY_SOURCE },
           },
         },
         {
@@ -73,7 +71,7 @@ for (const dateStr of dates) {
             ...onTimeTwoCounts(),
             ...earlyTwoCounts(),
             late_count: lateSum(),
-            _delays: { $push: "$deviationSec" },
+            _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
           },
         },
         { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
@@ -82,13 +80,7 @@ for (const dateStr of dates) {
         {
           $addFields: {
             _ok: {
-              $filter: {
-                input: "$_delays",
-                as: "d",
-                cond: {
-                  $and: [{ $gte: ["$$d", -MAX_EARLY_SEC] }, { $lte: ["$$d", MAX_LATE_SEC] }],
-                },
-              },
+              $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } },
             },
           },
         },

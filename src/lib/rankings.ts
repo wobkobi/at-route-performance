@@ -35,6 +35,8 @@ export function summariseRows(rows: TopRouteRow[]): FleetSummary {
     earlyCount += ((r.early_pct ?? 0) / 100) * r.events;
     lateCount += ((r.late_pct ?? 0) / 100) * r.events;
   }
+  // Cancellations leave no arrival row, so they cannot be derived from these
+  // rows; the caller fetches them and merges them in.
   if (events === 0) {
     return {
       events: 0,
@@ -44,6 +46,7 @@ export function summariseRows(rows: TopRouteRow[]): FleetSummary {
       on_time_pct: null,
       early_pct: null,
       late_pct: null,
+      cancelled: null,
     };
   }
   // Event-weighted; seconds to one decimal, band shares to one-decimal percent.
@@ -55,6 +58,7 @@ export function summariseRows(rows: TopRouteRow[]): FleetSummary {
     on_time_pct: Math.round((onTimeCount / events) * 1000) / 10,
     early_pct: Math.round((earlyCount / events) * 1000) / 10,
     late_pct: Math.round((lateCount / events) * 1000) / 10,
+    cancelled: null,
   };
 }
 
@@ -151,15 +155,23 @@ export function deriveOffSchedule(rows: TopRouteRow[], options: OffScheduleOptio
     .slice(0, size);
 }
 
-/** Default minimum events for board eligibility. */
-export const MIN_BOARD_EVENTS = 10;
+/**
+ * Fewest arrival events a route needs to reach a board.
+ *
+ * Counted in **stop visits, not trips**: one run of a 30-stop route contributes
+ * ~30 events, so this is roughly three runs. The distinction matters - read as
+ * trips, the old value of 10 was about a third of a single run, which let one
+ * partially-observed trip top "Most off-schedule".
+ */
+export const MIN_BOARD_EVENTS = 100;
 
 /**
  * Lower board-eligibility threshold used when a single mode is filtered. Ferries
- * (and other low-frequency services) run few times a day, so the default
- * `MIN_BOARD_EVENTS` would empty their boards; a focused mode view shows them.
+ * (and other low-frequency services) call at only a handful of stops per run, so
+ * the default `MIN_BOARD_EVENTS` would empty their boards; in the same stop-visit
+ * unit this is several sailings rather than one.
  */
-export const MIN_MODE_EVENTS = 3;
+export const MIN_MODE_EVENTS = 20;
 
 /**
  * Compare two same-type boards and compute how many positions each route moved

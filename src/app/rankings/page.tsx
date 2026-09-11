@@ -13,6 +13,7 @@ import { ShameOfDay } from "@/components/ShameOfDay";
 import { WindowControls } from "@/components/WindowControls";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import {
+  getCancelledCount,
   getEarliestDataDay,
   getLatestEventDate,
   getRankings,
@@ -83,11 +84,12 @@ async function RankingsBody({
   range: DateRange;
   anchor: Date;
 }): Promise<JSX.Element> {
-  const [rows, worstStops, prevRows, shame] = await Promise.all([
+  const [rows, worstStops, prevRows, shame, cancelled] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
     getRankings(resolvePrevRange(window, period, anchor), THRESHOLD_SEC, REVALIDATE),
     getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
+    getCancelledCount(range, { mode, includeSchool }, REVALIDATE),
   ]);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
@@ -95,7 +97,9 @@ async function RankingsBody({
     : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
-  const heroData = summariseRows(visible);
+  // Cancellations are the exception: they produce no arrival row, so they come
+  // from their own count under the same filters.
+  const heroData = { ...summariseRows(visible), cancelled };
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the period.

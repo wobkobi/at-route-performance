@@ -2,16 +2,18 @@
 /**
  * @description Cron-only POST that rolls a completed NZ service day's arrival
  * events into per-route DailyRouteSummary stats. The window matches the live
- * dashboard (5am Auckland, half-open) so numbers line up everywhere. Implausible
- * deviations are kept in the raw `events` count but excluded from averages,
- * percentiles and on-time rates, so ghost runs (a reused trip_id reporting ~60
- * min late at every stop) cannot suppress a route below the rankings threshold
- * yet never skew its stats. Upserts are keyed on (routeId, date) with
- * ordered:false so overlapping cron runs on the same day stay safe.
+ * dashboard (5am Auckland, half-open) so numbers line up everywhere. The day's
+ * ghost readings are classified first (see lib/ghost-pass.ts) so this rollup and
+ * every later read agree on what was real: ghosts still count towards the raw
+ * `events` total, so they cannot suppress a route below the rankings threshold,
+ * but they are kept out of averages, percentiles and on-time rates. Upserts are
+ * keyed on (routeId, date) with ordered:false so overlapping cron runs on the
+ * same day stay safe.
  */
 import { requireCronAuth } from "@/lib/auth";
 import { prisma, runCommand } from "@/lib/db";
-import { MAX_EARLY_SEC, MAX_LATE_SEC } from "@/lib/deviation";
+import { NO_DELAY_SOURCE, realDeviationExpr } from "@/lib/deviation";
+import { classifyGhosts, type GhostPassResult } from "@/lib/ghost-pass";
 import { recordIngestRun } from "@/lib/ingest-run";
 import {
   earlyTwoCounts,
@@ -63,18 +65,26 @@ async function runAggregate(
       thresholdSec,
     });
 
-    // Ghost runs (AT reusing a trip_id against a later vehicle block) report
-    // ~60 min late at every stop. The deviation filter is removed from the
-    // initial $match so every event contributes to the `events` count, keeping a
-    // route that had ghost-run events from being hidden below the MIN_BOARD_EVENTS
-    // threshold in the rankings. Stats (averages, percentiles, on-time %) use
-    // only the plausible subset via $filter / $cond guards.
-    const plausible = {
-      $and: [
-        { $gte: ["$deviationSec", -MAX_EARLY_SEC] },
-        { $lte: ["$deviationSec", MAX_LATE_SEC] },
-      ],
-    };
+    // Classify the day's ghosts before rolling it up, so the summaries below and
+    // every later read agree on which readings were real. A failure here must not
+    // cost the whole night's rollup: the day stays unclassified and the reads
+    // fall back to the wide magnitude guard until the next run.
+    let ghosts: GhostPassResult = { trips: 0, flagged: 0 };
+    try {
+      ghosts = await classifyGhosts(range);
+      console.log("[AGGREGATE] Ghost pass complete", { date: serviceDate, ...ghosts });
+    } catch (error) {
+      console.error("[AGGREGATE] Ghost pass failed; rolling up unclassified", {
+        date: serviceDate,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    // The initial $match carries no deviation filter, so every event contributes
+    // to the `events` count and a route with ghost readings is not pushed below
+    // the rankings threshold. Stats (averages, percentiles, on-time %) count only
+    // the real readings, via $filter / $cond guards.
+    const plausible = realDeviationExpr;
     const result = (await runCommand(() =>
       prisma.$runCommandRaw({
         aggregate: "ArrivalEvent",
@@ -89,23 +99,23 @@ async function runAggregate(
               // Exclude loose-mode rows where no delay was available: these store
               // deviationSec=0 (scheduledAt === actualAt) and would inflate on-time
               // rates if included in averages.
-              source: { $ne: "AT_GTFSRT_NO_DELAY" },
+              source: { $ne: NO_DELAY_SOURCE },
               // No deviation filter: every event counted in `events` so ghost
-              // runs do not suppress a route's day total.
+              // readings do not suppress a route's day total.
             },
           },
           {
             $group: {
               _id: "$routeId",
               events: { $sum: 1 },
-              // Plausible-event count used as denominator for delay averages.
+              // Real-reading count, the denominator for the delay averages.
               _plausible: { $sum: { $cond: [plausible, 1, 0] } },
               w_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
               w_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
               ...onTimeTwoCounts(),
               ...earlyTwoCounts(),
               late_count: lateSum(),
-              _delays: { $push: "$deviationSec" },
+              _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
             },
           },
           // Resolve the route's mode, then pick the matching on-time + early counts.
@@ -119,15 +129,13 @@ async function runAggregate(
             $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode },
           },
           {
-            // Filter the collected delay array to plausible events for percentiles.
+            // Drop the nulls the ghost guard pushed, leaving the real readings.
             $addFields: {
               _ok: {
                 $filter: {
                   input: "$_delays",
                   as: "d",
-                  cond: {
-                    $and: [{ $gte: ["$$d", -MAX_EARLY_SEC] }, { $lte: ["$$d", MAX_LATE_SEC] }],
-                  },
+                  cond: { $ne: ["$$d", null] },
                 },
               },
             },
@@ -213,6 +221,8 @@ async function runAggregate(
       timestamp: new Date().toISOString(),
       date: serviceDate,
       aggregated: upserted,
+      ghost_trips: ghosts.trips,
+      ghost_rows: ghosts.flagged,
       duration_ms: duration,
     });
 

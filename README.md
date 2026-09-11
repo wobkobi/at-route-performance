@@ -1,45 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with
-[`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AT Route Performance
 
-## Getting Started
+How far Auckland Transport runs from its own published schedule, measured continuously from AT's own
+feeds.
 
-First, run the development server:
+The site polls AT's GTFS-RT trip updates every couple of minutes, stores one row per observed stop
+arrival with its signed deviation from schedule, and rolls each completed service day into per-route
+summaries that are kept indefinitely. Everything on the front end - the daily boards, the rankings,
+the per-route and per-stop pages - is built from those two collections.
+
+## What it measures
+
+- **On time** means 1 minute early to 5 minutes late for buses and trains, 5 minutes either side for
+  ferries. That window is a project choice, not AT's.
+- **Arrivals** counts stop visits, not trips: one run of a 30-stop route contributes 30.
+- **Cancellations** are counted separately. A cancelled trip records no arrival, so it can never
+  appear as "late" - without a separate count, cancelling a service silently improves a route's
+  on-time rate.
+- **Ghost readings** are excluded. AT reuses a `trip_id` against a later vehicle block, so one run
+  can report a near-constant hour-off offset at every stop. A nightly pass classifies those by shape
+  rather than by size, so genuinely catastrophic delays survive into the stats (see
+  [`src/lib/deviation.ts`](src/lib/deviation.ts)).
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment (`.env.local`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the
-file.
+| Variable               | Purpose                                                     |
+| ---------------------- | ----------------------------------------------------------- |
+| `DATABASE_URL`         | MongoDB connection string (see `docs/self-host-mongodb.md`) |
+| `AT_API_KEY`           | Auckland Transport API subscription key                     |
+| `CRON_SECRET`          | Bearer token the ingest endpoints require                   |
+| `NEXT_PUBLIC_SITE_URL` | Public origin, for absolute links                           |
+| `RETENTION_DAYS`       | How long raw arrival events are kept                        |
+| `STORAGE_LIMIT_MB`     | Storage budget the cleanup job works against                |
 
-This project uses
-[`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to
-automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run db:push      # apply the Prisma schema
+npm run test         # unit tests
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint (type-aware)
+npm run smoke        # build, start, and visit every public page
+```
 
-## Learn More
+## Ingest
 
-To learn more about Next.js, take a look at the following resources:
+Data collection runs on scheduled POSTs to `/api/ingest/*`, driven by an external scheduler rather
+than Vercel Cron. [`docs/cron-setup.md`](docs/cron-setup.md) lists every job and its cadence;
+[`docs/self-host-mongodb.md`](docs/self-host-mongodb.md) is the database runbook.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## City Rail Link
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback
-and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the
-[Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme)
-from the creators of Next.js.
-
-Check out our
-[Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
-for more details.
+AT renames the train lines when the CRL opens on **13 September 2026**: `STH` becomes `S-C`, `ONE`
+becomes `O-W`, and `EAST` and `WEST` merge into `E-W`. Route reads aggregate each new line together
+with the lines it replaced, so the archive survives the rename, and retired slugs redirect to their
+successor - see [`src/lib/route-lineage.ts`](src/lib/route-lineage.ts). The GTFS route ids AT will
+publish are not known yet; both the hyphenated and flattened forms are recognised until they are.

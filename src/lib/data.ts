@@ -9,7 +9,13 @@
  */
 import { fetchAll } from "@/lib/at-static";
 import { prisma, runCommand } from "@/lib/db";
-import { MAX_EARLY_SEC, MAX_LATE_SEC, plausibleDeviationMatch } from "@/lib/deviation";
+import {
+  isGhostDeviation,
+  medianDeviation,
+  NO_DELAY_SOURCE,
+  realDeviationExpr,
+  realDeviationMatch,
+} from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import {
   earlySingleModeSum,
@@ -24,7 +30,17 @@ import {
 import { predecessorSlugs, successorSlugs } from "@/lib/route-lineage";
 import { routeSlug, routeVersion } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
-import { stationId, stationName } from "@/lib/station";
+import {
+  isLegacyStationId,
+  isPlatformStop,
+  legacyStationId,
+  STATION_PREFIX,
+  stationId,
+  stationName,
+  stationPartsOf,
+  stationProjection,
+  type StationRow,
+} from "@/lib/station";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -161,6 +177,50 @@ export async function findSuccessorRouteSlug(slug: string): Promise<string | nul
   return null;
 }
 
+/** A route as listed in the directory. */
+export interface DirectoryRoute {
+  id: string;
+  shortName: string | null;
+  longName: string | null;
+  mode: string;
+  colour: string | null;
+}
+
+/** How stale a route's `lastSeenAt` may be before it counts as retired (the sync runs daily). */
+const ROUTE_STALE_MS = 2 * MS_IN_DAY;
+
+/**
+ * Routes AT's most recent GTFS sync still published, for the route directory.
+ *
+ * Retired routes keep their row - they hold years of retained summaries, and
+ * their URLs still redirect - so listing every row would show lines that no
+ * longer run. Four train lines retire at once at the CRL cutover. Rows written
+ * before `lastSeenAt` existed carry no stamp and are treated as current until
+ * the next sync writes one.
+ * @returns Current routes, ordered by short name.
+ */
+export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
+  return unstable_cache(
+    async () => {
+      const newest = await prisma.route.findFirst({
+        where: { lastSeenAt: { not: null } },
+        orderBy: { lastSeenAt: "desc" },
+        select: { lastSeenAt: true },
+      });
+      const cutoff = newest?.lastSeenAt
+        ? new Date(newest.lastSeenAt.getTime() - ROUTE_STALE_MS)
+        : null;
+      return prisma.route.findMany({
+        where: cutoff ? { OR: [{ lastSeenAt: null }, { lastSeenAt: { gte: cutoff } }] } : {},
+        select: { id: true, shortName: true, longName: true, mode: true, colour: true },
+        orderBy: { shortName: "asc" },
+      });
+    },
+    ["directory-routes"],
+    { revalidate: 3600 },
+  )();
+}
+
 /** Parameters for {@link getTopRoutes}. */
 export interface TopRoutesParams {
   week?: string;
@@ -231,7 +291,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
           $gte: { $date: start.toISOString() },
           $lt: { $date: end.toISOString() },
         },
-        ...plausibleDeviationMatch,
+        ...realDeviationMatch,
       },
     },
     {
@@ -318,7 +378,7 @@ export async function getTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
 function collapseStations(rows: RouteByStop[]): RouteByStop[] {
   const acc = new Map<string, { row: RouteByStop; delaySum: number; otCount: number }>();
   for (const r of rows) {
-    const id = stationId(r.stop_id, r.name);
+    const id = stationId(r.stop_id, r.name, stationPartsOf(r));
     const delaySum = (r.avg_delay_sec ?? 0) * r.events;
     const otCount = ((r.on_time_pct ?? 0) / 100) * r.events;
     const cur = acc.get(id);
@@ -327,7 +387,18 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
       cur.delaySum += delaySum;
       cur.otCount += otCount;
     } else {
-      acc.set(id, { row: { ...r, stop_id: id, name: stationName(r.name) }, delaySum, otCount });
+      // The merged row is the station, so it carries no single platform's grouping.
+      acc.set(id, {
+        row: {
+          ...r,
+          stop_id: id,
+          name: stationName(r.name),
+          parent_station: undefined,
+          platform_code: undefined,
+        },
+        delaySum,
+        otCount,
+      });
     }
   }
   return [...acc.values()]
@@ -364,7 +435,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
       $gte: { $date: start.toISOString() },
       $lt: { $date: end.toISOString() },
     },
-    ...plausibleDeviationMatch,
+    ...realDeviationMatch,
   };
 
   const summaryResult = (await runCommand(() =>
@@ -447,6 +518,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
             events: 1,
             avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
             on_time_pct: { $round: ["$on_time_pct", 1] },
+            ...stationProjection,
           },
         },
       ],
@@ -650,13 +722,10 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
  * @returns Rows for every route with at least one qualifying event in the window.
  */
 async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
-  // Inline plausibility condition used for weighted sums: ghost runs (AT reusing
-  // a trip_id against a later vehicle block) report ~60 min late at every stop.
-  // The total `events` count includes all events so no route falls below the
-  // rankings threshold; delay averages use only the plausible subset.
-  const plausible = {
-    $and: [{ $gte: ["$deviationSec", -MAX_EARLY_SEC] }, { $lte: ["$deviationSec", MAX_LATE_SEC] }],
-  };
+  // Inline real-reading condition used for the weighted sums. The total `events`
+  // count includes every row so no route falls below the rankings threshold;
+  // delay averages use only the readings the nightly pass kept.
+  const plausible = realDeviationExpr;
   const result = (await runCommand(() =>
     prisma.$runCommandRaw({
       aggregate: "ArrivalEvent",
@@ -667,7 +736,7 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
               $gte: { $date: range.start.toISOString() },
               $lt: { $date: range.end.toISOString() },
             },
-            source: { $ne: "AT_GTFSRT_NO_DELAY" },
+            source: { $ne: NO_DELAY_SOURCE },
             // No deviation filter here: every event counted so ghost-run noise
             // does not hide a route from rankings.
           },
@@ -1048,24 +1117,17 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                 scheduled_start: { $min: "$scheduledAt" },
                 stops: { $sum: 1 },
                 first_stop_id: { $first: "$stopId" },
-                // Collect all deviations so stats can be computed from the
-                // plausible subset only, keeping ghost-run noise out of averages.
-                _delays: { $push: "$deviationSec" },
+                // Collect the real readings only (a ghost contributes null and
+                // is filtered out below), so per-trip stats skip the noise while
+                // `stops` still counts every event.
+                _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
               },
             },
             {
-              // Stats from plausible events only: ghost runs (AT reusing a trip_id
-              // against a later vehicle block) report ~60 min late at every stop
-              // and would skew per-trip averages if included.
+              // Drop the nulls the ghost guard pushed, leaving the real readings.
               $addFields: {
                 _ok: {
-                  $filter: {
-                    input: "$_delays",
-                    as: "d",
-                    cond: {
-                      $and: [{ $gte: ["$$d", -MAX_EARLY_SEC] }, { $lte: ["$$d", MAX_LATE_SEC] }],
-                    },
-                  },
+                  $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } },
                 },
               },
             },
@@ -1179,6 +1241,133 @@ export async function getCancelledTrips(
   )();
 }
 
+/**
+ * How many trips were cancelled outright in a window.
+ *
+ * A cancelled trip carries no stop times, so it never becomes an ArrivalEvent
+ * and cannot count as late - cancelling a service quietly *improves* a route's
+ * on-time rate. This is the counterweight: the worst thing a service can do
+ * against its schedule, counted separately and shown beside the on-time figure.
+ * Forward-only, since nothing was stored before capture began.
+ * @param range - The window to count over (a service day, week, or month).
+ * @param filter - Mode and school-service filters, matching the other day queries.
+ * @param revalidate - Cache TTL in seconds.
+ * @returns The number of cancelled trips, or 0 when none were recorded.
+ */
+export async function getCancelledCount(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<number> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      return prisma.cancelledTrip.count({
+        where: {
+          // Range match, not equality: the same helper serves a single service
+          // day and the rankings page's week and month windows.
+          serviceDate: { gte: range.start, lt: range.end },
+          ...(routeIds ? { routeId: { in: routeIds } } : {}),
+        },
+      });
+    },
+    [
+      "cancelled-count",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      String(includeSchool),
+    ],
+    { revalidate },
+  )();
+}
+
+/** A route's cancellation tally for a service day. */
+export interface CancelledRouteRow {
+  route_id: string;
+  short_name: string | null;
+  long_name: string | null;
+  mode: string;
+  colour: string | null;
+  /** Trips cancelled on this route that day. */
+  cancelled: number;
+}
+
+/**
+ * Routes ranked by how many trips they cancelled in a window, worst first.
+ * Companion to {@link getCancelledCount} for the Shame board - the on-time
+ * rankings cannot show this, because a cancellation leaves no arrival to rank.
+ * @param range - The window to rank over (a service day, week, or month).
+ * @param filter - Mode and school-service filters, matching the other day queries.
+ * @param limit - Maximum rows to return.
+ * @param revalidate - Cache TTL in seconds.
+ * @returns Routes with at least one cancellation, most cancellations first.
+ */
+export async function getCancelledRoutes(
+  range: DateRange,
+  filter: ShameFilter,
+  limit: number,
+  revalidate: number,
+): Promise<CancelledRouteRow[]> {
+  const { mode = null, includeSchool = false } = filter;
+  return unstable_cache(
+    async () => {
+      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const grouped = await prisma.cancelledTrip.groupBy({
+        by: ["routeId"],
+        where: {
+          // Range match, not equality: the same helper serves a single service
+          // day and the rankings page's week and month windows.
+          serviceDate: { gte: range.start, lt: range.end },
+          ...(routeIds ? { routeId: { in: routeIds } } : {}),
+        },
+        _count: { _all: true },
+      });
+      if (grouped.length === 0) return [];
+
+      // Cancellations are keyed by the versioned route id, so fold them onto the
+      // slug the rest of the site links by - otherwise one line splits across
+      // feed republishes exactly as its stats would.
+      const bySlug = new Map<string, number>();
+      for (const g of grouped) {
+        const slug = routeSlug(g.routeId);
+        bySlug.set(slug, (bySlug.get(slug) ?? 0) + g._count._all);
+      }
+
+      const routes = await prisma.route.findMany({
+        where: { id: { in: grouped.map((g) => g.routeId) } },
+        select: { id: true, shortName: true, longName: true, mode: true, colour: true },
+      });
+      const metaBySlug = new Map(routes.map((r) => [routeSlug(r.id), r]));
+
+      return [...bySlug.entries()]
+        .map(([slug, cancelled]) => {
+          const meta = metaBySlug.get(slug);
+          return {
+            route_id: slug,
+            short_name: meta?.shortName ?? null,
+            long_name: meta?.longName ?? null,
+            mode: meta?.mode ?? "BUS",
+            colour: meta?.colour ?? null,
+            cancelled,
+          };
+        })
+        .sort((a, b) => b.cancelled - a.cancelled || a.route_id.localeCompare(b.route_id))
+        .slice(0, limit);
+    },
+    [
+      "cancelled-routes",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      String(includeSchool),
+      String(limit),
+    ],
+    { revalidate },
+  )();
+}
+
 /** Fewest stops a run must have to qualify for the Shame board (drops flukes). */
 const SHAME_MIN_STOPS = 5;
 
@@ -1235,7 +1424,7 @@ export async function getShameOfDay(
               $gte: { $date: range.start.toISOString() },
               $lt: { $date: range.end.toISOString() },
             },
-            ...plausibleDeviationMatch,
+            ...realDeviationMatch,
           },
         },
         // One row per run, with its off-schedule magnitude and owning route.
@@ -1599,7 +1788,7 @@ export async function getShameRouteStreaksBatch(
               $gte: { $date: fourteenDaysAgo.toISOString() },
               $lt: { $date: currentRange.start.toISOString() },
             },
-            ...plausibleDeviationMatch,
+            ...realDeviationMatch,
           },
         },
         // Collapse to one row per (routeId, tripId) so time buckets use trip
@@ -1783,8 +1972,14 @@ export async function getShameRouteStreaksBatch(
   return result;
 }
 
-/** Minimum arrival events for a route in a window to qualify for the Route Shame board. */
-const MIN_ROUTE_EVENTS_HOUR = 5;
+/**
+ * Fewest arrival events a route needs in an hour to qualify for the Route Shame
+ * board. Counted in stop visits, not trips: one run of a 30-stop route lands ~30
+ * events here, so this is roughly a single run's worth - low enough to keep a
+ * quiet hour on the board, high enough that a couple of stray stop readings
+ * cannot nominate an hour.
+ */
+const MIN_ROUTE_EVENTS_HOUR = 30;
 
 /**
  * Build the shared route-shame pipeline prefix. Groups by `(routeId, tripId)`
@@ -1819,7 +2014,7 @@ function routeShamePipelineBase(
           $gte: { $date: range.start.toISOString() },
           $lt: { $date: range.end.toISOString() },
         },
-        ...plausibleDeviationMatch,
+        ...realDeviationMatch,
       },
     },
     // Collapse to one row per (routeId, tripId) so the time bucket uses trip
@@ -2147,7 +2342,7 @@ function shamePipelineBase(
           $gte: { $date: range.start.toISOString() },
           $lt: { $date: range.end.toISOString() },
         },
-        ...plausibleDeviationMatch,
+        ...realDeviationMatch,
       },
     },
     {
@@ -2343,14 +2538,19 @@ async function worstTripsForRange(
   }));
 }
 
-/** Fewest events a stop needs per hour to appear in the Stop Shame hour board. */
+/**
+ * Fewest events a stop needs per hour to appear in the Stop Shame hour board.
+ * At a stop each calling trip contributes exactly one event, so this reads
+ * directly as five services in the hour - the per-stop thresholds need none of
+ * the scaling the per-route ones do.
+ */
 const MIN_STOP_EVENTS_HOUR = 5;
 
-/** Fewest events a stop needs to qualify for the worst-stops ranking. */
+/** Fewest events - so, calling services - a stop needs to qualify for the worst-stops ranking. */
 const MIN_STOP_EVENTS = 20;
 
 /** Raw worst-stop row straight from the aggregation (pre platform-collapse). */
-interface WorstStopRaw {
+interface WorstStopRaw extends StationRow {
   stop_id: string;
   name: string;
   events: number;
@@ -2372,7 +2572,7 @@ interface WorstStopRaw {
 function collapseWorstStops(rows: WorstStopRaw[]): WorstStop[] {
   const acc = new Map<string, { row: WorstStop; absSum: number; signedSum: number }>();
   for (const r of rows) {
-    const id = stationId(r.stop_id, r.name);
+    const id = stationId(r.stop_id, r.name, stationPartsOf(r));
     const absSum = r.avg_abs_delay_sec * r.events;
     const signedSum = (r.avg_delay_sec ?? 0) * r.events;
     const cur = acc.get(id);
@@ -2512,7 +2712,7 @@ export async function getWorstStops(
           $gte: { $date: aligned.start.toISOString() },
           $lt: { $date: aligned.end.toISOString() },
         },
-        ...plausibleDeviationMatch,
+        ...realDeviationMatch,
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
@@ -2547,6 +2747,7 @@ export async function getWorstStops(
                 avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
                 avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
                 routeIds: 1,
+                ...stationProjection,
               },
             },
           ] as never,
@@ -2600,7 +2801,7 @@ export async function getWorstStopsOfDay(
           $gte: { $date: range.start.toISOString() },
           $lt: { $date: range.end.toISOString() },
         },
-        ...plausibleDeviationMatch,
+        ...realDeviationMatch,
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
@@ -2758,7 +2959,7 @@ async function worstStopsForRange(
       $gte: { $date: range.start.toISOString() },
       $lt: { $date: range.end.toISOString() },
     },
-    ...plausibleDeviationMatch,
+    ...realDeviationMatch,
   };
   if (routeIds) match.routeId = { $in: routeIds };
 
@@ -2847,6 +3048,34 @@ async function worstStopsForRange(
   }));
 }
 
+/**
+ * The parent-keyed station id replacing a legacy name-keyed one, so links minted
+ * before stations moved off stop names keep resolving. Returns null when the id
+ * is not a legacy one, names no known station, or has no parent in the feed - in
+ * all three cases the id the caller holds is already the current one.
+ * @param id - A canonical stop id from a link.
+ * @returns The current station id to redirect to, or null to stay put.
+ */
+export async function findCurrentStationId(id: string): Promise<string | null> {
+  if (!isLegacyStationId(id)) return null;
+  return unstable_cache(
+    async () => {
+      const platforms = await prisma.stop.findMany({
+        where: { name: { contains: "Train Station" } },
+        select: { id: true, name: true, parentStation: true, platformCode: true },
+      });
+      const member = platforms.find(
+        (s) => isPlatformStop(s.name, s) && legacyStationId(s.name) === id,
+      );
+      if (!member) return null;
+      const current = stationId(member.id, member.name, member);
+      return current === id ? null : current;
+    },
+    ["current-station-id", id],
+    { revalidate: 86_400 },
+  )();
+}
+
 /** A canonical stop resolved to its underlying platform ids + display position. */
 interface StopGroup {
   /** Canonical id (a `station:` id for collapsed train platforms, else the stop id). */
@@ -2861,22 +3090,32 @@ interface StopGroup {
 /**
  * Resolve a (possibly station-collapsed) stop id to its underlying platform ids
  * and a display name/position, the way {@link routeIdsForSlug} resolves a route
- * slug. A `station:<name>` id expands to every train platform of that station; a
- * plain id resolves to itself. Returns null when no such stop exists.
+ * slug. A `station:` id expands to every platform of that station; a plain id
+ * resolves to itself. Returns null when no such stop exists.
+ *
+ * The platform ids this returns are what let the stop page match AT's service
+ * alerts and scheduled departures, both of which key off raw GTFS stop ids.
  * @param id - The canonical stop id from a link (raw stop id or `station:` id).
  * @returns The resolved group, or null when unknown.
  */
 async function resolveStopGroup(id: string): Promise<StopGroup | null> {
   return unstable_cache(
     async () => {
-      if (id.startsWith("station:")) {
-        // Platform ids aren't derivable from the station id, so scan the (small) set
-        // of numbered train platforms and keep those that collapse to this station.
-        const platforms = await prisma.stop.findMany({
-          where: { name: { contains: "Train Station" } },
-          select: { id: true, name: true, lat: true, lon: true },
-        });
-        const members = platforms.filter((s) => stationId(s.id, s.name) === id);
+      if (id.startsWith(STATION_PREFIX)) {
+        // Parent-keyed ids name their station outright, so the platforms are an
+        // indexed lookup. Legacy name-keyed ids predate the parent fields and
+        // still have to be matched by scanning the (small) set of train stops.
+        const members = isLegacyStationId(id)
+          ? (
+              await prisma.stop.findMany({
+                where: { name: { contains: "Train Station" } },
+                select: { id: true, name: true, lat: true, lon: true, platformCode: true },
+              })
+            ).filter((s) => legacyStationId(s.name) === id)
+          : await prisma.stop.findMany({
+              where: { parentStation: id.slice(STATION_PREFIX.length) },
+              select: { id: true, name: true, lat: true, lon: true, platformCode: true },
+            });
         if (members.length === 0) return null;
         const first = members[0];
         return {
@@ -2940,7 +3179,7 @@ export async function getStopStats(
                   $gte: { $date: range.start.toISOString() },
                   $lt: { $date: range.end.toISOString() },
                 },
-                ...plausibleDeviationMatch,
+                ...realDeviationMatch,
               },
             },
             { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
@@ -3031,6 +3270,7 @@ export async function getStopStats(
       const facet = res.cursor.firstBatch[0];
       return {
         stop: { stop_id: group.id, name: group.name, lat: group.lat, lon: group.lon },
+        platform_ids: group.ids,
         summary: facet?.summary[0] ?? null,
         routes: facet?.routes ?? [],
         routes_count: facet?.routeCount[0]?.n ?? 0,
@@ -3042,7 +3282,7 @@ export async function getStopStats(
 }
 
 /** Raw trip-timeline stop row before the `scheduled_at` date is normalised. */
-interface TripStopRaw extends Omit<TripStop, "scheduled_at"> {
+interface TripStopRaw extends Omit<TripStop, "scheduled_at">, StationRow {
   scheduled_at: { $date: string } | string;
   vehicle_id: string | null;
 }
@@ -3103,7 +3343,7 @@ export async function getTripTimeline(
         select: { shortName: true, longName: true, mode: true, colour: true },
       });
 
-      const match: Record<string, unknown> = { tripId, ...plausibleDeviationMatch };
+      const match: Record<string, unknown> = { tripId, ...realDeviationMatch };
       if (day) {
         match.scheduledAt = {
           $gte: { $date: day.start.toISOString() },
@@ -3129,6 +3369,7 @@ export async function getTripTimeline(
                 scheduled_at: "$scheduledAt",
                 deviation_sec: "$deviationSec",
                 vehicle_id: "$vehicleId",
+                ...stationProjection,
               },
             },
           ] as never,
@@ -3139,27 +3380,26 @@ export async function getTripTimeline(
       // AT re-reports a trip_id against a later vehicle cycle, so a stop can carry
       // both its real arrival and a "ghost" reading ~1h off - and the ghosts can
       // even outnumber the real events. Collapse each station (and its platforms)
-      // to the event nearest its own schedule (the real run); the run's deviation
-      // level is then the median of those, and any station left only with a ghost
-      // (a gross outlier from that level) is dropped rather than shown wildly late.
-      const GHOST_GAP_SEC = 45 * 60;
+      // to the event nearest its own schedule (the real run), then drop anything
+      // sitting a vehicle cycle off the run's own level rather than showing it
+      // wildly late. Same rule the nightly pass applies (see lib/deviation.ts),
+      // reapplied here because a timeline can be read before that pass has run.
       const bestByStop = new Map<string, TripStopRaw>();
       for (const r of res.cursor.firstBatch) {
-        const id = stationId(r.stop_id, r.name);
+        const id = stationId(r.stop_id, r.name, stationPartsOf(r));
         const cur = bestByStop.get(id);
         if (!cur || Math.abs(r.deviation_sec) < Math.abs(cur.deviation_sec)) bestByStop.set(id, r);
       }
       const chosen = [...bestByStop.values()].sort(
         (a, b) => +new Date(toIso(a.scheduled_at)) - +new Date(toIso(b.scheduled_at)),
       );
-      const devs = chosen.map((r) => r.deviation_sec).sort((a, b) => a - b);
-      const runMedian = devs.length ? devs[Math.floor(devs.length / 2)] : 0;
+      const runMedian = medianDeviation(chosen.map((r) => r.deviation_sec)) ?? 0;
 
       const stops: TripStop[] = [];
       for (const r of chosen) {
-        if (Math.abs(r.deviation_sec - runMedian) > GHOST_GAP_SEC) continue;
+        if (isGhostDeviation(r.deviation_sec, runMedian)) continue;
         stops.push({
-          stop_id: stationId(r.stop_id, r.name),
+          stop_id: stationId(r.stop_id, r.name, stationPartsOf(r)),
           name: stationName(r.name),
           lat: r.lat,
           lon: r.lon,
@@ -3222,7 +3462,14 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
       const stopIds = ordered.map((s) => s.stop_id);
       const stopDocs = await prisma.stop.findMany({
         where: { id: { in: stopIds } },
-        select: { id: true, name: true, lat: true, lon: true },
+        select: {
+          id: true,
+          name: true,
+          lat: true,
+          lon: true,
+          parentStation: true,
+          platformCode: true,
+        },
       });
       const stopById = new Map(stopDocs.map((s) => [s.id, s]));
       const out: ScheduledStop[] = [];
@@ -3230,7 +3477,7 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
         const stop = stopById.get(st.stop_id);
         if (!stop) continue;
         out.push({
-          stop_id: stationId(stop.id, stop.name),
+          stop_id: stationId(stop.id, stop.name, stop),
           name: stationName(stop.name),
           lat: stop.lat,
           lon: stop.lon,

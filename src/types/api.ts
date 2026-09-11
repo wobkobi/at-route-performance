@@ -42,12 +42,22 @@ export interface RouteByStop {
   events: number;
   avg_delay_sec: number | null;
   on_time_pct: number | null;
+  /** AT's `parent_station`, when the stop has one; keys the station collapse. */
+  parent_station?: string | null;
+  /** AT's `platform_code`, when the stop has one. */
+  platform_code?: string | null;
 }
 
 // Cross-route performance of a single stop (the /stop/[id] page).
 export interface StopStats {
   /** The (station-collapsed) stop being viewed. */
   stop: { stop_id: string; name: string; lat: number; lon: number };
+  /**
+   * The raw GTFS stop ids behind `stop` - every platform of a station, or just
+   * the stop itself. AT's service alerts and scheduled departures both key off
+   * raw ids, so a station can only match them through these.
+   */
+  platform_ids: string[];
   /** Overall punctuality across every route at the stop, or null when no events. */
   summary: RouteSummary | null;
   /** The worst-performing routes at this stop, off-schedule magnitude first. */

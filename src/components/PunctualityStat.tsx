@@ -172,7 +172,8 @@ export function PunctualityStat({
                   <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
                 </div>
                 <p className="mt-2 text-xs leading-snug text-at-muted">
-                  {onTimeWindowDescription(mode)}
+                  {onTimeWindowDescription(mode)} Cancelled trips record no arrival, so they are
+                  counted separately rather than in this split.
                 </p>
               </>
             ) : (

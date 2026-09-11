@@ -1,48 +1,126 @@
 // src/lib/deviation.ts
 /**
- * @description Plausibility bounds for schedule deviation that filter GTFS-RT
- * feed noise out of the stats. Two failure modes dominate: implausibly early
- * reports (buses hold at timepoints, so a service reported far ahead of schedule
- * is noise) and "ghosts" - AT reuses a trip_id against a later vehicle block, so
- * a vehicle running ~1 h off its slot reports as ~60 min late at every stop and
- * can float a quiet stop to the top of the worst-stops board. Capping early at
- * 20 min and late at the timeline's 45 min ghost gap keeps both out. Exposed as
- * a predicate (drop at ingest) and a Mongo `$match` fragment (exclude from
- * aggregates without deleting raw rows).
+ * @description Separating real schedule deviation from GTFS-RT feed noise.
+ *
+ * The noise that matters is the "ghost": AT reuses a `trip_id` against a later
+ * vehicle block, so a vehicle running ~1 h off its slot reports that same offset
+ * at every stop of the trip, and a couple of those float a quiet stop to the top
+ * of the worst-stops board.
+ *
+ * A ghost is told apart by its *shape*, not its size. It sits at a near-constant
+ * offset from the run's own level, while a real delay accumulates along the trip.
+ * Classifying on that shape ({@link runDeviationLevel} + {@link isGhostDeviation})
+ * is what lets genuinely catastrophic delays survive - a magnitude cap cannot
+ * distinguish a ghost from a service that really did run an hour late, and this
+ * site exists to show the second kind.
+ *
+ * A wide bound still guards the reads that cannot wait for classification (the
+ * current service day, which the nightly pass has not reached yet).
  */
 
 /**
- * Largest plausible *early* running, in seconds. Buses on this network hold at
- * timepoints, so they cannot run far ahead of schedule; anything earlier than
- * this is GTFS-RT feed noise (e.g. a school run reported ~58 min early).
+ * How far from its run's own level an observation may sit before it reads as a
+ * ghost re-report rather than part of the run. AT's block reuse puts ghosts a
+ * full vehicle cycle away, so they clear this comfortably.
  */
-export const MAX_EARLY_SEC = 20 * 60;
+export const GHOST_GAP_SEC = 45 * 60;
 
 /**
- * Largest plausible *late* running, in seconds. Anything later is almost always
- * a "ghost": AT reuses a trip_id against a later vehicle block, so a vehicle
- * tracked ~1 hour off its scheduled slot reports as ~60 min late at every stop.
- * Capping at the timeline's ghost gap (45 min) keeps those re-reports out of
- * every aggregate (otherwise a couple of them float a quiet stop to the top of
- * the worst-stops board); genuine services on this network are rarely this late.
+ * Widest deviation accepted from rows the nightly ghost pass has not classified
+ * yet - only the service day in progress. Set well beyond any real delay so
+ * today's boards still show the extremes; classification does the real work.
  */
-export const MAX_LATE_SEC = 45 * 60;
+export const UNCLASSIFIED_LIMIT_SEC = 3 * 60 * 60;
 
-/**
- * Whether a signed schedule deviation is physically plausible (negative early,
- * positive late). Used to drop feed noise at ingest and to exclude it from stats.
- * @param sec - Signed deviation in seconds.
- * @returns True when the deviation is within the plausible early/late bounds.
- */
-export function isPlausibleDeviation(sec: number): boolean {
-  return sec >= -MAX_EARLY_SEC && sec <= MAX_LATE_SEC;
+/** One observation of a trip's schedule deviation, for ghost classification. */
+export interface TripObservation {
+  /**
+   * Groups observations that describe the same physical arrival, so one place
+   * cannot pull the level twice - a station id for train platforms, else the
+   * stop id (see `stationId` in station.ts).
+   */
+  stationId: string;
+  /** Signed deviation in seconds (negative early, positive late). */
+  deviationSec: number;
 }
 
 /**
- * Mongo `$match` fragment keeping only plausibly-deviating events. Spread into a
- * pipeline `$match` (alongside the date/route filters) so existing feed noise is
- * excluded from every aggregation without deleting the raw rows.
+ * The deviation level a trip's real run sat at.
+ *
+ * Each place contributes only its observation nearest its own schedule: where a
+ * stop carries both the real arrival and a ghost re-report, that picks the real
+ * one. The median of those resists the case where ghosts still outnumber real
+ * readings.
+ * @param observations - Every observation recorded for one trip on one day.
+ * @returns The run's median deviation in seconds, or null when there are none.
  */
-export const plausibleDeviationMatch = {
-  deviationSec: { $gte: -MAX_EARLY_SEC, $lte: MAX_LATE_SEC },
+export function runDeviationLevel(observations: TripObservation[]): number | null {
+  const bestByPlace = new Map<string, number>();
+  for (const o of observations) {
+    const cur = bestByPlace.get(o.stationId);
+    if (cur === undefined || Math.abs(o.deviationSec) < Math.abs(cur)) {
+      bestByPlace.set(o.stationId, o.deviationSec);
+    }
+  }
+  return medianDeviation([...bestByPlace.values()]);
+}
+
+/**
+ * Median of a set of signed deviations. Split out so the nightly pass, whose
+ * aggregation already reduced each place to one reading, shares the same
+ * definition of a run's level as the in-memory path.
+ * @param deviations - Signed deviations, one per place.
+ * @returns The median, or null when the set is empty.
+ */
+export function medianDeviation(deviations: number[]): number | null {
+  if (deviations.length === 0) return null;
+  const sorted = [...deviations].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+/**
+ * Whether an observation is a ghost re-report rather than part of its run.
+ * @param deviationSec - The observation's signed deviation in seconds.
+ * @param runLevel - The run's level from {@link runDeviationLevel}.
+ * @returns True when the observation sits more than {@link GHOST_GAP_SEC} off the run.
+ */
+export function isGhostDeviation(deviationSec: number, runLevel: number): boolean {
+  return Math.abs(deviationSec - runLevel) > GHOST_GAP_SEC;
+}
+
+/**
+ * `source` marking a row captured under `?loose=1`, where the feed carried no
+ * delay at all. Those rows store `deviationSec: 0`, so counting them would read
+ * as a perfectly on-time arrival that was never actually observed.
+ */
+export const NO_DELAY_SOURCE = "AT_GTFSRT_NO_DELAY";
+
+/**
+ * Mongo `$match` fragment keeping only observations that count towards the
+ * stats: everything the nightly pass did not flag as a ghost, minus the
+ * no-delay rows, plus a wide magnitude guard for the current day's rows, which
+ * it has not classified yet.
+ *
+ * Spread into a pipeline `$match` alongside the date and route filters. Rows are
+ * never deleted for this - a misclassification stays recoverable, and the raw
+ * archive is the point of the project.
+ */
+export const realDeviationMatch = {
+  ghost: { $ne: true },
+  source: { $ne: NO_DELAY_SOURCE },
+  deviationSec: { $gte: -UNCLASSIFIED_LIMIT_SEC, $lte: UNCLASSIFIED_LIMIT_SEC },
+} as const;
+
+/**
+ * Expression form of {@link realDeviationMatch}, for `$cond` and `$filter`
+ * guards inside a `$group` - pipelines that must count every row but average
+ * only the real ones.
+ */
+export const realDeviationExpr = {
+  $and: [
+    { $ne: ["$ghost", true] },
+    { $ne: ["$source", NO_DELAY_SOURCE] },
+    { $gte: ["$deviationSec", -UNCLASSIFIED_LIMIT_SEC] },
+    { $lte: ["$deviationSec", UNCLASSIFIED_LIMIT_SEC] },
+  ],
 } as const;
