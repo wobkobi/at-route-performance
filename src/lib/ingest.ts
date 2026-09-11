@@ -67,6 +67,17 @@ export async function syncRoutes(): Promise<{ upserted: number }> {
 
 /**
  * Fetch GTFS stops from AT and upsert them into the Stop collection.
+ *
+ * AT's feed carries ~140 `location_type: 1` parent stations alongside the real
+ * stops. Nothing ever departs from one, so they can never gain an arrival event,
+ * and each shares its name with the platforms beneath it - stored, they would
+ * show up in the stop directory as a phantom duplicate of every station. Only
+ * boardable stops are kept.
+ *
+ * `parent_station` and `platform_code` are AT's own grouping of platforms and
+ * poles into a station; storing them lets station collapsing key off the feed
+ * rather than off stop names, which AT renames (Britomart > Waitemata, Mount
+ * Eden > Maungawhau).
  * @param date - Optional service date (YYYY-MM-DD); defaults to the AT default.
  * @returns Count of stops upserted.
  */
@@ -74,7 +85,12 @@ export async function syncStops(date?: string): Promise<{ upserted: number }> {
   const stops = await fetchStops(date);
   const ops: UpsertOp[] = stops
     .filter(
-      (s) => s.stop_id && s.stop_name && Number.isFinite(s.stop_lat) && Number.isFinite(s.stop_lon),
+      (s) =>
+        s.stop_id &&
+        s.stop_name &&
+        Number.isFinite(s.stop_lat) &&
+        Number.isFinite(s.stop_lon) &&
+        (s.location_type ?? 0) === 0,
     )
     .map((s) => ({
       q: { _id: s.stop_id },
@@ -84,6 +100,8 @@ export async function syncStops(date?: string): Promise<{ upserted: number }> {
           code: s.stop_code ?? null,
           lat: s.stop_lat,
           lon: s.stop_lon,
+          parentStation: s.parent_station ?? null,
+          platformCode: s.platform_code ?? null,
         },
       },
     }));

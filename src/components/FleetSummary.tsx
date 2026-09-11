@@ -1,6 +1,9 @@
 // src/components/FleetSummary.tsx
 /**
- * @description Render the fleet KPI strip of trips, on-time %, average off-schedule, and routes.
+ * @description Render the fleet KPI strip of arrivals, on-time %, average
+ * off-schedule, and routes. The count is stop arrivals, not trips: one trip
+ * contributes one ArrivalEvent per stop it serves, so labelling it "trips"
+ * overstates it by the route's stop count.
  */
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { formatDuration } from "@/lib/format";
@@ -14,7 +17,7 @@ export interface FleetSummaryProps {
 }
 
 /**
- * Render the fleet KPI strip (trips, on-time %, average off-schedule, routes).
+ * Render the fleet KPI strip (arrivals, on-time %, average off-schedule, routes).
  * The on-time and "off by" cards open a punctuality breakdown on click, so a
  * near-zero net average does not look at odds with the on-time share.
  * @param props - Component props.
@@ -36,7 +39,7 @@ export function FleetSummary({ data }: FleetSummaryProps): JSX.Element {
     <div className="border border-at-border bg-at-surface">
       <div className="grid grid-cols-2 sm:grid-cols-4">
         <div className="p-3">
-          <div className={labelClass}>Trips</div>
+          <div className={labelClass}>Arrivals</div>
           <div className={valueClass}>{data.events.toLocaleString()}</div>
         </div>
         <PunctualityStat

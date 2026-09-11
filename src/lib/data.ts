@@ -21,6 +21,7 @@ import {
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
+import { predecessorSlugs, successorSlugs } from "@/lib/route-lineage";
 import { routeSlug, routeVersion } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import { stationId, stationName } from "@/lib/station";
@@ -73,24 +74,34 @@ const MS_IN_DAY = 86_400_000;
 
 /**
  * Every AT route id sharing a slug - the same route across feed-version
- * republishes (see {@link routeSlug}) - newest version first. Lets route queries
+ * republishes (see {@link routeSlug}) - newest version first, followed by the
+ * ids of any line it replaced (see {@link predecessorSlugs}). Lets route queries
  * aggregate over all versions (so history doesn't fragment when AT bumps the
- * suffix) and resolve a slug URL to a concrete id. Falls back to the input when
- * nothing matches, so a full id still works. Cached briefly.
+ * suffix) and across the CRL rename (so a renamed line keeps its archive), and
+ * resolve a slug URL to a concrete id. Falls back to the input when nothing
+ * matches, so a full id still works. Cached briefly.
+ *
+ * The requested slug's own ids always come first: callers read `[0]` as the
+ * newest id for schedule and metadata lookups, which must never resolve to a
+ * retired line.
  * @param slug - A version-stripped route slug (or a full route id).
  * @returns Matching route ids, newest version first (or `[slug]` when none).
  */
 export async function routeIdsForSlug(slug: string): Promise<string[]> {
   return unstable_cache(
     async () => {
+      const slugs = [slug, ...predecessorSlugs(slug)];
       const routes = await prisma.route.findMany({
-        where: { OR: [{ id: slug }, { id: { startsWith: `${slug}-` } }] },
+        where: { OR: slugs.flatMap((s) => [{ id: s }, { id: { startsWith: `${s}-` } }]) },
         select: { id: true },
       });
-      const ids = routes
-        .map((r) => r.id)
-        .filter((id) => routeSlug(id) === slug)
-        .sort((a, b) => routeVersion(b) - routeVersion(a));
+
+      const bySlug = new Map<string, string[]>(slugs.map((s) => [s, []]));
+      for (const r of routes) bySlug.get(routeSlug(r.id))?.push(r.id);
+
+      const ids = slugs.flatMap((s) =>
+        (bySlug.get(s) ?? []).sort((a, b) => routeVersion(b) - routeVersion(a)),
+      );
       return ids.length > 0 ? ids : [slug];
     },
     ["route-ids-for-slug", slug],
@@ -131,6 +142,23 @@ export async function findCanonicalRouteSlug(slug: string): Promise<string | nul
     ["canonical-route-slug", slug.toLowerCase()],
     { revalidate: 3600 },
   )();
+}
+
+/**
+ * The live slug a retired train line's URL should move to, once AT publishes the
+ * replacement. Retired lines keep their Route row forever (the GTFS sync only
+ * upserts), so a stale link resolves rather than 404s - this is what turns it
+ * into a redirect instead. Returns null until the successor appears in the feed,
+ * so links keep working through the cutover.
+ * @param slug - A canonical route slug.
+ * @returns The successor's canonical slug, or null when there isn't one yet.
+ */
+export async function findSuccessorRouteSlug(slug: string): Promise<string | null> {
+  for (const candidate of successorSlugs(slug)) {
+    const found = await findCanonicalRouteSlug(candidate);
+    if (found) return found;
+  }
+  return null;
 }
 
 /** Parameters for {@link getTopRoutes}. */
