@@ -1,22 +1,20 @@
 // src/lib/deviation.ts
-/**
- * @description Separating real schedule deviation from GTFS-RT feed noise.
- *
- * The noise that matters is the "ghost": AT reuses a `trip_id` against a later
- * vehicle block, so a vehicle running ~1 h off its slot reports that same offset
- * at every stop of the trip, and a couple of those float a quiet stop to the top
- * of the worst-stops board.
- *
- * A ghost is told apart by its *shape*, not its size. It sits at a near-constant
- * offset from the run's own level, while a real delay accumulates along the trip.
- * Classifying on that shape ({@link runDeviationLevel} + {@link isGhostDeviation})
- * is what lets genuinely catastrophic delays survive - a magnitude cap cannot
- * distinguish a ghost from a service that really did run an hour late, and this
- * site exists to show the second kind.
- *
- * A wide bound still guards the reads that cannot wait for classification (the
- * current service day, which the nightly pass has not reached yet).
- */
+// Separating real schedule deviation from GTFS-RT feed noise.
+//
+// The noise that matters is the "ghost": AT reuses a `trip_id` against a later
+// vehicle block, so a vehicle running ~1 h off its slot reports that same offset
+// at every stop of the trip, and a couple of those float a quiet stop to the top
+// of the worst-stops board.
+//
+// A ghost is told apart by its *shape*, not its size. It sits at a near-constant
+// offset from the run's own level, while a real delay accumulates along the trip.
+// Classifying on that shape (runDeviationLevel + isGhostDeviation)
+// is what lets genuinely catastrophic delays survive - a magnitude cap cannot
+// distinguish a ghost from a service that really did run an hour late, and this
+// site exists to show the second kind.
+//
+// A wide bound still guards the reads that cannot wait for classification (the
+// current service day, which the nightly pass has not reached yet).
 
 /**
  * How far from its run's own level an observation may sit before it reads as a
@@ -75,7 +73,7 @@ export function runDeviationLevel(observations: TripObservation[]): number | nul
 export function medianDeviation(deviations: number[]): number | null {
   if (deviations.length === 0) return null;
   const sorted = [...deviations].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
+  return sorted[Math.floor(sorted.length / 2)] ?? null;
 }
 
 /**

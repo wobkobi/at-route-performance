@@ -1,7 +1,5 @@
 // src/lib/route-graph.test.ts
-/**
- * @description Tests the branched snake diagram layout in route-graph.ts.
- */
+// Tests the branched snake diagram layout in route-graph.ts.
 import { buildBranchedSnake, type SnakeOpts } from "@/lib/route-graph";
 import type { RouteVariant } from "@/types/api";
 import { describe, expect, it } from "vitest";
@@ -29,6 +27,22 @@ function variant(
   headsign: string | null = null,
 ): RouteVariant {
   return { stopIds, tripCount, headsign, directionId: 0, shapeId: null };
+}
+
+/**
+ * The element at `index`, failing the test loudly when it is missing so a
+ * shorter-than-expected layout reads as an assertion failure rather than a
+ * type hole.
+ * @param items - The array under test.
+ * @param index - Position to read.
+ * @returns The element at that position.
+ */
+function at<T>(items: readonly T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) {
+    throw new Error(`Expected an element at index ${index}, got ${items.length} items`);
+  }
+  return item;
 }
 
 describe("buildBranchedSnake", () => {
@@ -83,12 +97,13 @@ describe("buildBranchedSnake", () => {
     const branchNodes = line.nodes.filter((n) => n.branch > 0);
     expect(branchNodes.map((n) => n.stopId)).toEqual(["x", "y", "z"]);
     // Branch stops share one horizontal lane off the trunk.
-    const laneY = branchNodes[0].cy;
+    const laneY = at(branchNodes, 0).cy;
     expect(branchNodes.every((n) => n.cy === laneY)).toBe(true);
     const branches = line.edges.filter((e) => e.branch);
     expect(branches).toHaveLength(3);
     // The connector leaves the trunk at 45deg (equal run/rise); the rest are flat.
-    const [connector, ...rest] = branches;
+    const connector = at(branches, 0);
+    const rest = branches.slice(1);
     expect(Math.abs(connector.x2 - connector.x1)).toBe(Math.abs(connector.y2 - connector.y1));
     expect(rest.every((e) => e.y1 === e.y2)).toBe(true);
     expect(line.labels[0]).toMatchObject({ headsign: "via X" });
@@ -111,7 +126,7 @@ describe("buildBranchedSnake", () => {
     expect(second.length).toBeGreaterThan(0);
     // Both run below the trunk; the second stacks into a deeper lane.
     expect(first.every((n) => n.cy > baseCy)).toBe(true);
-    expect(second.every((n) => n.cy > first[0].cy)).toBe(true);
+    expect(second.every((n) => n.cy > at(first, 0).cy)).toBe(true);
   });
 
   it("forks a convergent variant (shared destination, different origin) in, not separate", () => {
@@ -165,7 +180,9 @@ describe("buildBranchedSnake", () => {
     );
     expect(connectors).toHaveLength(2);
     // Sort by y1 so lane 0 (inner, closer to trunk) is first.
-    const [inner, outer] = connectors.sort((a, b) => a.y1 - b.y1);
+    const sortedConnectors = connectors.sort((a, b) => a.y1 - b.y1);
+    const inner = at(sortedConnectors, 0);
+    const outer = at(sortedConnectors, 1);
     // Inner connector starts at the trunk anchor.
     const anchor = line.nodes.find((n) => n.stopId === "b" && n.branch === 0)!;
     expect(inner.x1).toBe(anchor.cx);
@@ -193,9 +210,9 @@ describe("buildBranchedSnake", () => {
     const anchor = line.nodes.find((n) => n.stopId === "d" && n.branch === 0)!;
     const branchNodes = line.nodes.filter((n) => n.branch > 0);
     // Every branch stop must sit to the left of the anchor.
-    expect(branchNodes[0].cx).toBeLessThan(anchor.cx);
+    expect(at(branchNodes, 0).cx).toBeLessThan(anchor.cx);
     for (let i = 1; i < branchNodes.length; i++) {
-      expect(branchNodes[i].cx).toBeLessThan(branchNodes[i - 1].cx);
+      expect(at(branchNodes, i).cx).toBeLessThan(at(branchNodes, i - 1).cx);
     }
     // The 45° connector must go leftward.
     const connector = line.edges.find(
@@ -229,7 +246,7 @@ describe("buildBranchedSnake", () => {
     );
     const mangereNodes = line.nodes.filter((n) => n.stopId === "mangere_tc");
     expect(mangereNodes).toHaveLength(1);
-    expect(mangereNodes[0].branch).toBe(0); // trunk only
+    expect(at(mangereNodes, 0).branch).toBe(0); // trunk only
     const branchNodes = line.nodes.filter((n) => n.branch > 0);
     expect(branchNodes.map((n) => n.stopId)).toEqual(["x"]);
   });

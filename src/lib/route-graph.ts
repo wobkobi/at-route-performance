@@ -1,15 +1,13 @@
 // src/lib/route-graph.ts
-/**
- * @description Lays out a route's stops as a metro-style diagram in pixel
- * coordinates: nodes, edges, and label sides. The main line is the busiest
- * variant, snake-wrapped (boustrophedon) so it stays within card width; other
- * variants fork off as branches where they share an origin or a destination, with
- * branch lanes stacked in the widened gaps between trunk rows and label sides
- * alternated so text never lands on a line. Triangle and closed-loop shapes get
- * their own dedicated layouts. The geometry choices (45deg connectors, parallel
- * up/down lanes that cannot cross, outer-side labels) all exist to keep a dense
- * diagram readable without overlaps.
- */
+// Lays out a route's stops as a metro-style diagram in pixel coordinates: nodes,
+// edges, and label sides. The main line is the busiest variant, snake-wrapped
+// (boustrophedon) so it stays within card width; other variants fork off as
+// branches where they share an origin or a destination, with branch lanes stacked
+// in the widened gaps between trunk rows and label sides alternated so text never
+// lands on a line. Triangle and closed-loop shapes get their own dedicated
+// layouts. The geometry choices (45deg connectors, parallel up/down lanes that
+// cannot cross, outer-side labels) all exist to keep a dense diagram readable
+// without overlaps.
 import type { RouteVariant } from "@/types/api";
 
 /** Which side of its line a stop's time label sits on (away from the line). */
@@ -97,8 +95,8 @@ export interface SnakeOpts {
  * @returns The direct and via variants, or null.
  */
 export function detectTriangle(variants: RouteVariant[]): [RouteVariant, RouteVariant] | null {
-  if (variants.length !== 2) return null;
   const [a, b] = variants;
+  if (variants.length !== 2 || a === undefined || b === undefined) return null;
   const direct = a.stopIds.length <= b.stopIds.length ? a : b;
   const via = direct === a ? b : a;
   if (direct.stopIds.length !== 2 || via.stopIds.length < 3) return null;
@@ -127,7 +125,10 @@ export function buildTriangle(
   const rightPad = opts.rightPad ?? 0;
 
   const A = via.stopIds[0];
-  const C = via.stopIds[via.stopIds.length - 1];
+  const C = via.stopIds.at(-1);
+  if (A === undefined || C === undefined) {
+    throw new Error("buildTriangle: the via variant has no stops to lay out");
+  }
   const middle = via.stopIds.slice(1, -1);
   const spans = middle.length + 1;
 
@@ -192,7 +193,11 @@ export function buildBoxLoop(variant: RouteVariant, opts: SnakeOpts): BranchedSn
   const ring = ids[0] === ids[ids.length - 1] ? ids.slice(0, -1) : ids;
   const n = ring.length;
   const top = Math.ceil(n / 2);
-  const bottomCount = n - top;
+  // Split the ring into its two edges up front so each loop below walks a list
+  // whose every element is present, rather than indexing into `ring`.
+  const topIds = ring.slice(0, top);
+  const bottomIds = ring.slice(top);
+  const bottomCount = bottomIds.length;
   // Wide columns so each edge's labels (all on the outer side) clear one another.
   const loopCol = Math.max(col, 92);
   const rightX = padX + (top - 1) * loopCol;
@@ -200,16 +205,16 @@ export function buildBoxLoop(variant: RouteVariant, opts: SnakeOpts): BranchedSn
   const nodes: DiagramNode[] = [];
   // Top edge: outbound, left to right; every label above (outer side, clear of the
   // box interior and the vertical sides).
-  for (let i = 0; i < top; i++) {
-    nodes.push({ stopId: ring[i], cx: padX + i * loopCol, cy: padTop, branch: 0, labelDir: "up" });
-  }
+  topIds.forEach((stopId, i) => {
+    nodes.push({ stopId, cx: padX + i * loopCol, cy: padTop, branch: 0, labelDir: "up" });
+  });
   // Bottom edge: return, right to left, ending under the top-left so the loop
   // closes on a clean vertical (not a diagonal); every label below (outer side).
   const bottomStep = bottomCount > 1 ? (rightX - padX) / (bottomCount - 1) : 0;
-  for (let j = 0; j < bottomCount; j++) {
+  bottomIds.forEach((stopId, j) => {
     const cx = bottomCount > 1 ? rightX - j * bottomStep : padX;
-    nodes.push({ stopId: ring[top + j], cx, cy: padTop + row, branch: 0, labelDir: "down" });
-  }
+    nodes.push({ stopId, cx, cy: padTop + row, branch: 0, labelDir: "down" });
+  });
 
   return {
     nodes,
@@ -248,7 +253,14 @@ export function buildBranchedSnake(
   opts: SnakeOpts,
   canonId?: (id: string) => string,
 ): BranchedSnake {
-  if (variants.length === 0) {
+  // Trunk = the busiest pattern (most trips), then the longest. The most-run
+  // variant is the route's main service, so it forms the spine; the rest fork off.
+  // No variants at all means no trunk, so return an empty layout.
+  const ordered = [...variants].sort(
+    (a, b) => b.tripCount - a.tripCount || b.stopIds.length - a.stopIds.length,
+  );
+  const [trunk, ...others] = ordered;
+  if (trunk === undefined) {
     return {
       nodes: [],
       edges: [],
@@ -268,13 +280,6 @@ export function buildBranchedSnake(
   const labelReserve = opts.labelReserve ?? 0;
   const rightPad = opts.rightPad ?? 0;
 
-  // Trunk = the busiest pattern (most trips), then the longest. The most-run
-  // variant is the route's main service, so it forms the spine; the rest fork off.
-  const ordered = [...variants].sort(
-    (a, b) => b.tripCount - a.tripCount || b.stopIds.length - a.stopIds.length,
-  );
-  const trunk = ordered[0];
-
   const nodes: DiagramNode[] = [];
   const edges: DiagramEdge[] = [];
   const labels: BranchLabel[] = [];
@@ -282,29 +287,27 @@ export function buildBranchedSnake(
 
   // --- Pass 1: decide each non-trunk variant's branch (or set it aside) -------
   const tlen = trunk.stopIds.length;
+  // Canonical ids are compared positionally below, so map each pattern once.
+  const trunkCanon = trunk.stopIds.map(canon);
   // Any stop already on the trunk must not appear again on a branch - it would
   // be drawn twice at different positions, which is confusing and incorrect.
-  const trunkStopSet = new Set(trunk.stopIds.map(canon));
+  const trunkStopSet = new Set(trunkCanon);
   const forkSpecs: {
     anchorIdx: number;
     branchStops: string[];
     dir: 1 | -1;
     headsign: string | null;
   }[] = [];
-  for (let vi = 1; vi < ordered.length; vi++) {
-    const v = ordered[vi];
+  for (const v of others) {
     const vlen = v.stopIds.length;
+    const vCanon = v.stopIds.map(canon);
     // Longest shared run at each end of the trunk: a leading prefix (same origin)
     // and a trailing suffix (same destination), kept from overlapping each other.
+    // The bounds checks keep both reads in range, so a mismatch is a real one.
     let p = 0;
-    while (p < vlen && p < tlen && canon(v.stopIds[p]) === canon(trunk.stopIds[p])) p++;
+    while (p < vlen && p < tlen && vCanon[p] === trunkCanon[p]) p++;
     let s = 0;
-    while (
-      s < vlen - p &&
-      s < tlen &&
-      canon(v.stopIds[vlen - 1 - s]) === canon(trunk.stopIds[tlen - 1 - s])
-    )
-      s++;
+    while (s < vlen - p && s < tlen && vCanon[vlen - 1 - s] === trunkCanon[tlen - 1 - s]) s++;
     if (p >= s) {
       // Divergent: shares the origin, splits off toward a different end (its tail
       // runs rightward). A pure prefix (tail=0) is a short-working whose stops
@@ -324,7 +327,7 @@ export function buildBranchedSnake(
       // Variant ends at the same canonical stop as the trunk: it's a parallel road
       // to the same destination, not a genuinely different terminus. The branch
       // label would redundantly name the trunk's own destination.
-      if (canon(v.stopIds[vlen - 1]) === canon(trunk.stopIds[tlen - 1])) continue;
+      if (vCanon.at(-1) === trunkCanon.at(-1)) continue;
       const divStops = v.stopIds.slice(p).filter((id) => !trunkStopSet.has(canon(id)));
       if (divStops.length === 0) continue;
       forkSpecs.push({
@@ -363,37 +366,38 @@ export function buildBranchedSnake(
   // slope +1 (down-right). Parallel connectors can never cross, so no X patterns
   // form between a convergent and a divergent branch sharing the same trunk row.
   // Row-0 forks go above row 0; the extra padding needed is factored into rowYs[0].
-  const isUpwardFork = forkSpecs.map((f) => f.dir === -1);
+  // A fork is upward exactly when its `dir` is -1.
 
   // Pre-count downward (divergent, below row R) and upward (convergent, above row R)
   // forks per gap. Gap index g covers the space between row g and row g+1; index -1
   // is the space above row 0 (accommodated by increasing the top padding).
   const downPerRow = new Map<number, number>();
   const upPerGap = new Map<number, number>();
-  forkSpecs.forEach((f, fi) => {
+  for (const f of forkSpecs) {
     const r = Math.floor(f.anchorIdx / perRow);
-    if (isUpwardFork[fi]) {
+    if (f.dir === -1) {
       upPerGap.set(r - 1, (upPerGap.get(r - 1) ?? 0) + 1);
     } else {
       downPerRow.set(r, (downPerRow.get(r) ?? 0) + 1);
     }
-  });
+  }
 
   // Lane index within each fork's own stack (downward or upward), so `drop` is
   // computed independently per direction: lane 0 is the shallowest in each stack.
+  // Carry the lane on the fork itself rather than in a parallel array.
   const downLaneIdx = new Map<number, number>();
   const upLaneIdx = new Map<number, number>();
-  const forkLane = forkSpecs.map((f, fi) => {
+  const forks = forkSpecs.map((f) => {
     const r = Math.floor(f.anchorIdx / perRow);
-    if (isUpwardFork[fi]) {
+    if (f.dir === -1) {
       const g = r - 1;
       const lane = upLaneIdx.get(g) ?? 0;
       upLaneIdx.set(g, lane + 1);
-      return lane;
+      return { ...f, lane };
     }
     const lane = downLaneIdx.get(r) ?? 0;
     downLaneIdx.set(r, lane + 1);
-    return lane;
+    return { ...f, lane };
   });
 
   // Convergent forks now go upward, so no row-0 convergent fork needs leftCols
@@ -428,6 +432,7 @@ export function buildBranchedSnake(
   const row0UpLanes = upPerGap.get(-1) ?? 0;
   const effectivePadTop = padTop + branchDrop * row0UpLanes;
   const rowYs = [effectivePadTop];
+  let prevRowY = effectivePadTop;
   for (let r = 1; r < numRows; r++) {
     // Gap between row r-1 and row r must fit both downward branches leaving row r-1
     // and upward branches entering from row r (the gap is their shared space).
@@ -436,7 +441,8 @@ export function buildBranchedSnake(
     const up = upPerGap.get(r - 1) ?? 0;
     const totalLanes = down + up;
     const gap = totalLanes > 0 ? branchDrop * totalLanes + 2 * labelBand + 8 : row;
-    rowYs.push(rowYs[r - 1] + gap);
+    prevRowY += gap;
+    rowYs.push(prevRowY);
   }
 
   // Alternate each row's labels up/down by its within-row index. Row lengths are
@@ -453,10 +459,12 @@ export function buildBranchedSnake(
     };
   });
   nodes.push(...trunkNodes);
-  for (let i = 1; i < trunkNodes.length; i++) {
-    const a = trunkNodes[i - 1];
-    const b = trunkNodes[i];
-    edges.push({ x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy, branch: false });
+  let prevTrunk: DiagramNode | undefined;
+  for (const b of trunkNodes) {
+    if (prevTrunk) {
+      edges.push({ x1: prevTrunk.cx, y1: prevTrunk.cy, x2: b.cx, y2: b.cy, branch: false });
+    }
+    prevTrunk = b;
   }
 
   let maxCx = nodes.reduce((m, n) => Math.max(m, n.cx), 0);
@@ -476,10 +484,18 @@ export function buildBranchedSnake(
   // than being hidden beneath the outer lane's longer connector.
   const prevLaneFirstStop = new Map<string, { cx: number; cy: number }>();
 
-  forkSpecs.forEach((f, fi) => {
-    const fromCx = trunkNodes[f.anchorIdx].cx;
-    const fromCy = trunkNodes[f.anchorIdx].cy;
-    const up = isUpwardFork[fi];
+  forks.forEach((f, fi) => {
+    // Pass 1 derives anchorIdx from a shared-run length, so it is always a trunk
+    // index; a miss here means the fork detection above is broken.
+    const anchor = trunkNodes[f.anchorIdx];
+    if (anchor === undefined) {
+      throw new Error(
+        `buildBranchedSnake: fork anchor ${f.anchorIdx} is off the trunk (${trunkNodes.length} stops)`,
+      );
+    }
+    const fromCx = anchor.cx;
+    const fromCy = anchor.cy;
+    const up = f.dir === -1;
 
     // On odd trunk rows (right-to-left travel), flip the horizontal direction so
     // divergent branches extend in the direction the trunk is travelling, not
@@ -490,25 +506,30 @@ export function buildBranchedSnake(
     const anchorKey = `${fromCx},${fromCy},${up ? 1 : 0}`;
     const connectorStart = prevLaneFirstStop.get(anchorKey) ?? { cx: fromCx, cy: fromCy };
 
-    const drop = branchDrop * (forkLane[fi] + 1);
+    const drop = branchDrop * (f.lane + 1);
     const laneY = up ? fromCy - drop : fromCy + drop;
     // Outer side (away from trunk) for label alternation: above for upward forks,
     // below for downward forks.
     const outerDir: LabelDir = up ? "up" : "down";
     const innerDir: LabelDir = up ? "down" : "up";
+    // Each segment starts where the previous one ended: the connector origin for
+    // the first stop, then the stop just placed. The first stop sits one `drop`
+    // along the 45deg connector; each later stop is one column further along.
+    let segStart = connectorStart;
+    let cx = fromCx + hDir * drop;
     f.branchStops.forEach((id, k) => {
-      const cx = k === 0 ? fromCx + hDir * drop : nodes[nodes.length - 1].cx + hDir * col;
+      if (k > 0) cx += hDir * col;
       const labelDir: LabelDir = k % 2 === 0 ? outerDir : innerDir;
       nodes.push({ stopId: id, cx, cy: laneY, branch: fi + 1, labelDir });
       if (k === 0) prevLaneFirstStop.set(anchorKey, { cx, cy: laneY });
-      const prevCx = k === 0 ? connectorStart.cx : cx - hDir * col;
-      const prevCy = k === 0 ? connectorStart.cy : laneY;
-      edges.push({ x1: prevCx, y1: prevCy, x2: cx, y2: laneY, branch: true });
+      edges.push({ x1: segStart.cx, y1: segStart.cy, x2: cx, y2: laneY, branch: true });
+      segStart = { cx, cy: laneY };
       maxCx = Math.max(maxCx, cx);
       minCx = Math.min(minCx, cx);
       maxCy = Math.max(maxCy, laneY);
     });
-    const last = nodes[nodes.length - 1];
+    // After the loop segStart is the branch's last placed stop.
+    const last = segStart;
     labels.push({ headsign: f.headsign, cx: last.cx, cy: last.cy, toLeft: hDir < 0, toUp: up });
     // Reserve room for the branch end label on whichever side it sits.
     if (hDir < 0) minCx = Math.min(minCx, last.cx - labelReserve);

@@ -1,13 +1,11 @@
 // src/lib/route-pattern.ts
-/**
- * @description Build a route's directional stopping patterns from the AT GTFS
- * schedule. Trips are grouped by `(direction_id, shape_id)`; each group's ordered
- * stop list is resolved from one representative trip's stoptimes. AT exposes no
- * route-shape endpoint, so every pattern costs a separate stoptimes call - hence
- * resolving only the most-frequent patterns (capped at MAX_PATTERNS) to stay
- * within the API quota. Only stop order is available here, no road geometry.
- * Results are cached daily and keyed by route, since the schedule is static.
- */
+// Build a route's directional stopping patterns from the AT GTFS
+// schedule. Trips are grouped by `(direction_id, shape_id)`; each group's ordered
+// stop list is resolved from one representative trip's stoptimes. AT exposes no
+// route-shape endpoint, so every pattern costs a separate stoptimes call - hence
+// resolving only the most-frequent patterns (capped at MAX_PATTERNS) to stay
+// within the API quota. Only stop order is available here, no road geometry.
+// Results are cached daily and keyed by route, since the schedule is static.
 import { fetchAll } from "@/lib/at-static";
 import { routeIdsForSlug } from "@/lib/data";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -112,7 +110,9 @@ async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
  */
 export async function getRoutePattern(routeId: string): Promise<RoutePattern> {
   // The schedule lives under the newest feed version's id; resolve a slug to it.
-  const [latestId] = await routeIdsForSlug(routeId);
+  // routeIdsForSlug never returns empty (it falls back to `[slug]`), so the
+  // default only restates that contract for the type checker.
+  const [latestId = routeId] = await routeIdsForSlug(routeId);
   return unstable_cache(() => queryRoutePattern(latestId), ["route-pattern", latestId], {
     revalidate: 86_400,
   })();

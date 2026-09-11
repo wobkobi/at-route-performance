@@ -1,14 +1,12 @@
 // src/lib/page-nav.ts
-/**
- * @description Pure day and week navigation helpers shared across the shame and
- * route pages: validate `?day=`/`?period=` params, resolve the active week
- * window (a fixed calendar week or the rolling last seven service days), and
- * build the prev/next stepper bounded by the earliest day with data and the
- * present week. Two subtleties: on a live (today) view, hours that have not
- * started yet are dropped so AT's predicted-future slots don't show as phantom
- * on-time entries; and the empty-day fallback lazily imports the data layer so
- * these helpers stay pure and unit-testable.
- */
+// Pure day and week navigation helpers shared across the shame and
+// route pages: validate `?day=`/`?period=` params, resolve the active week
+// window (a fixed calendar week or the rolling last seven service days), and
+// build the prev/next stepper bounded by the earliest day with data and the
+// present week. Two subtleties: on a live (today) view, hours that have not
+// started yet are dropped so AT's predicted-future slots don't show as phantom
+// on-time entries; and the empty-day fallback lazily imports the data layer so
+// these helpers stay pure and unit-testable.
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -23,8 +21,8 @@ import {
   type DateRange,
 } from "@/lib/time";
 
-/** Matches an ISO `YYYY-MM-DD` date string. */
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Matches an ISO `YYYY-MM-DD` date string, capturing year, month and day. */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Matches an ISO `YYYY-MM` month key with a real month number. */
 const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -47,8 +45,12 @@ export function resolveRequestedMonth(value: string | undefined): string | null 
  * @returns The value when it is a real calendar date, else null.
  */
 export function resolveRequestedDay(value: string | undefined): string | null {
-  if (!value || !ISO_DATE.test(value)) return null;
-  const [y, m, d] = value.split("-").map(Number);
+  if (!value) return null;
+  const [, ys, ms, ds] = ISO_DATE.exec(value) ?? [];
+  if (ys === undefined || ms === undefined || ds === undefined) return null;
+  const y = Number(ys);
+  const m = Number(ms);
+  const d = Number(ds);
   const dt = new Date(Date.UTC(y, m - 1, d));
   const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
   return real ? value : null;

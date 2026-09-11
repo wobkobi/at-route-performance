@@ -4,6 +4,25 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.1] - 2026-09-12
+
+### Changed
+
+- `noUncheckedIndexedAccess` is on. Every array and object-key index now reads as possibly
+  undefined, and the 198 places that relied on the old assumption are made explicit: real narrowing
+  where a missing element is a genuine case, a `??` fallback where a sensible default exists,
+  `.at()` for last-element reads, and small parse helpers (`parseYmd` / `parseYm` in `time.ts`)
+  where the same `split("-")` destructure had been repeated. No non-null assertions and no `as`
+  casts were added, and no exported function signature changed. `DirectionFilter`'s `hrefs` prop now
+  requires `both`, which its only caller already passed.
+- `DayNav` drops its private `shiftDate` and weekday table in favour of `shiftWeek` and
+  `weekdayShort` from `time.ts`, which it had duplicated byte for byte.
+- `scripts/tsconfig.json` no longer overrides `moduleResolution` to `node`, which TypeScript 6
+  deprecates; it inherits `bundler` from the root config. The root `include` drops a `tests`
+  directory that never existed.
+- File-level `@description` JSDoc blocks in the files this change touched are demoted to plain `//`
+  lines: a top-of-file block attaches to no declaration, so the tag was dead ceremony.
+
 ## [1.11.0] - 2026-09-11
 
 ### Added

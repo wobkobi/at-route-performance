@@ -1,18 +1,16 @@
 // src/lib/station.ts
-/**
- * @description Collapse Auckland train-station platform stops into one logical
- * station. AT exposes each platform as its own GTFS stop ("Newmarket Train
- * Station 1/2/4") and bakes the platform number into trip headsigns, so a line
- * otherwise splits into near-duplicate variants and one station shows up as
- * several stops; these helpers normalise platforms to a single stop for the
- * diagram, map and stats. Only train platforms are affected.
- *
- * The station's identity is AT's own `parent_station` id wherever the feed
- * supplies it, and only falls back to the station's name when it doesn't. AT
- * renames stations (Britomart > Waitemata, Mount Eden > Maungawhau, and the
- * City Rail Link adds more), and a name-keyed id would change with them -
- * forking a station's history and breaking every shared link.
- */
+// Collapse Auckland train-station platform stops into one logical
+// station. AT exposes each platform as its own GTFS stop ("Newmarket Train
+// Station 1/2/4") and bakes the platform number into trip headsigns, so a line
+// otherwise splits into near-duplicate variants and one station shows up as
+// several stops; these helpers normalise platforms to a single stop for the
+// diagram, map and stats. Only train platforms are affected.
+//
+// The station's identity is AT's own `parent_station` id wherever the feed
+// supplies it, and only falls back to the station's name when it doesn't. AT
+// renames stations (Britomart > Waitemata, Mount Eden > Maungawhau, and the
+// City Rail Link adds more), and a name-keyed id would change with them -
+// forking a station's history and breaking every shared link.
 
 /** Matches a platform-numbered train-station name, capturing the station part. */
 const PLATFORM_RE = /^(.*\bTrain Station)\s+\d+\s*$/i;
@@ -54,8 +52,7 @@ export function isPlatformStop(name: string, parts?: StationParts): boolean {
  * @returns "Newmarket Train Station 2" > "Newmarket Train Station"; else unchanged.
  */
 export function stationName(name: string): string {
-  const m = PLATFORM_RE.exec(name);
-  return m ? m[1] : name;
+  return PLATFORM_RE.exec(name)?.[1] ?? name;
 }
 
 /**

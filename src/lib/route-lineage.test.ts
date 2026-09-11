@@ -1,7 +1,5 @@
 // src/lib/route-lineage.test.ts
-/**
- * @description Unit tests for the CRL train-line succession map in route-lineage.ts.
- */
+// Unit tests for the CRL train-line succession map in route-lineage.ts.
 import { predecessorSlugs, successorSlugs } from "@/lib/route-lineage";
 import { describe, expect, it } from "vitest";
 
@@ -48,6 +46,7 @@ describe("successorSlugs", () => {
   it("round-trips with predecessorSlugs", () => {
     for (const retired of ["STH", "EAST", "WEST", "ONE"]) {
       const [successor] = successorSlugs(retired);
+      if (successor === undefined) throw new Error(`${retired} has no successor`);
       expect(predecessorSlugs(successor)).toContain(retired);
     }
   });

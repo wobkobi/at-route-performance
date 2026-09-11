@@ -1,7 +1,5 @@
 // src/components/DirectionFilter.tsx
-/**
- * @description Chip row linking between a route's directions, with a "both" option for the unfiltered view.
- */
+// Chip row linking between a route's directions, with a "both" option for the unfiltered view.
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -14,8 +12,8 @@ export interface DirectionFilterProps {
   activeDir: number | null;
   /** Display label per direction id. */
   labels: Record<number, string>;
-  /** Pre-built href for each direction id, plus "both" for the null case. */
-  hrefs: Record<string, string>;
+  /** Pre-built href for each direction id, plus a required "both" for the null case. */
+  hrefs: Record<string, string> & { both: string };
 }
 
 /**

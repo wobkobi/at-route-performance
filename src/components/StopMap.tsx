@@ -1,8 +1,6 @@
 "use client";
 // src/components/StopMap.tsx
-/**
- * @description Render a Leaflet map of stops and live vehicles with delay-coloured markers.
- */
+// Render a Leaflet map of stops and live vehicles with delay-coloured markers.
 
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
@@ -177,7 +175,9 @@ function clearArrowIdx(line: [number, number][], start: number, stops: StopPoint
     for (let offset = 0; offset < line.length; offset++) {
       const idx = start + dir * offset;
       if (idx < 1 || idx >= line.length) continue;
-      const [lat, lon] = line[idx];
+      const point = line[idx];
+      if (point === undefined) continue;
+      const [lat, lon] = point;
       if (!stops.some((s) => haversineKm(lat, lon, s.lat, s.lon) < CLEARANCE_KM)) return idx;
     }
   }
@@ -251,8 +251,13 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoi
       ),
     ];
     for (const i of rawIdxs.map((idx) => clearArrowIdx(line, idx, stops))) {
-      const [aLat, aLon] = line[i - 1];
-      const [bLat, bLon] = line[i];
+      // clearArrowIdx only returns indices in [1, line.length), so both ends of
+      // the segment exist; the guard makes that explicit to the type checker.
+      const from = line[i - 1];
+      const to = line[i];
+      if (from === undefined || to === undefined) continue;
+      const [aLat, aLon] = from;
+      const [bLat, bLon] = to;
       const bearing =
         (Math.atan2((bLon - aLon) * Math.cos((aLat * Math.PI) / 180), bLat - aLat) * 180) / Math.PI;
       L.marker([(aLat + bLat) / 2, (aLon + bLon) / 2], {
@@ -339,8 +344,9 @@ function setInitialViewport(
     ...stops.map((s) => [s.lat, s.lon] as [number, number]),
     ...routeLines.flat(),
   ];
-  if (pts.length === 1) {
-    map.setView(pts[0], STOP_FOCUS_ZOOM);
+  const [only] = pts;
+  if (pts.length === 1 && only !== undefined) {
+    map.setView(only, STOP_FOCUS_ZOOM);
   } else if (pts.length > 1) {
     map.fitBounds(L.latLngBounds(pts).pad(0.1));
   } else {

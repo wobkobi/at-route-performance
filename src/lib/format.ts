@@ -1,7 +1,5 @@
 // src/lib/format.ts
-/**
- * @description Formatting helpers for delays, dates and other display values.
- */
+// Formatting helpers for delays, dates and other display values.
 
 import { isOnTime } from "@/lib/on-time";
 
@@ -75,7 +73,12 @@ export function dmY(d: Date): { dm: string; y: string } {
   }).formatToParts(d)) {
     o[part.type] = part.value;
   }
-  return { dm: `${o.day}/${o.month}`, y: o.year };
+  const { day, month, year } = o;
+  // Every requested part is always emitted; fail loudly rather than render "undefined".
+  if (day === undefined || month === undefined || year === undefined) {
+    throw new Error("Intl.DateTimeFormat omitted a requested day/month/year part");
+  }
+  return { dm: `${day}/${month}`, y: year };
 }
 
 /**
@@ -87,10 +90,10 @@ export function dmY(d: Date): { dm: string; y: string } {
  */
 export function formatGtfsTime(hms: string | null): string | null {
   if (!hms) return null;
-  const parts = hms.split(":");
-  if (parts.length < 2) return null;
-  let hours = parseInt(parts[0], 10);
-  const mins = parseInt(parts[1], 10);
+  const [h, m] = hms.split(":");
+  if (h === undefined || m === undefined) return null;
+  let hours = parseInt(h, 10);
+  const mins = parseInt(m, 10);
   if (isNaN(hours) || isNaN(mins)) return null;
   // GTFS extended time: hours >= 24 wrap to the next calendar day.
   const suffix = hours % 24 < 12 ? "am" : "pm";

@@ -1,16 +1,14 @@
 // src/app/route/[id]/page.tsx
-/**
- * @description Route detail page with a day view (worst trips and route map) and
- * a week view of aggregated stats, toggled in the header. Version-stripped and
- * case-canonical slugs are enforced up front via redirects; the day view falls
- * back to the most recent populated service day when the requested one is empty.
- * The live AT calls (service alerts, live vehicles) start without awaiting so
- * they overlap the day's queries. The diagram's alerted-stop rings and the
- * board's LIVE badges still stream in through Suspense; the alert banner is
- * awaited, because it sits above the page body and streaming it in shoved
- * everything below it down as the reader arrived.
- * The week view skips the expensive trips query and the live vehicle fetch.
- */
+// Route detail page with a day view (worst trips and route map) and
+// a week view of aggregated stats, toggled in the header. Version-stripped and
+// case-canonical slugs are enforced up front via redirects; the day view falls
+// back to the most recent populated service day when the requested one is empty.
+// The live AT calls (service alerts, live vehicles) start without awaiting so
+// they overlap the day's queries. The diagram's alerted-stop rings and the
+// board's LIVE badges still stream in through Suspense; the alert banner is
+// awaited, because it sits above the page body and streaming it in shoved
+// everything below it down as the reader arrived.
+// The week view skips the expensive trips query and the live vehicle fetch.
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DirectionFilter } from "@/components/DirectionFilter";
@@ -110,7 +108,10 @@ function aggregateWeek(days: RouteDay[]): {
  * @returns The headsign, or `Direction N` when none is available.
  */
 function directionLabel(variants: RouteVariant[], dirId: number): string {
-  const busiest = variants.reduce((a, b) => (b.tripCount > a.tripCount ? b : a), variants[0]);
+  const busiest = variants.reduce<RouteVariant | undefined>(
+    (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
+    undefined,
+  );
   return busiest?.headsign || `Direction ${dirId + 1}`;
 }
 
@@ -369,24 +370,28 @@ export default async function RoutePage({
   const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
   const nameByStop = Object.fromEntries(view.nameByStop);
 
-  const dirKeys = Object.keys(view.directions)
-    .map(Number)
-    .sort((a, b) => a - b);
-  const activeDir =
-    sp.dir != null && /^\d+$/.test(sp.dir) && view.directions[Number(sp.dir)]
-      ? Number(sp.dir)
-      : null;
+  // Direction entries sorted by id. Carrying the direction alongside its id
+  // means the active direction's variants are looked up once, below, rather
+  // than re-indexed by id at every use.
+  const dirEntries = Object.entries(view.directions)
+    .map(([d, dir]): [number, { variants: RouteVariant[] }] => [Number(d), dir])
+    .sort(([a], [b]) => a - b);
+  const dirKeys = dirEntries.map(([d]) => d);
+  const requestedDir = sp.dir != null && /^\d+$/.test(sp.dir) ? Number(sp.dir) : null;
+  // An unknown ?dir falls back to the unfiltered "both" view.
+  const activeEntry =
+    requestedDir == null ? null : (dirEntries.find(([d]) => d === requestedDir) ?? null);
+  const activeDir = activeEntry?.[0] ?? null;
+  const activeVariants = activeEntry?.[1].variants ?? null;
   const mapLines = (
     activeDir == null ? view.routeLines : view.routeLines.filter((l) => l.directionId === activeDir)
   ).map((l) => l.points);
   const dirStopIds =
-    activeDir == null
-      ? null
-      : new Set(view.directions[activeDir].variants.flatMap((v) => v.stopIds));
+    activeVariants == null ? null : new Set(activeVariants.flatMap((v) => v.stopIds));
   const mapStops =
     dirStopIds == null ? view.stops : view.stops.filter((s) => dirStopIds.has(s.stop_id));
   const diagramDirections =
-    activeDir == null ? view.directions : { [activeDir]: view.directions[activeDir] };
+    activeEntry == null ? view.directions : { [activeEntry[0]]: activeEntry[1] };
 
   const sortedTrips = isReversed ? [...trips].reverse() : trips;
 
@@ -408,21 +413,13 @@ export default async function RoutePage({
   if (tripSort !== "off") dirBase.set("tsort", tripSort);
 
   const dirHeadsigns =
-    activeDir == null
+    activeVariants == null
       ? null
-      : new Set(
-          view.directions[activeDir].variants
-            .map((v) => v.headsign)
-            .filter((h): h is string => h != null),
-        );
+      : new Set(activeVariants.map((v) => v.headsign).filter((h): h is string => h != null));
   const dirFirstStops =
-    activeDir == null
+    activeVariants == null
       ? null
-      : new Set(
-          view.directions[activeDir].variants
-            .map((v) => v.stopIds[0])
-            .filter((s): s is string => s != null),
-        );
+      : new Set(activeVariants.map((v) => v.stopIds[0]).filter((s): s is string => s != null));
 
   const dirTrips =
     activeDir == null
@@ -433,8 +430,8 @@ export default async function RoutePage({
           if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
           if (t.first_stop_id != null && dirFirstStops) {
             const matchesActive = dirFirstStops.has(t.first_stop_id);
-            const matchesAny = dirKeys.some((d) =>
-              view.directions[d].variants.some((v) => v.stopIds[0] === t.first_stop_id),
+            const matchesAny = dirEntries.some(([, dir]) =>
+              dir.variants.some((v) => v.stopIds[0] === t.first_stop_id),
             );
             if (matchesAny) return matchesActive;
           }
@@ -510,7 +507,7 @@ export default async function RoutePage({
             dirKeys={dirKeys}
             activeDir={activeDir}
             labels={Object.fromEntries(
-              dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
+              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d)]),
             )}
             hrefs={{
               both: routeDirHref(slug, dirBase, null),
