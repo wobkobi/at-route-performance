@@ -136,22 +136,35 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
 
   const stopDocs = await prisma.stop.findMany({
     where: { id: { in: patternStopIds } },
-    select: { id: true, name: true, lat: true, lon: true },
+    select: {
+      id: true,
+      name: true,
+      lat: true,
+      lon: true,
+      parentStation: true,
+      platformCode: true,
+    },
   });
   if (stopDocs.length === 0) return empty;
 
   // Canonical-station remap: collapse each train platform to its station id,
-  // keeping one display name + coordinate per station. Busway stops that share a
-  // physical station but carry letter suffixes ("Albany Station Stop A",
-  // "Albany Station Stop B") are also collapsed so variants using different poles
-  // do not split into separate diagram directions.
-  const BUSWAY_STOP_RE = /^(.*?)\s+Stop\s+[A-Z]{1,2}$/i;
+  // keeping one display name + coordinate per station. Interchange poles that
+  // share a physical station ("Stop A Albany Bus Station", "Stop B Albany Bus
+  // Station") are also collapsed so variants using different poles do not split
+  // into separate diagram directions.
+  //
+  // Poles are matched on name, not on AT's `parent_station`, even though train
+  // platforms now key off it. AT's parents are reliable for stations (platforms
+  // sit within ~140 m) but group bus and ferry stops up to ~465 m apart, and
+  // sometimes span distinct intersections - merging those would pull real
+  // geography out of the diagram. The place name is the tighter grouping here.
+  const BUSWAY_STOP_RE = /^Stop\s+[A-Z]{1,2}\s+(.*)$/i;
   const buswayBaseToFirstId = new Map<string, string>();
   const idToCanon = new Map<string, string>();
   const canonName = new Map<string, string>();
   const canonCoord = new Map<string, { lat: number; lon: number }>();
   for (const s of stopDocs) {
-    let cid = stationId(s.id, s.name);
+    let cid = stationId(s.id, s.name, s);
     const bm = BUSWAY_STOP_RE.exec(s.name);
     if (bm) {
       if (!buswayBaseToFirstId.has(bm[1])) buswayBaseToFirstId.set(bm[1], cid);

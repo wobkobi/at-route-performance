@@ -4,6 +4,41 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.0] - 2026-09-11
+
+### Added
+
+- Ghost re-reports are classified out of the stats. AT reuses a `trip_id` against a later vehicle
+  block, so a vehicle running about an hour off its slot reports that same offset at every stop of
+  the trip, and a couple of those float a quiet stop to the top of the worst-stops board. A nightly
+  pass over each completed service day tells a ghost apart by its shape rather than its size: it
+  sits at a near-constant offset from the run's own level, while a real delay accumulates along the
+  trip. A magnitude cap cannot make that distinction, and would throw away the genuinely
+  catastrophic delays this site exists to show. Rows are flagged, never deleted, and re-running a
+  day clears its flags first, so the pass is idempotent.
+- A cancelled-trips board. Cancellations sit outside every other board here: a cancelled trip
+  records no arrival, so it cannot be ranked by lateness and it cannot drag an on-time rate down -
+  it silently improves one. This is where that shows.
+- Route brand colours are checked for legibility instead of trusted. AT publishes `route_color` for
+  its own maps and printed material: the Eastern Line's yellow sits at about 1.7:1 against the page
+  surface, well under the 3:1 minimum for a meaningful non-text graphic, and Te Huia ships pure
+  black. The contrast is measured rather than kept as an exception list, since the City Rail Link
+  brings new lines and new colours in September 2026.
+- The route directory can list only what currently runs, off the new `lastSeenAt` stamp. Rows are
+  still never deleted, so a retired route keeps its retained summaries and its URL keeps resolving.
+
+### Changed
+
+- A station's identity is now AT's own `parent_station` id wherever the feed supplies it, falling
+  back to the name only when it does not. AT renames stations (Britomart became Waitemata, Mount
+  Eden became Maungawhau, with more to come from the City Rail Link), and a name-keyed id changes
+  with them, forking a station's history and breaking every shared link.
+- Service alerts are graded by effect. The feed mixes line closures with routine notices, and
+  rendering both in the same alarm styling is what teaches people to ignore the bar, so only a
+  service-stopping effect gets the loud treatment.
+- Loading skeletons honour `prefers-reduced-motion`.
+- The README describes the project instead of `create-next-app`.
+
 ## [1.10.1] - 2026-09-11
 
 ### Fixed

@@ -15,6 +15,12 @@ export interface FleetSummary {
   /** Percent of events beyond the late bound. */
   late_pct: number | null;
   route_count: number;
+  /**
+   * Trips cancelled outright in the window. Counted separately because a
+   * cancellation produces no arrival, so it cannot appear in the percentages
+   * above - null when the count wasn't fetched.
+   */
+  cancelled: number | null;
 }
 
 /** Per-mode aggregate for a window. */

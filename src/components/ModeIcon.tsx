@@ -2,6 +2,7 @@
 /**
  * @description Render the transport-mode icon, colouring branded services by their livery.
  */
+import { isLegibleOnSurface } from "@/lib/brand-colour";
 import { cn } from "@/lib/cn";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { JSX } from "react";
@@ -45,8 +46,10 @@ export interface ModeIconProps {
  * Transport-mode glyph drawn next to a route number: a bus, train, ferry, or
  * (orange) school bus. Buses are tinted by their branded service colour where
  * one exists (see {@link SERVICE_COLOUR}), else AT Shore blue. When `colour`
- * is provided (AT API hex, no `#`) it overrides the mode/service fallback via
- * an inline style so Tailwind's purge doesn't need to know the value.
+ * is provided (AT API hex, no `#`) and legible on the page surface, it overrides
+ * the mode/service fallback via an inline style so Tailwind's purge doesn't need
+ * to know the value; an illegible feed colour is ignored (see
+ * {@link isLegibleOnSurface}).
  * @param props - Component props.
  * @param props.mode - Route mode.
  * @param props.shortName - Route short name (code).
@@ -62,6 +65,12 @@ export function ModeIcon({
   className,
   colour,
 }: ModeIconProps): JSX.Element {
+  // AT's route_color is set for its own maps, not for this page - the Eastern
+  // Line's yellow reads at ~1.7:1 on white and Te Huia ships pure black. Keep
+  // the brand colour only when it is actually legible, else fall back to the
+  // mode token so the glyph stays visible.
+  const brandColour = isLegibleOnSurface(colour) ? colour : null;
+
   let Icon: IconType;
   let colourClass: string;
   let label: string;
@@ -87,8 +96,8 @@ export function ModeIcon({
       role="img"
       aria-label={label}
       title={label}
-      className={cn("h-5 w-5 shrink-0", colour ? undefined : colourClass, className)}
-      style={colour ? { color: `#${colour}` } : undefined}
+      className={cn("h-5 w-5 shrink-0", brandColour ? undefined : colourClass, className)}
+      style={brandColour ? { color: `#${brandColour}` } : undefined}
     />
   );
 }

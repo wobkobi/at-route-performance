@@ -15,7 +15,7 @@ import type { JSX } from "react";
  * @returns A pulsing skeleton box.
  */
 function MapPlaceholder(): JSX.Element {
-  return <div className="h-full w-full animate-pulse bg-at-bg" />;
+  return <div className="h-full w-full animate-pulse bg-at-bg motion-reduce:animate-none" />;
 }
 
 // ssr: false defers the Leaflet chunk to the client.

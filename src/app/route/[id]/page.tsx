@@ -4,10 +4,11 @@
  * a week view of aggregated stats, toggled in the header. Version-stripped and
  * case-canonical slugs are enforced up front via redirects; the day view falls
  * back to the most recent populated service day when the requested one is empty.
- * The live AT calls (service alerts, live vehicles) are kicked off without
- * awaiting and streamed in through Suspense - they feed only the alert banner,
- * the diagram's alerted-stop rings/detour dashing, and the board's LIVE badges,
- * so the shell never blocks on AT realtime latency (the main cold-cache cost).
+ * The live AT calls (service alerts, live vehicles) start without awaiting so
+ * they overlap the day's queries. The diagram's alerted-stop rings and the
+ * board's LIVE badges still stream in through Suspense; the alert banner is
+ * awaited, because it sits above the page body and streaming it in shoved
+ * everything below it down as the reader arrived.
  * The week view skips the expensive trips query and the live vehicle fetch.
  */
 import { AlertBanner } from "@/components/AlertBanner";
@@ -35,6 +36,7 @@ import {
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
+import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
@@ -51,6 +53,7 @@ import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteDay, RouteVariant } from "@/types/api";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type ComponentProps, type JSX } from "react";
 
@@ -179,6 +182,33 @@ function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean })
       </a>
     </div>
   );
+}
+
+/**
+ * Per-route page title, so a tab and a shared link name the line rather than
+ * repeating the site title. Uses the published line name where there is one
+ * (AT's `route_long_name` for a train is just the bare code).
+ * @param root0 - Page props.
+ * @param root0.params - Promise resolving to the dynamic route params `{ id }`.
+ * @returns Title and description metadata for the route.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const slug = routeSlug((await params).id);
+  const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
+    () => null,
+  );
+  const route = stats?.route;
+  if (!route) return { title: `Route ${slug}` };
+  const name = lineName(route.mode, route.shortName);
+  const label = route.shortName ?? slug;
+  return {
+    title: name ? `${label} - ${name}` : label,
+    description: `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`,
+  };
 }
 
 /**
@@ -492,9 +522,7 @@ export default async function RoutePage({
         )}
       </header>
 
-      <Suspense fallback={null}>
-        <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
-      </Suspense>
+      <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
 
       {isWeekView ? (
         <>
@@ -538,7 +566,11 @@ export default async function RoutePage({
             routeId={slug}
             mode={routeMode}
           />
-          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+          <Suspense
+            fallback={
+              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+            }
+          >
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -587,7 +619,11 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Suspense fallback={<div className="h-96 animate-pulse rounded bg-at-border" />}>
+            <Suspense
+              fallback={
+                <div className="h-96 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+              }
+            >
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
@@ -621,7 +657,11 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+          <Suspense
+            fallback={
+              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+            }
+          >
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}

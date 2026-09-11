@@ -6,9 +6,9 @@
  * recent day that does. Mode, school-bus, delay-direction, and day filters each
  * preserve the others' params so they compose in links, and the KPI strip is
  * summarised from exactly the visible rows so the filters flow through without a
- * separate fleet query. The service-alerts fetch is kicked off without awaiting
- * and streamed in through Suspense so the dashboard shell doesn't wait on AT
- * alert latency.
+ * separate fleet query. The alerts fetch starts early so it overlaps the day's
+ * queries, but the banner itself is awaited: it sits above the KPI strip, and
+ * streaming it in shoved the whole dashboard down as the reader arrived.
  */
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
@@ -21,8 +21,9 @@ import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getServiceAlerts, networkWideAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
+  getCancelledCount,
   getEarliestDataDay,
   getRankings,
   getShameOfDay,
@@ -99,11 +100,10 @@ export default async function Home({
   const hasNextDay = serviceDate < nzServiceDayString();
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
-  // Start the service-alerts fetch without blocking the page: the banner streams
-  // in via Suspense once it resolves, so a cold alerts cache (or dev reload)
-  // doesn't gate the rest of the dashboard behind ~1-2s of AT latency. The
-  // heavier "of the day" cards stream the same way; only the cheap stepper
-  // bound blocks the shell.
+  // Kick the alerts fetch off early so it overlaps the queries below; it is
+  // awaited at render (see the banner) rather than streamed, and its 5-minute
+  // cache means only the first request in a window pays AT's latency. The
+  // heavier "of the day" cards do still stream.
   const alertsPromise = getServiceAlerts();
   const earliestDay = await getEarliestDataDay(1);
   const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
@@ -116,7 +116,12 @@ export default async function Home({
     : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
-  const heroData = summariseRows(visible);
+  // Cancellations are the exception: they produce no arrival row, so they need
+  // their own count under the same filters.
+  const heroData = {
+    ...summariseRows(visible),
+    cancelled: await getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
+  };
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
@@ -191,9 +196,7 @@ export default async function Home({
         />
       </header>
 
-      <Suspense fallback={null}>
-        <HomeAlertBanner alertsPromise={alertsPromise} />
-      </Suspense>
+      <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />
 
       <FleetSummary data={heroData} />
 
@@ -312,20 +315,4 @@ async function HomeShameCards({
       <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
     </div>
   );
-}
-
-/**
- * Streamed network-wide service-alert banner. Awaits the shared alerts feed off
- * the critical path so the dashboard shell renders without waiting on AT alert
- * latency; renders nothing while it streams (and when there are no alerts).
- * @param root0 - Props.
- * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
- * @returns The alert banner.
- */
-async function HomeAlertBanner({
-  alertsPromise,
-}: {
-  alertsPromise: Promise<ServiceAlert[]>;
-}): Promise<JSX.Element> {
-  return <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />;
 }

@@ -2,7 +2,8 @@
 /**
  * @description Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
  * fetches and normalises alerts (with retry and backoff), then selects the ones
- * relevant to a given route, a given stop, or the whole network.
+ * relevant to a given route, a given stop, or the whole network, and grades how
+ * loudly each should be presented.
  */
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
@@ -67,6 +68,43 @@ export function extractText(field?: AlertText): string | null {
  */
 export function cleanAlertHeader(text: string): string {
   return text.replace(/\s*\[Schedule Start:.*?\]\s*$/i, "").trim();
+}
+
+/** How loudly an alert should be presented. */
+export type AlertSeverity = "severe" | "info";
+
+/**
+ * GTFS-RT `effect` values that stop or substantially reroute a service. These
+ * are the ones worth interrupting a reader for; everything else is a notice.
+ */
+const SEVERE_EFFECTS = new Set([
+  "NO_SERVICE",
+  "REDUCED_SERVICE",
+  "SIGNIFICANT_DELAYS",
+  "DETOUR",
+  "STOP_MOVED",
+]);
+
+/**
+ * How loudly to present an alert. The feed mixes line closures with routine
+ * notices, and rendering both in the same alarm styling is what teaches people
+ * to ignore the bar - so only a service-stopping effect gets the loud treatment.
+ * An alert with no `effect` at all is a notice: AT leaves it unset on its
+ * general-information entries.
+ * @param alert - The alert to classify.
+ * @returns "severe" for service-stopping effects, else "info".
+ */
+export function alertSeverity(alert: ServiceAlert): AlertSeverity {
+  return alert.effect && SEVERE_EFFECTS.has(alert.effect) ? "severe" : "info";
+}
+
+/**
+ * Whether any alert in a set warrants the loud treatment.
+ * @param alerts - Alerts to check.
+ * @returns True when at least one is severe.
+ */
+export function hasSevereAlert(alerts: ServiceAlert[]): boolean {
+  return alerts.some((a) => alertSeverity(a) === "severe");
 }
 
 /**
@@ -242,13 +280,22 @@ export function alertsForRoute(alerts: ServiceAlert[], routeIds: string[]): Serv
 }
 
 /**
- * Returns alerts that affect the given stop.
+ * Returns alerts that affect any of the given stops.
+ *
+ * Takes a list, not a single id, because a train station is one page backed by
+ * several GTFS stops. The feed's `informed_entity.stop_id` only ever names a raw
+ * platform, so matching a station's own canonical id against it never hits -
+ * which left every station page showing no alerts at all, including during a
+ * line closure.
  * @param alerts - Pool of alerts to filter.
- * @param stopId - Stop id to match against informed entities.
- * @returns Alerts that affect the given stop.
+ * @param stopIds - Raw GTFS stop ids to match against informed entities.
+ * @returns Alerts that affect at least one of the given stops.
  */
-export function alertsForStop(alerts: ServiceAlert[], stopId: string): ServiceAlert[] {
-  return alerts.filter((a) => a.informed_entity.some((e) => e.stop_id === stopId));
+export function alertsForStop(alerts: ServiceAlert[], stopIds: string[]): ServiceAlert[] {
+  const set = new Set(stopIds);
+  return alerts.filter((a) =>
+    a.informed_entity.some((e) => e.stop_id !== undefined && set.has(e.stop_id)),
+  );
 }
 
 /**

@@ -12,7 +12,9 @@ import type { JSX } from "react";
  * @returns The bone element.
  */
 export function Bone({ className }: { className: string }): JSX.Element {
-  return <div className={`animate-pulse rounded bg-at-border ${className}`} />;
+  return (
+    <div className={`animate-pulse rounded bg-at-border motion-reduce:animate-none ${className}`} />
+  );
 }
 
 /**

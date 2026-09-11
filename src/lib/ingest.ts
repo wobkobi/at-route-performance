@@ -42,10 +42,17 @@ async function bulkUpsert(collection: string, ops: UpsertOp[]): Promise<void> {
 
 /**
  * Fetch GTFS routes from AT and upsert them into the Route collection.
+ *
+ * Every route in this run is stamped with `lastSeenAt`. Routes are never
+ * deleted - a retired one still holds years of retained summaries, and its URL
+ * has to keep resolving so it can redirect to whatever replaced it - so the
+ * stamp is what lets a directory list only the routes that currently run. The
+ * City Rail Link retires four train lines at once on 13 September 2026.
  * @returns Count of routes upserted.
  */
 export async function syncRoutes(): Promise<{ upserted: number }> {
   const routes = await fetchRoutes();
+  const seenAt = new Date();
   const ops: UpsertOp[] = routes
     .filter((r) => r.route_id && r.route_long_name)
     .map((r) => ({
@@ -57,6 +64,7 @@ export async function syncRoutes(): Promise<{ upserted: number }> {
           mode: mapRouteType(r.route_type),
           colour: r.route_color ? r.route_color.replace(/^#/, "") : null,
           textColour: r.route_text_color ? r.route_text_color.replace(/^#/, "") : null,
+          lastSeenAt: seenAt,
         },
       },
     }));

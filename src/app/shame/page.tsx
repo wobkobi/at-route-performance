@@ -2,11 +2,19 @@
 /**
  * @description Shame dashboard summarising the worst trip, route, and stop of the day.
  */
+import { CancelledBoard } from "@/components/CancelledBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getEarliestDataDay, getShameOfDay, getShameRouteOfDay, getWorstStops } from "@/lib/data";
+import {
+  getCancelledCount,
+  getCancelledRoutes,
+  getEarliestDataDay,
+  getShameOfDay,
+  getShameRouteOfDay,
+  getWorstStops,
+} from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -70,6 +78,13 @@ export default async function ShameDashboard({
   const nextDayHref =
     hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/shame" : undefined;
 
+  // Cancellations are resolved after any day fallback, so the board matches the
+  // day the rest of the dashboard settled on.
+  const [cancelledTotal, cancelledRoutes] = await Promise.all([
+    getCancelledCount(range, {}, TODAY_REVALIDATE),
+    getCancelledRoutes(range, {}, 10, TODAY_REVALIDATE),
+  ]);
+
   // Dashboard tabs carry no mode/school filter, only the active day.
   const noFilter = { mode: null, includeSchool: false };
   const tripHref = buildShameHref("/shame/trip", { day: linkDay }, noFilter);
@@ -99,6 +114,8 @@ export default async function ShameDashboard({
         <WorstRouteCard route={routeShame.worst} href={routeHref} />
         <WorstStopCard stop={stops[0] ?? null} href={stopHref} />
       </div>
+
+      <CancelledBoard rows={cancelledRoutes} total={cancelledTotal} routeDay={linkDay} />
     </main>
   );
 }
