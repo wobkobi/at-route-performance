@@ -102,15 +102,15 @@ function nzOffsetMinutes(at: Date): number {
 
 /**
  * Convert an Auckland-local wall-clock date (midnight) to the UTC instant.
+ * Midnight is exactly the case a single offset sample gets wrong on a DST-switch
+ * day, so this shares {@link nzLocalToUtcAtHour}'s two-pass resolution.
  * @param y - Local full year.
  * @param mo - Local month (1-12).
  * @param d - Local day of month.
  * @returns The UTC Date for that Auckland local midnight.
  */
 function nzLocalToUtc(y: number, mo: number, d: number): Date {
-  const guess = new Date(Date.UTC(y, mo - 1, d));
-  const offset = nzOffsetMinutes(guess);
-  return new Date(Date.UTC(y, mo - 1, d) - offset * 60000);
+  return nzLocalToUtcAtHour(y, mo, d, 0);
 }
 
 /**
@@ -130,6 +130,14 @@ export const SERVICE_START_HOUR = 5;
 
 /**
  * Convert an Auckland-local wall-clock date + hour to the UTC instant.
+ *
+ * The offset depends on the instant and the instant on the offset, so it is
+ * resolved in two passes: estimate with the offset at the wall-clock reading
+ * taken as UTC, then re-sample at that estimate. On a DST-switch day the first
+ * sample can sit on the wrong side of the 02:00/03:00 change (UTC midnight is
+ * local noon, after the switch, while local midnight is before it); the second
+ * sample lands on the right side. Two passes always agree for Auckland's single
+ * annual switch.
  * @param y - Local full year.
  * @param mo - Local month (1-12).
  * @param d - Local day of month (may be out of range; normalised).
@@ -137,9 +145,11 @@ export const SERVICE_START_HOUR = 5;
  * @returns The UTC Date for that Auckland local time.
  */
 function nzLocalToUtcAtHour(y: number, mo: number, d: number, hour: number): Date {
-  const guess = new Date(Date.UTC(y, mo - 1, d, hour));
-  const offset = nzOffsetMinutes(guess);
-  return new Date(Date.UTC(y, mo - 1, d, hour) - offset * 60000);
+  const wall = Date.UTC(y, mo - 1, d, hour);
+  const first = nzOffsetMinutes(new Date(wall));
+  const estimate = new Date(wall - first * 60000);
+  const second = nzOffsetMinutes(estimate);
+  return new Date(wall - second * 60000);
 }
 
 /**
