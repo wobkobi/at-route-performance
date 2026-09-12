@@ -1,7 +1,5 @@
 // src/lib/station.test.ts
-/**
- * @description Unit tests for train-station platform collapsing in station.ts.
- */
+// Unit tests for train-station platform collapsing in station.ts.
 import {
   isLegacyStationId,
   isPlatformStop,
@@ -107,5 +105,44 @@ describe("normaliseHeadsign", () => {
 
   it("passes null through", () => {
     expect(normaliseHeadsign(null)).toBeNull();
+  });
+});
+
+describe("City Rail Link stations (real feed rows)", () => {
+  // Platforms are published as "<name> Train Station <n>" under the station's
+  // parent id; the "Stop <letter> <name> Station" rows are bus poles under a
+  // separate bus-station parent and must stay on their own ids.
+  it("collapses every CRL train platform onto its parent station", () => {
+    expect(
+      stationId("9297-5284e223", "Te Waihorotiu Train Station 1", {
+        parentStation: "131-50330e47",
+        platformCode: "1",
+      }),
+    ).toBe("station:131-50330e47");
+    expect(
+      stationId("9003-1b6fbb46", "Waitemata Train Station 3", {
+        parentStation: "133-08da14b5",
+        platformCode: "3",
+      }),
+    ).toBe("station:133-08da14b5");
+  });
+
+  it("keeps the bus poles at a CRL station on their own ids", () => {
+    expect(isPlatformStop("Stop C Te Waihorotiu Station", { platformCode: "C" })).toBe(false);
+    expect(
+      stationId("7086-df733283", "Stop C Te Waihorotiu Station", {
+        parentStation: "11014-9f0f7375",
+        platformCode: "C",
+      }),
+    ).toBe("7086-df733283");
+    expect(stationId("11011-9f0f7375", "Te Waihorotiu Station")).toBe("11011-9f0f7375");
+  });
+
+  it("sends a platform row the feed left without a parent to the name-keyed legacy id", () => {
+    // Stale July rows sit beside their parented twins; nothing arrives at them
+    // today, but if it did they would split the station.
+    expect(stationId("9003-a3bb36e8", "Waitemata Train Station 3")).toBe(
+      "station:waitemata train station",
+    );
   });
 });
