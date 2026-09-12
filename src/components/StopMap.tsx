@@ -303,7 +303,7 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
             weight: 1.5,
           },
     );
-    const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec);
+    const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec, { mode });
     const popup =
       s.avg_abs_delay_sec != null
         ? `<strong>${esc(s.name)}</strong><br>Net: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
@@ -394,6 +394,9 @@ export default function StopMap({
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
+  // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
+  // the current mode reachable without rebuilding the map when the prop changes.
+  const modeRef = useRef<RouteMode>(mode);
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
@@ -520,7 +523,7 @@ export default function StopMap({
               });
             }
             vehMarker.bindPopup(
-              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${d == null ? "No live delay" : formatDelay(d)}`,
+              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${d == null ? "No live delay" : formatDelay(d, { mode: modeRef.current })}`,
             );
             vehMarker.addTo(state.vehicleLayer);
           }
@@ -549,6 +552,7 @@ export default function StopMap({
   // page, props are server-rendered and stable; on direction-filter changes the
   // page navigates, so this mainly guards against any parent re-renders.
   useEffect(() => {
+    modeRef.current = mode;
     const state = stateRef.current;
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);

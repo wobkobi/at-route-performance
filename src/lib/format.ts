@@ -5,6 +5,9 @@
 import { NZ_TZ } from "@/lib/nz-tz";
 import { isOnTime } from "@/lib/on-time";
 
+/** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
+export const UNKNOWN_VALUE = "\u2014";
+
 /** Options for {@link formatDelay}. */
 export interface FormatDelayOptions {
   /** Deviations with magnitude <= this many seconds render as "on time". */
@@ -22,9 +25,11 @@ export interface FormatDelayOptions {
  * @param sec - Signed deviation in seconds (negative early, positive late).
  * @param options - On-time rule: a `mode` (asymmetric on-time window) or a
  *   symmetric `thresholdSec`; below it the value reads "on time".
- * @returns A string like `6m 18s late`, `3m early`, `45s late`, or `on time`.
+ * @returns A string like `6m 18s late`, `3m early`, `45s late`, or `on time`;
+ *   the unknown dash for a value that is not a finite number.
  */
 export function formatDelay(sec: number, options: FormatDelayOptions = {}): string {
+  if (!Number.isFinite(sec)) return UNKNOWN_VALUE;
   const rounded = Math.round(sec);
   const onTime =
     options.mode !== undefined
@@ -48,9 +53,11 @@ export function formatDelay(sec: number, options: FormatDelayOptions = {}): stri
  * Render a non-negative duration in seconds as `6m 18s` / `3m` / `45s` / `0s`
  * (no direction word). For magnitudes like "off-schedule by".
  * @param sec - A duration in seconds (rounded; negatives are treated as 0).
- * @returns The compact duration string.
+ * @returns The compact duration string, or the unknown dash for a value that is
+ *   not a finite number.
  */
 export function formatDuration(sec: number): string {
+  if (!Number.isFinite(sec)) return UNKNOWN_VALUE;
   const total = Math.max(0, Math.round(sec));
   const mins = Math.floor(total / 60);
   const secs = total % 60;
