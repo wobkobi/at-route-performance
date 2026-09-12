@@ -222,7 +222,8 @@ async function firstLink(baseUrl: string, path: string, pattern: RegExp): Promis
  * Build the dynamic-route sample list: the static {@link DYNAMIC_SAMPLES} plus
  * pages whose ids only exist at runtime: a stop from the home page, a run from
  * the NX1 trip board, the first train line in the directory and one of its
- * stations (the `station:` id form that the platform collapse mints).
+ * stations (the `station:` id form that the platform collapse mints, which the
+ * page links percent-encoded).
  * @param baseUrl - The running server's base URL.
  * @returns Dynamic page specs to visit.
  */
@@ -244,7 +245,7 @@ async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
       const station = await firstLink(
         baseUrl,
         `/route/${encodeURIComponent(slug)}`,
-        /\/stop\/station:[^"'?\\]+/,
+        /\/stop\/station(?::|%3A)[^"'?\\]+/,
       );
       if (station) pages.push({ path: station, name: "Train station" });
     }

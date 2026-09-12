@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.19] - 2026-09-13
+
+### Fixed
+
+- The smoke test's train-station sample never ran: the station link it looked for is percent-encoded
+  on the page, so the pattern now accepts both spellings.
+
+### Changed
+
+- Docs: the README says how to run the smoke test against a deployment, and the cron guide notes
+  that the two removed GTFS endpoints should point at the sync endpoint and how to check a deploy.
+
 ## [1.12.18] - 2026-09-13
 
 ### Changed
