@@ -4,6 +4,17 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.8] - 2026-09-12
+
+### Changed
+
+- Dependencies advanced: Next.js, `@next/bundle-analyzer` and `eslint-config-next` to 16.3.5, zod to
+  4.6.2, `eslint-plugin-jsdoc` to 64, and vitest to 5 (which now needs `vite` installed alongside
+  it). Three majors were tried and held back: Prisma 7 has no MongoDB connector; TypeScript 7.0
+  builds and typechecks but typescript-eslint refuses to load under it, so lint and the pre-commit
+  hook fail; ESLint 10 breaks `eslint-plugin-react` 7.37.5, which `eslint-config-next` depends on
+  and which supports ESLint 9 at most. TypeScript stays at 6.0.3 and ESLint at 9.39.5.
+
 ## [1.11.7] - 2026-09-12
 
 ### Fixed
