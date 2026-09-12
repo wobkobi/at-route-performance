@@ -333,7 +333,8 @@ export default async function RoutePage({
         }),
     buildRouteView(slug, byStop, routeMode),
     getEarliestDataDay(1),
-    // Rolling default uses take:7 (most recent records); fixed period uses a date range.
+    // Rolling default covers the last seven service days, today included;
+    // a fixed period uses its calendar week.
     getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
     isWeekView
       ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
