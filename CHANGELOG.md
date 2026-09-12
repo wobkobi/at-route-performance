@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.3] - 2026-09-12
+
+### Fixed
+
+- The summary rankings pipelines divided by a stored `events` total with no guard, unlike the live
+  path beside them. Both writers count events with `$sum: 1`, so a zero cannot be stored today, but
+  Mongo throws on a zero divisor rather than returning NaN, and a single such row would take the
+  whole rankings page down. The divisors now go through the same `$max: [1, ...]` guard the live
+  path uses.
+
 ## [1.11.2] - 2026-09-12
 
 ### Fixed
