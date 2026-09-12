@@ -11,8 +11,8 @@ import {
   isGhostDeviation,
   medianDeviation,
   NO_DELAY_SOURCE,
-  realDeviationExpr,
-  realDeviationMatch,
+  realDeviationExprFor,
+  realDeviationMatchFor,
 } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import {
@@ -346,13 +346,14 @@ function isoWeekRange(iso?: string): { start: Date; end: Date } {
  */
 async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
   const { start, end } = isoWeekRange(p.week);
+  const classified = await rangeIsFinal({ start, end });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pipeline: any[] = [
     {
       $match: {
         scheduledAt: scheduledAtWindow({ start, end }),
-        ...realDeviationMatch,
+        ...realDeviationMatchFor(classified),
       },
     },
     {
@@ -480,9 +481,10 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
 /**
  * Run the route-stats aggregations (summary + per-stop) against MongoDB.
  * @param p - Validated parameters; window defaults to the last 7 days.
+ * @param classified - Whether every day in the window has been through the ghost pass.
  * @returns Summary and top stops.
  */
-async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
+async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promise<RouteStats> {
   const start = p.from ?? new Date(Date.now() - 7 * MS_IN_DAY);
   const end = p.to ?? new Date();
 
@@ -499,7 +501,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   const match = {
     routeId: { $in: routeIds },
     scheduledAt: scheduledAtWindow({ start, end }),
-    ...realDeviationMatch,
+    ...realDeviationMatchFor(classified),
   };
 
   const summaryResult = (await runCommand(() =>
@@ -655,14 +657,18 @@ async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
  * earlier entry is abandoned rather than kept fresh under the long TTL. A
  * week bounds staleness if a past day is ever re-ingested while still
  * covering a day's ~2-week navigable life in one computation.
- * @param fn - Produces the value on a miss.
+ * The same flag tells the producer whether the window is classified, so its
+ * pipeline can drop the unclassified magnitude guard (see
+ * {@link realDeviationMatchFor}); a window mixing classified and live days
+ * keeps the guard.
+ * @param fn - Produces the value on a miss; receives whether the window is classified.
  * @param keyParts - Cache key, unique to the query and its window.
  * @param range - The queried half-open window, or null for a rolling live one.
  * @param liveRevalidate - TTL while the window can still change, in seconds.
  * @returns The cached or fresh value.
  */
 async function cachedForRange<T>(
-  fn: () => Promise<T>,
+  fn: (classified: boolean) => Promise<T>,
   keyParts: string[],
   range: DateRange | null,
   liveRevalidate: number,
@@ -670,19 +676,19 @@ async function cachedForRange<T>(
   const final = await rangeIsFinal(range);
   return unstable_cache(fn, [...keyParts, final ? "final" : "live"], {
     revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
-  })();
+  })(final);
 }
 
 /**
  * {@link cachedForRange} for one service day.
- * @param fn - Produces the value on a miss.
+ * @param fn - Produces the value on a miss; receives whether the day is classified.
  * @param keyParts - Cache key, unique to the query and its day.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param liveRevalidate - TTL while the day can still change, in seconds.
  * @returns The cached or fresh value.
  */
 function cachedForDay<T>(
-  fn: () => Promise<T>,
+  fn: (classified: boolean) => Promise<T>,
   keyParts: string[],
   date: string,
   liveRevalidate: number,
@@ -721,7 +727,7 @@ export function cachedWorstTripsOfDay(
   revalidate: number,
 ): Promise<ShameTrip[]> {
   return cachedForDay(
-    () => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool),
+    (classified) => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool, classified),
     ["shame-trip-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
     date,
     revalidate,
@@ -744,7 +750,7 @@ export function cachedWorstRoutesOfDay(
   revalidate: number,
 ): Promise<ShameRouteRow[]> {
   return cachedForDay(
-    () => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool),
+    (classified) => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool, classified),
     ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
     date,
     revalidate,
@@ -767,7 +773,7 @@ export function cachedWorstStopsOfDay(
   revalidate: number,
 ): Promise<ShameDayStop[]> {
   return cachedForDay(
-    () => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool),
+    (classified) => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool, classified),
     ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
     date,
     revalidate,
@@ -782,7 +788,7 @@ export function cachedWorstStopsOfDay(
  */
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   return cachedForRange(
-    () => queryRouteStats(p),
+    (classified) => queryRouteStats(p, classified),
     [
       "route-stats",
       p.routeId,
@@ -868,8 +874,10 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
 async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
   // Inline real-reading condition used for the weighted sums. The total `events`
   // count includes every row so no route falls below the rankings threshold;
-  // delay averages use only the readings the nightly pass kept.
-  const plausible = realDeviationExpr;
+  // delay averages use only the readings the nightly pass kept. Only days
+  // without a summary reach this scan, so the window is never classified and
+  // the magnitude guard stays on.
+  const plausible = realDeviationExprFor(false);
   const result = (await runCommand(() =>
     prisma.$runCommandRaw({
       aggregate: "ArrivalEvent",
@@ -1288,7 +1296,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
   const limit = p.limit ?? 50;
   const sort = p.sort ?? "off";
   return cachedForRange(
-    async () => {
+    async (classified) => {
       const routeIds = await routeIdsForSlug(p.routeId);
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
@@ -1316,7 +1324,9 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                 // Collect the real readings only (a ghost contributes null and
                 // is filtered out below), so per-trip stats skip the noise while
                 // `stops` still counts every event.
-                _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
+                _delays: {
+                  $push: { $cond: [realDeviationExprFor(classified), "$deviationSec", null] },
+                },
               },
             },
             {
@@ -1613,13 +1623,13 @@ export async function getShameOfDay(
 ): Promise<ShameOfDay> {
   const { mode = null, includeSchool = false } = filter;
   return cachedForRange(
-    async () => {
+    async (classified) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipeline: any[] = [
         {
           $match: {
             scheduledAt: scheduledAtWindow(range),
-            ...realDeviationMatch,
+            ...realDeviationMatchFor(classified),
           },
         },
         // One row per run, with its off-schedule magnitude and owning route.
@@ -1978,7 +1988,7 @@ export async function getShameRouteStreaksBatch(
   // aggregation on every new hourly cycle.
   const fourteenDaysAgo = new Date(currentRange.start.getTime() - 14 * MS_IN_DAY);
   const firstBatch = await cachedForRange(
-    async () => {
+    async (classified) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipeline: any[] = [
         {
@@ -1987,7 +1997,7 @@ export async function getShameRouteStreaksBatch(
               $gte: { $date: fourteenDaysAgo.toISOString() },
               $lt: { $date: currentRange.start.toISOString() },
             },
-            ...realDeviationMatch,
+            ...realDeviationMatchFor(classified),
           },
         },
         // Collapse to one row per (routeId, tripId) so time buckets use trip
@@ -2175,6 +2185,7 @@ const MIN_ROUTE_EVENTS_HOUR = 30;
  * @param range - The window to query.
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param classified - Whether every day in the window has been through the ghost pass.
  * @param groupKey - Name of the field computed by `addFieldsStage`.
  * @param addFieldsStage - `$addFields` stage that computes `groupKey` from `$trip_start`.
  * @returns The partial pipeline array.
@@ -2183,6 +2194,7 @@ function routeShamePipelineBase(
   range: DateRange,
   mode: string | null,
   includeSchool: boolean,
+  classified: boolean,
   groupKey: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addFieldsStage: Record<string, any>,
@@ -2193,7 +2205,7 @@ function routeShamePipelineBase(
     {
       $match: {
         scheduledAt: scheduledAtWindow(range),
-        ...realDeviationMatch,
+        ...realDeviationMatchFor(classified),
       },
     },
     // Collapse to one row per (routeId, tripId) so the time bucket uses trip
@@ -2282,8 +2294,8 @@ export async function getShameRouteOfDay(
 ): Promise<ShameRouteOfDay> {
   const { mode = null, includeSchool = false } = filter;
   return cachedForRange(
-    async () => {
-      const pipeline = routeShamePipelineBase(range, mode, includeSchool, "hour", {
+    async (classified) => {
+      const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "hour", {
         hour: { $hour: { date: "$trip_start", timezone: "Pacific/Auckland" } },
       });
       pipeline.push(
@@ -2400,14 +2412,16 @@ export async function getShameRouteOfWeek(
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param classified - Whether the day has been through the ghost pass.
  * @returns The per-service-day worst routes.
  */
 async function worstRoutesForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
   includeSchool: boolean,
+  classified: boolean,
 ): Promise<ShameRouteRow[]> {
-  const pipeline = routeShamePipelineBase(range, mode, includeSchool, "serviceDay", {
+  const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "serviceDay", {
     serviceDay: serviceDateExpr("$trip_start"),
   });
   pipeline.push(
@@ -2480,12 +2494,14 @@ async function worstRoutesForRange(
  * @param range - The window to query.
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param classified - Whether every day in the window has been through the ghost pass.
  * @returns The partial aggregation pipeline array.
  */
 function shamePipelineBase(
   range: DateRange,
   mode: string | null,
   includeSchool: boolean,
+  classified: boolean,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2493,7 +2509,7 @@ function shamePipelineBase(
     {
       $match: {
         scheduledAt: scheduledAtWindow(range),
-        ...realDeviationMatch,
+        ...realDeviationMatchFor(classified),
       },
     },
     {
@@ -2585,14 +2601,16 @@ export async function getShameOfWeek(
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param classified - Whether the day has been through the ghost pass.
  * @returns The per-service-day worst runs.
  */
 async function worstTripsForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
   includeSchool: boolean,
+  classified: boolean,
 ): Promise<ShameTrip[]> {
-  const pipeline = shamePipelineBase(range, mode, includeSchool);
+  const pipeline = shamePipelineBase(range, mode, includeSchool, classified);
   pipeline.push(
     {
       // Bucket each run by the service day its start falls in, so a
@@ -2839,11 +2857,11 @@ export async function getWorstStops(
         }
       : range;
   return cachedForRange(
-    async () => {
+    async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
         scheduledAt: scheduledAtWindow(aligned),
-        ...realDeviationMatch,
+        ...realDeviationMatchFor(classified),
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
@@ -2926,11 +2944,11 @@ export async function getWorstStopsOfDay(
 ): Promise<ShameStopOfDay> {
   const { mode = null, includeSchool = false } = filter;
   return cachedForRange(
-    async () => {
+    async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
         scheduledAt: scheduledAtWindow(range),
-        ...realDeviationMatch,
+        ...realDeviationMatchFor(classified),
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
@@ -3076,17 +3094,19 @@ export async function getWorstStopsOfWeek(
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param classified - Whether the day has been through the ghost pass.
  * @returns The per-service-day worst stops.
  */
 async function worstStopsForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
   includeSchool: boolean,
+  classified: boolean,
 ): Promise<ShameDayStop[]> {
   const routeIds = await worstStopRouteIds(mode, includeSchool);
   const match: Record<string, unknown> = {
     scheduledAt: scheduledAtWindow(range),
-    ...realDeviationMatch,
+    ...realDeviationMatchFor(classified),
   };
   if (routeIds) match.routeId = { $in: routeIds };
 
@@ -3279,7 +3299,7 @@ export async function getStopStats(
   revalidate: number,
 ): Promise<StopStats | null> {
   return cachedForRange(
-    async () => {
+    async (classified) => {
       const group = await resolveStopGroup(id);
       if (!group) return null;
 
@@ -3291,7 +3311,7 @@ export async function getStopStats(
               $match: {
                 stopId: { $in: group.ids },
                 scheduledAt: scheduledAtWindow(range),
-                ...realDeviationMatch,
+                ...realDeviationMatchFor(classified),
               },
             },
             { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
@@ -3449,14 +3469,14 @@ export async function getTripTimeline(
 ): Promise<TripTimeline> {
   const day = range ?? (await latestTripDay(tripId));
   return cachedForRange(
-    async () => {
+    async (classified) => {
       const routeIds = await routeIdsForSlug(routeId);
       const route = await prisma.route.findUnique({
         where: { id: routeIds[0] },
         select: { shortName: true, longName: true, mode: true, colour: true },
       });
 
-      const match: Record<string, unknown> = { tripId, ...realDeviationMatch };
+      const match: Record<string, unknown> = { tripId, ...realDeviationMatchFor(classified) };
       if (day) {
         match.scheduledAt = {
           $gte: { $date: day.start.toISOString() },
@@ -3736,7 +3756,8 @@ export async function getRouteDailyStats(
                 $match: {
                   routeId: { $in: routeIds },
                   scheduledAt: scheduledAtWindow(live),
-                  ...realDeviationMatch,
+                  // Only unsummarised days are scanned here, so the guard stays on.
+                  ...realDeviationMatchFor(false),
                 },
               },
               {

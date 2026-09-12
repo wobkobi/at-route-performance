@@ -13,8 +13,10 @@
 // distinguish a ghost from a service that really did run an hour late, and this
 // site exists to show the second kind.
 //
-// A wide bound still guards the reads that cannot wait for classification (the
-// current service day, which the nightly pass has not reached yet).
+// A wide bound still guards the reads that cannot wait for classification: the
+// current service day, and a completed day whose nightly pass has not run yet.
+// Once every day in a window is classified the bound comes off.
+import type { Prisma } from "@prisma/client";
 
 /**
  * How far from its run's own level an observation may sit before it reads as a
@@ -25,8 +27,9 @@ export const GHOST_GAP_SEC = 45 * 60;
 
 /**
  * Widest deviation accepted from rows the nightly ghost pass has not classified
- * yet - only the service day in progress. Set well beyond any real delay so
- * today's boards still show the extremes; classification does the real work.
+ * yet: the service day in progress, and a completed day whose aggregate has not
+ * run. Set well beyond any real delay so those boards still show the extremes;
+ * classification does the real work, and classified windows carry no bound.
  */
 export const UNCLASSIFIED_LIMIT_SEC = 3 * 60 * 60;
 
@@ -96,29 +99,45 @@ export const NO_DELAY_SOURCE = "AT_GTFSRT_NO_DELAY";
 /**
  * Mongo `$match` fragment keeping only observations that count towards the
  * stats: everything the nightly pass did not flag as a ghost, minus the
- * no-delay rows, plus a wide magnitude guard for the current day's rows, which
- * it has not classified yet.
+ * no-delay rows. For a window the pass has not classified yet, the
+ * {@link UNCLASSIFIED_LIMIT_SEC} magnitude guard stands in for the missing
+ * flags; once every day in the window is classified the guard comes off, so a
+ * service that really did run three hours late is counted rather than capped.
  *
  * Spread into a pipeline `$match` alongside the date and route filters. Rows are
  * never deleted for this - a misclassification stays recoverable, and the raw
  * archive is the point of the project.
+ * @param classified - Whether every day in the window has been through the ghost pass.
+ * @returns The `$match` fragment.
  */
-export const realDeviationMatch = {
-  ghost: { $ne: true },
-  source: { $ne: NO_DELAY_SOURCE },
-  deviationSec: { $gte: -UNCLASSIFIED_LIMIT_SEC, $lte: UNCLASSIFIED_LIMIT_SEC },
-} as const;
+export function realDeviationMatchFor(classified: boolean): Prisma.InputJsonObject {
+  return {
+    ghost: { $ne: true },
+    source: { $ne: NO_DELAY_SOURCE },
+    ...(classified
+      ? {}
+      : { deviationSec: { $gte: -UNCLASSIFIED_LIMIT_SEC, $lte: UNCLASSIFIED_LIMIT_SEC } }),
+  };
+}
 
 /**
- * Expression form of {@link realDeviationMatch}, for `$cond` and `$filter`
+ * Expression form of {@link realDeviationMatchFor}, for `$cond` and `$filter`
  * guards inside a `$group` - pipelines that must count every row but average
  * only the real ones.
+ * @param classified - Whether every day in the window has been through the ghost pass.
+ * @returns The boolean aggregation expression.
  */
-export const realDeviationExpr = {
-  $and: [
-    { $ne: ["$ghost", true] },
-    { $ne: ["$source", NO_DELAY_SOURCE] },
-    { $gte: ["$deviationSec", -UNCLASSIFIED_LIMIT_SEC] },
-    { $lte: ["$deviationSec", UNCLASSIFIED_LIMIT_SEC] },
-  ],
-} as const;
+export function realDeviationExprFor(classified: boolean): Prisma.InputJsonObject {
+  return {
+    $and: [
+      { $ne: ["$ghost", true] },
+      { $ne: ["$source", NO_DELAY_SOURCE] },
+      ...(classified
+        ? []
+        : [
+            { $gte: ["$deviationSec", -UNCLASSIFIED_LIMIT_SEC] },
+            { $lte: ["$deviationSec", UNCLASSIFIED_LIMIT_SEC] },
+          ]),
+    ],
+  };
+}
