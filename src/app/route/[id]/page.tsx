@@ -440,6 +440,7 @@ export default async function RoutePage({
         });
 
   const totalTrips = dirTrips.length;
+  const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
   const totalPages = Math.max(1, Math.ceil(totalTrips / PAGE_SIZE));
   const requestedPage = Number.parseInt(sp.tpage ?? "1", 10);
   const tripPage = Math.min(
@@ -637,6 +638,11 @@ export default async function RoutePage({
                 cancelledTrips={cancelledTrips}
               />
             </Suspense>
+            {tripsCapped && (
+              <p className="text-xs text-at-muted lg:col-span-2">
+                Showing the first {TRIPS_FETCH_CAP} runs of the day.
+              </p>
+            )}
             <RouteMapDiagram
               stops={mapStops}
               routeLines={mapLines}

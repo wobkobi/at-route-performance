@@ -5,7 +5,7 @@
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { useState, type JSX } from "react";
+import { useId, useRef, useState, type JSX } from "react";
 
 /**
  * CSS width for a share-bar segment from a percentage (clamped at 0).
@@ -116,6 +116,14 @@ export function PunctualityStat({
 }: PunctualityStatProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const { on_time_pct, early_pct, late_pct, avg_delay_sec, avg_abs_delay_sec, mode } = breakdown;
+  const popoverId = useId();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  /** Close the popover and hand focus back to the button that opened it. */
+  const close = (): void => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
 
   return (
     <div
@@ -124,14 +132,22 @@ export function PunctualityStat({
         bare ? "" : "border border-at-border",
         size === "lg" ? "p-4" : "p-3",
       )}
+      onKeyDown={(e) => {
+        if (open && e.key === "Escape") {
+          e.stopPropagation();
+          close();
+        }
+      }}
     >
       {/* Card text stays plain (selectable); only the info button opens the popover. */}
       <span className="flex items-center gap-1 text-xs tracking-zero text-at-muted uppercase">
         {label}
         <button
+          ref={buttonRef}
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => (open ? close() : setOpen(true))}
           aria-expanded={open}
+          aria-controls={popoverId}
           aria-label={`${label} breakdown`}
           className="cursor-pointer text-at-muted transition-colors hover:text-at-ink"
         >
@@ -151,8 +167,13 @@ export function PunctualityStat({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute top-full left-0 z-20 mt-1 w-64 rounded-md border border-at-border bg-at-surface p-3 shadow-lg">
+          <div className="fixed inset-0 z-10" onClick={close} aria-hidden />
+          <div
+            id={popoverId}
+            role="group"
+            aria-label={`${label} breakdown`}
+            className="absolute top-full left-0 z-20 mt-1 w-64 rounded-md border border-at-border bg-at-surface p-3 shadow-lg"
+          >
             {variant === "split" ? (
               <>
                 <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">

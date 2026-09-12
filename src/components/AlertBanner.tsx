@@ -217,7 +217,7 @@ export function AlertBanner({
                   {routeIds.map((id) => (
                     <a
                       key={id}
-                      href={`/route/${routeSlug(id)}`}
+                      href={`/route/${encodeURIComponent(routeSlug(id))}`}
                       className="rounded-full bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
                       {routeNames?.[id] ?? id}

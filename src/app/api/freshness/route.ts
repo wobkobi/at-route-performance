@@ -8,16 +8,17 @@ import { NextResponse } from "next/server";
 
 /**
  * Current data freshness for the footer poller.
- * @returns JSON `{ lastUpdated, nextUpdate }` as ISO strings, both null when no
- * data has been ingested yet.
+ * @returns JSON `{ lastUpdated, nextUpdate, source }` (ISO strings and "run" or
+ * "event"), all null when no data has been ingested yet.
  */
 export async function GET(): Promise<NextResponse> {
   const freshness = await getDataFreshness();
   if (!freshness) {
-    return NextResponse.json({ lastUpdated: null, nextUpdate: null });
+    return NextResponse.json({ lastUpdated: null, nextUpdate: null, source: null });
   }
   return NextResponse.json({
     lastUpdated: freshness.lastUpdated.toISOString(),
     nextUpdate: freshness.nextUpdate.toISOString(),
+    source: freshness.source,
   });
 }

@@ -567,7 +567,7 @@ export default function StopMap({
     const marker = state.markerById.get(selectedStopId);
     if (!marker) return;
     state.map.flyTo(marker.getLatLng(), Math.max(state.map.getZoom(), STOP_FOCUS_ZOOM), {
-      animate: true,
+      animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       duration: 0.4,
     });
     marker.openPopup();
