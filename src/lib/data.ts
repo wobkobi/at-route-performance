@@ -68,7 +68,6 @@ import type {
   TripTimeline,
 } from "@/types/api";
 import type {
-  ModeStat,
   ShameDayStop,
   ShameOfDay,
   ShameOfWeek,
@@ -78,7 +77,6 @@ import type {
   ShameStop,
   ShameStopOfDay,
   ShameStopOfWeek,
-  ShameStreak,
   ShameTrip,
   WorstStop,
 } from "@/types/dashboard";
@@ -1021,75 +1019,6 @@ export async function getRankings(
 }
 
 /**
- * Per-mode aggregates for a window.
- * @param range - UTC half-open window.
- * @param thresholdSec - On-time threshold in seconds.
- * @param revalidate - Cache TTL in seconds.
- * @returns One row per mode present in the window.
- */
-export async function getModeBreakdown(
-  range: DateRange,
-  thresholdSec: number,
-  revalidate: number,
-): Promise<ModeStat[]> {
-  return unstable_cache(
-    async () => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "DailyRouteSummary",
-          pipeline: [
-            {
-              $match: {
-                date: {
-                  $gte: { $date: range.start.toISOString() },
-                  $lt: { $date: range.end.toISOString() },
-                },
-              },
-            },
-            // Weighted totals per route first so each route counts once regardless of
-            // how many daily summaries it has in the window.
-            {
-              $group: {
-                _id: "$routeId",
-                events: { $sum: "$events" },
-                w_delay: { $sum: { $multiply: [{ $ifNull: ["$avgDelaySec", 0] }, "$events"] } },
-                w_on_time: { $sum: { $multiply: [{ $ifNull: ["$onTimePct", 0] }, "$events"] } },
-              },
-            },
-            { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
-            { $unwind: "$route" },
-            // Second group: roll up by mode.
-            {
-              $group: {
-                _id: "$route.mode",
-                events: { $sum: "$events" },
-                w_delay: { $sum: "$w_delay" },
-                w_on_time: { $sum: "$w_on_time" },
-                route_count: { $sum: 1 },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                mode: "$_id",
-                events: 1,
-                avg_delay_sec: { $round: [{ $divide: ["$w_delay", { $max: [1, "$events"] }] }, 1] },
-                on_time_pct: { $round: [{ $divide: ["$w_on_time", { $max: [1, "$events"] }] }, 1] },
-                route_count: 1,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: ModeStat[] } };
-      return res.cursor.firstBatch;
-    },
-    ["mode-breakdown", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate },
-  )();
-}
-
-/**
  * The scheduled time of the event at one end of the collection, read via the
  * `scheduledAt` index (sort + limit 1) so it stays cheap as the collection
  * grows. The `$group`/`$max` alternative scans every document - at 3M+ events
@@ -1769,106 +1698,6 @@ export async function getShameOfDay(
     range,
     revalidate,
   );
-}
-
-/** Threshold above which a service day is considered a "bad" shame day. */
-const STREAK_THRESHOLD_SEC = 120;
-
-/**
- * Look back over the last 7 service days (inclusive of today) and compute the
- * shame streak - how many consecutive bad days end on the current service day,
- * and whether the delays are trending up or down. Queries DailyRouteSummary
- * (pre-aggregated, fast) rather than ArrivalEvent.
- * @param currentRange - UTC half-open window for today's service day.
- * @param revalidate - Cache TTL in seconds.
- * @returns Streak count, trend, and per-day delay snapshots.
- */
-export async function getShameStreak(
-  currentRange: DateRange,
-  revalidate: number,
-): Promise<ShameStreak> {
-  return unstable_cache(
-    async () => {
-      const sevenDaysAgo = new Date(currentRange.end.getTime() - 7 * MS_IN_DAY);
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "DailyRouteSummary",
-          pipeline: [
-            {
-              $match: {
-                date: {
-                  $gte: { $date: sevenDaysAgo.toISOString() },
-                  $lt: { $date: currentRange.end.toISOString() },
-                },
-              },
-            },
-            {
-              $group: {
-                _id: "$date",
-                maxAbsDelaySec: { $max: "$avgAbsDelaySec" },
-              },
-            },
-            { $sort: { _id: 1 } },
-            {
-              $project: {
-                _id: 0,
-                date: {
-                  $dateToString: {
-                    date: "$_id",
-                    format: "%Y-%m-%d",
-                    timezone: NZ_TZ,
-                  },
-                },
-                avgAbsDelaySec: { $round: ["$maxAbsDelaySec", 1] },
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: { date: string; avgAbsDelaySec: number | null }[] };
-      };
-
-      const rows = res.cursor.firstBatch;
-      const recentDelays = rows.map((r) => ({
-        date: r.date,
-        avgAbsDelaySec: r.avgAbsDelaySec,
-      }));
-
-      // Walk backwards from the most recent day counting consecutive bad days.
-      // A date with no summary row is absent from `rows`, so require each row
-      // to be exactly one day before the last counted one - otherwise a missing
-      // day would be silently bridged and overstate the streak.
-      let count = 0;
-      let expectedDate: string | null = null;
-      for (let i = rows.length - 1; i >= 0; i--) {
-        const row = rows[i];
-        if (row === undefined) break;
-        if (expectedDate !== null && row.date !== expectedDate) break;
-        if ((row.avgAbsDelaySec ?? 0) >= STREAK_THRESHOLD_SEC) {
-          count++;
-          expectedDate = shiftWeek(row.date, -1);
-        } else {
-          break;
-        }
-      }
-
-      // Trend: compare first vs last day of the streak (requires >= 2 days).
-      let trend: "worsening" | "improving" | "stable" = "stable";
-      if (count >= 2) {
-        const streakRows = rows.slice(rows.length - count);
-        const first = streakRows.at(0)?.avgAbsDelaySec ?? 0;
-        const last = streakRows.at(-1)?.avgAbsDelaySec ?? 0;
-        const delta = last - first;
-        if (delta > 10) trend = "worsening";
-        else if (delta < -10) trend = "improving";
-      }
-
-      return { count, trend, recentDelays };
-    },
-    ["shame-streak", currentRange.end.toISOString()],
-    { revalidate },
-  )();
 }
 
 /**

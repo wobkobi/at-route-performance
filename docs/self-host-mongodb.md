@@ -15,8 +15,8 @@ Two hard requirements drive the setup:
 ## Prerequisites
 
 1. **AVX CPU check (hard blocker):** in a TrueNAS shell run `grep -o avx /proc/cpuinfo | head -1`.
-   MongoDB 5.0+ refuses to start without AVX, and `$percentile` (used by the aggregate endpoint)
-   needs 7.0+, so there is no older-version fallback.
+   MongoDB 5.0+ refuses to start without AVX, and the nightly ghost pass uses 5.2+ operators
+   (`$top`, `$sortArray`), so there is no older-version fallback.
 2. A public DNS name for the box (e.g. `db.example.nz`) and a router forward of TCP `27019` to the
    NAS. A non-default port avoids drive-by scans of 27017.
 3. A TLS certificate issued **before** first start (`requireTLS` needs the PEM at boot). Use the
@@ -295,7 +295,8 @@ a point in time.
    checks below all pass against an unindexed database, just slowly.
 2. `prisma db push` runs clean against the box in under a minute. The production build runs it, so a
    push that hangs is a failed deploy.
-3. A `$percentile` aggregation over one day runs via `mongosh` (proves 7.0+ features).
+3. `npm run test:int` passes against the box (the ghost pass and service-date pipelines prove the
+   5.2+ operators).
 4. Home page, a route page, rankings, and week view load on production.
 5. Two realtime ingest runs succeed (`IngestRun` rows, ~1.6k rows/run growth).
 6. A manual cleanup run returns 202 then records success, with the storage warning quiet.

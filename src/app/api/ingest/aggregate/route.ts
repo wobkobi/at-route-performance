@@ -5,7 +5,7 @@
 // ghost readings are classified first (see lib/ghost-pass.ts) so this rollup and
 // every later read agree on what was real: ghosts still count towards the raw
 // `events` total, so they cannot suppress a route below the rankings threshold,
-// but they are kept out of averages, percentiles and on-time rates. Upserts are
+// but they are kept out of averages and on-time rates. Upserts are
 // keyed on (routeId, date) with ordered:false so overlapping cron runs on the
 // same day stay safe.
 
@@ -34,8 +34,6 @@ interface DailyStats {
   on_time_pct: number;
   early_pct: number;
   late_pct: number;
-  p50_delay_sec: number;
-  p95_delay_sec: number;
 }
 
 /**
@@ -54,7 +52,8 @@ async function runAggregate(
   // Stable BSON-date representation used in both the query filter and the $set.
   const dateBson = { $date: range.start.toISOString() };
 
-  const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC), 10);
+  // The late bound the on-time rates were computed with, stored beside them.
+  const thresholdSec = ON_TIME_LATE_SEC;
 
   try {
     console.log("[AGGREGATE] Starting aggregation", {
@@ -83,7 +82,7 @@ async function runAggregate(
 
     // The initial $match carries no deviation filter, so every event contributes
     // to the `events` count and a route with ghost readings is not pushed below
-    // the rankings threshold. Stats (averages, percentiles, on-time %) count only
+    // the rankings threshold. Stats (averages, on-time %) count only
     // the real readings, via $filter / $cond guards. The pass above has just
     // flagged the ghosts, so the magnitude guard comes off and a genuine
     // three-hour delay counts; it stays on only when the pass failed.
@@ -118,7 +117,6 @@ async function runAggregate(
               ...onTimeTwoCounts(),
               ...earlyTwoCounts(),
               late_count: lateSum(),
-              _delays: { $push: { $cond: [plausible, "$deviationSec", null] } },
             },
           },
           // Resolve the route's mode, then pick the matching on-time + early counts.
@@ -130,18 +128,6 @@ async function runAggregate(
           { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
           {
             $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode },
-          },
-          {
-            // Drop the nulls the ghost guard pushed, leaving the real readings.
-            $addFields: {
-              _ok: {
-                $filter: {
-                  input: "$_delays",
-                  as: "d",
-                  cond: { $ne: ["$$d", null] },
-                },
-              },
-            },
           },
           {
             $addFields: {
@@ -161,18 +147,6 @@ async function runAggregate(
               on_time_pct: 1,
               early_pct: 1,
               late_pct: 1,
-              p50_delay_sec: {
-                $arrayElemAt: [
-                  { $percentile: { input: "$_ok", p: [0.5], method: "approximate" } },
-                  0,
-                ],
-              },
-              p95_delay_sec: {
-                $arrayElemAt: [
-                  { $percentile: { input: "$_ok", p: [0.95], method: "approximate" } },
-                  0,
-                ],
-              },
             },
           },
         ] as never,
@@ -205,8 +179,6 @@ async function runAggregate(
                 onTimePct: stat.on_time_pct,
                 earlyPct: stat.early_pct,
                 latePct: stat.late_pct,
-                p50DelaySec: stat.p50_delay_sec,
-                p95DelaySec: stat.p95_delay_sec,
                 thresholdSec,
               },
             },
