@@ -221,8 +221,9 @@ async function RankingsBody({
       </div>
 
       <p className="text-xs text-at-muted">
-        Rankings are built from real-time stop events and refresh hourly. Movement arrows compare
-        each route to its position in the previous {window === "month" ? "month" : "week"}.
+        Rankings are built from real-time stop events and refresh hourly.
+        {(offScheduleDeltas || reliableDeltas) &&
+          ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>
 
       <RouteTable rows={visible} sort={sort} routeWindow={window} routePeriod={period} />

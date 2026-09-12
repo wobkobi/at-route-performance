@@ -34,14 +34,14 @@ export interface RouteMapDiagramProps {
 
 /**
  * Route map section: stop pins coloured by delay, road-path polylines, and
- * live vehicle markers. Returns null when there are no stops to plot.
+ * live vehicle markers. With no stops to plot the section stays, saying so.
  * @param props - Component props.
  * @param props.stops - Stops to plot on the map.
  * @param props.routeLines - Per-direction road path lines.
  * @param props.routeId - Route id for live vehicles.
  * @param props.mode - Route mode.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
- * @returns The map section, or null when no stops are available.
+ * @returns The map section.
  */
 export function RouteMapDiagram({
   stops,
@@ -49,8 +49,17 @@ export function RouteMapDiagram({
   routeId,
   mode,
   filterDirectionIds,
-}: RouteMapDiagramProps): JSX.Element | null {
-  if (stops.length === 0) return null;
+}: RouteMapDiagramProps): JSX.Element {
+  if (stops.length === 0) {
+    return (
+      <section className="border border-at-border bg-at-surface p-4">
+        <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
+        <p className="mt-2 text-sm text-at-muted">
+          No stops to plot yet. The map fills in once this route records arrivals.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="border border-at-border bg-at-surface p-4">
       <div className="mb-2 flex items-center justify-between">

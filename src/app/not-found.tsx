@@ -77,7 +77,15 @@ export default async function NotFound(): Promise<JSX.Element> {
       </div>
 
       {/* Route directory */}
-      {all.length > 0 && (
+      {all.length === 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
+          <p className="text-sm text-at-muted">
+            The route directory is not available right now. The home page lists every route with
+            arrivals today.
+          </p>
+        </section>
+      ) : (
         <section className="space-y-3">
           <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
           <div

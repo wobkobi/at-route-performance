@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.11] - 2026-09-13
+
+### Fixed
+
+- Boards and cards with nothing to show now say so instead of vanishing or showing a hole. The
+  routes table on an empty day printed `No routes match ""` as if a search had failed; it now tells
+  a search miss and an empty period apart. The worst-route and worst-stop cards on the shame
+  dashboard, the home page and the rankings page rendered nothing when no route or stop qualified,
+  leaving a gap in the card grid; each keeps its slot with a quiet "Nothing to rank yet" state. The
+  route page's map, line diagram and stops table disappeared for a route with no arrivals; each
+  keeps its heading and says what it is waiting for. The 404 page's route directory says when it is
+  unavailable rather than omitting the section. The rankings caption mentions movement arrows only
+  when a previous period exists to compare against.
+
 ## [1.12.10] - 2026-09-13
 
 ### Fixed

@@ -156,7 +156,9 @@ export function RouteTable({
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={head.length} className="px-3 py-4 text-center text-at-muted">
-                  No routes match &ldquo;{query.trim()}&rdquo;.
+                  {q
+                    ? `No routes match "${query.trim()}".`
+                    : "No routes have recorded arrivals in this period yet."}
                 </td>
               </tr>
             ) : (

@@ -671,7 +671,14 @@ export default async function RoutePage({
             />
           </Suspense>
 
-          {byStop.length > 0 && (
+          {byStop.length === 0 ? (
+            <section className="border border-at-border bg-at-surface px-4 py-3">
+              <h2 className="font-semibold">Stops</h2>
+              <p className="mt-1 text-sm text-at-muted">
+                No stop-level arrivals recorded for this route on this day.
+              </p>
+            </section>
+          ) : (
             <details className="border border-at-border bg-at-surface">
               <summary className="cursor-pointer px-4 py-3 font-semibold">Stops</summary>
               <div className="overflow-x-auto px-4 pb-4">
