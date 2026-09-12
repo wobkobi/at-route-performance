@@ -3,10 +3,8 @@
 // pipeline twin of nzServiceDayString in time.ts. Every board that groups events
 // by service day must bucket exactly as the TypeScript helper labels, or a row
 // lands under a day the page cannot navigate to.
-import { SERVICE_START_HOUR } from "@/lib/time";
+import { NZ_TZ, SERVICE_START_HOUR } from "@/lib/time";
 import type { Prisma } from "@prisma/client";
-
-const NZ_TZ = "Pacific/Auckland";
 
 /**
  * Aggregation expression yielding the service date (`YYYY-MM-DD`) of a date

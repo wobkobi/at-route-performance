@@ -1,11 +1,9 @@
 // src/components/AlertBanner.tsx
-/**
- * @description Region listing active service alerts, rendering nothing when
- * there are none. Built to inform without getting in the way: it stays
- * collapsed, and it only takes the loud disruption styling when something is
- * actually stopping - a feed where a line closure and a routine notice look
- * identical is a feed people learn to ignore.
- */
+// Region listing active service alerts, rendering nothing when
+// there are none. Built to inform without getting in the way: it stays
+// collapsed, and it only takes the loud disruption styling when something is
+// actually stopping - a feed where a line closure and a routine notice look
+// identical is a feed people learn to ignore.
 import {
   alertSeverity,
   cleanAlertHeader,
@@ -15,6 +13,7 @@ import {
 } from "@/lib/at-alerts";
 import { cn } from "@/lib/cn";
 import { routeSlug } from "@/lib/route-slug";
+import { NZ_TZ } from "@/lib/time";
 import type { JSX } from "react";
 
 /** Props for {@link AlertBanner}. */
@@ -37,7 +36,7 @@ export interface AlertBannerProps {
  */
 function fmtTime(unix: number, withDate: boolean): string {
   return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     ...(withDate ? { day: "numeric", month: "short" } : {}),
     hour: "numeric",
     minute: "2-digit",
@@ -49,7 +48,7 @@ function fmtTime(unix: number, withDate: boolean): string {
  * yields `YYYY-MM-DD`, which compares as a plain string.
  */
 const NZ_DAY = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Pacific/Auckland",
+  timeZone: NZ_TZ,
   year: "numeric",
   month: "2-digit",
   day: "2-digit",

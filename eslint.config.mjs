@@ -73,6 +73,17 @@ export default defineConfig([
       // Core hygiene: require === except the idiomatic `!= null` check
       eqeqeq: ["error", "smart"],
 
+      // The NZ timezone name lives in nz-tz.ts and reaches everything else as
+      // NZ_TZ from time.ts, with the helpers built on it. Hardcoding the literal
+      // is how a file ends up doing its own date maths, and how a DST bug gets in.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value='Pacific/Auckland']",
+          message: "Import NZ_TZ from @/lib/time instead of hardcoding the timezone.",
+        },
+      ],
+
       // TS hygiene
       "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/consistent-type-definitions": "error",
@@ -104,6 +115,12 @@ export default defineConfig([
       "jsdoc/require-returns-description": "error",
       "jsdoc/require-description": "error",
     },
+  },
+
+  // nz-tz.ts owns the timezone literal; everywhere else imports NZ_TZ.
+  {
+    files: ["src/lib/nz-tz.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
 
   // Tailwind class hygiene. Prettier (via prettier-plugin-tailwindcss) only

@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.5] - 2026-09-12
+
+### Changed
+
+- The Auckland timezone name is written once. `NZ_TZ` lives in `src/lib/nz-tz.ts` and reaches
+  everything else through `@/lib/time` alongside the date helpers; the 27 places that spelled
+  `"Pacific/Auckland"` themselves (the data layer's pipelines, the formatters, the alert banner, the
+  freshness label, the service-date expression and its test) now use the constant. A lint rule
+  rejects the literal anywhere else, since a hand-written timezone is how a file ends up doing its
+  own date maths and how a DST bug gets in. `format.ts` reads the leaf module directly because
+  `time.ts` imports it, which keeps the two free of an import cycle.
+
 ## [1.12.4] - 2026-09-12
 
 ### Fixed

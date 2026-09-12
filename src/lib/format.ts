@@ -1,6 +1,8 @@
 // src/lib/format.ts
 // Formatting helpers for delays, dates and other display values.
 
+// From the leaf rather than time.ts, which imports this module.
+import { NZ_TZ } from "@/lib/nz-tz";
 import { isOnTime } from "@/lib/on-time";
 
 /** Options for {@link formatDelay}. */
@@ -66,7 +68,7 @@ export function formatDuration(sec: number): string {
 export function dmY(d: Date): { dm: string; y: string } {
   const o: Record<string, string> = {};
   for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

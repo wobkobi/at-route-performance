@@ -9,6 +9,7 @@
 // these helpers stay pure and unit-testable.
 import {
   monthRangeLabel,
+  NZ_TZ,
   nzLast7DaysRange,
   nzMonthKey,
   nzMonthRange,
@@ -78,7 +79,7 @@ export function filterLiveHours<H extends { hour: number }>(
     new Intl.DateTimeFormat("en-NZ", {
       hour: "2-digit",
       hour12: false,
-      timeZone: "Pacific/Auckland",
+      timeZone: NZ_TZ,
     }).format(now),
     10,
   );
