@@ -1,21 +1,18 @@
 // scripts/smoke-test.ts
-/**
- * @file smoke-test.ts
- * @description Optionally builds the Next.js app, starts the standalone server,
- * then visits every public page with Puppeteer to collect console errors, failed
- * responses, and navigation timing. App Router pages are auto-discovered; the
- * dynamic route/stop pages (which need a live id) are added explicitly, with a
- * real stop id discovered from the home page at runtime.
- *
- * Usage:
- *   npx tsx scripts/smoke-test.ts              # build > start > test
- *   npx tsx scripts/smoke-test.ts --skip-build # start > test (reuse existing .next)
- *   npx tsx scripts/smoke-test.ts --port=3001
- *
- * Exit codes:
- *   0  all pages loaded without errors
- *   1  one or more pages had console errors or failed to load
- */
+// Optionally builds the Next.js app, starts the standalone server,
+// then visits every public page with Puppeteer to collect console errors, failed
+// responses, and navigation timing. App Router pages are auto-discovered; the
+// dynamic route/stop pages (which need a live id) are added explicitly, with a
+// real stop id discovered from the home page at runtime.
+//
+// Usage:
+//   npx tsx scripts/smoke-test.ts              # build > start > test
+//   npx tsx scripts/smoke-test.ts --skip-build # start > test (reuse existing .next)
+//   npx tsx scripts/smoke-test.ts --port=3001
+//
+// Exit codes:
+//   0  all pages loaded without errors
+//   1  one or more pages had console errors or failed to load
 
 import { execSync, spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";

@@ -1,7 +1,6 @@
 // src/components/WorstRouteCard.tsx
-/**
- * @description Highlight card for the period's most off-schedule route, linking to its shame breakdown.
- */
+// Highlight card for the period's most off-schedule route, linking to its shame breakdown.
+
 import { ModeIcon } from "@/components/ModeIcon";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";

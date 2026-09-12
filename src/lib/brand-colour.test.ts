@@ -1,7 +1,6 @@
 // src/lib/brand-colour.test.ts
-/**
- * @description Unit tests for the feed-colour legibility check in brand-colour.ts.
- */
+// Unit tests for the feed-colour legibility check in brand-colour.ts.
+
 import { isLegibleOnSurface, relativeLuminance } from "@/lib/brand-colour";
 import { describe, expect, it } from "vitest";
 

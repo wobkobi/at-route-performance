@@ -1,7 +1,6 @@
 // src/lib/at-alerts.test.ts
-/**
- * @description Unit tests for the service-alert filters and severity grading in at-alerts.ts.
- */
+// Unit tests for the service-alert filters and severity grading in at-alerts.ts.
+
 import {
   alertSeverity,
   alertsForRoute,

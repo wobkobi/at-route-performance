@@ -1,7 +1,6 @@
 // src/app/shame/stop/loading.tsx
-/**
- * @description Loading skeleton for the worst-stop shame page.
- */
+// Loading skeleton for the worst-stop shame page.
+
 import { Bone, ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 

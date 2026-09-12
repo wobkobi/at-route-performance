@@ -1,7 +1,6 @@
 // src/app/shame/route/page.tsx
-/**
- * @description Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
- */
+// Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
+
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";

@@ -1,8 +1,6 @@
 "use client";
 // src/components/RouteMapDiagram.tsx
-/**
- * @description Plot a route's stops on the map via the stop map wrapper.
- */
+// Plot a route's stops on the map via the stop map wrapper.
 
 import StopMapWrapper from "@/components/StopMapWrapper";
 import type { JSX } from "react";

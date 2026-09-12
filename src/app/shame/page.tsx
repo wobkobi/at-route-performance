@@ -1,7 +1,6 @@
 // src/app/shame/page.tsx
-/**
- * @description Shame dashboard summarising the worst trip, route, and stop of the day.
- */
+// Shame dashboard summarising the worst trip, route, and stop of the day.
+
 import { CancelledBoard } from "@/components/CancelledBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameOfDay } from "@/components/ShameOfDay";

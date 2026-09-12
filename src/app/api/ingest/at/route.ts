@@ -1,16 +1,15 @@
 // src/app/api/ingest/at/route.ts
-/**
- * @description Cron-only POST that pulls AT's GTFS-RT trip updates and writes
- * stop-level arrival events, with a trip-level delay fallback when a trip only
- * carries an aggregate delay. Every reading is stored as reported - separating a
- * real delay from AT's trip_id block reuse needs the whole run, which only the
- * nightly pass has (see deviation.ts), and a magnitude cut here would delete the
- * worst genuine delays along with the noise. Cancellations are recorded once per
- * trip per service day, and the vehicle feed is joined best-effort so a feed
- * outage leaves rows unnamed rather than failing.
- * Inserts go through ordered:false bulk commands so duplicate polls are skipped
- * in one round-trip per batch, making repeated runs idempotent.
- */
+// Cron-only POST that pulls AT's GTFS-RT trip updates and writes
+// stop-level arrival events, with a trip-level delay fallback when a trip only
+// carries an aggregate delay. Every reading is stored as reported - separating a
+// real delay from AT's trip_id block reuse needs the whole run, which only the
+// nightly pass has (see deviation.ts), and a magnitude cut here would delete the
+// worst genuine delays along with the noise. Cancellations are recorded once per
+// trip per service day, and the vehicle feed is joined best-effort so a feed
+// outage leaves rows unnamed rather than failing.
+// Inserts go through ordered:false bulk commands so duplicate polls are skipped
+// in one round-trip per batch, making repeated runs idempotent.
+
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";

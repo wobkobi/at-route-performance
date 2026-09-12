@@ -1,15 +1,14 @@
 // src/app/api/ingest/aggregate/route.ts
-/**
- * @description Cron-only POST that rolls a completed NZ service day's arrival
- * events into per-route DailyRouteSummary stats. The window matches the live
- * dashboard (5am Auckland, half-open) so numbers line up everywhere. The day's
- * ghost readings are classified first (see lib/ghost-pass.ts) so this rollup and
- * every later read agree on what was real: ghosts still count towards the raw
- * `events` total, so they cannot suppress a route below the rankings threshold,
- * but they are kept out of averages, percentiles and on-time rates. Upserts are
- * keyed on (routeId, date) with ordered:false so overlapping cron runs on the
- * same day stay safe.
- */
+// Cron-only POST that rolls a completed NZ service day's arrival
+// events into per-route DailyRouteSummary stats. The window matches the live
+// dashboard (5am Auckland, half-open) so numbers line up everywhere. The day's
+// ghost readings are classified first (see lib/ghost-pass.ts) so this rollup and
+// every later read agree on what was real: ghosts still count towards the raw
+// `events` total, so they cannot suppress a route below the rankings threshold,
+// but they are kept out of averages, percentiles and on-time rates. Upserts are
+// keyed on (routeId, date) with ordered:false so overlapping cron runs on the
+// same day stay safe.
+
 import { requireCronAuth } from "@/lib/auth";
 import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";

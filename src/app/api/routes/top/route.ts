@@ -1,7 +1,6 @@
 // src/app/api/routes/top/route.ts
-/**
- * @description GET handler returning the top routes leaderboard JSON for an ISO week, ranked by on-time rate or average delay.
- */
+// GET handler returning the top routes leaderboard JSON for an ISO week, ranked by on-time rate or average delay.
+
 import { getTopRoutes } from "@/lib/data";
 import { topRoutesQuery } from "@/lib/validate";
 import { NextResponse } from "next/server";

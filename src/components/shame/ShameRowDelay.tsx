@@ -1,7 +1,6 @@
 // src/components/shame/ShameRowDelay.tsx
-/**
- * @description Delay summary line for a shame board row, wording the average deviation by mode.
- */
+// Delay summary line for a shame board row, wording the average deviation by mode.
+
 import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import type { JSX } from "react";

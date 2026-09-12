@@ -1,8 +1,6 @@
 "use client";
 // src/components/RouteLineDiagramClient.tsx
-/**
- * @description Client wrapper that memoises diagram inputs before rendering the route line diagram.
- */
+// Client wrapper that memoises diagram inputs before rendering the route line diagram.
 
 import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import type { RoutePattern } from "@/types/api";

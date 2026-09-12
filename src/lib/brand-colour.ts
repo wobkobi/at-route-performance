@@ -1,13 +1,11 @@
 // src/lib/brand-colour.ts
-/**
- * @description Decide whether a route's brand colour from the AT feed is legible
- * on the page surface. AT publishes `route_color` for its own maps and printed
- * material, not for a white web page: the Eastern Line's yellow (`FDB913`) sits
- * at about 1.7:1 against `--color-at-surface`, well under the 3:1 minimum for a
- * meaningful non-text graphic, and Te Huia ships pure black. New City Rail Link
- * lines arrive with new colours in September 2026, so this cannot be a hard-coded
- * exception list - it measures instead.
- */
+// Decide whether a route's brand colour from the AT feed is legible
+// on the page surface. AT publishes `route_color` for its own maps and printed
+// material, not for a white web page: the Eastern Line's yellow (`FDB913`) sits
+// at about 1.7:1 against `--color-at-surface`, well under the 3:1 minimum for a
+// meaningful non-text graphic, and Te Huia ships pure black. New City Rail Link
+// lines arrive with new colours in September 2026, so this cannot be a hard-coded
+// exception list - it measures instead.
 
 /** Page surface the icons sit on (`--color-at-surface` in globals.css). */
 const SURFACE_LUMINANCE = 1;

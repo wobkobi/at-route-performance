@@ -1,11 +1,9 @@
 // src/lib/line-name.ts
-/**
- * @description Human-readable names for Auckland's train lines. AT's GTFS feed
- * sets `route_long_name` to the bare code for every train route ("STH", "EAST"),
- * so the schedule offers nothing to display beyond the code itself. The City Rail
- * Link network that starts on 13 September 2026 renames the lines to codes that
- * read as even less ("S-C", "E-W", "O-W"), so both networks are mapped here.
- */
+// Human-readable names for Auckland's train lines. AT's GTFS feed
+// sets `route_long_name` to the bare code for every train route ("STH", "EAST"),
+// so the schedule offers nothing to display beyond the code itself. The City Rail
+// Link network that starts on 13 September 2026 renames the lines to codes that
+// read as even less ("S-C", "E-W", "O-W"), so both networks are mapped here.
 
 /**
  * Train-line code to its published name. Codes are AT's `route_short_name`.

@@ -1,16 +1,15 @@
 // src/app/api/ingest/cleanup/route.ts
-/**
- * @description Cron-only POST that permanently deletes ArrivalEvents and
- * TripDelays older than the retention window (default 14 days) to stay under the
- * cluster's storage allowance. Must run after the daily aggregation, since deletion is
- * irreversible. The cutoff snaps to the NZ service-day start (5am Auckland) so
- * late-night runs are not dropped against the wrong calendar boundary, retention
- * below 7 days is refused without ?force=1 to guard against an accidental purge,
- * and each collection deletes independently so one failure never skips the rest.
- * Responds 202 before the deletes run: a full day's delete takes ~40s on the
- * shared tier, past the external scheduler's 30s request timeout; the outcome is
- * recorded in IngestRun and the function logs.
- */
+// Cron-only POST that permanently deletes ArrivalEvents and
+// TripDelays older than the retention window (default 14 days) to stay under the
+// cluster's storage allowance. Must run after the daily aggregation, since deletion is
+// irreversible. The cutoff snaps to the NZ service-day start (5am Auckland) so
+// late-night runs are not dropped against the wrong calendar boundary, retention
+// below 7 days is refused without ?force=1 to guard against an accidental purge,
+// and each collection deletes independently so one failure never skips the rest.
+// Responds 202 before the deletes run: a full day's delete takes ~40s on the
+// shared tier, past the external scheduler's 30s request timeout; the outcome is
+// recorded in IngestRun and the function logs.
+
 import { requireCronAuth } from "@/lib/auth";
 import { prisma, runCommand } from "@/lib/db";
 import { recordIngestRun } from "@/lib/ingest-run";

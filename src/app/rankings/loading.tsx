@@ -1,7 +1,6 @@
 // src/app/rankings/loading.tsx
-/**
- * @description Loading skeleton for the rankings page.
- */
+// Loading skeleton for the rankings page.
+
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";

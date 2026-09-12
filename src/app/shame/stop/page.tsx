@@ -1,7 +1,6 @@
 // src/app/shame/stop/page.tsx
-/**
- * @description Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
- */
+// Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
+
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";

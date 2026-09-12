@@ -1,8 +1,6 @@
 "use client";
 // src/components/StopMapWrapper.tsx
-/**
- * @description Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
- */
+// Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
 import dynamic from "next/dynamic";
 import type { JSX } from "react";

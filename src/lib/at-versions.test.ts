@@ -1,7 +1,6 @@
 // src/lib/at-versions.test.ts
-/**
- * @description Unit tests for the GTFS feed-version selector in at-versions.ts.
- */
+// Unit tests for the GTFS feed-version selector in at-versions.ts.
+
 import { pickCurrentVersion, type GtfsVersionAttr } from "@/lib/at-versions";
 import { describe, expect, it } from "vitest";
 

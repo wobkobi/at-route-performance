@@ -1,7 +1,6 @@
 // src/app/stop/[id]/loading.tsx
-/**
- * @description Loading skeleton for the stop detail page.
- */
+// Loading skeleton for the stop detail page.
+
 import type { JSX } from "react";
 
 /**

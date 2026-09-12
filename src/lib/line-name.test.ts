@@ -1,7 +1,6 @@
 // src/lib/line-name.test.ts
-/**
- * @description Unit tests for the train-line display names in line-name.ts.
- */
+// Unit tests for the train-line display names in line-name.ts.
+
 import { lineName } from "@/lib/line-name";
 import { describe, expect, it } from "vitest";
 

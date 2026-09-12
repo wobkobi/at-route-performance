@@ -4,6 +4,19 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.6] - 2026-09-13
+
+### Changed
+
+- Every file-level `/** @description */` block (95 files across the app, components, libraries, API
+  routes and scripts) is now a plain `//` comment with the same prose. A top-of-file JSDoc block
+  attaches to no declaration, so the tag was dead ceremony; the smoke test's `@file` tag went with
+  it, and one `{@link}` inside a demoted header names its symbol plainly, since the tag is inert
+  outside a JSDoc block. No code changed.
+- The pre-commit hook chunks lint-staged's command lines (`--max-arg-length=4000`): a commit
+  touching this many files exceeded Windows' command-line limit and the hook failed before it could
+  format anything.
+
 ## [1.12.5] - 2026-09-12
 
 ### Changed

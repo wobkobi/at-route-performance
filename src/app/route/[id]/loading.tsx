@@ -1,7 +1,6 @@
 // src/app/route/[id]/loading.tsx
-/**
- * @description Loading skeleton for the route detail page.
- */
+// Loading skeleton for the route detail page.
+
 import type { JSX } from "react";
 
 /**

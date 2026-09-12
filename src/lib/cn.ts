@@ -1,7 +1,5 @@
 // src/lib/cn.ts
-/**
- * @description Merge conditional class names with Tailwind conflict resolution.
- */
+// Merge conditional class names with Tailwind conflict resolution.
 
 import clsx, { type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";

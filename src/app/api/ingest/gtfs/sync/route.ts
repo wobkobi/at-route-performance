@@ -1,14 +1,13 @@
 // src/app/api/ingest/gtfs/sync/route.ts
-/**
- * @description Cron-only POST that orchestrates the in-process GTFS static sync
- * of routes then stops. A version gate skips the work when AT's published feed
- * version matches the last stored one, so the daily schedule does no redundant
- * upserts; the new version is only recorded after both syncs succeed, leaving the
- * gate open for a retry if either fails. ?force=1 bypasses the gate for a manual
- * re-sync. When the gate passes, responds 202 before the sync runs (it can
- * exceed the external scheduler's 30s request timeout); the outcome is recorded
- * in IngestRun and the function logs.
- */
+// Cron-only POST that orchestrates the in-process GTFS static sync
+// of routes then stops. A version gate skips the work when AT's published feed
+// version matches the last stored one, so the daily schedule does no redundant
+// upserts; the new version is only recorded after both syncs succeed, leaving the
+// gate open for a retry if either fails. ?force=1 bypasses the gate for a manual
+// re-sync. When the gate passes, responds 202 before the sync runs (it can
+// exceed the external scheduler's 30s request timeout); the outcome is recorded
+// in IngestRun and the function logs.
+
 import { fetchCurrentGtfsVersion } from "@/lib/at-versions";
 import { requireCronAuth } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/gtfs-settings";

@@ -1,7 +1,6 @@
 // src/app/route/[id]/trip/[tripId]/loading.tsx
-/**
- * @description Loading skeleton for the trip timeline page.
- */
+// Loading skeleton for the trip timeline page.
+
 import type { JSX } from "react";
 
 /**
