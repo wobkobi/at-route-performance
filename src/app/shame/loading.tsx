@@ -1,24 +1,14 @@
 // src/app/shame/loading.tsx
 // Loading skeleton for the shame dashboard.
 
+import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Pulse-placeholder skeleton element.
- * @param root0 - Props.
- * @param root0.className - Tailwind size and shape classes.
- * @returns The bone element.
- */
-function Bone({ className }: { className: string }): JSX.Element {
-  return (
-    <div className={`animate-pulse rounded bg-at-border motion-reduce:animate-none ${className}`} />
-  );
-}
-
-/**
  * Shame dashboard loading skeleton. Mirrors the dashboard's `ShameHeader`
- * (title + subtitle, Trips/Routes/Stops tabs, day stepper, no week toggle)
- * and the three-card grid so there is no layout shift.
+ * (title + subtitle, Trips/Routes/Stops tabs, day stepper, no week toggle),
+ * the three-card grid and the cancelled-routes board so there is no layout
+ * shift.
  * @returns Skeleton layout matching the shame dashboard structure.
  */
 export default function Loading(): JSX.Element {
@@ -51,6 +41,21 @@ export default function Loading(): JSX.Element {
         <Bone className="h-48" />
         <Bone className="h-48" />
         <Bone className="h-48" />
+      </div>
+
+      {/* Most cancelled board: header bar + five rows */}
+      <div className="border border-at-border bg-at-surface">
+        <div className="flex items-baseline justify-between gap-3 border-b border-at-border px-4 py-3">
+          <Bone className="h-5 w-32" />
+          <Bone className="h-4 w-20" />
+        </div>
+        <ul>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li key={i} className={i > 0 ? "border-t border-at-border px-4 py-3" : "px-4 py-3"}>
+              <Bone className="h-4 w-40" />
+            </li>
+          ))}
+        </ul>
       </div>
     </main>
   );

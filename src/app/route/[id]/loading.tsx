@@ -1,19 +1,8 @@
 // src/app/route/[id]/loading.tsx
 // Loading skeleton for the route detail page.
 
+import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
-
-/**
- * Pulse-placeholder skeleton element.
- * @param root0 - Props.
- * @param root0.className - Tailwind size and shape classes.
- * @returns The bone element.
- */
-function Bone({ className }: { className: string }): JSX.Element {
-  return (
-    <div className={`animate-pulse rounded bg-at-border motion-reduce:animate-none ${className}`} />
-  );
-}
 
 /**
  * Skeleton for a single stat cell in the stats strip.
@@ -59,7 +48,7 @@ export default function Loading(): JSX.Element {
 
       {/* Stats strip */}
       <section className="border border-at-border bg-at-surface">
-        <div className="grid grid-cols-2 divide-x divide-y divide-at-border sm:grid-cols-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4">
           <StatCell />
           <StatCell />
           <StatCell />

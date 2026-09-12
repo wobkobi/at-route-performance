@@ -2,6 +2,7 @@
 // Pulse-placeholder skeleton for a shame board list, shared by the
 // shame loading pages and the in-page Suspense fallbacks while a board streams.
 
+import { ITEMS_PER_COL } from "@/lib/shame-page";
 import type { JSX } from "react";
 
 /**
@@ -60,17 +61,17 @@ export function ShameBoardSkeleton({ layout }: { layout: "day" | "week" }): JSX.
   }
   return (
     <div className="border border-at-border bg-at-surface">
-      {/* Mobile: single column */}
+      {/* Mobile: single column, the same rows the desktop grid holds */}
       <ul className="md:hidden">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <ListRow key={i} />
+        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => (
+          <ListRow key={i} withTopBorder={i > 0} />
         ))}
       </ul>
       {/* Desktop: 2-column grid matching the real page layout */}
       <ul className="hidden md:grid md:grid-cols-2">
-        {Array.from({ length: 20 }).map((_, i) => {
-          const isRight = i >= 10;
-          const rowIdx = isRight ? i - 10 : i;
+        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => {
+          const isRight = i >= ITEMS_PER_COL;
+          const rowIdx = isRight ? i - ITEMS_PER_COL : i;
           return (
             <li
               key={i}

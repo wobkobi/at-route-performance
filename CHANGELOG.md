@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.13] - 2026-09-13
+
+### Fixed
+
+- Loading skeletons now match the pages they stand in for, so a page no longer shifts as it arrives.
+  The home and rankings skeletons showed four separate KPI tiles where the page renders one bordered
+  strip of five cells; the route skeleton drew dividers the stats strip does not have; the shame
+  dashboard skeleton lacked the cancelled-routes board that sits under its cards; the hourly shame
+  board skeleton drew 12 rows on mobile and hard-coded its desktop split, and now takes both from
+  the board's own per-column constant. The three pages that carried their own copy of the bone
+  element share the one component.
+
 ## [1.12.12] - 2026-09-13
 
 ### Fixed
