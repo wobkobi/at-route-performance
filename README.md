@@ -48,6 +48,11 @@ npm run lint         # eslint (type-aware)
 npm run smoke        # build, start, and visit every public page
 ```
 
+CI (`.github/workflows/ci.yml`) lints, unit-tests, typechecks and builds every pull request. Its
+`smoke` job also builds, starts and visits every page against the real database, and runs only when
+the repository has a `DATABASE_URL` secret (`AT_API_KEY` is optional); Dependabot pull requests and
+forks get no secrets and skip it.
+
 ## Ingest
 
 Data collection runs on scheduled POSTs to `/api/ingest/*`, driven by an external scheduler rather

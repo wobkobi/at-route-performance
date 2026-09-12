@@ -4,6 +4,17 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.7] - 2026-09-13
+
+### Added
+
+- CI runs the smoke test. A `smoke` job builds the app, starts the standalone server and visits
+  every public page with Puppeteer against the real database, so a pull request that breaks a page
+  at runtime fails before it merges. The job runs only when the `DATABASE_URL` repository secret is
+  set (`AT_API_KEY` is optional), so Dependabot pull requests and forks, which get no secrets, skip
+  it rather than fail. The `test` job now runs the unit suite as well as lint and build, and the
+  unused `MONGODB_URI` secret is no longer passed to the jobs that never open the database.
+
 ## [1.12.6] - 2026-09-13
 
 ### Changed
