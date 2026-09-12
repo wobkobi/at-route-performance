@@ -18,15 +18,23 @@ export interface WorstRouteCardProps {
 
 /**
  * Shame dashboard card naming the most off-schedule route for the period.
- * Sits beside the worst-trip and worst-stop cards. Renders nothing when no
- * route qualifies.
+ * Sits beside the worst-trip and worst-stop cards. When no route qualifies it
+ * keeps its slot with a quiet state, so the card grid never shows a hole.
  * @param props - Component props.
  * @param props.route - The worst route row (or null).
  * @param props.href - Link to the full route-shame breakdown page.
- * @returns The card element, or null when there is no route to show.
+ * @returns The card element.
  */
-export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Element | null {
-  if (!route) return null;
+export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Element {
+  if (!route) {
+    return (
+      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
+        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst route</p>
+        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
+        <p className="text-sm text-at-muted">No route has enough arrivals in this period.</p>
+      </div>
+    );
+  }
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
   const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
   return (

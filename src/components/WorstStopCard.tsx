@@ -17,21 +17,26 @@ export interface WorstStopCardProps {
 }
 
 /**
- * Home card naming the stop whose buses ran furthest off schedule on average,
- * across every route, linking to its detail page. Sits beside the Shame of the
- * Day run card. Renders nothing when no stop has enough events to rank.
+ * Home card naming the stop whose services ran furthest off schedule on
+ * average, across every route, linking to its detail page. Sits beside the
+ * Shame of the Day run card. When no stop has enough events to rank it keeps
+ * its slot with a quiet state, so the card grid never shows a hole.
  * @param props - Component props.
  * @param props.stop - The worst stop (or null).
  * @param props.day - Service day to pin on the link (optional).
  * @param props.href - Override link target (optional).
- * @returns The card, or null when there is no stop to show.
+ * @returns The card.
  */
-export function WorstStopCard({
-  stop,
-  day,
-  href: hrefProp,
-}: WorstStopCardProps): JSX.Element | null {
-  if (!stop) return null;
+export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps): JSX.Element {
+  if (!stop) {
+    return (
+      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
+        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst stop</p>
+        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
+        <p className="text-sm text-at-muted">No stop has enough arrivals in this period.</p>
+      </div>
+    );
+  }
   const href = hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${day ? `?day=${day}` : ""}`;
   const noun = MODE_NOUN[stop.mode] ?? "Services";
   return (
