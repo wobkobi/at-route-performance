@@ -28,8 +28,11 @@ type RouteLine = Array<[number, number]>;
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
-/** How often to refresh live vehicle positions while the tab is visible. */
-const POLL_MS = 60_000;
+/**
+ * How often to refresh live vehicle positions while the tab is visible. The
+ * server caches the AT feed for 120s, so polling faster only re-reads the cache.
+ */
+const POLL_MS = 120_000;
 
 /**
  * Zoom for focusing a single stop: a neighbourhood view that shows surrounding

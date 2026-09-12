@@ -2,7 +2,7 @@
 // GET handler returning a route's performance summary JSON over a window (defaults to the last 7 days).
 
 import { getRouteStats } from "@/lib/data";
-import { routeStatsQuery } from "@/lib/validate";
+import { queryIssues, routeStatsQuery } from "@/lib/validate";
 import { NextResponse } from "next/server";
 
 /**
@@ -22,7 +22,7 @@ export async function GET(
   const parsed = routeStatsQuery.safeParse(Object.fromEntries(sp));
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "invalid_query", issues: parsed.error.issues },
+      { error: "invalid_query", issues: queryIssues(parsed.error.issues) },
       { status: 400 },
     );
   }
@@ -35,7 +35,10 @@ export async function GET(
     });
     return NextResponse.json(stats);
   } catch (err) {
-    console.error("GET /api/routes/[id]/stats failed", err);
+    console.error("[API] GET /api/routes/[id]/stats failed", {
+      routeId: id,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

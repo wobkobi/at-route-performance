@@ -3,6 +3,7 @@
 
 import { getJson } from "@/lib/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
+import { nzServiceDayString } from "@/lib/time";
 
 // Raw GTFS trip attributes from AT v3 /stops/{id}/trips.
 export interface StopTripAttr {
@@ -64,16 +65,28 @@ async function queryStopTrips(stopId: string, date: string): Promise<ScheduledDe
 }
 
 /**
+ * Cache TTL for a stop's departures on a service date: five minutes while the
+ * date is today or later (AT can still revise the schedule), an hour once it
+ * is past. "Today" is the NZ service date, not the UTC calendar date: from
+ * midnight UTC to 5am NZ the two differ, and comparing to the UTC date treated
+ * every NZ morning's lookups as past days, refreshing an hour later than
+ * intended and, for the day just ended, twelve times as often as needed.
+ * @param date - Service date as `YYYY-MM-DD`.
+ * @param now - The current instant (injectable for tests).
+ * @returns The TTL in seconds.
+ */
+export function stopTripsTtl(date: string, now: Date = new Date()): number {
+  return date >= nzServiceDayString(now) ? 300 : 3600;
+}
+
+/**
  * Cached scheduled departures at a stop for a given service date.
- * TTL is 300s for current-day queries and 3600s for past dates.
  * @param stopId - AT stop ID.
  * @param date - Service date as YYYY-MM-DD.
  * @returns Sorted scheduled departures.
  */
 export async function getStopTrips(stopId: string, date: string): Promise<ScheduledDeparture[]> {
-  const today = new Date().toISOString().slice(0, 10);
-  const ttl = date >= today ? 300 : 3600;
   return unstable_cache(() => queryStopTrips(stopId, date), ["stop-trips", stopId, date], {
-    revalidate: ttl,
+    revalidate: stopTripsTtl(date),
   })();
 }

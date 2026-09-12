@@ -1134,9 +1134,10 @@ export async function getEarliestDataDay(minEvents: number): Promise<Date | null
   const day = await unstable_cache(
     () => findQualifyingDataDay(1, minEvents),
     ["earliest-data-day", String(minEvents)],
-    // Only moves when the nightly cleanup prunes the oldest day, so 6h is safe;
-    // the freshness-sensitive latest/most-recent markers stay at 600.
-    { revalidate: 21_600 },
+    // Moves when the nightly cleanup prunes the oldest day; ten minutes, like
+    // the latest/most-recent markers, so the day stepper cannot offer a day
+    // that was just deleted for hours.
+    { revalidate: 600 },
   )();
   return day ? dataDayNoon(day) : null;
 }

@@ -90,7 +90,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (version && !force) {
       const lastVersion = await getSetting("gtfs_version");
       if (lastVersion === version) {
-        console.log("[SYNC] Skipping — version unchanged:", version);
+        console.log("[SYNC] Skipping, version unchanged:", version);
         await recordIngestRun({
           endpoint: "gtfs/sync",
           startedAt: new Date(startTime),
