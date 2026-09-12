@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.6] - 2026-09-12
+
+### Added
+
+- Regression tests for the City Rail Link station names as AT publishes them. The platforms are
+  `Te Waihorotiu Train Station 1` and `Waitemata Train Station 3` under their station's parent id
+  and collapse onto it; `Stop C Te Waihorotiu Station` is a bus pole under the bus-station parent
+  and keeps its own id; a stale platform row the feed left without a parent goes to the name-keyed
+  legacy id. Pins the behaviour before the 13 September cutover puts real arrivals through it.
+
 ## [1.11.5] - 2026-09-12
 
 ### Fixed
