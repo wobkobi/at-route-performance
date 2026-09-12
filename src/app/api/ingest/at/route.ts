@@ -12,7 +12,7 @@
 
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { nzServiceDayRange } from "@/lib/time";
@@ -32,7 +32,10 @@ const INSERT_BATCH = 1000;
 /**
  * Insert documents into a collection in batches, skipping duplicate-key rows
  * (ordered: false) in a single round-trip per batch - no per-document fallback
- * and no multi-document transaction.
+ * and no multi-document transaction. A duplicate key is the expected outcome of
+ * a repeated poll; any other per-entry error fails the run, since the command
+ * itself resolves even when entries were rejected. Each batch goes through the
+ * connection-reset retry.
  * @param collection - Target collection name.
  * @param docs - Extended-JSON documents (dates as `{ $date }`).
  * @returns Count actually inserted (duplicates excluded).
@@ -40,11 +43,14 @@ const INSERT_BATCH = 1000;
 async function bulkInsert(collection: string, docs: Record<string, unknown>[]): Promise<number> {
   let inserted = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await prisma.$runCommandRaw({
-      insert: collection,
-      documents: docs.slice(i, i + INSERT_BATCH) as never,
-      ordered: false,
-    })) as unknown as { n?: number };
+    const res = (await runCommand(() =>
+      prisma.$runCommandRaw({
+        insert: collection,
+        documents: docs.slice(i, i + INSERT_BATCH) as never,
+        ordered: false,
+      }),
+    )) as unknown as { n?: number };
+    throwOnWriteErrors(res, [DUPLICATE_KEY], `${collection} insert`);
     inserted += res.n ?? 0;
   }
   return inserted;
@@ -61,15 +67,20 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
 async function bulkUpsertArrivals(docs: Record<string, unknown>[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await prisma.$runCommandRaw({
-      update: "ArrivalEvent",
-      updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
-        q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
-        u: { $set: doc },
-        upsert: true,
-      })) as never,
-      ordered: false,
-    })) as unknown as { n?: number };
+    const res = (await runCommand(() =>
+      prisma.$runCommandRaw({
+        update: "ArrivalEvent",
+        updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
+          q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
+          u: { $set: doc },
+          upsert: true,
+        })) as never,
+        ordered: false,
+      }),
+    )) as unknown as { n?: number };
+    // Two overlapping polls can race an upsert of the same visit; the loser's
+    // duplicate-key error means the row exists, which is the outcome wanted.
+    throwOnWriteErrors(res, [DUPLICATE_KEY], "ArrivalEvent upsert");
     written += res.n ?? 0;
   }
   return written;

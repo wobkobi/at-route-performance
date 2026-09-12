@@ -62,6 +62,11 @@ job if you prefer to schedule in NZ local time.
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
+- The aggregate job catches up on its own: without `?date=` it rolls up yesterday plus any of the
+  two days before it that have events but no summary yet (a night the cron missed, or a day whose
+  ghost pass failed). Each day records its own IngestRun row. A longer gap closes over successive
+  nights; to close one at once, POST `?date=YYYY-MM-DD` per day or run
+  `scripts/rebuild-daily-summaries.ts` (which skips the ghost pass).
 - The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
   so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised

@@ -10,7 +10,7 @@
 // `ghost` flag from that level. Nothing is deleted, every row of a trip is
 // re-decided in the same write, and a re-run reaches the same verdicts, so the
 // pass is idempotent without ever clearing a day's flags first.
-import { prisma, runCommand } from "@/lib/db";
+import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
 import type { DateRange } from "@/lib/time";
 import type { Prisma } from "@prisma/client";
@@ -161,11 +161,6 @@ export function ghostUpdateBatches(
   return batches;
 }
 
-/** The parts of a bulk `update` reply the pass reads. */
-interface UpdateReply {
-  writeErrors?: { index: number; code: number; errmsg: string }[];
-}
-
 /**
  * Flag the ghost readings in a completed service day.
  * @param range - The service-day window to classify.
@@ -196,15 +191,10 @@ export async function classifyGhosts(
   // rather than thousands. A batch continues past a failed entry (`ordered:
   // false`), so the reply's write errors are checked rather than the promise.
   for (const updates of ghostUpdateBatches(levels, window)) {
-    const out = (await runCommand(() =>
+    const out = await runCommand(() =>
       prisma.$runCommandRaw({ update: collection, updates, ordered: false }),
-    )) as unknown as UpdateReply;
-    const [first] = out.writeErrors ?? [];
-    if (first) {
-      throw new Error(
-        `ghost pass: ${out.writeErrors?.length ?? 0} update(s) failed, first: ${first.errmsg}`,
-      );
-    }
+    );
+    throwOnWriteErrors(out, [], "ghost pass update");
   }
 
   // The update reply counts rows changed either way, so the flagged total is
