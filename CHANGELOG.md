@@ -4,6 +4,22 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.17] - 2026-09-13
+
+### Added
+
+- Tests for the parts of the pipeline and the API that had none. The cleanup run moved into
+  `src/lib/cleanup.ts` behind a small storage port so a test drives it with an in-memory store: the
+  cutoff snaps to the 5am service-day start and takes the offset in force on the cutoff day across
+  both DST switches, retention under seven days is refused without `?force=1`, and one collection's
+  delete failing does not skip the others. The query schemas are pinned (empty values read as unset,
+  bounds hold, the 400 body carries field and message only), as are the on-time window per mode, the
+  banding's rounding and the cron bearer guard's 500/401/pass outcomes. Two handler tests exercise
+  `GET /api/routes/top` (defaults, sanitised 400, bare 500 with a message-only log) and
+  `POST /api/ingest/aggregate` (401, an impossible date, the explicit-date form, the catch-up form
+  oldest first, and a failed day recorded without stopping the others). The suite is now 212 tests
+  across 28 files.
+
 ## [1.12.16] - 2026-09-13
 
 ### Changed
