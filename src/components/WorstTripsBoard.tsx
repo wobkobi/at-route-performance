@@ -221,7 +221,7 @@ export function WorstTripsBoard({
                   </span>
                 )}
                 <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
-                  {t.avg_delay_sec == null ? "—" : formatDelay(avg)}
+                  {t.avg_delay_sec == null ? "—" : formatDelay(avg, { mode: mode ?? "BUS" })}
                 </span>
                 <ChevronRight className="shrink-0 text-at-muted" />
               </li>

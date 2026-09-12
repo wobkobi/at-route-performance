@@ -4,6 +4,19 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.12] - 2026-09-13
+
+### Fixed
+
+- Delays are worded through the route's own on-time window everywhere. Seven places rendered a
+  signed deviation with no mode, so a bus 4 seconds behind schedule read "+4s late" under a caption
+  that calls 5 minutes on time: the home and rankings boards, the routes table, the route page's
+  trip board, the line diagram's labels and tooltips, and the map's stop and live vehicle popups now
+  all say "on time" inside the window, as the shame boards already did.
+- A delay or duration that is not a finite number (NaN from an empty average, an infinity from a bad
+  divisor) rendered as "NaNs late"; both formatters now return the unknown dash the tables already
+  use, with tests.
+
 ## [1.12.11] - 2026-09-13
 
 ### Fixed

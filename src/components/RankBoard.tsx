@@ -152,7 +152,7 @@ export function RankBoard({
                 ? noDelayData
                   ? "—"
                   : isConsistentlyLateOrEarly(signed, abs)
-                    ? formatDelay(signed)
+                    ? formatDelay(signed, { mode: r.mode })
                     : `${formatDuration(abs)} off`
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
             const valueClass =

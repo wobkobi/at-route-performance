@@ -301,7 +301,7 @@ export function DiagramSvg({
   // terminus shows its own delay like any other stop - the direction title at the
   // top names the line, so the end node carries no separate name label.
   const nodeLabels = nodes.map((node) => {
-    const value = node.delay == null ? null : formatDelay(node.delay);
+    const value = node.delay == null ? null : formatDelay(node.delay, { mode });
     if (value == null) return { node, value: null as string | null, lp: null };
     const lp = place(node.cx, node.cy, node.labelDir, value.length * 7, LABEL_H);
     return { node, value, lp };
@@ -510,7 +510,7 @@ export function DiagramSvg({
                   }}
                 >
                   <title>
-                    {`${n.name}${n.delay == null ? " · no data" : ` · ${formatDelay(n.delay)}`}`}
+                    {`${n.name}${n.delay == null ? " · no data" : ` · ${formatDelay(n.delay, { mode })}`}`}
                   </title>
                 </circle>
               </g>
@@ -543,7 +543,7 @@ export function DiagramSvg({
           >
             <span className="font-semibold text-at-ink">{tip.name}</span>
             <span className="ml-1 text-at-muted">
-              {tip.delay == null ? "no data" : formatDelay(tip.delay)}
+              {tip.delay == null ? "no data" : formatDelay(tip.delay, { mode })}
             </span>
           </div>
         )}
