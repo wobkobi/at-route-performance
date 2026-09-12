@@ -30,14 +30,13 @@ npm run dev
 
 Environment (`.env.local`):
 
-| Variable               | Purpose                                                     |
-| ---------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`         | MongoDB connection string (see `docs/self-host-mongodb.md`) |
-| `AT_API_KEY`           | Auckland Transport API subscription key                     |
-| `CRON_SECRET`          | Bearer token the ingest endpoints require                   |
-| `NEXT_PUBLIC_SITE_URL` | Public origin, for absolute links                           |
-| `RETENTION_DAYS`       | How long raw arrival events are kept                        |
-| `STORAGE_LIMIT_MB`     | Storage budget the cleanup job works against                |
+| Variable           | Purpose                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| `DATABASE_URL`     | MongoDB connection string (see `docs/self-host-mongodb.md`) |
+| `AT_API_KEY`       | Auckland Transport API subscription key                     |
+| `CRON_SECRET`      | Bearer token the ingest endpoints require                   |
+| `RETENTION_DAYS`   | How long raw arrival events are kept                        |
+| `STORAGE_LIMIT_MB` | Storage budget the cleanup job works against                |
 
 ```bash
 npm run db:push      # apply the Prisma schema

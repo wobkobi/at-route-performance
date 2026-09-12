@@ -35,7 +35,8 @@ console.log(
   `Rebuilding DailyRouteSummary for ${dates.length} service day(s):\n  ${dates.join(", ")}\n`,
 );
 
-const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC), 10);
+// The late bound the on-time rates were computed with, stored beside them.
+const thresholdSec = ON_TIME_LATE_SEC;
 
 // The script does not run the ghost pass, so a day it rebuilds may be
 // unclassified; the magnitude guard stays on.
@@ -71,19 +72,11 @@ for (const dateStr of dates) {
             ...onTimeTwoCounts(),
             ...earlyTwoCounts(),
             late_count: lateSum(),
-            _delays: { $push: { $cond: [plausible, "$deviationSec", null] } },
           },
         },
         { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
         { $unwind: "$route" },
         { $addFields: { on_time_count: pickOnTimeByRouteMode, early_count: pickEarlyByRouteMode } },
-        {
-          $addFields: {
-            _ok: {
-              $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } },
-            },
-          },
-        },
         {
           $addFields: {
             avg_delay_sec: { $divide: ["$w_delay", { $max: [1, "$_plausible"] }] },
@@ -102,18 +95,6 @@ for (const dateStr of dates) {
             on_time_pct: 1,
             early_pct: 1,
             late_pct: 1,
-            p50_delay_sec: {
-              $arrayElemAt: [
-                { $percentile: { input: "$_ok", p: [0.5], method: "approximate" } },
-                0,
-              ],
-            },
-            p95_delay_sec: {
-              $arrayElemAt: [
-                { $percentile: { input: "$_ok", p: [0.95], method: "approximate" } },
-                0,
-              ],
-            },
           },
         },
       ] as never,
@@ -130,8 +111,6 @@ for (const dateStr of dates) {
           on_time_pct: number;
           early_pct: number;
           late_pct: number;
-          p50_delay_sec?: number;
-          p95_delay_sec?: number;
         }[];
       };
     };
@@ -157,8 +136,6 @@ for (const dateStr of dates) {
             onTimePct: stat.on_time_pct,
             earlyPct: stat.early_pct,
             latePct: stat.late_pct,
-            p50DelaySec: stat.p50_delay_sec ?? null,
-            p95DelaySec: stat.p95_delay_sec ?? null,
             thresholdSec,
           },
         },

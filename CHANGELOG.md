@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.8] - 2026-09-13
+
+### Removed
+
+- Dead code and inert settings. `getModeBreakdown` and `getShameStreak` had no caller and the
+  `ModeBreakdown` component rendered nowhere; all three are gone, with the `ModeStat` and
+  `ShameStreak` types only they used. The nightly aggregate and the rebuild script no longer compute
+  the median and 95th-percentile delay per route: nothing read `p50DelaySec` or `p95DelaySec`, and
+  the `$percentile` stage was the one reason the runbook demanded MongoDB 7. The schema keeps the
+  two nullable columns so existing rows need no migration; new summaries simply do not set them.
+  `ON_TIME_THRESHOLD_SEC` is no longer read (the on-time late bound is the code's own constant, and
+  summaries record that), and `NEXT_PUBLIC_SITE_URL`, which nothing read, leaves the README's
+  environment table.
+
 ## [1.12.7] - 2026-09-13
 
 ### Added

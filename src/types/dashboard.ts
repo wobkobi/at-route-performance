@@ -21,15 +21,6 @@ export interface FleetSummary {
   cancelled: number | null;
 }
 
-/** Per-mode aggregate for a window. */
-export interface ModeStat {
-  mode: "BUS" | "TRAIN" | "FERRY";
-  events: number;
-  on_time_pct: number | null;
-  avg_delay_sec: number | null;
-  route_count: number;
-}
-
 /** One run nominated as a day's (or hour's) worst, for the Shame board. */
 export interface ShameTrip {
   /** Auckland-local hour (0-23) of the run's first scheduled stop. */
@@ -105,20 +96,6 @@ export interface ShameStopOfWeek {
   worst: ShameDayStop | null;
   /** Worst stop per service day, ordered earliest day first. */
   days: ShameDayStop[];
-}
-
-/**
- * A run of consecutive "bad" service days ending with the current service day,
- * derived from the last 7 days of DailyRouteSummary data. A day is bad when the
- * worst-route average absolute delay exceeds 120 seconds.
- */
-export interface ShameStreak {
-  /** Consecutive bad days ending with today (0 = no streak). */
-  count: number;
-  /** Whether max delays trended up, down, or flat across the streak window. */
-  trend: "worsening" | "improving" | "stable";
-  /** Per-day delay snapshots (up to 7), earliest first. */
-  recentDelays: { date: string; avgAbsDelaySec: number | null }[];
 }
 
 /** One route nominated as an hour's or day's worst, for the Route Shame board. */
