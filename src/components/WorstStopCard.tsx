@@ -2,7 +2,6 @@
 // Render a card for the window's worst-performing stop.
 
 import { formatDuration } from "@/lib/format";
-import { MODE_NOUN } from "@/lib/mode";
 import type { WorstStop } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -38,7 +37,6 @@ export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps)
     );
   }
   const href = hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${day ? `?day=${day}` : ""}`;
-  const noun = MODE_NOUN[stop.mode] ?? "Services";
   return (
     <a
       href={href}
@@ -47,13 +45,11 @@ export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps)
       <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst stop</p>
       <span className="text-2xl font-ultra tracking-zero text-at-ink">{stop.name}</span>
       <p className="text-sm text-at-muted">
-        {noun} ran{" "}
+        Arrivals ran{" "}
         <span className="font-semibold text-at-late">{formatDuration(stop.avg_abs_delay_sec)}</span>{" "}
         off schedule on average
       </p>
-      <p className="text-xs text-at-muted tabular-nums">
-        {stop.events} {noun.toLowerCase()}
-      </p>
+      <p className="text-xs text-at-muted tabular-nums">{stop.events} arrivals</p>
     </a>
   );
 }

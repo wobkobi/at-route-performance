@@ -11,10 +11,18 @@ export interface DataFreshnessProps {
   lastUpdatedIso: string;
   /** ISO instant the next refresh is expected. */
   nextUpdateIso: string;
+  /** Whether the instant is a logged ingest run or the freshest arrival (no run logged yet). */
+  source: "run" | "event";
+  /** The realtime ingest cadence in seconds; a gap of three cadences reads as stalled. */
+  intervalSec: number;
 }
 
-/** How often the relative label re-evaluates while the page sits open. */
-const TICK_MS = 1_000;
+/**
+ * How often the relative label re-evaluates while the page sits open. The
+ * label is worded in minutes past the first one, so a 15s tick keeps it honest
+ * without re-rendering the footer every second.
+ */
+const TICK_MS = 15_000;
 
 /**
  * How often an open tab re-polls `/api/freshness`. The server caches the lookup
@@ -26,6 +34,7 @@ const REFRESH_MS = 60_000;
 interface FreshnessTimes {
   lastUpdated: string;
   nextUpdate: string;
+  source: "run" | "event";
 }
 
 /**
@@ -91,7 +100,10 @@ function formatRelative(fromMs: number, nowMs: number): string {
 /**
  * Footer freshness line: the absolute Auckland-local time the data was last
  * updated, a live relative label that ticks as the page sits open, and the
- * projected next-update time (or "due now" once it has passed).
+ * projected next-update time (or "due now" once it has passed, and "ingest may
+ * be stalled" once three cadences have passed with no run). While no run has
+ * been logged at all the line says so rather than projecting a due time from an
+ * arrival stamp.
  *
  * The server-rendered instants go stale the moment the ingest cadence laps the
  * page view, so an open tab re-polls `/api/freshness` every {@link REFRESH_MS}
@@ -106,9 +118,16 @@ function formatRelative(fromMs: number, nowMs: number): string {
  * @param props - Component props.
  * @param props.lastUpdatedIso - ISO instant the data was last refreshed.
  * @param props.nextUpdateIso - ISO instant the next refresh is expected.
+ * @param props.source - Whether the instant is a logged run or the freshest arrival.
+ * @param props.intervalSec - The realtime ingest cadence in seconds.
  * @returns The freshness line element.
  */
-export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessProps): JSX.Element {
+export function DataFreshness({
+  lastUpdatedIso,
+  nextUpdateIso,
+  source,
+  intervalSec,
+}: DataFreshnessProps): JSX.Element {
   const nowMs = useSyncExternalStore(subscribeToClock, getClockSnapshot, getServerClockSnapshot);
   const [polled, setPolled] = useState<FreshnessTimes | null>(null);
 
@@ -123,7 +142,11 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
         if (!res.ok) return;
         const data = (await res.json()) as Partial<FreshnessTimes>;
         if (!cancelled && data.lastUpdated && data.nextUpdate) {
-          setPolled({ lastUpdated: data.lastUpdated, nextUpdate: data.nextUpdate });
+          setPolled({
+            lastUpdated: data.lastUpdated,
+            nextUpdate: data.nextUpdate,
+            source: data.source === "event" ? "event" : "run",
+          });
         }
       } catch {
         // Keep showing the last known instants; the next tick retries.
@@ -145,8 +168,12 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
   // Newest instant wins (ISO UTC strings compare lexicographically).
   const shown =
     polled && polled.lastUpdated > lastUpdatedIso
-      ? { lastUpdatedIso: polled.lastUpdated, nextUpdateIso: polled.nextUpdate }
-      : { lastUpdatedIso, nextUpdateIso };
+      ? {
+          lastUpdatedIso: polled.lastUpdated,
+          nextUpdateIso: polled.nextUpdate,
+          source: polled.source,
+        }
+      : { lastUpdatedIso, nextUpdateIso, source };
 
   const lastMs = new Date(shown.lastUpdatedIso).getTime();
   const nextMs = new Date(shown.nextUpdateIso).getTime();
@@ -157,6 +184,11 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
   const currentMs = nowMs === null ? null : Date.now();
   const relative = currentMs === null ? null : formatRelative(lastMs, currentMs);
   const dueNow = currentMs !== null && currentMs >= nextMs;
+  const stalledAfterMs = 3 * intervalSec * 1000;
+  const stalledMin =
+    currentMs !== null && currentMs - lastMs >= stalledAfterMs
+      ? Math.round((currentMs - lastMs) / 60_000)
+      : null;
 
   return (
     <p className="text-xs leading-relaxed text-white/70">
@@ -166,7 +198,13 @@ export function DataFreshness({ lastUpdatedIso, nextUpdateIso }: DataFreshnessPr
       </time>
       {relative ? ` (${relative})` : null}
       <span className="px-1.5 text-white/40">&middot;</span>
-      {dueNow ? (
+      {shown.source === "event" ? (
+        <span>awaiting the first ingest run</span>
+      ) : stalledMin !== null ? (
+        <span className="text-at-safety">
+          no update for {stalledMin} min, ingest may be stalled
+        </span>
+      ) : dueNow ? (
         <span className="text-at-safety">update due now</span>
       ) : (
         <>

@@ -94,7 +94,6 @@ export function ModeIcon({
     <Icon
       role="img"
       aria-label={label}
-      title={label}
       className={cn("h-5 w-5 shrink-0", brandColour ? undefined : colourClass, className)}
       style={brandColour ? { color: `#${brandColour}` } : undefined}
     />

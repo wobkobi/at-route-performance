@@ -4,6 +4,26 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.15] - 2026-09-13
+
+### Fixed
+
+- The footer's freshness line no longer reads "update due now" forever. While no ingest run has been
+  logged (a fresh deploy, or the run log reset) it says it is awaiting the first run rather than
+  projecting a due time from an arrival stamp, and once three ingest cadences pass with no run it
+  says how long ago the last update was and that ingest may be stalled. The resolver behind it is a
+  plain function with tests, and the label re-evaluates every 15 seconds instead of every second.
+- The worst-stops board's hourly rows linked to the stop without the day being viewed, so a past
+  day's row opened today's page; they carry `?day=` like the week rows.
+- The worst-routes week board printed "undefined/undefined" beside a row with no date; the date span
+  renders only when there is one. The worst-stop card called a stop's arrivals "buses" whatever ran
+  there; it says arrivals. The alert banner's route links now encode the slug. The route page says
+  when the trips board holds only the first 500 runs of the day.
+- Motion and accessibility: the map's pan to a selected stop and the pill and button hover
+  transitions honour a reduced-motion preference; the KPI breakdown popover is linked to its button,
+  closes on Escape and returns focus; the flame badge's tooltip opens on keyboard focus as well as
+  hover; the mode icon is labelled once instead of twice; a skip link leads to the page content.
+
 ## [1.12.14] - 2026-09-13
 
 ### Added
