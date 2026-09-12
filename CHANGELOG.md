@@ -4,6 +4,21 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.1] - 2026-09-12
+
+### Fixed
+
+- A completed day's boards were held for a week from the moment the day ended, about twenty hours
+  before the nightly aggregate classified its ghost readings, so whichever visitor first opened a
+  board for yesterday pinned the unclassified version for the week. Every date-scoped aggregation
+  (the worst route, trip and stop boards, route, stop and trip stats, the rankings' live days, the
+  shame streaks) now holds for a week only once every service day in its window has a
+  `DailyRouteSummary`, which the aggregate writes after the ghost pass; until then the caller's
+  short TTL applies. The Data Cache judges staleness by the calling TTL, so the state is part of the
+  cache key as well: once the summary lands the key changes and the earlier entry is abandoned
+  rather than kept fresh under the long TTL. The summary check is one indexed point read cached for
+  five minutes.
+
 ## [1.12.0] - 2026-09-12
 
 ### Added

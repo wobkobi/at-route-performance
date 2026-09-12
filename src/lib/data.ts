@@ -604,33 +604,90 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   };
 }
 
-/** Cache TTL for a completed service day's aggregation (seconds). */
+/** Cache TTL for a completed, classified service day's aggregation (seconds). */
 const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
 
 /**
- * Per-day cache TTL for date-scoped ArrivalEvent aggregations: completed
- * service days are immutable (ingest is real-time and cleanup only deletes
- * whole expired days), so they hold for a week; the current service day keeps
- * the caller's short TTL. A week bounds staleness if a past day is ever
- * re-ingested while still covering a day's ~2-week navigable life in one
- * computation.
- * @param date - The service date being aggregated (`YYYY-MM-DD`).
- * @param liveRevalidate - TTL for the still-running day, in seconds.
- * @returns The TTL to use, in seconds.
+ * Whether the nightly aggregate has written a `DailyRouteSummary` for a
+ * service date. The aggregate classifies the day's ghost readings before it
+ * writes the summaries, so a summary means the day's boards are final. One
+ * indexed point read, cached for five minutes so a day's caches move to the
+ * long TTL within that of the summary landing.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns True once the day has a summary.
  */
-function dayRevalidate(date: string, liveRevalidate: number): number {
-  return date < nzServiceDayString() ? COMPLETED_DAY_REVALIDATE : liveRevalidate;
+async function summaryExistsFor(date: string): Promise<boolean> {
+  return unstable_cache(
+    async () => {
+      const row = await prisma.dailyRouteSummary.findFirst({
+        where: { date: nzServiceDayRange(date).start },
+        select: { id: true },
+      });
+      return row !== null;
+    },
+    ["summary-exists", date],
+    { revalidate: 300 },
+  )();
 }
 
 /**
- * Range form of {@link dayRevalidate}: a window that ends at or before the
- * current service day's start contains only completed (immutable) days.
- * @param range - The queried half-open window.
- * @param liveRevalidate - TTL when the window touches the live day, in seconds.
- * @returns The TTL to use, in seconds.
+ * Whether every service day in a window is complete and summarised, so an
+ * aggregation over it can be held for a week. Null stands for a window that
+ * follows the live day.
+ * @param range - The queried half-open window, or null.
+ * @returns True when the window's result can no longer change.
  */
-function rangeRevalidate(range: DateRange, liveRevalidate: number): number {
-  return range.end <= nzServiceDayRange().start ? COMPLETED_DAY_REVALIDATE : liveRevalidate;
+async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
+  if (range === null || range.end > nzServiceDayRange().start) return false;
+  const dates = serviceDatesInRange(range);
+  if (dates.length === 0) return false;
+  return (await Promise.all(dates.map(summaryExistsFor))).every(Boolean);
+}
+
+/**
+ * Cache a date-scoped ArrivalEvent aggregation. A window over completed days
+ * holds for a week once every day in it is summarised: the nightly aggregate
+ * classifies ghost readings some twenty hours after a day ends, and a board
+ * computed before that would otherwise pin the unclassified result. Until
+ * then, and for a window touching the live day, the caller's short TTL
+ * applies. The Data Cache judges staleness by the calling TTL, so the key
+ * carries the state as well: once the summary lands the key changes and the
+ * earlier entry is abandoned rather than kept fresh under the long TTL. A
+ * week bounds staleness if a past day is ever re-ingested while still
+ * covering a day's ~2-week navigable life in one computation.
+ * @param fn - Produces the value on a miss.
+ * @param keyParts - Cache key, unique to the query and its window.
+ * @param range - The queried half-open window, or null for a rolling live one.
+ * @param liveRevalidate - TTL while the window can still change, in seconds.
+ * @returns The cached or fresh value.
+ */
+async function cachedForRange<T>(
+  fn: () => Promise<T>,
+  keyParts: string[],
+  range: DateRange | null,
+  liveRevalidate: number,
+): Promise<T> {
+  const final = await rangeIsFinal(range);
+  return unstable_cache(fn, [...keyParts, final ? "final" : "live"], {
+    revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
+  })();
+}
+
+/**
+ * {@link cachedForRange} for one service day.
+ * @param fn - Produces the value on a miss.
+ * @param keyParts - Cache key, unique to the query and its day.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param liveRevalidate - TTL while the day can still change, in seconds.
+ * @returns The cached or fresh value.
+ */
+function cachedForDay<T>(
+  fn: () => Promise<T>,
+  keyParts: string[],
+  date: string,
+  liveRevalidate: number,
+): Promise<T> {
+  return cachedForRange(fn, keyParts, nzServiceDayRange(date), liveRevalidate);
 }
 
 /**
@@ -663,11 +720,12 @@ export function cachedWorstTripsOfDay(
   includeSchool: boolean,
   revalidate: number,
 ): Promise<ShameTrip[]> {
-  return unstable_cache(
+  return cachedForDay(
     () => worstTripsForRange(nzServiceDayRange(date), mode, includeSchool),
     ["shame-trip-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-    { revalidate: dayRevalidate(date, revalidate) },
-  )();
+    date,
+    revalidate,
+  );
 }
 
 /**
@@ -685,11 +743,12 @@ export function cachedWorstRoutesOfDay(
   includeSchool: boolean,
   revalidate: number,
 ): Promise<ShameRouteRow[]> {
-  return unstable_cache(
+  return cachedForDay(
     () => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool),
     ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-    { revalidate: dayRevalidate(date, revalidate) },
-  )();
+    date,
+    revalidate,
+  );
 }
 
 /**
@@ -707,11 +766,12 @@ export function cachedWorstStopsOfDay(
   includeSchool: boolean,
   revalidate: number,
 ): Promise<ShameDayStop[]> {
-  return unstable_cache(
+  return cachedForDay(
     () => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool),
     ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-    { revalidate: dayRevalidate(date, revalidate) },
-  )();
+    date,
+    revalidate,
+  );
 }
 
 /**
@@ -721,7 +781,7 @@ export function cachedWorstStopsOfDay(
  * @returns Summary and top stops.
  */
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
-  return unstable_cache(
+  return cachedForRange(
     () => queryRouteStats(p),
     [
       "route-stats",
@@ -730,10 +790,10 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
       p.to?.toISOString() ?? "",
       String(p.thresholdSec),
     ],
-    // Explicit windows over completed days are immutable; the rolling default
-    // (no from/to) tracks the live day and keeps the short TTL.
-    { revalidate: p.from && p.to ? rangeRevalidate({ start: p.from, end: p.to }, 300) : 300 },
-  )();
+    // The rolling default (no from/to) tracks the live day.
+    p.from && p.to ? { start: p.from, end: p.to } : null,
+    300,
+  );
 }
 
 /**
@@ -911,11 +971,12 @@ async function summaryDatesIn(range: DateRange): Promise<Set<string>> {
  * @returns Per-route rows for that day.
  */
 function cachedLiveRankingsOfDay(date: string): Promise<TopRouteRow[]> {
-  return unstable_cache(
+  return cachedForDay(
     () => queryLiveRankings(nzServiceDayRange(date)),
     ["live-rankings-day", date],
-    { revalidate: dayRevalidate(date, 300) },
-  )();
+    date,
+    300,
+  );
 }
 
 /**
@@ -1226,7 +1287,7 @@ interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
 export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
   const limit = p.limit ?? 50;
   const sort = p.sort ?? "off";
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await routeIdsForSlug(p.routeId);
       const res = (await runCommand(() =>
@@ -1329,8 +1390,9 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
       String(limit),
       sort,
     ],
-    { revalidate: rangeRevalidate(p.range, 300) },
-  )();
+    p.range,
+    300,
+  );
 }
 
 /** A trip cancelled on a route for a service day, for the trip board. */
@@ -1353,7 +1415,7 @@ export async function getCancelledTrips(
   routeId: string,
   range: DateRange,
 ): Promise<CancelledTripRow[]> {
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
       const rows = await prisma.cancelledTrip.findMany({
@@ -1372,8 +1434,9 @@ export async function getCancelledTrips(
         .sort((a, b) => (a.headsign ?? a.trip_id).localeCompare(b.headsign ?? b.trip_id));
     },
     ["cancelled-trips", routeId, range.start.toISOString()],
-    { revalidate: rangeRevalidate(range, 300) },
-  )();
+    range,
+    300,
+  );
 }
 
 /**
@@ -1549,7 +1612,7 @@ export async function getShameOfDay(
   revalidate: number,
 ): Promise<ShameOfDay> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipeline: any[] = [
@@ -1690,8 +1753,9 @@ export async function getShameOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate: rangeRevalidate(range, revalidate) },
-  )();
+    range,
+    revalidate,
+  );
 }
 
 /** Threshold above which a service day is considered a "bad" shame day. */
@@ -1912,10 +1976,9 @@ export async function getShameRouteStreaksBatch(
   // routes anyway; including routeIds in the key caused a cache miss whenever
   // the visible route set grew during the day, re-running the full 14-day
   // aggregation on every new hourly cycle.
-  const firstBatch = await unstable_cache(
+  const fourteenDaysAgo = new Date(currentRange.start.getTime() - 14 * MS_IN_DAY);
+  const firstBatch = await cachedForRange(
     async () => {
-      const fourteenDaysAgo = new Date(currentRange.start.getTime() - 14 * MS_IN_DAY);
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipeline: any[] = [
         {
@@ -2041,11 +2104,12 @@ export async function getShameRouteStreaksBatch(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    // The 14-day window ends at the current day's start, so the result never
-    // includes the live day and is immutable for the whole service day (the
-    // key is day-scoped) - safe to hold long regardless of the caller's TTL.
-    { revalidate: COMPLETED_DAY_REVALIDATE },
-  )();
+    // The 14-day window ends at the current day's start, so it never includes
+    // the live day; it is held long once yesterday's summary exists and
+    // refreshed hourly until then.
+    { start: fourteenDaysAgo, end: currentRange.start },
+    3600,
+  );
 
   // Build lookup structures from the cached data (fast O(n), runs outside cache).
   const shameDays = new Map<string, Set<string>>();
@@ -2217,7 +2281,7 @@ export async function getShameRouteOfDay(
   revalidate: number,
 ): Promise<ShameRouteOfDay> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const pipeline = routeShamePipelineBase(range, mode, includeSchool, "hour", {
         hour: { $hour: { date: "$trip_start", timezone: "Pacific/Auckland" } },
@@ -2289,8 +2353,9 @@ export async function getShameRouteOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate: rangeRevalidate(range, revalidate) },
-  )();
+    range,
+    revalidate,
+  );
 }
 
 /**
@@ -2773,7 +2838,7 @@ export async function getWorstStops(
           end: nzServiceDayRange(days[days.length - 1]).end,
         }
       : range;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
@@ -2838,8 +2903,9 @@ export async function getWorstStops(
       includeSchool ? "school" : "no-school",
       String(limit),
     ],
-    { revalidate: rangeRevalidate(aligned, revalidate) },
-  )();
+    aligned,
+    revalidate,
+  );
 }
 
 /**
@@ -2859,7 +2925,7 @@ export async function getWorstStopsOfDay(
   revalidate: number,
 ): Promise<ShameStopOfDay> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
@@ -2951,8 +3017,9 @@ export async function getWorstStopsOfDay(
       mode ?? "all",
       includeSchool ? "school" : "no-school",
     ],
-    { revalidate: rangeRevalidate(range, revalidate) },
-  )();
+    range,
+    revalidate,
+  );
 }
 
 /** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
@@ -3211,7 +3278,7 @@ export async function getStopStats(
   thresholdSec: number,
   revalidate: number,
 ): Promise<StopStats | null> {
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const group = await resolveStopGroup(id);
       if (!group) return null;
@@ -3322,8 +3389,9 @@ export async function getStopStats(
       };
     },
     ["stop-stats", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate: rangeRevalidate(range, revalidate) },
-  )();
+    range,
+    revalidate,
+  );
 }
 
 /** Raw trip-timeline stop row before the `scheduled_at` date is normalised. */
@@ -3380,7 +3448,7 @@ export async function getTripTimeline(
   range?: DateRange,
 ): Promise<TripTimeline> {
   const day = range ?? (await latestTripDay(tripId));
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
       const route = await prisma.route.findUnique({
@@ -3467,10 +3535,10 @@ export async function getTripTimeline(
       };
     },
     ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
-    // Day-scoped timelines for completed days are immutable; the "all" variant
-    // follows the trip's latest day and stays short-lived.
-    { revalidate: day ? rangeRevalidate(day, 300) : 300 },
-  )();
+    // The "all" variant follows the trip's latest day and stays short-lived.
+    day ?? null,
+    300,
+  );
 }
 
 /** One stop in a trip's GTFS scheduled stop sequence. */
@@ -3617,7 +3685,7 @@ export async function getRouteDailyStats(
   to?: Date,
 ): Promise<RouteDay[]> {
   const range: DateRange = from && to ? { start: from, end: to } : nzLast7DaysRange();
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       // DailyRouteSummary stores versioned route IDs (e.g. "209-217"), not slugs.
       const routeIds = await routeIdsForSlug(routeId);
@@ -3707,6 +3775,7 @@ export async function getRouteDailyStats(
       return mergeRouteDays(days);
     },
     ["route-daily-stats", routeId, from?.toISOString() ?? "", to?.toISOString() ?? ""],
-    { revalidate: rangeRevalidate(range, 300) },
-  )();
+    range,
+    300,
+  );
 }
