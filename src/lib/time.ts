@@ -8,6 +8,10 @@
 // Rolling windows quantise to service-day boundaries so they cache by day rather
 // than by the instant.
 import { dmY } from "@/lib/format";
+import { NZ_TZ } from "@/lib/nz-tz";
+
+// Re-exported so callers take the timezone name and the helpers from one module.
+export { NZ_TZ };
 
 /** A UTC half-open window [start, end). */
 export interface DateRange {
@@ -64,7 +68,7 @@ function parseYm(ym: string): Pick<Ymd, "y" | "mo"> {
  */
 function nzLocalYmd(at: Date): Ymd {
   const ymd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -79,7 +83,7 @@ function nzLocalYmd(at: Date): Ymd {
  */
 function nzOffsetMinutes(at: Date): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -176,7 +180,7 @@ export function nzServiceDayRange(
   } else {
     const inst = typeof at === "string" ? new Date(at) : at;
     const dtf = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Pacific/Auckland",
+      timeZone: NZ_TZ,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -211,7 +215,7 @@ export function nzServiceDayRange(
 export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_START_HOUR): string {
   const { start } = nzServiceDayRange(at, startHour);
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -281,7 +285,7 @@ export function nzMonthRange(ym?: string): DateRange {
  */
 export function nzMonthKey(at: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     year: "numeric",
     month: "2-digit",
   }).format(at);
@@ -308,7 +312,7 @@ export function monthRangeLabel(range: DateRange): string {
   // The start instant is local midnight on the 1st; nudge a day in so the
   // formatter can never land in the previous month.
   return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     month: "long",
     year: "numeric",
   }).format(new Date(range.start.getTime() + 86_400_000));
@@ -362,7 +366,7 @@ export function serviceDatesInRange(range: DateRange): string[] {
  */
 export function nzClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-NZ", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     hour: "numeric",
     minute: "2-digit",
   });

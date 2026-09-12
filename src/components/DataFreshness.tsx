@@ -1,9 +1,8 @@
 "use client";
 // src/components/DataFreshness.tsx
-/**
- * @description Live relative label showing when data was last refreshed and when the next refresh is due.
- */
+// Live relative label showing when data was last refreshed and when the next refresh is due.
 
+import { NZ_TZ } from "@/lib/time";
 import { useEffect, useState, useSyncExternalStore, type JSX } from "react";
 
 /** Props for {@link DataFreshness}. */
@@ -64,7 +63,7 @@ function getServerClockSnapshot(): number | null {
  */
 function nzClock(iso: string): string {
   return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
+    timeZone: NZ_TZ,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

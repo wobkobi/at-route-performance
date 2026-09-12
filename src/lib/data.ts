@@ -47,6 +47,7 @@ import {
   type StationRow,
 } from "@/lib/station";
 import {
+  NZ_TZ,
   nzLast7DaysRange,
   nzServiceDayRange,
   nzServiceDayString,
@@ -1353,7 +1354,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                   $dateToString: {
                     date: "$scheduled_start",
                     format: "%Y-%m-%dT%H:%M",
-                    timezone: "Pacific/Auckland",
+                    timezone: NZ_TZ,
                   },
                 },
               },
@@ -1682,7 +1683,7 @@ export async function getShameOfDay(
       pipeline.push(
         {
           $addFields: {
-            hour: { $hour: { date: "$scheduled_start", timezone: "Pacific/Auckland" } },
+            hour: { $hour: { date: "$scheduled_start", timezone: NZ_TZ } },
           },
         },
         // Sort worst-first, then keep the worst run of each hour ($first after the
@@ -1815,7 +1816,7 @@ export async function getShameStreak(
                   $dateToString: {
                     date: "$_id",
                     format: "%Y-%m-%d",
-                    timezone: "Pacific/Auckland",
+                    timezone: NZ_TZ,
                   },
                 },
                 avgAbsDelaySec: { $round: ["$maxAbsDelaySec", 1] },
@@ -1918,7 +1919,7 @@ export async function getShameRouteStreak(
                   $dateToString: {
                     date: "$_id",
                     format: "%Y-%m-%d",
-                    timezone: "Pacific/Auckland",
+                    timezone: NZ_TZ,
                   },
                 },
                 topRouteId: 1,
@@ -2017,7 +2018,7 @@ export async function getShameRouteStreaksBatch(
         {
           $addFields: {
             serviceDay: serviceDateExpr("$trip_start"),
-            hour: { $hour: { date: "$trip_start", timezone: "Pacific/Auckland" } },
+            hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } },
           },
         },
         // Group by (serviceDay, hour, routeId).
@@ -2298,7 +2299,7 @@ export async function getShameRouteOfDay(
   return cachedForRange(
     async (classified) => {
       const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "hour", {
-        hour: { $hour: { date: "$trip_start", timezone: "Pacific/Auckland" } },
+        hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } },
       });
       pipeline.push(
         { $sort: { avg_abs_delay_sec: -1 } },
@@ -2965,7 +2966,7 @@ export async function getWorstStopsOfDay(
             {
               $group: {
                 _id: {
-                  hour: { $hour: { date: "$scheduledAt", timezone: "Pacific/Auckland" } },
+                  hour: { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
                   stop_id: "$stopId",
                 },
                 events: { $sum: 1 },
