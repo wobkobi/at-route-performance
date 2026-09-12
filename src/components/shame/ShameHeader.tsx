@@ -1,7 +1,6 @@
 // src/components/shame/ShameHeader.tsx
-/**
- * @description Shame view header with the active tab and a day or week stepper control.
- */
+// Shame view header with the active tab and a day or week stepper control.
+
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";

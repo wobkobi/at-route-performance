@@ -1,7 +1,6 @@
 // src/app/api/routes/[id]/vehicles/route.ts
-/**
- * @description GET handler returning live vehicle positions JSON for a route, each with its current delay.
- */
+// GET handler returning live vehicle positions JSON for a route, each with its current delay.
+
 import { routeSlug } from "@/lib/route-slug";
 import { getLiveVehicles } from "@/lib/vehicles";
 import { NextResponse } from "next/server";

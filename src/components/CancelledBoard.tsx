@@ -1,10 +1,9 @@
 // src/components/CancelledBoard.tsx
-/**
- * @description Board listing the routes that cancelled the most trips in a
- * window. Cancellations sit outside every other board on this site: a cancelled
- * trip records no arrival, so it cannot be ranked by lateness and it cannot drag
- * an on-time rate down - it silently improves one. This is where that shows.
- */
+// Board listing the routes that cancelled the most trips in a
+// window. Cancellations sit outside every other board on this site: a cancelled
+// trip records no arrival, so it cannot be ranked by lateness and it cannot drag
+// an on-time rate down - it silently improves one. This is where that shows.
+
 import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";
 import { lineName } from "@/lib/line-name";

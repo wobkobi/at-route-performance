@@ -1,7 +1,6 @@
 // src/lib/page-nav.test.ts
-/**
- * @description Unit tests for the page-nav helpers resolveRequestedDay, resolveWeekNav and filterLiveHours in page-nav.ts.
- */
+// Unit tests for the page-nav helpers resolveRequestedDay, resolveWeekNav and filterLiveHours in page-nav.ts.
+
 import {
   filterLiveHours,
   resolveMonthNav,

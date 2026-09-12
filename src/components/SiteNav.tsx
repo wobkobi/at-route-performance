@@ -1,8 +1,6 @@
 "use client";
 // src/components/SiteNav.tsx
-/**
- * @description Primary site navigation links, highlighting the current section.
- */
+// Primary site navigation links, highlighting the current section.
 
 import { cn } from "@/lib/cn";
 import Link from "next/link";

@@ -1,8 +1,7 @@
 // src/components/shame/ShameBoardSkeleton.tsx
-/**
- * @description Pulse-placeholder skeleton for a shame board list, shared by the
- * shame loading pages and the in-page Suspense fallbacks while a board streams.
- */
+// Pulse-placeholder skeleton for a shame board list, shared by the
+// shame loading pages and the in-page Suspense fallbacks while a board streams.
+
 import type { JSX } from "react";
 
 /**

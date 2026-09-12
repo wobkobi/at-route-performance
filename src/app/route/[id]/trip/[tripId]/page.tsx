@@ -1,7 +1,6 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
-/**
- * @description Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
- */
+// Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
+
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";

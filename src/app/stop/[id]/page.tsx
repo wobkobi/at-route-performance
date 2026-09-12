@@ -1,13 +1,12 @@
 // src/app/stop/[id]/page.tsx
-/**
- * @description Stop detail page showing a single stop's punctuality, worst routes,
- * and map location for a service day. Day-focused like the route page: it falls
- * back to the most recent populated day when the requested one has too few
- * events, and the net-average wording stays mode-less because a stop mixes modes
- * (no single on-time window). A station page stands for several GTFS stops, so
- * its alerts and departures are resolved across every platform behind it - AT
- * keys both to raw stop ids, and matching the station's own id hit nothing.
- */
+// Stop detail page showing a single stop's punctuality, worst routes,
+// and map location for a service day. Day-focused like the route page: it falls
+// back to the most recent populated day when the requested one has too few
+// events, and the net-average wording stays mode-less because a stop mixes modes
+// (no single on-time window). A station page stands for several GTFS stops, so
+// its alerts and departures are resolved across every platform behind it - AT
+// keys both to raw stop ids, and matching the station's own id hit nothing.
+
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";

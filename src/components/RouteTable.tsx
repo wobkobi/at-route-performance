@@ -1,8 +1,6 @@
 "use client";
 // src/components/RouteTable.tsx
-/**
- * @description Render a sortable table of routes with event counts and on-time stats.
- */
+// Render a sortable table of routes with event counts and on-time stats.
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";

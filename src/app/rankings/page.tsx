@@ -1,7 +1,6 @@
 // src/app/rankings/page.tsx
-/**
- * @description Rankings page rendering week or month network performance.
- */
+// Rankings page rendering week or month network performance.
+
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";

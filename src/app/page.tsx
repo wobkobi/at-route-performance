@@ -1,15 +1,14 @@
 // src/app/page.tsx
-/**
- * @description Home page rendering today's network performance dashboard. When
- * no day is requested and the current service day is too sparse to fill the
- * boards (early morning, or ingest catching up), it falls back to the most
- * recent day that does. Mode, school-bus, delay-direction, and day filters each
- * preserve the others' params so they compose in links, and the KPI strip is
- * summarised from exactly the visible rows so the filters flow through without a
- * separate fleet query. The alerts fetch starts early so it overlaps the day's
- * queries, but the banner itself is awaited: it sits above the KPI strip, and
- * streaming it in shoved the whole dashboard down as the reader arrived.
- */
+// Home page rendering today's network performance dashboard. When
+// no day is requested and the current service day is too sparse to fill the
+// boards (early morning, or ingest catching up), it falls back to the most
+// recent day that does. Mode, school-bus, delay-direction, and day filters each
+// preserve the others' params so they compose in links, and the KPI strip is
+// summarised from exactly the visible rows so the filters flow through without a
+// separate fleet query. The alerts fetch starts early so it overlaps the day's
+// queries, but the banner itself is awaited: it sits above the KPI strip, and
+// streaming it in shoved the whole dashboard down as the reader arrived.
+
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";

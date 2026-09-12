@@ -1,15 +1,13 @@
 // src/lib/on-time.ts
-/**
- * @description Single source of truth for the on-time window and delay banding,
- * free of server-only imports so both client and Mongo callers share it. The
- * window is deliberately asymmetric (up to 5 min late counts on time) and
- * mode-specific (buses and trains hold at timepoints so they get only 1 min of
- * early tolerance; ferries get the full 5). Aggregation pipelines that only learn
- * a group's mode after a later `$lookup` get paired strict/ferry accumulators to
- * pick between once the mode is known; pipelines that already resolved the mode
- * in JS get a single-mode accumulator. Banding rounds first so the colour matches
- * the displayed, rounded delay.
- */
+// Single source of truth for the on-time window and delay banding,
+// free of server-only imports so both client and Mongo callers share it. The
+// window is deliberately asymmetric (up to 5 min late counts on time) and
+// mode-specific (buses and trains hold at timepoints so they get only 1 min of
+// early tolerance; ferries get the full 5). Aggregation pipelines that only learn
+// a group's mode after a later `$lookup` get paired strict/ferry accumulators to
+// pick between once the mode is known; pipelines that already resolved the mode
+// in JS get a single-mode accumulator. Banding rounds first so the colour matches
+// the displayed, rounded delay.
 
 /** Late tolerance in seconds: a service up to this late still counts on time. */
 export const ON_TIME_LATE_SEC = 5 * 60;

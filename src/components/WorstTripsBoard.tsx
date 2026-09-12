@@ -1,13 +1,12 @@
 // src/components/WorstTripsBoard.tsx
-/**
- * @description Paginated, sortable table of a route's worst trips with delay
- * bands. Sort chips reset to page 1 and clicking the active chip toggles its
- * direction, while the prev/next page links preserve the active sort so paging
- * doesn't drop it. Cancelled trips carry no delay to rank, so they pin to the
- * top of page 1 with a CANCELLED badge; running trips get a LIVE badge from the
- * passed-in live id set, and the per-page rank number stays continuous across
- * pages.
- */
+// Paginated, sortable table of a route's worst trips with delay
+// bands. Sort chips reset to page 1 and clicking the active chip toggles its
+// direction, while the prev/next page links preserve the active sort so paging
+// doesn't drop it. Cancelled trips carry no delay to rank, so they pin to the
+// top of page 1 with a CANCELLED badge; running trips get a LIVE badge from the
+// passed-in live id set, and the per-page rank number stays continuous across
+// pages.
+
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { CancelledTripRow, TripSort } from "@/lib/data";

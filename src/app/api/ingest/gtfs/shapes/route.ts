@@ -1,12 +1,11 @@
 // src/app/api/ingest/gtfs/shapes/route.ts
-/**
- * @description Cron-only POST that syncs GTFS shape geometry (road paths) and
- * trip metadata. Both run in parallel off AT's full GTFS zip, which is large to
- * download and parse - hence the extended maxDuration and the infrequent, static
- * schedule rather than the regular ingest cadence. Responds 202 before the sync
- * runs (it takes minutes, far past the external scheduler's 30s request
- * timeout); the outcome is recorded in IngestRun and the function logs.
- */
+// Cron-only POST that syncs GTFS shape geometry (road paths) and
+// trip metadata. Both run in parallel off AT's full GTFS zip, which is large to
+// download and parse - hence the extended maxDuration and the infrequent, static
+// schedule rather than the regular ingest cadence. Responds 202 before the sync
+// runs (it takes minutes, far past the external scheduler's 30s request
+// timeout); the outcome is recorded in IngestRun and the function logs.
+
 import { requireCronAuth } from "@/lib/auth";
 import { syncShapes, syncTripMeta } from "@/lib/ingest";
 import { recordIngestRun } from "@/lib/ingest-run";

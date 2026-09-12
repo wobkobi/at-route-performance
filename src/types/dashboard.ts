@@ -1,7 +1,5 @@
 // src/types/dashboard.ts
-/**
- * @description Dashboard view-model types, including fleet-wide summary totals.
- */
+// Dashboard view-model types, including fleet-wide summary totals.
 
 /** Fleet-wide totals for a window. */
 export interface FleetSummary {

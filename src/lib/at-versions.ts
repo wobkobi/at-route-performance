@@ -1,10 +1,9 @@
 // src/lib/at-versions.ts
-/**
- * @description Resolves which GTFS feed version AT is currently publishing, from
- * the GTFS v3 /versions endpoint. AT names the field `feed_version` (not
- * `version`) and ships no `is_current` flag, so the live feed is identified by
- * the `feed_start_date`/`feed_end_date` window that covers the service day.
- */
+// Resolves which GTFS feed version AT is currently publishing, from
+// the GTFS v3 /versions endpoint. AT names the field `feed_version` (not
+// `version`) and ships no `is_current` flag, so the live feed is identified by
+// the `feed_start_date`/`feed_end_date` window that covers the service day.
+
 import { getJson } from "@/lib/at-static";
 import { nzServiceDayString } from "@/lib/time";
 

@@ -1,7 +1,6 @@
 // src/components/shame/ShameBoard.tsx
-/**
- * @description Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
- */
+// Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
+
 import { cn } from "@/lib/cn";
 import { ITEMS_PER_COL } from "@/lib/shame-page";
 import type { JSX } from "react";

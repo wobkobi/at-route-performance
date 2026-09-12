@@ -1,7 +1,6 @@
 // src/app/loading.tsx
-/**
- * @description Loading skeleton for the home page.
- */
+// Loading skeleton for the home page.
+
 import type { JSX } from "react";
 
 /**

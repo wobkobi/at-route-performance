@@ -1,9 +1,8 @@
 // src/components/RankingsBodySkeleton.tsx
-/**
- * @description Pulse-placeholder skeleton for the rankings page body (KPI strip
- * to route table), shared by the rankings loading page and the in-page Suspense
- * fallback while the ranking batch streams.
- */
+// Pulse-placeholder skeleton for the rankings page body (KPI strip
+// to route table), shared by the rankings loading page and the in-page Suspense
+// fallback while the ranking batch streams.
+
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 

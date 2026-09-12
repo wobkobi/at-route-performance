@@ -1,12 +1,11 @@
 // src/components/FleetSummary.tsx
-/**
- * @description Render the fleet KPI strip of arrivals, on-time %, average
- * off-schedule, cancellations, and routes. The arrivals count is stop arrivals,
- * not trips: one trip contributes one ArrivalEvent per stop it serves, so
- * labelling it "trips" overstates it by the route's stop count. Cancellations
- * sit beside the percentages rather than inside them - a cancelled trip records
- * no arrival, so it cannot appear in an on-time rate at all.
- */
+// Render the fleet KPI strip of arrivals, on-time %, average
+// off-schedule, cancellations, and routes. The arrivals count is stop arrivals,
+// not trips: one trip contributes one ArrivalEvent per stop it serves, so
+// labelling it "trips" overstates it by the route's stop count. Cancellations
+// sit beside the percentages rather than inside them - a cancelled trip records
+// no arrival, so it cannot appear in an on-time rate at all.
+
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { cn } from "@/lib/cn";
 import { formatDuration } from "@/lib/format";

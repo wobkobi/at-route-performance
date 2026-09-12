@@ -1,12 +1,11 @@
 // src/lib/at-static.ts
-/**
- * @description Client for AT's GTFS v3 JSON:API static feed (routes, stops,
- * trips, stoptimes). Wraps the JSON:API envelope with a fetcher that retries
- * 429/5xx and network/timeout errors on exponential backoff, follows
- * `links.next` to flatten paginated collections (with a hard guard against a
- * runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
- * subscription key is read once at module load into the shared header.
- */
+// Client for AT's GTFS v3 JSON:API static feed (routes, stops,
+// trips, stoptimes). Wraps the JSON:API envelope with a fetcher that retries
+// 429/5xx and network/timeout errors on exponential backoff, follows
+// `links.next` to flatten paginated collections (with a hard guard against a
+// runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
+// subscription key is read once at module load into the shared header.
+
 import { sleep } from "@/lib/utils";
 
 // Base URL for AT GTFS v3 JSON:API.

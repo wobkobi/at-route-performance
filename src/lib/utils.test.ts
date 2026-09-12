@@ -1,7 +1,6 @@
 // src/lib/utils.test.ts
-/**
- * @description Unit tests for the shared helpers buildHref, isObj and sleep in utils.ts.
- */
+// Unit tests for the shared helpers buildHref, isObj and sleep in utils.ts.
+
 import { buildHref, isObj, sleep } from "@/lib/utils";
 import { describe, expect, it } from "vitest";
 

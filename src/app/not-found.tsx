@@ -1,7 +1,6 @@
 // src/app/not-found.tsx
-/**
- * @description Global 404 page with a page directory and the full route list.
- */
+// Global 404 page with a page directory and the full route list.
+
 import { ModeIcon } from "@/components/ModeIcon";
 import { getDirectoryRoutes, type DirectoryRoute } from "@/lib/data";
 import { routeSlug } from "@/lib/route-slug";

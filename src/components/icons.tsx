@@ -1,7 +1,6 @@
 // src/components/icons.tsx
-/**
- * @description Inline SVG icon components that inherit text colour via currentColor.
- */
+// Inline SVG icon components that inherit text colour via currentColor.
+
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
 

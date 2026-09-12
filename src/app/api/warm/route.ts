@@ -1,14 +1,13 @@
 // src/app/api/warm/route.ts
-/**
- * @description Cron-only POST that pre-computes yesterday's shame boards into
- * the Data Cache so the first visitor to a week or month view never pays for a
- * cold day. Warms the default filter variant (all modes, school excluded) of
- * the three per-day board aggregations - the exact cache keys the boards read -
- * plus the navigation-bound markers, which shift after the nightly cleanup.
- * Entries are written by the deployment that runs this, so pointing cron-job.org
- * at production warms the production cache. Not an ingest: it writes no data
- * and records no IngestRun.
- */
+// Cron-only POST that pre-computes yesterday's shame boards into
+// the Data Cache so the first visitor to a week or month view never pays for a
+// cold day. Warms the default filter variant (all modes, school excluded) of
+// the three per-day board aggregations - the exact cache keys the boards read -
+// plus the navigation-bound markers, which shift after the nightly cleanup.
+// Entries are written by the deployment that runs this, so pointing cron-job.org
+// at production warms the production cache. Not an ingest: it writes no data
+// and records no IngestRun.
+
 import { requireCronAuth } from "@/lib/auth";
 import {
   cachedWorstRoutesOfDay,

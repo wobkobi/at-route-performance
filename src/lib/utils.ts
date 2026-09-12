@@ -1,7 +1,5 @@
 // src/lib/utils.ts
-/**
- * @description General-purpose helpers - sleep, type guards and URL href building.
- */
+// General-purpose helpers - sleep, type guards and URL href building.
 
 /**
  * Sleep for a given number of milliseconds.

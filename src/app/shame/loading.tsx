@@ -1,7 +1,6 @@
 // src/app/shame/loading.tsx
-/**
- * @description Loading skeleton for the shame dashboard.
- */
+// Loading skeleton for the shame dashboard.
+
 import type { JSX } from "react";
 
 /**

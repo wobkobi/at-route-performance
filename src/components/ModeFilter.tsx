@@ -1,7 +1,6 @@
 // src/components/ModeFilter.tsx
-/**
- * @description Chip row filtering by transport mode - bus, train, ferry, or all.
- */
+// Chip row filtering by transport mode - bus, train, ferry, or all.
+
 import { cn } from "@/lib/cn";
 import { buildHref } from "@/lib/utils";
 import type { JSX } from "react";
