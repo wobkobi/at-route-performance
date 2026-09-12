@@ -50,6 +50,7 @@ import {
   nzLast7DaysRange,
   nzServiceDayRange,
   nzServiceDayString,
+  nzWeekRange,
   SERVICE_START_HOUR,
   serviceDatesInRange,
   shiftWeek,
@@ -91,7 +92,6 @@ function toIso(d: { $date: string } | string): string {
   return typeof d === "string" ? d : d.$date;
 }
 
-const MS_IN_WEEK = 604_800_000;
 const MS_IN_DAY = 86_400_000;
 
 /**
@@ -310,33 +310,22 @@ export interface RouteStats {
 }
 
 /**
- * Compute the UTC start/end for an ISO week string, defaulting to the current week.
+ * The Auckland-local week window for an ISO week string, defaulting to the
+ * week containing now. ISO week 1 is the week holding 4 January; the target
+ * week's Monday is stepped from there as a date and handed to
+ * {@link nzWeekRange}, so the window runs from Auckland midnight rather than
+ * UTC midnight (twelve or thirteen hours late for a New Zealand week).
  * @param iso - ISO week like `2025-W32` (optional).
- * @returns Start (Mon 00:00 UTC) and end (next Mon 00:00 UTC).
+ * @returns The week as a half-open UTC window.
  */
-function isoWeekRange(iso?: string): { start: Date; end: Date } {
-  const now = new Date();
-  let year = now.getUTCFullYear();
-  let week: number | undefined;
-  const [, yearPart, weekPart] = iso?.match(/^(\d{4})-W(\d{1,2})$/) ?? [];
-  if (yearPart !== undefined && weekPart !== undefined) {
-    year = parseInt(yearPart, 10);
-    week = parseInt(weekPart, 10);
-  }
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const day = jan4.getUTCDay() || 7;
-  const week1Mon = new Date(jan4);
-  week1Mon.setUTCDate(jan4.getUTCDate() - day + 1);
-
-  if (!week) {
-    const diff = Date.now() - week1Mon.getTime();
-    week = Math.floor(diff / MS_IN_WEEK) + 1;
-  }
-  const start = new Date(week1Mon);
-  start.setUTCDate(week1Mon.getUTCDate() + 7 * (week - 1));
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
-  return { start, end };
+function isoWeekRange(iso?: string): DateRange {
+  const parts = iso?.match(/^(\d{4})-W(\d{1,2})$/);
+  if (!parts) return nzWeekRange();
+  const [, yearPart = "", weekPart = ""] = parts;
+  const jan4 = new Date(Date.UTC(Number(yearPart), 0, 4));
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + 7 * (Number(weekPart) - 1));
+  return nzWeekRange(monday.toISOString().slice(0, 10));
 }
 
 /**
@@ -1298,6 +1287,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
   return cachedForRange(
     async (classified) => {
       const routeIds = await routeIdsForSlug(p.routeId);
+      const real = realDeviationExprFor(classified);
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
           aggregate: "ArrivalEvent",
@@ -1317,23 +1307,30 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
             {
               $group: {
                 _id: "$tripId",
-                vehicle_id: { $first: "$vehicleId" },
                 scheduled_start: { $min: "$scheduledAt" },
-                stops: { $sum: 1 },
                 first_stop_id: { $first: "$stopId" },
-                // Collect the real readings only (a ghost contributes null and
-                // is filtered out below), so per-trip stats skip the noise while
-                // `stops` still counts every event.
-                _delays: {
-                  $push: { $cond: [realDeviationExprFor(classified), "$deviationSec", null] },
-                },
+                // Real readings only: a ghost re-report contributes null to each
+                // list and is dropped below, so the stop count, the vehicle and
+                // the stats all describe the run itself. A ghost comes from a
+                // different vehicle, so its id would name the wrong bus, and it
+                // repeats a stop the run already served, so counting rows would
+                // overstate the stops.
+                _delays: { $push: { $cond: [real, "$deviationSec", null] } },
+                _stops: { $addToSet: { $cond: [real, "$stopId", null] } },
+                _vehicles: { $push: { $cond: [real, { $ifNull: ["$vehicleId", null] }, null] } },
               },
             },
             {
-              // Drop the nulls the ghost guard pushed, leaving the real readings.
               $addFields: {
-                _ok: {
-                  $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } },
+                _ok: { $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } } },
+                stops: {
+                  $size: { $filter: { input: "$_stops", as: "s", cond: { $ne: ["$$s", null] } } },
+                },
+                // The chronologically first real reading names the vehicle.
+                vehicle_id: {
+                  $first: {
+                    $filter: { input: "$_vehicles", as: "v", cond: { $ne: ["$$v", null] } },
+                  },
                 },
               },
             },
@@ -1429,7 +1426,9 @@ export async function getCancelledTrips(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
       const rows = await prisma.cancelledTrip.findMany({
-        where: { routeId: { in: routeIds }, serviceDate: range.start },
+        // Range match, as the other cancellation reads do, so the helper serves
+        // any window rather than only a day whose start equals a stored stamp.
+        where: { routeId: { in: routeIds }, serviceDate: { gte: range.start, lt: range.end } },
         select: { tripId: true },
       });
       if (rows.length === 0) return [];
@@ -1443,7 +1442,7 @@ export async function getCancelledTrips(
         .map((id) => ({ trip_id: id, headsign: headsignById.get(id) ?? null }))
         .sort((a, b) => (a.headsign ?? a.trip_id).localeCompare(b.headsign ?? b.trip_id));
     },
-    ["cancelled-trips", routeId, range.start.toISOString()],
+    ["cancelled-trips", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
     300,
   );
@@ -1638,12 +1637,15 @@ export async function getShameOfDay(
             _id: "$tripId",
             route_id: { $first: "$routeId" },
             scheduled_start: { $min: "$scheduledAt" },
-            stops: { $sum: 1 },
+            _stops: { $addToSet: "$stopId" },
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
             avg_delay_sec: { $avg: "$deviationSec" },
             worst_delay_sec: { $max: "$deviationSec" },
           },
         },
+        // Distinct stops with a real reading; rows would double-count a stop
+        // that carries both a real arrival and a re-report.
+        { $addFields: { stops: { $size: "$_stops" } } },
         { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
         { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
         { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
@@ -2517,12 +2519,15 @@ function shamePipelineBase(
         _id: "$tripId",
         route_id: { $first: "$routeId" },
         scheduled_start: { $min: "$scheduledAt" },
-        stops: { $sum: 1 },
+        _stops: { $addToSet: "$stopId" },
         avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
         avg_delay_sec: { $avg: "$deviationSec" },
         worst_delay_sec: { $max: "$deviationSec" },
       },
     },
+    // Distinct stops with a real reading; rows would double-count a stop
+    // that carries both a real arrival and a re-report.
+    { $addFields: { stops: { $size: "$_stops" } } },
     { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
     { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
     { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
@@ -3575,7 +3580,9 @@ export interface ScheduledStop {
 /**
  * Scheduled stop sequence for a trip from the AT GTFS static feed, joined with
  * stop names and coordinates from the database. Cached for a day - the schedule
- * does not change during a trip's service day.
+ * does not change during a trip's service day. An AT failure throws out of the
+ * cache rather than storing an empty schedule for the day; the trip page treats
+ * it as no schedule for that request only.
  * @param tripId - AT GTFS trip id.
  * @returns Stops ordered by stop_sequence with display names and coordinates.
  */
@@ -3589,7 +3596,7 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
     async () => {
       const stoptimes = await fetchAll<RawStopTime>(
         `/trips/${encodeURIComponent(tripId)}/stoptimes`,
-      ).catch(() => [] as RawStopTime[]);
+      );
       if (stoptimes.length === 0) return [];
       const ordered = stoptimes.slice().sort((a, b) => a.stop_sequence - b.stop_sequence);
       const stopIds = ordered.map((s) => s.stop_id);
