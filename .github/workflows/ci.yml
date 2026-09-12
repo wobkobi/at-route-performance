@@ -22,9 +22,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    env:
-      MONGODB_URI: ${{ secrets.MONGODB_URI }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -44,6 +41,9 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Run unit tests
+        run: npm test
+
       # Dependabot pull requests are built too. The build reads no secrets, and
       # auto-merge queues patch and minor bumps, so this is the signal that a
       # bump still compiles.
@@ -52,9 +52,6 @@ jobs:
 
   type-check:
     runs-on: ubuntu-latest
-
-    env:
-      MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
     steps:
       - name: Checkout code
@@ -74,3 +71,45 @@ jobs:
 
       - name: TypeScript type check
         run: npm run typecheck
+
+  # Builds, starts the standalone server and visits every public page with
+  # Puppeteer against the real database. Runs only when the DATABASE_URL secret
+  # is set: Dependabot pull requests and forks get no secrets, so every step is
+  # skipped there rather than failed. The database is reachable from public
+  # cloud (production connects to it from Vercel), so a hosted runner can too.
+  # AT_API_KEY is optional; pages render without live AT data.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      AT_API_KEY: ${{ secrets.AT_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        if: env.DATABASE_URL != ''
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        if: env.DATABASE_URL != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: "npm"
+
+      - name: Install dependencies
+        if: env.DATABASE_URL != ''
+        run: npm ci
+
+      - name: Generate Prisma Client
+        if: env.DATABASE_URL != ''
+        run: npx prisma generate
+
+      - name: Build, start and visit every page
+        if: env.DATABASE_URL != ''
+        run: npm run smoke
+
+      - name: Report a skipped run
+        if: env.DATABASE_URL == ''
+        run: echo "DATABASE_URL secret not available; smoke test skipped."
