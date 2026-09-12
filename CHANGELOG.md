@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.16] - 2026-09-13
+
+### Changed
+
+- `src/lib/data.ts` (3,640 lines, every server read in one file) is split by concern into
+  `src/lib/data/`: the cache policy, route identity and the directory, rankings, one route's stats,
+  the archive's edges, trips, cancellations, the shared shame filter, the worst-trip and worst-route
+  boards, and stops and stations. `data.ts` is now a barrel re-exporting exactly the 45 names it
+  exported before, so no import site changed. Every declaration moved verbatim with its comment; the
+  only new text is each file's header and imports, the barrel, and `export` on twelve helpers that
+  were private to the one file and now serve another.
+
 ## [1.12.15] - 2026-09-13
 
 ### Fixed
