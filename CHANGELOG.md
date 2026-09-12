@@ -4,6 +4,34 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.0] - 2026-09-12
+
+### Added
+
+- Rankings now cover every day in the window, including today. The week and month boards read
+  `DailyRouteSummary` for the days the nightly aggregate has covered and scan `ArrivalEvent` live
+  for the rest (today, and any earlier day whose aggregate has not run), merging the two by event
+  weight. Before, a window fell back to the live scan only when it held no summaries at all, so as
+  soon as the first nightly aggregate landed the newest one or two days vanished from `/rankings`:
+  on 12 September the week view listed ten routes from a 79-event sliver of 10 September and none of
+  the 240,000 arrivals recorded since. Each live day is cached on its own, so every window that
+  covers it shares one aggregation, and a summary written for the current service day is ignored in
+  favour of the live scan.
+- The route page's week view fills the same way: completed days come from the summaries and the rest
+  from one live aggregation grouped by service date, using the same real-reading filter and per-mode
+  on-time window as the day view, so today appears in the table as it happens. Two versions of a
+  route summarised for the same day merge into one row. When the window holds no arrivals the table
+  says so instead of leaving a bare heading over `0` and dashes.
+
+### Fixed
+
+- Live-day boards counted AT's predictions for stops not yet due. The ingest stores the predicted
+  arrival for every remaining stop of a running trip and revises it each poll, so a window reaching
+  past the present ranked guesses alongside observations. Every stats aggregation over a live window
+  (rankings, the worst route, trip and stop boards, route and stop stats, the shame boards) now
+  clips its end to the present; completed days are unchanged, and the trip timeline still shows a
+  run's upcoming stops.
+
 ## [1.11.8] - 2026-09-12
 
 ### Changed

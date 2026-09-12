@@ -47,6 +47,7 @@ import {
   type StationRow,
 } from "@/lib/station";
 import {
+  nzLast7DaysRange,
   nzServiceDayRange,
   nzServiceDayString,
   SERVICE_START_HOUR,
@@ -350,10 +351,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
   const pipeline: any[] = [
     {
       $match: {
-        scheduledAt: {
-          $gte: { $date: start.toISOString() },
-          $lt: { $date: end.toISOString() },
-        },
+        scheduledAt: scheduledAtWindow({ start, end }),
         ...realDeviationMatch,
       },
     },
@@ -500,10 +498,7 @@ async function queryRouteStats(p: RouteStatsParams): Promise<RouteStats> {
 
   const match = {
     routeId: { $in: routeIds },
-    scheduledAt: {
-      $gte: { $date: start.toISOString() },
-      $lt: { $date: end.toISOString() },
-    },
+    scheduledAt: scheduledAtWindow({ start, end }),
     ...realDeviationMatch,
   };
 
@@ -639,6 +634,21 @@ function rangeRevalidate(range: DateRange, liveRevalidate: number): number {
 }
 
 /**
+ * The `scheduledAt` match for a stats aggregation over a window. The ingest
+ * stores AT's predicted arrival for every remaining stop of a running trip and
+ * revises it each poll until the vehicle passes, so a window reaching past the
+ * present would count guesses for stops not yet due; the end is clipped to now.
+ * Windows over completed days are returned as they are. Callers cache the live
+ * day for minutes, so the clip advances with the cache.
+ * @param range - UTC half-open window.
+ * @returns The `$gte`/`$lt` bounds in extended JSON.
+ */
+function scheduledAtWindow(range: DateRange): { $gte: { $date: string }; $lt: { $date: string } } {
+  const end = range.end.getTime() > Date.now() ? new Date() : range.end;
+  return { $gte: { $date: range.start.toISOString() }, $lt: { $date: end.toISOString() } };
+}
+
+/**
  * The cached worst runs for one service day. Key and TTL live here so the week
  * and month boards and the cache pre-warm route hit the same Data Cache entries.
  * @param date - Service date (`YYYY-MM-DD`).
@@ -735,6 +745,9 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
  * @returns Rows for every route with at least one summary in the window.
  */
 async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
+  // A summary row for the current service day would be a mid-day snapshot;
+  // the live day is always read from ArrivalEvent (see queryRankings).
+  const end = new Date(Math.min(range.end.getTime(), nzServiceDayRange().start.getTime()));
   const result = (await runCommand(() =>
     prisma.$runCommandRaw({
       aggregate: "DailyRouteSummary",
@@ -743,7 +756,7 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
           $match: {
             date: {
               $gte: { $date: range.start.toISOString() },
-              $lt: { $date: range.end.toISOString() },
+              $lt: { $date: end.toISOString() },
             },
           },
         },
@@ -803,10 +816,7 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
       pipeline: [
         {
           $match: {
-            scheduledAt: {
-              $gte: { $date: range.start.toISOString() },
-              $lt: { $date: range.end.toISOString() },
-            },
+            scheduledAt: scheduledAtWindow(range),
             source: { $ne: NO_DELAY_SOURCE },
             // No deviation filter here: every event counted so ghost-run noise
             // does not hide a route from rankings.
@@ -863,17 +873,73 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
 }
 
 /**
- * Per-route aggregated rows for an arbitrary window. Tries the fast
- * `DailyRouteSummary` path first; falls back to a live `ArrivalEvent` scan when
- * no summaries exist for the window (e.g. today before the aggregate ingest runs).
- * Rows are then folded to one per line (see {@link foldLineageRows}), so a
- * window spanning a feed republish or the CRL cutover ranks each line once.
+ * Service dates inside a window that already have a `DailyRouteSummary`, read
+ * from the summary date index. The current service day is never counted even
+ * when a summary row exists for it: a summary written mid-day is a snapshot,
+ * and the live day must stay live.
+ * @param range - UTC half-open window.
+ * @returns The summarised service dates (`YYYY-MM-DD`).
+ */
+async function summaryDatesIn(range: DateRange): Promise<Set<string>> {
+  const res = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "DailyRouteSummary",
+      pipeline: [
+        {
+          $match: {
+            date: {
+              $gte: { $date: range.start.toISOString() },
+              $lt: { $date: range.end.toISOString() },
+            },
+          },
+        },
+        { $group: { _id: "$date" } },
+      ] as never,
+      cursor: {},
+    }),
+  )) as unknown as { cursor: { firstBatch: { _id: { $date: string } | string }[] } };
+  const today = nzServiceDayString();
+  const dates = res.cursor.firstBatch.map((r) => nzServiceDayString(new Date(toIso(r._id))));
+  return new Set(dates.filter((date) => date < today));
+}
+
+/**
+ * Live per-route rows for one service day, cached under the day so every
+ * window that covers the day shares one aggregation. Completed days hold for a
+ * week; the live day refreshes every five minutes.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns Per-route rows for that day.
+ */
+function cachedLiveRankingsOfDay(date: string): Promise<TopRouteRow[]> {
+  return unstable_cache(
+    () => queryLiveRankings(nzServiceDayRange(date)),
+    ["live-rankings-day", date],
+    { revalidate: dayRevalidate(date, 300) },
+  )();
+}
+
+/**
+ * Per-route aggregated rows for an arbitrary window: `DailyRouteSummary` rows
+ * for the service days the nightly aggregate has covered, plus a live
+ * `ArrivalEvent` scan of each remaining day that has started (today, and any
+ * earlier day whose aggregate has not run), merged by event weight and folded
+ * to one row per line (see {@link foldLineageRows}). A window that is entirely
+ * summarised costs one query; a window reaching into today costs one more,
+ * cached per day. Days that have not started are skipped.
  * @param range - UTC half-open window.
  * @returns Per-route rows.
  */
 async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
-  const rows = await querySummaryRankings(range);
-  return foldLineageRows(rows.length > 0 ? rows : await queryLiveRankings(range));
+  const summarised = await summaryDatesIn(range);
+  const now = new Date();
+  const liveDates = serviceDatesInRange(range).filter(
+    (date) => !summarised.has(date) && nzServiceDayRange(date).start <= now,
+  );
+  const [summaryRows, ...liveSets] = await Promise.all([
+    summarised.size > 0 ? querySummaryRankings(range) : Promise.resolve<TopRouteRow[]>([]),
+    ...liveDates.map(cachedLiveRankingsOfDay),
+  ]);
+  return foldLineageRows([...summaryRows, ...liveSets.flat()]);
 }
 
 /**
@@ -1170,10 +1236,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
             {
               $match: {
                 routeId: { $in: routeIds },
-                scheduledAt: {
-                  $gte: { $date: p.range.start.toISOString() },
-                  $lt: { $date: p.range.end.toISOString() },
-                },
+                scheduledAt: scheduledAtWindow(p.range),
                 // No deviation filter here: every trip that had any event is
                 // counted so the total reflects real runs, not just those within
                 // the noise-free window.
@@ -1492,10 +1555,7 @@ export async function getShameOfDay(
       const pipeline: any[] = [
         {
           $match: {
-            scheduledAt: {
-              $gte: { $date: range.start.toISOString() },
-              $lt: { $date: range.end.toISOString() },
-            },
+            scheduledAt: scheduledAtWindow(range),
             ...realDeviationMatch,
           },
         },
@@ -2068,10 +2128,7 @@ function routeShamePipelineBase(
   const pipeline: any[] = [
     {
       $match: {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        scheduledAt: scheduledAtWindow(range),
         ...realDeviationMatch,
       },
     },
@@ -2370,10 +2427,7 @@ function shamePipelineBase(
   const pipeline: any[] = [
     {
       $match: {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        scheduledAt: scheduledAtWindow(range),
         ...realDeviationMatch,
       },
     },
@@ -2723,10 +2777,7 @@ export async function getWorstStops(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
-        scheduledAt: {
-          $gte: { $date: aligned.start.toISOString() },
-          $lt: { $date: aligned.end.toISOString() },
-        },
+        scheduledAt: scheduledAtWindow(aligned),
         ...realDeviationMatch,
       };
       if (routeIds) match.routeId = { $in: routeIds };
@@ -2812,10 +2863,7 @@ export async function getWorstStopsOfDay(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        scheduledAt: scheduledAtWindow(range),
         ...realDeviationMatch,
       };
       if (routeIds) match.routeId = { $in: routeIds };
@@ -2970,10 +3018,7 @@ async function worstStopsForRange(
 ): Promise<ShameDayStop[]> {
   const routeIds = await worstStopRouteIds(mode, includeSchool);
   const match: Record<string, unknown> = {
-    scheduledAt: {
-      $gte: { $date: range.start.toISOString() },
-      $lt: { $date: range.end.toISOString() },
-    },
+    scheduledAt: scheduledAtWindow(range),
     ...realDeviationMatch,
   };
   if (routeIds) match.routeId = { $in: routeIds };
@@ -3178,10 +3223,7 @@ export async function getStopStats(
             {
               $match: {
                 stopId: { $in: group.ids },
-                scheduledAt: {
-                  $gte: { $date: range.start.toISOString() },
-                  $lt: { $date: range.end.toISOString() },
-                },
+                scheduledAt: scheduledAtWindow(range),
                 ...realDeviationMatch,
               },
             },
@@ -3517,13 +3559,56 @@ export async function getRouteNames(routeIds: string[]): Promise<Record<string, 
 }
 
 /**
- * Fetch aggregated stats for a route from `DailyRouteSummary`, newest first.
- * Supply `from`/`to` (UTC instants) to fetch a specific window; omit both to
- * get the rolling last 7 records. Returns an empty array when no summary
- * records exist (route never ingested or backfill not yet run).
+ * Event-weighted mean of one per-day field across the rows for a date. Rows
+ * without a value contribute nothing; null when none has one.
+ * @param group - The rows sharing a date.
+ * @param pick - Reads the field from a row.
+ * @returns The weighted mean rounded to one decimal, or null.
+ */
+function weightedDayField(
+  group: readonly RouteDay[],
+  pick: (row: RouteDay) => number | null,
+): number | null {
+  const valued = group.filter((r) => pick(r) !== null && r.events > 0);
+  const weight = valued.reduce((n, r) => n + r.events, 0);
+  if (weight === 0) return null;
+  const sum = valued.reduce((n, r) => n + (pick(r) ?? 0) * r.events, 0);
+  return Math.round((sum / weight) * 10) / 10;
+}
+
+/**
+ * Merge per-day rows that share a service date (two feed versions of a route,
+ * or a line and its predecessor, each summarised for the same day) into one
+ * event-weighted row.
+ * @param rows - Per-day rows, any order.
+ * @returns One row per date, newest first.
+ */
+function mergeRouteDays(rows: readonly RouteDay[]): RouteDay[] {
+  const byDate = new Map<string, RouteDay[]>();
+  for (const row of rows) byDate.set(row.date, [...(byDate.get(row.date) ?? []), row]);
+  return [...byDate.entries()]
+    .map(([date, group]) => ({
+      date,
+      events: group.reduce((n, r) => n + r.events, 0),
+      avg_delay_sec: weightedDayField(group, (r) => r.avg_delay_sec),
+      avg_abs_delay_sec: weightedDayField(group, (r) => r.avg_abs_delay_sec),
+      on_time_pct: weightedDayField(group, (r) => r.on_time_pct),
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+/**
+ * Per-day stats for a route over a window, newest first: `DailyRouteSummary`
+ * rows for the days the nightly aggregate has covered, plus one live
+ * `ArrivalEvent` aggregation grouped by service date for the days it has not
+ * (today, and any earlier day whose aggregate has not run). The live rows use
+ * the same real-reading filter and per-mode on-time window as the route's day
+ * view, so a day reads the same in both places. Supply `from`/`to` for a
+ * specific window; omit both for the last seven service days. Days with no
+ * arrivals are omitted.
  * @param routeId - AT route id (slug form).
- * @param from - Inclusive window start (UTC). Omit for rolling-7 behaviour.
- * @param to - Exclusive window end (UTC). Omit for rolling-7 behaviour.
+ * @param from - Inclusive window start (UTC). Omit for the rolling week.
+ * @param to - Exclusive window end (UTC). Omit for the rolling week.
  * @returns Per-day stats, newest first.
  */
 export async function getRouteDailyStats(
@@ -3531,19 +3616,14 @@ export async function getRouteDailyStats(
   from?: Date,
   to?: Date,
 ): Promise<RouteDay[]> {
+  const range: DateRange = from && to ? { start: from, end: to } : nzLast7DaysRange();
   return unstable_cache(
     async () => {
       // DailyRouteSummary stores versioned route IDs (e.g. "209-217"), not slugs.
       const routeIds = await routeIdsForSlug(routeId);
-      const rows = await prisma.dailyRouteSummary.findMany({
-        where: {
-          routeId: { in: routeIds },
-          ...(from || to
-            ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } }
-            : {}),
-        },
-        orderBy: { date: "desc" },
-        ...(from || to ? {} : { take: 7 }),
+      const today = nzServiceDayString();
+      const summaries = await prisma.dailyRouteSummary.findMany({
+        where: { routeId: { in: routeIds }, date: { gte: range.start, lt: range.end } },
         select: {
           date: true,
           events: true,
@@ -3552,15 +3632,81 @@ export async function getRouteDailyStats(
           onTimePct: true,
         },
       });
-      return rows.map((r) => ({
-        date: nzServiceDayString(r.date),
-        events: r.events,
-        avg_delay_sec: r.avgDelaySec ?? null,
-        avg_abs_delay_sec: r.avgAbsDelaySec ?? null,
-        on_time_pct: r.onTimePct ?? null,
-      }));
+      const days: RouteDay[] = summaries
+        .map((r) => ({
+          date: nzServiceDayString(r.date),
+          events: r.events,
+          avg_delay_sec: r.avgDelaySec ?? null,
+          avg_abs_delay_sec: r.avgAbsDelaySec ?? null,
+          on_time_pct: r.onTimePct ?? null,
+        }))
+        // A summary for the live day would be a mid-day snapshot; read it live.
+        .filter((r) => r.date < today);
+
+      const summarised = new Set(days.map((r) => r.date));
+      const now = new Date();
+      const liveDates = serviceDatesInRange(range).filter(
+        (date) => !summarised.has(date) && nzServiceDayRange(date).start <= now,
+      );
+      const [firstLive] = liveDates;
+      const lastLive = liveDates.at(-1);
+      if (firstLive !== undefined && lastLive !== undefined) {
+        const live: DateRange = {
+          start: nzServiceDayRange(firstLive).start,
+          end: nzServiceDayRange(lastLive).end,
+        };
+        const route = await prisma.route.findUnique({
+          where: { id: routeIds[0] ?? routeId },
+          select: { mode: true },
+        });
+        const mode = route?.mode ?? "BUS";
+        const res = (await runCommand(() =>
+          prisma.$runCommandRaw({
+            aggregate: "ArrivalEvent",
+            pipeline: [
+              {
+                $match: {
+                  routeId: { $in: routeIds },
+                  scheduledAt: scheduledAtWindow(live),
+                  ...realDeviationMatch,
+                },
+              },
+              {
+                $group: {
+                  _id: serviceDateExpr("$scheduledAt"),
+                  events: { $sum: 1 },
+                  avg_delay_sec: { $avg: "$deviationSec" },
+                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                  on_time_count: onTimeSingleModeSum(mode),
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  events: 1,
+                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                  on_time_pct: {
+                    $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
+                  },
+                },
+              },
+            ] as never,
+            cursor: { batchSize: 100_000 },
+          }),
+        )) as unknown as {
+          cursor: { firstBatch: (Omit<RouteDay, "date"> & { _id: string })[] };
+        };
+        // The live window may span a summarised day in between; keep only the
+        // dates that have no summary.
+        const wanted = new Set(liveDates);
+        for (const row of res.cursor.firstBatch) {
+          if (wanted.has(row._id)) days.push({ ...row, date: row._id });
+        }
+      }
+      return mergeRouteDays(days);
     },
     ["route-daily-stats", routeId, from?.toISOString() ?? "", to?.toISOString() ?? ""],
-    { revalidate: 300 },
+    { revalidate: rangeRevalidate(range, 300) },
   )();
 }
