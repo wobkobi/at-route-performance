@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.2] - 2026-09-12
+
+### Fixed
+
+- The three-hour deviation guard applied to every read, classified days included, although its only
+  purpose is to stand in for the ghost flags on a day the nightly pass has not reached; on a
+  classified day it silently capped any service that really did run more than three hours off
+  schedule, which is the kind of run this site exists to show. The two filters now take the window's
+  classification: the guard stays on for the current service day, for a completed day whose
+  aggregate has not run, and for a window that mixes classified and live days, and comes off once
+  every day in the window has a `DailyRouteSummary`. The nightly aggregate rolls a day up without
+  the guard, since its own ghost pass has just run, and keeps it only when that pass failed; the
+  rebuild script keeps it, as it does not classify. A unit test pins both shapes.
+
 ## [1.12.1] - 2026-09-12
 
 ### Fixed

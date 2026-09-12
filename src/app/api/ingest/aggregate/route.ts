@@ -12,7 +12,7 @@
  */
 import { requireCronAuth } from "@/lib/auth";
 import { prisma, runCommand } from "@/lib/db";
-import { NO_DELAY_SOURCE, realDeviationExpr } from "@/lib/deviation";
+import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import { classifyGhosts, type GhostPassResult } from "@/lib/ghost-pass";
 import { recordIngestRun } from "@/lib/ingest-run";
 import {
@@ -70,10 +70,12 @@ async function runAggregate(
     // cost the whole night's rollup: the day stays unclassified and the reads
     // fall back to the wide magnitude guard until the next run.
     let ghosts: GhostPassResult = { trips: 0, flagged: 0 };
+    let classified = true;
     try {
       ghosts = await classifyGhosts(range);
       console.log("[AGGREGATE] Ghost pass complete", { date: serviceDate, ...ghosts });
     } catch (error) {
+      classified = false;
       console.error("[AGGREGATE] Ghost pass failed; rolling up unclassified", {
         date: serviceDate,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -83,8 +85,10 @@ async function runAggregate(
     // The initial $match carries no deviation filter, so every event contributes
     // to the `events` count and a route with ghost readings is not pushed below
     // the rankings threshold. Stats (averages, percentiles, on-time %) count only
-    // the real readings, via $filter / $cond guards.
-    const plausible = realDeviationExpr;
+    // the real readings, via $filter / $cond guards. The pass above has just
+    // flagged the ghosts, so the magnitude guard comes off and a genuine
+    // three-hour delay counts; it stays on only when the pass failed.
+    const plausible = realDeviationExprFor(classified);
     const result = (await runCommand(() =>
       prisma.$runCommandRaw({
         aggregate: "ArrivalEvent",
@@ -115,7 +119,7 @@ async function runAggregate(
               ...onTimeTwoCounts(),
               ...earlyTwoCounts(),
               late_count: lateSum(),
-              _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
+              _delays: { $push: { $cond: [plausible, "$deviationSec", null] } },
             },
           },
           // Resolve the route's mode, then pick the matching on-time + early counts.

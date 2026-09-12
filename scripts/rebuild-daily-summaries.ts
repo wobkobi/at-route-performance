@@ -1,14 +1,12 @@
-/**
- * Rebuild DailyRouteSummary for the given NZ service dates by running the
- * aggregate pipeline directly (no HTTP round-trip). Uses batchSize:100_000 so
- * all routes are captured, fixing the cursor-truncation bug where only the
- * first 101 routes were processed per run.
- *
- * Usage:
- *   npx tsx --env-file=.env.local scripts/rebuild-daily-summaries.ts 2026-06-19 2026-06-20 ...
- *   (no args = last 7 completed NZ service days)
- */
-import { NO_DELAY_SOURCE, realDeviationExpr } from "@/lib/deviation";
+// scripts/rebuild-daily-summaries.ts
+// Rebuild DailyRouteSummary for the given NZ service dates by running the
+// aggregate pipeline directly (no HTTP round-trip), with batchSize 100_000 so
+// every route is captured in one batch.
+//
+// Usage:
+//   npx tsx --env-file=.env.local scripts/rebuild-daily-summaries.ts 2026-06-19 2026-06-20 ...
+//   (no args = last 7 completed NZ service days)
+import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import {
   earlyTwoCounts,
   lateSum,
@@ -39,7 +37,9 @@ console.log(
 
 const thresholdSec = parseInt(process.env.ON_TIME_THRESHOLD_SEC || String(ON_TIME_LATE_SEC), 10);
 
-const plausible = realDeviationExpr;
+// The script does not run the ghost pass, so a day it rebuilds may be
+// unclassified; the magnitude guard stays on.
+const plausible = realDeviationExprFor(false);
 
 let ok = 0;
 let failed = 0;
@@ -71,7 +71,7 @@ for (const dateStr of dates) {
             ...onTimeTwoCounts(),
             ...earlyTwoCounts(),
             late_count: lateSum(),
-            _delays: { $push: { $cond: [realDeviationExpr, "$deviationSec", null] } },
+            _delays: { $push: { $cond: [plausible, "$deviationSec", null] } },
           },
         },
         { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },

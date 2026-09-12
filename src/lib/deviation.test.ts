@@ -1,12 +1,14 @@
 // src/lib/deviation.test.ts
-/**
- * @description Unit tests for ghost classification in deviation.ts.
- */
+// Unit tests for ghost classification and the real-reading filters in deviation.ts.
 import {
   GHOST_GAP_SEC,
   isGhostDeviation,
+  NO_DELAY_SOURCE,
+  realDeviationExprFor,
+  realDeviationMatchFor,
   runDeviationLevel,
   type TripObservation,
+  UNCLASSIFIED_LIMIT_SEC,
 } from "@/lib/deviation";
 import { describe, expect, it } from "vitest";
 
@@ -79,5 +81,33 @@ describe("isGhostDeviation", () => {
     expect(isGhostDeviation(GHOST_GAP_SEC, 0)).toBe(false);
     expect(isGhostDeviation(GHOST_GAP_SEC + 1, 0)).toBe(true);
     expect(isGhostDeviation(-GHOST_GAP_SEC - 1, 0)).toBe(true);
+  });
+});
+
+describe("real-reading filters", () => {
+  it("keeps the magnitude guard on an unclassified window", () => {
+    expect(realDeviationMatchFor(false)).toEqual({
+      ghost: { $ne: true },
+      source: { $ne: NO_DELAY_SOURCE },
+      deviationSec: { $gte: -UNCLASSIFIED_LIMIT_SEC, $lte: UNCLASSIFIED_LIMIT_SEC },
+    });
+    expect(realDeviationExprFor(false)).toEqual({
+      $and: [
+        { $ne: ["$ghost", true] },
+        { $ne: ["$source", NO_DELAY_SOURCE] },
+        { $gte: ["$deviationSec", -UNCLASSIFIED_LIMIT_SEC] },
+        { $lte: ["$deviationSec", UNCLASSIFIED_LIMIT_SEC] },
+      ],
+    });
+  });
+
+  it("drops the guard once the ghost pass has classified the window", () => {
+    expect(realDeviationMatchFor(true)).toEqual({
+      ghost: { $ne: true },
+      source: { $ne: NO_DELAY_SOURCE },
+    });
+    expect(realDeviationExprFor(true)).toEqual({
+      $and: [{ $ne: ["$ghost", true] }, { $ne: ["$source", NO_DELAY_SOURCE] }],
+    });
   });
 });
