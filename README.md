@@ -50,7 +50,9 @@ npm run smoke        # build, start, and visit every public page
 CI (`.github/workflows/ci.yml`) lints, unit-tests, typechecks and builds every pull request. Its
 `smoke` job also builds, starts and visits every page against the real database, and runs only when
 the repository has a `DATABASE_URL` secret (`AT_API_KEY` is optional); Dependabot pull requests and
-forks get no secrets and skip it.
+forks get no secrets and skip it. The same check runs against a deployment with
+`npx tsx scripts/smoke-test.ts --base-url=https://<your-app>.vercel.app`: every page is read for
+leaked values and empty sections, so it is the first thing to run after a deploy.
 
 ## Ingest
 

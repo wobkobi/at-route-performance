@@ -71,4 +71,8 @@ job if you prefer to schedule in NZ local time.
   so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
+- `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for
+  either should point at `/api/ingest/gtfs/sync?force=1`, which runs both halves.
+- After a deploy, `npx tsx scripts/smoke-test.ts --base-url=https://<your-app>.vercel.app` visits
+  every page and endpoint against production and fails on a leaked value or an empty section.
 - cron-job.org's free tier supports down to 1-minute intervals and custom headers.
