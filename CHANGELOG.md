@@ -4,6 +4,33 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.7] - 2026-09-12
+
+### Fixed
+
+- Every Mongo pipeline that buckets runs by service day (the shame-of-the-week route, trip and stop
+  boards and the route streak heatmap) derived the day by subtracting five absolute hours and then
+  truncating to the Auckland calendar date. On a DST-switch Sunday the five-hour shift crosses the
+  transition: 27 September 2026 05:30 NZDT minus five hours is 26 September 23:30 NZST, so the first
+  hour of the new service day filed under the day before and the week boards showed two rows
+  labelled 26 September; on 5 April the same shift files 04:30 NZST under 5 April instead of 4
+  April. One shared expression, `serviceDateExpr`, now decides from the Auckland hour exactly as
+  `nzServiceDayString` does and yields the date string itself, so the pipelines no longer hand back
+  an instant for a second helper to reformat.
+- `scripts/check-data-gaps.ts` labelled every day one short: it took the UTC date of the Auckland
+  midnight instant, which is the previous date. It now buckets events and ingest runs by the same
+  service-date expression, so its tables line up with each other and with the site.
+- `scripts/backfill-aggregate.ts --days=N` stepped back in 24-hour blocks from the wall clock, which
+  can skip or repeat a day across a DST switch; it now steps by service date from the current
+  service day.
+
+### Added
+
+- `npm run test:int` runs integration tests (`src/**/*.int.test.ts`) against the database in
+  `.env.local`. The first proves MongoDB evaluates the service-date expression as the TypeScript
+  helper does at fifteen boundary instants across both DST switches, through a collectionless
+  `$documents` pipeline that touches no collection. The unit run excludes these files.
+
 ## [1.11.6] - 2026-09-12
 
 ### Added
