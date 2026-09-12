@@ -4,6 +4,31 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.3] - 2026-09-12
+
+### Fixed
+
+- The nightly ghost pass cleared every flag in the day before deciding them again, so between the
+  two steps the day read as unclassified, and a pass that failed in between left it that way. It now
+  rewrites each trip's flags from its level in one multi-update, setting the flag on rows outside
+  the gap and removing it from the rest in the same write, so every trip's rows agree at any instant
+  and a re-run reaches the same verdicts with no clearing step. A failed entry in a bulk update was
+  ignored (`ordered: false` carries on past it and the promise still resolves); the reply's write
+  errors now fail the pass. The trip levels are computed inside the aggregation (the exact median,
+  the same element the in-memory path picks), so the reply carries one number per trip instead of
+  every reading and stays far under the 16 MB reply limit; the pass refuses a reply that fills its
+  batch rather than classify a silently truncated day. The flagged count is read back from the day
+  rather than inferred from rows changed either way.
+- Draining an aggregation cursor through Prisma is not possible (`getMore` needs the 64-bit cursor
+  id, which arrives as a rounded JavaScript number), so the per-day reads keep their single batch
+  and the one unbounded per-trip scan was shrunk instead.
+
+### Added
+
+- Unit tests for the pass's pipeline shape and update batches, and an integration test that runs it
+  on a scratch collection: median per trip, outliers flagged, a stale flag cleared, the gap
+  exclusive at its boundary, the previous day untouched, and a re-run idempotent.
+
 ## [1.12.2] - 2026-09-12
 
 ### Fixed
