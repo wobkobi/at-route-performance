@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.14] - 2026-09-13
+
+### Added
+
+- Error boundaries. A page that throws while rendering (the database unreachable, an AT feed timing
+  out inside a query) now shows a recovery page inside the normal masthead and footer, with a retry
+  button and a link home, instead of Next's blank default; a failure inside the root layout itself
+  falls through to a bare last-resort page with the same retry. Both log the message and Next's
+  error digest so the failure can be found in the function logs.
+- The trip page has its own title and description, so a tab or a shared link names the route and the
+  run.
+
+### Fixed
+
+- A trip id that matched no route, no recorded arrival on any day and no published schedule rendered
+  an empty page with a 200; it is now a 404 like an unknown route or stop.
+
 ## [1.12.13] - 2026-09-13
 
 ### Fixed
