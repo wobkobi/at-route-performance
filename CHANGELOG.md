@@ -4,6 +4,31 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.5] - 2026-09-12
+
+### Fixed
+
+- A retired City Rail Link line redirected to its successor as soon as the successor's route row
+  existed. AT published `S-C-201`, `E-W-201` and `O-W-201` in static GTFS on 10 September, three
+  days before the first train, so `/route/STH`, `/route/EAST`, `/route/WEST` and `/route/ONE` were
+  already bouncing to lines with nothing to show (the redirect streams inside the page shell, so
+  browsers followed it while a plain HTTP probe saw a 200). The redirect now waits until the
+  successor has recorded an arrival in the last seven days, checked with one indexed point read that
+  is cached for ten minutes, so a retired line's page stands until its replacement is actually
+  running and then moves within ten minutes of the first train.
+- The route directory listed a successor line beside the line it replaces. It now lists exactly one
+  of the two: the retired line until the successor is running, then the successor, so the 404 page
+  and `GET /api/routes` never offer an empty line or a link that bounces.
+- Cross-route rankings listed one line twice when the window spanned a change of route id: a feed
+  republish that bumps the version suffix (`501-217` and `501-218` both run in a week with a
+  schedule change), and the CRL cutover, where the retired line and its successor each earn a row in
+  the same week or month. `/rankings`, the home page boards and `GET /api/routes/top` now fold such
+  rows into one per line, summing events and event-weighting the averages and percentages, and the
+  merged row carries the successor's (or newest version's) name and colour. A retired line with no
+  successor row in the window is left alone, so nothing changes before the cutover.
+- The lineage map now carries the published ids only; the flattened `SC`/`EW`/`OW` fallbacks that
+  covered the unknown spelling are gone.
+
 ## [1.11.4] - 2026-09-12
 
 ### Fixed
