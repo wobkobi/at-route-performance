@@ -42,6 +42,7 @@ Environment (`.env.local`):
 ```bash
 npm run db:push      # apply the Prisma schema
 npm run test         # unit tests
+npm run test:int     # integration tests against the database in .env.local
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint (type-aware)
 npm run smoke        # build, start, and visit every public page

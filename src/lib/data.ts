@@ -34,6 +34,7 @@ import {
 } from "@/lib/route-lineage";
 import { routeSlug, routeVersion } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
+import { serviceDateExpr } from "@/lib/service-day-expr";
 import {
   isLegacyStationId,
   isPlatformStop,
@@ -1876,29 +1877,11 @@ export async function getShameRouteStreaksBatch(
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
           },
         },
-        // Service-day date (YYYY-MM-DD in NZ timezone) using the same
-        // shift as getShameRouteOfDay so buckets match the shame page.
+        // Service date as the shame pages label it, so the buckets match their
+        // day links (every service-day board shares this expression).
         {
           $addFields: {
-            serviceDay: {
-              $dateToString: {
-                date: {
-                  $dateTrunc: {
-                    date: {
-                      $dateSubtract: {
-                        startDate: "$trip_start",
-                        unit: "hour",
-                        amount: SERVICE_START_HOUR,
-                      },
-                    },
-                    unit: "day",
-                    timezone: "Pacific/Auckland",
-                  },
-                },
-                format: "%Y-%m-%d",
-                timezone: "Pacific/Auckland",
-              },
-            },
+            serviceDay: serviceDateExpr("$trip_start"),
             hour: { $hour: { date: "$trip_start", timezone: "Pacific/Auckland" } },
           },
         },
@@ -2303,15 +2286,7 @@ async function worstRoutesForRange(
   includeSchool: boolean,
 ): Promise<ShameRouteRow[]> {
   const pipeline = routeShamePipelineBase(range, mode, includeSchool, "serviceDay", {
-    serviceDay: {
-      $dateTrunc: {
-        date: {
-          $dateSubtract: { startDate: "$trip_start", unit: "hour", amount: SERVICE_START_HOUR },
-        },
-        unit: "day",
-        timezone: "Pacific/Auckland",
-      },
-    },
+    serviceDay: serviceDateExpr("$trip_start"),
   });
   pipeline.push(
     // Worst route per service day via a bounded per-group $top (one row per day)
@@ -2358,12 +2333,12 @@ async function worstRoutesForRange(
       cursor: { batchSize: 100_000 },
     }),
   )) as unknown as {
-    cursor: { firstBatch: (Omit<ShameRouteRaw, "hour"> & { _id: unknown })[] };
+    cursor: { firstBatch: (Omit<ShameRouteRaw, "hour"> & { _id: string })[] };
   };
 
   return res.cursor.firstBatch.map((r) => ({
     hour: 0,
-    date: nzDateString(r._id),
+    date: r._id,
     route_id: r.route_id,
     short_name: r.short_name ?? null,
     long_name: r.long_name ?? "",
@@ -2373,24 +2348,6 @@ async function worstRoutesForRange(
     avg_abs_delay_sec: r.avg_abs_delay_sec,
     avg_delay_sec: r.avg_delay_sec,
   }));
-}
-
-/**
- * Format a MongoDB-returned date value (either a plain ISO string or a
- * `{ $date: "..." }` object) as an Auckland-local `YYYY-MM-DD` string without
- * the service-day hour shift. Used when the pipeline already handles that shift
- * via `$dateSubtract`.
- * @param d - Raw value from the aggregation cursor.
- * @returns Auckland-local calendar date.
- */
-function nzDateString(d: unknown): string {
-  const iso = typeof d === "string" ? d : ((d as { $date: string })?.$date ?? String(d));
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
 }
 
 /**
@@ -2468,10 +2425,8 @@ function shamePipelineBase(
 /**
  * The week's "Shame of the Week": the single most off-schedule run plus the
  * worst run of each service day, within the chosen filter. Mirrors
- * {@link getShameOfDay} but groups by service day instead of hour. The service
- * day boundary is determined by subtracting {@link SERVICE_START_HOUR} hours
- * before truncating to the Auckland-local calendar day. Cached at the supplied
- * revalidate rate.
+ * {@link getShameOfDay} but groups by service day instead of hour, bucketing
+ * each run with {@link serviceDateExpr}. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters mirroring the rankings page.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
@@ -2521,24 +2476,9 @@ async function worstTripsForRange(
   const pipeline = shamePipelineBase(range, mode, includeSchool);
   pipeline.push(
     {
-      $addFields: {
-        // Shift each trip back by the service-start offset then truncate to
-        // Auckland-local calendar day so post-midnight trips land on the correct
-        // service day.
-        serviceDay: {
-          $dateTrunc: {
-            date: {
-              $dateSubtract: {
-                startDate: "$scheduled_start",
-                unit: "hour",
-                amount: SERVICE_START_HOUR,
-              },
-            },
-            unit: "day",
-            timezone: "Pacific/Auckland",
-          },
-        },
-      },
+      // Bucket each run by the service day its start falls in, so a
+      // post-midnight run lands under the day it belongs to.
+      $addFields: { serviceDay: serviceDateExpr("$scheduled_start") },
     },
     // Worst run per service day via a bounded per-group $top (one row per day)
     // instead of a global blocking $sort, which can exceed the cluster's 32MB
@@ -2592,12 +2532,12 @@ async function worstTripsForRange(
       cursor: { batchSize: 100_000 },
     }),
   )) as unknown as {
-    cursor: { firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: unknown })[] };
+    cursor: { firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: string })[] };
   };
 
   return res.cursor.firstBatch.map((t) => ({
     hour: 0,
-    date: nzDateString(t._id),
+    date: t._id,
     trip_id: t.trip_id,
     route_id: t.route_id,
     short_name: t.short_name ?? null,
@@ -2969,7 +2909,7 @@ export async function getWorstStopsOfDay(
 
 /** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
 interface ShameDayStopRaw {
-  _id: unknown; // service-day UTC midnight Date
+  _id: string; // service date, YYYY-MM-DD
   stop_id: string;
   name: string;
   events: number;
@@ -3046,19 +2986,7 @@ async function worstStopsForRange(
         {
           $group: {
             _id: {
-              serviceDay: {
-                $dateTrunc: {
-                  date: {
-                    $dateSubtract: {
-                      startDate: "$scheduledAt",
-                      unit: "hour",
-                      amount: SERVICE_START_HOUR,
-                    },
-                  },
-                  unit: "day",
-                  timezone: "Pacific/Auckland",
-                },
-              },
+              serviceDay: serviceDateExpr("$scheduledAt"),
               stop_id: "$stopId",
             },
             events: { $sum: 1 },
@@ -3107,13 +3035,13 @@ async function worstStopsForRange(
     }),
   )) as unknown as {
     cursor: {
-      firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: unknown } & { routeIds: string[] })[];
+      firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: string } & { routeIds: string[] })[];
     };
   };
 
   const modeMap = mode ? null : await getRouteModeMap();
   return res.cursor.firstBatch.map((r) => ({
-    date: nzDateString(r._id),
+    date: r._id,
     stop_id: r.stop_id,
     name: r.name,
     events: r.events,
