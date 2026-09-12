@@ -4,6 +4,21 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.11.4] - 2026-09-12
+
+### Fixed
+
+- Auckland local midnight on a DST-switch day resolved an hour off. `nzLocalToUtc` sampled the
+  offset once, at UTC midnight, which is local noon and already on the far side of the 02:00/03:00
+  switch, then applied that offset to local midnight on the near side. The offset is now resolved in
+  two passes (estimate, then re-sample at the estimate), so 27 September 2026 starts at NZST
+  midnight and runs 23 hours, 5 April 2026 starts at NZDT midnight and runs 25 hours, and the week
+  and month ranges built on it end on the right instant. Only a range whose start date is itself a
+  switch Sunday was affected: no week (they start on Mondays) and no month before April 2029.
+- The rankings page's previous-week comparison window stepped back by a fixed seven days of
+  milliseconds, which lands an hour off the 5am service-day boundary when the two windows straddle a
+  DST switch; it now steps by service date.
+
 ## [1.11.3] - 2026-09-12
 
 ### Fixed
