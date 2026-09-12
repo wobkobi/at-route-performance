@@ -25,7 +25,13 @@ import {
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
-import { predecessorSlugs, successorSlugs } from "@/lib/route-lineage";
+import {
+  allSuccessorSlugs,
+  directoryLineageRows,
+  foldLineageRows,
+  predecessorSlugs,
+  successorSlug,
+} from "@/lib/route-lineage";
 import { routeSlug, routeVersion } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import {
@@ -87,13 +93,47 @@ const MS_IN_WEEK = 604_800_000;
 const MS_IN_DAY = 86_400_000;
 
 /**
- * Every AT route id sharing a slug - the same route across feed-version
- * republishes (see {@link routeSlug}) - newest version first, followed by the
- * ids of any line it replaced (see {@link predecessorSlugs}). Lets route queries
- * aggregate over all versions (so history doesn't fragment when AT bumps the
- * suffix) and across the CRL rename (so a renamed line keeps its archive), and
- * resolve a slug URL to a concrete id. Falls back to the input when nothing
- * matches, so a full id still works. Cached briefly.
+ * Every AT route id sharing one slug - the same route across feed-version
+ * republishes (see {@link routeSlug}) - newest version first, or empty when the
+ * slug matches nothing. Cached hourly; route ids only change on the GTFS sync.
+ * @param slug - A version-stripped route slug (or a full route id).
+ * @returns Matching route ids, newest version first.
+ */
+async function routeIdsMatching(slug: string): Promise<string[]> {
+  return unstable_cache(
+    async () => {
+      const routes = await prisma.route.findMany({
+        where: { OR: [{ id: slug }, { id: { startsWith: `${slug}-` } }] },
+        select: { id: true },
+      });
+      return routes
+        .map((r) => r.id)
+        .filter((id) => routeSlug(id) === slug)
+        .sort((a, b) => routeVersion(b) - routeVersion(a));
+    },
+    ["route-ids-matching", slug],
+    { revalidate: 3600 },
+  )();
+}
+
+/**
+ * A route's own ids across feed-version republishes, newest first, without the
+ * ids of any line it replaced. Falls back to the input when nothing matches, so
+ * a full id still works and callers can always read `[0]`.
+ * @param slug - A version-stripped route slug (or a full route id).
+ * @returns The route's own ids, newest version first (or `[slug]` when none).
+ */
+export async function ownRouteIds(slug: string): Promise<string[]> {
+  const ids = await routeIdsMatching(slug);
+  return ids.length > 0 ? ids : [slug];
+}
+
+/**
+ * A route's own ids (see {@link ownRouteIds}) followed by the ids of any line it
+ * replaced (see {@link predecessorSlugs}). Lets route queries aggregate over all
+ * versions (so history doesn't fragment when AT bumps the suffix) and across the
+ * CRL rename (so a renamed line keeps its archive), and resolve a slug URL to a
+ * concrete id.
  *
  * The requested slug's own ids always come first: callers read `[0]` as the
  * newest id for schedule and metadata lookups, which must never resolve to a
@@ -102,24 +142,36 @@ const MS_IN_DAY = 86_400_000;
  * @returns Matching route ids, newest version first (or `[slug]` when none).
  */
 export async function routeIdsForSlug(slug: string): Promise<string[]> {
+  const [own, ...predecessors] = await Promise.all([
+    ownRouteIds(slug),
+    ...predecessorSlugs(slug).map(routeIdsMatching),
+  ]);
+  return [...own, ...predecessors.flat()];
+}
+
+/** How far back {@link routeHasTraffic} looks for an arrival on a line's own ids. */
+const TRAFFIC_LOOKBACK_MS = 7 * MS_IN_DAY;
+
+/**
+ * Whether a route has recorded any arrival on its own ids in the last week. A
+ * single indexed point read (`routeId, scheduledAt`), cached for ten minutes so
+ * the answer flips within that long of a line's first train.
+ * @param slug - A version-stripped route slug.
+ * @returns True once an arrival event exists for the route in the lookback.
+ */
+export async function routeHasTraffic(slug: string): Promise<boolean> {
   return unstable_cache(
     async () => {
-      const slugs = [slug, ...predecessorSlugs(slug)];
-      const routes = await prisma.route.findMany({
-        where: { OR: slugs.flatMap((s) => [{ id: s }, { id: { startsWith: `${s}-` } }]) },
+      const ids = await ownRouteIds(slug);
+      const since = new Date(Date.now() - TRAFFIC_LOOKBACK_MS);
+      const hit = await prisma.arrivalEvent.findFirst({
+        where: { routeId: { in: ids }, scheduledAt: { gte: since } },
         select: { id: true },
       });
-
-      const bySlug = new Map<string, string[]>(slugs.map((s) => [s, []]));
-      for (const r of routes) bySlug.get(routeSlug(r.id))?.push(r.id);
-
-      const ids = slugs.flatMap((s) =>
-        (bySlug.get(s) ?? []).sort((a, b) => routeVersion(b) - routeVersion(a)),
-      );
-      return ids.length > 0 ? ids : [slug];
+      return hit !== null;
     },
-    ["route-ids-for-slug", slug],
-    { revalidate: 3600 },
+    ["route-has-traffic", slug],
+    { revalidate: 600 },
   )();
 }
 
@@ -159,20 +211,22 @@ export async function findCanonicalRouteSlug(slug: string): Promise<string | nul
 }
 
 /**
- * The live slug a retired train line's URL should move to, once AT publishes the
- * replacement. Retired lines keep their Route row forever (the GTFS sync only
- * upserts), so a stale link resolves rather than 404s - this is what turns it
- * into a redirect instead. Returns null until the successor appears in the feed,
- * so links keep working through the cutover.
+ * The live slug a retired train line's URL should move to. Retired lines keep
+ * their Route row forever (the GTFS sync only upserts), so a stale link resolves
+ * rather than 404s - this is what turns it into a redirect instead. The
+ * successor's own row lands in static GTFS days before its first train (AT
+ * published `S-C-201` on 10 September for a 13 September start), so existence
+ * alone would redirect early onto a line with nothing to show; the redirect
+ * waits until the successor has carried traffic (see {@link routeHasTraffic}).
  * @param slug - A canonical route slug.
- * @returns The successor's canonical slug, or null when there isn't one yet.
+ * @returns The successor's canonical slug, or null while the retired line's own page should stand.
  */
 export async function findSuccessorRouteSlug(slug: string): Promise<string | null> {
-  for (const candidate of successorSlugs(slug)) {
-    const found = await findCanonicalRouteSlug(candidate);
-    if (found) return found;
-  }
-  return null;
+  const candidate = successorSlug(slug);
+  if (candidate === null) return null;
+  const found = await findCanonicalRouteSlug(candidate);
+  if (found === null) return null;
+  return (await routeHasTraffic(found)) ? found : null;
 }
 
 /** A route as listed in the directory. */
@@ -195,10 +249,16 @@ const ROUTE_STALE_MS = 2 * MS_IN_DAY;
  * longer run. Four train lines retire at once at the CRL cutover. A row with
  * no stamp was absent from the last sync, so once any stamp exists it counts
  * as retired too; only a database no sync has ever stamped lists every row.
+ *
+ * Around the cutover the feed carries a retired line and its successor at the
+ * same time, so the list is then trimmed to whichever of the two is running
+ * (see {@link directoryLineageRows}). That trim sits outside the hourly cache
+ * because it turns on {@link routeHasTraffic}, which flips within ten minutes
+ * of the successor's first train.
  * @returns Current routes, ordered by short name.
  */
 export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
-  return unstable_cache(
+  const rows = await unstable_cache(
     async () => {
       const newest = await prisma.route.findFirst({
         where: { lastSeenAt: { not: null } },
@@ -217,6 +277,10 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
     ["directory-routes"],
     { revalidate: 3600 },
   )();
+  const successors = allSuccessorSlugs();
+  const traffic = await Promise.all(successors.map(routeHasTraffic));
+  const running = new Set(successors.filter((_, i) => traffic[i]));
+  return directoryLineageRows(rows, running);
 }
 
 /** Parameters for {@link getTopRoutes}. */
@@ -347,7 +411,13 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
     }),
   )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
 
-  return result.cursor.firstBatch;
+  // One row per line: a republish or the CRL cutover inside the week would
+  // otherwise list the same line twice. The fold can only shorten the list
+  // and shift a merged row, so re-apply the metric order.
+  const metric = p.metric === "avg_delay" ? "avg_delay_sec" : "on_time_pct";
+  return foldLineageRows(result.cursor.firstBatch).sort(
+    (a, b) => (b[metric] ?? Number.NEGATIVE_INFINITY) - (a[metric] ?? Number.NEGATIVE_INFINITY),
+  );
 }
 
 /**
@@ -795,13 +865,14 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
  * Per-route aggregated rows for an arbitrary window. Tries the fast
  * `DailyRouteSummary` path first; falls back to a live `ArrivalEvent` scan when
  * no summaries exist for the window (e.g. today before the aggregate ingest runs).
+ * Rows are then folded to one per line (see {@link foldLineageRows}), so a
+ * window spanning a feed republish or the CRL cutover ranks each line once.
  * @param range - UTC half-open window.
  * @returns Per-route rows.
  */
 async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
   const rows = await querySummaryRankings(range);
-  if (rows.length > 0) return rows;
-  return queryLiveRankings(range);
+  return foldLineageRows(rows.length > 0 ? rows : await queryLiveRankings(range));
 }
 
 /**

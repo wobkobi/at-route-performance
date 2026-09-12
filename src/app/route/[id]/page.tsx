@@ -249,7 +249,7 @@ export default async function RoutePage({
 
   // A train line retired by the CRL rename keeps its Route row, so /route/STH
   // resolves rather than 404s; send it to the line that replaced it, which reads
-  // both lines' history. Only redirects once the successor is in the feed.
+  // both lines' history. Only redirects once the successor has carried traffic.
   const successorSlug = await findSuccessorRouteSlug(slug);
   if (successorSlug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
