@@ -4,6 +4,19 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.18] - 2026-09-13
+
+### Changed
+
+- The smoke test now reads the pages it visits. Every page's rendered text is checked for a leaked
+  raw value (`NaN`, `undefined`, an empty search quote, `Invalid Date`, `[object Object]`), every
+  section heading must have content under it, a page can require or forbid copy, and the path the
+  browser lands on is compared with the requested one so a streamed redirect is caught. It visits
+  more of the site: the route week view, the month rankings, the week shame boards, a trip page
+  found on the NX1 board, the first train line in the directory and one of its stations, and the 404
+  page, and it fetches the three public endpoints directly. `--base-url` runs it against a server
+  that is already up, so a deployment can be checked without a local build.
+
 ## [1.12.17] - 2026-09-13
 
 ### Added

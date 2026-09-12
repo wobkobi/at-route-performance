@@ -9,6 +9,7 @@
 //   npx tsx scripts/smoke-test.ts              # build > start > test
 //   npx tsx scripts/smoke-test.ts --skip-build # start > test (reuse existing .next)
 //   npx tsx scripts/smoke-test.ts --port=3001
+//   npx tsx scripts/smoke-test.ts --base-url=http://127.0.0.1:3000   # a server already running
 //
 // Exit codes:
 //   0  all pages loaded without errors
@@ -36,6 +37,14 @@ interface PageSpec {
   name: string;
   /** Console error / response-URL substrings to ignore for this page. */
   ignoreErrors?: string[];
+  /** Text the rendered page must contain. */
+  mustContain?: string[];
+  /** Text the rendered page must not contain, beyond {@link FORBIDDEN_TEXT}. */
+  mustNotContain?: string[];
+  /** The path (with query) the browser must end on; the requested path by default. */
+  expectFinalPath?: string;
+  /** The status the document itself is expected to answer (a 404 page); under 400 by default. */
+  expectStatus?: number;
 }
 
 /* --------------------------------------------------------------- constants */
@@ -56,9 +65,39 @@ const PAGE_OVERRIDES: Record<string, { name?: string; ignoreErrors?: string[] }>
  * discovered from the home page at runtime and appended in {@link dynamicPages}.
  */
 const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
-  { path: "/route/NX1", name: "Route NX1" },
+  { path: "/route/NX1", name: "Route NX1", mustContain: ["Route map"] },
   { path: "/route/65", name: "Route 65" },
   { path: "/route/NX1?dir=0", name: "Route NX1 (one direction)" },
+  { path: "/route/NX1?window=week", name: "Route NX1 (week)", mustContain: ["Last 7 days"] },
+  { path: "/rankings?window=month", name: "Rankings (month)" },
+  { path: "/shame/trip?window=week", name: "Shame trips (week)" },
+  { path: "/shame/stop?window=week", name: "Shame stops (week)" },
+  {
+    path: "/nonexistent",
+    name: "404 page",
+    expectStatus: 404,
+    mustContain: ["Page not found", "All routes"],
+  },
+];
+
+/**
+ * Text that must never appear in a rendered page: a formatter or a template
+ * that leaked a raw value. Checked against `document.body.innerText`, so
+ * script bundles do not count.
+ */
+const FORBIDDEN_TEXT: ReadonlyArray<string> = [
+  "NaN",
+  "undefined",
+  'No routes match ""',
+  "Invalid Date",
+  "[object Object]",
+];
+
+/** Public endpoints fetched directly: each must answer 200 with a JSON body. */
+const API_CHECKS: ReadonlyArray<{ path: string; nonEmptyArray?: boolean }> = [
+  { path: "/api/routes", nonEmptyArray: true },
+  { path: "/api/freshness" },
+  { path: "/api/routes/top?limit=" },
 ];
 
 /** Discovered URL paths to skip (internal-only or un-testable surfaces). */
@@ -162,37 +201,110 @@ function discoverPages(): PageSpec[] {
 }
 
 /**
- * Build the dynamic-route sample list: the static {@link DYNAMIC_SAMPLES} plus a
- * real stop page, whose id is read from a `/stop/...` link on the home page.
+ * The first link matching a pattern in a page's HTML, or null when the page is
+ * unreachable or has none.
+ * @param baseUrl - The running server's base URL.
+ * @param path - The page to read.
+ * @param pattern - The href pattern to look for.
+ * @returns The matched href, or null.
+ */
+async function firstLink(baseUrl: string, path: string, pattern: RegExp): Promise<string | null> {
+  try {
+    const html = await (await fetch(`${baseUrl}${path}`)).text();
+    return html.match(pattern)?.[0] ?? null;
+  } catch {
+    // An unreachable page is reported by that page's own check.
+    return null;
+  }
+}
+
+/**
+ * Build the dynamic-route sample list: the static {@link DYNAMIC_SAMPLES} plus
+ * pages whose ids only exist at runtime: a stop from the home page, a run from
+ * the NX1 trip board, the first train line in the directory and one of its
+ * stations (the `station:` id form that the platform collapse mints).
  * @param baseUrl - The running server's base URL.
  * @returns Dynamic page specs to visit.
  */
 async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
   const pages = [...DYNAMIC_SAMPLES];
+  const stop = await firstLink(baseUrl, "/", /\/stop\/[^"'?\\]+/);
+  if (stop) pages.push({ path: stop, name: "Stop detail" });
+  const trip = await firstLink(baseUrl, "/route/NX1", /\/route\/NX1\/trip\/[^"'?\\]+/);
+  if (trip) pages.push({ path: trip, name: "Trip detail", mustContain: ["Back to"] });
   try {
-    const res = await fetch(`${baseUrl}/`);
-    const html = await res.text();
-    const m = html.match(/\/stop\/[^"'?\\]+/);
-    if (m) pages.push({ path: m[0], name: "Stop detail" });
+    const routes = (await (await fetch(`${baseUrl}/api/routes`)).json()) as {
+      id: string;
+      mode: string;
+    }[];
+    const train = routes.find((r) => r.mode === "TRAIN");
+    if (train) {
+      const slug = train.id.replace(/-\d+$/, "");
+      pages.push({ path: `/route/${encodeURIComponent(slug)}`, name: `Route ${slug} (train)` });
+      const station = await firstLink(
+        baseUrl,
+        `/route/${encodeURIComponent(slug)}`,
+        /\/stop\/station:[^"'?\\]+/,
+      );
+      if (station) pages.push({ path: station, name: "Train station" });
+    }
   } catch {
-    // Home unreachable here is reported by the home page check itself.
+    // The directory endpoint is checked on its own below.
   }
   return pages;
+}
+
+/**
+ * Fetch each public endpoint and report it like a page: status 200 with a JSON
+ * body, and a non-empty array where one is expected.
+ * @param baseUrl - The running server's base URL.
+ * @returns One result per endpoint.
+ */
+async function checkApis(baseUrl: string): Promise<PageResult[]> {
+  const results: PageResult[] = [];
+  for (const check of API_CHECKS) {
+    const errors: string[] = [];
+    const started = Date.now();
+    let ttfbMs: number | null = null;
+    try {
+      const res = await fetch(`${baseUrl}${check.path}`);
+      ttfbMs = Date.now() - started;
+      if (res.status !== 200) errors.push(`HTTP ${res.status}`);
+      const body: unknown = await res.json();
+      if (check.nonEmptyArray && !(Array.isArray(body) && body.length > 0)) {
+        errors.push("expected a non-empty JSON array");
+      }
+    } catch (err) {
+      errors.push(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    results.push({
+      path: check.path,
+      name: `API ${check.path}`,
+      status: errors.length === 0 ? "pass" : "fail",
+      ttfbMs,
+      fcpMs: null,
+      loadMs: null,
+      errors,
+    });
+  }
+  return results;
 }
 
 /**
  * Parses `--flag` and `--flag=value` CLI arguments.
  * @returns Parsed flags.
  */
-function parseArgs(): { skipBuild: boolean; port: number } {
+function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null } {
   const args = process.argv.slice(2);
   let skipBuild = false;
   let port = 3100;
+  let baseUrl: string | null = null;
   for (const arg of args) {
     if (arg === "--skip-build") skipBuild = true;
     else if (arg.startsWith("--port=")) port = parseInt(arg.slice(7), 10);
+    else if (arg.startsWith("--base-url=")) baseUrl = arg.slice(11).replace(/\/$/, "");
   }
-  return { skipBuild, port };
+  return { skipBuild, port, baseUrl };
 }
 
 /**
@@ -308,6 +420,8 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
     page.on("response", (response) => {
       const status = response.status();
       if (status < 400) return;
+      // The 404 page is expected to answer 404 for its own document.
+      if (spec.expectStatus === status && response.request().resourceType() === "document") return;
       const resUrl = response.url();
       if (IGNORE_404_URLS.some((s) => resUrl.includes(s))) return;
       if (ignored(resUrl)) return;
@@ -326,6 +440,33 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
     });
 
     await page.goto(url, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT_MS });
+
+    // Where the browser ended up: a streamed redirect lands here as a client
+    // navigation, which the response status never shows.
+    const landed = new URL(page.url());
+    const finalPath = `${landed.pathname}${landed.search}`;
+    const expectedPath = spec.expectFinalPath ?? spec.path;
+    if (finalPath !== expectedPath) errors.push(`landed on ${finalPath}, expected ${expectedPath}`);
+
+    // Rendered text only (no bundles): leaked raw values, required copy, and
+    // any section whose heading is all it holds.
+    const text = await page.evaluate(() => document.body.innerText);
+    for (const bad of [...FORBIDDEN_TEXT, ...(spec.mustNotContain ?? [])]) {
+      if (text.includes(bad)) errors.push(`page text contains "${bad}"`);
+    }
+    for (const needed of spec.mustContain ?? []) {
+      if (!text.includes(needed)) errors.push(`page text lacks "${needed}"`);
+    }
+    const emptySections = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("h2"))
+        .filter((h) => {
+          const container = h.parentElement;
+          if (!container) return false;
+          return container.innerText.trim() === h.innerText.trim();
+        })
+        .map((h) => h.innerText.trim()),
+    );
+    for (const heading of emptySections) errors.push(`section "${heading}" has no content`);
 
     const timing = await page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] as
@@ -413,22 +554,26 @@ function printTable(results: PageResult[]): void {
  * @returns Resolves once the process exit code is set and resources are freed.
  */
 async function main(): Promise<void> {
-  const { skipBuild, port } = parseArgs();
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const { skipBuild, port, baseUrl: liveUrl } = parseArgs();
+  const baseUrl = liveUrl ?? `http://127.0.0.1:${port}`;
   let server: ChildProcess | null = null;
   let browser: Browser | null = null;
   let exitCode = 0;
 
   try {
-    loadEnvLocal();
-    if (!skipBuild) runBuild();
-    copyStandaloneAssets();
+    // --base-url points at a server that is already running (a deployment, or
+    // a local `next start`), so nothing is built or started here.
+    if (!liveUrl) {
+      loadEnvLocal();
+      if (!skipBuild) runBuild();
+      copyStandaloneAssets();
 
-    server = startServer(port);
-    server.stderr?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString().trim();
-      if (line) process.stderr.write(`  [server] ${line}\n`);
-    });
+      server = startServer(port);
+      server.stderr?.on("data", (chunk: Buffer) => {
+        const line = chunk.toString().trim();
+        if (line) process.stderr.write(`  [server] ${line}\n`);
+      });
+    }
     await waitForServer(baseUrl);
 
     browser = await puppeteer.launch({
@@ -446,6 +591,7 @@ async function main(): Promise<void> {
       const icon = result.status === "pass" ? "ok" : "x";
       process.stdout.write(`  ${icon} ${spec.path.padEnd(40)} ${result.ttfbMs ?? "-"}ms TTFB\n`);
     }
+    results.push(...(await checkApis(baseUrl)));
 
     printTable(results);
     const failed = results.filter((r) => r.status !== "pass");
