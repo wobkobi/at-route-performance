@@ -4,6 +4,25 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.4] - 2026-09-12
+
+### Fixed
+
+- A run's stop count meant two different things. The route page's trip board counted every row the
+  run had, ghost re-reports included, while the shame boards counted only the real ones, so the same
+  run showed different "N stops" on the two pages, and a stop carrying both a real arrival and a
+  re-report counted twice. Every board now counts the distinct stops that have a real reading. The
+  trip board also named the run's vehicle from its earliest row, which for a re-reported run is the
+  other vehicle; it now takes the vehicle from the first real reading.
+- A route's cancelled-trips list matched the service date by equality with the window's start, so it
+  served only a window whose start equalled a stored stamp; it now range-matches like the
+  cancellation count and board, and is cached by both ends of the window.
+- `GET /api/routes/top` took an ISO week as Monday midnight UTC, twelve or thirteen hours late for a
+  New Zealand week; the week now runs from Auckland midnight like every other window.
+- A failed AT stop-times fetch was cached as an empty schedule for a day, so a trip page whose first
+  visitor hit an AT outage showed no upcoming stops until the next day. The failure now throws out
+  of the cache and only that request goes without a schedule.
+
 ## [1.12.3] - 2026-09-12
 
 ### Fixed

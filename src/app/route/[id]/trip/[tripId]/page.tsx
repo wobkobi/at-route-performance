@@ -37,9 +37,10 @@ export default async function TripPage({
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange).
   const dAt = d ? new Date(d) : null;
   const day = dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : undefined;
+  // An AT outage costs this request its schedule, not the day's cache entry.
   const [timeline, scheduledStops] = await Promise.all([
     getTripTimeline(tripId, slug, day),
-    getTripScheduledStops(tripId),
+    getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
   ]);
   const { route, vehicle_id } = timeline;
   const routeMode = route?.mode ?? "BUS";
