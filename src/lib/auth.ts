@@ -16,7 +16,7 @@ import { timingSafeEqual } from "node:crypto";
 export function requireCronAuth(req: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    console.error("[auth] CRON_SECRET not configured");
+    console.error("[AUTH] CRON_SECRET not configured");
     return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
   }
 
@@ -25,7 +25,7 @@ export function requireCronAuth(req: Request): NextResponse | null {
   const ok = provided.length === expected.length && timingSafeEqual(provided, expected);
 
   if (!ok) {
-    console.warn("[auth] Unauthorised ingest attempt", {
+    console.warn("[AUTH] Unauthorised ingest attempt", {
       ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
     });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

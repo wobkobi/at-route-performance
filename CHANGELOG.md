@@ -4,6 +4,33 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.10] - 2026-09-13
+
+### Fixed
+
+- An empty query value (`GET /api/routes/top?limit=`) returned 400; every parameter now reads an
+  empty string as unset and falls back to its default, as `week` and `mode` already did. A failed
+  parse used to echo Zod's whole issue objects, received input included; the 400 body now carries
+  each issue's field and message only. The API handlers log the error message, not the raw error
+  object, under one `[API]` prefix with the route id where there is one, and the remaining log
+  prefixes are one style (`[AUTH]`); the emoji and the em-dash in two log lines are gone.
+- A stop's scheduled departures decided their cache lifetime by comparing the NZ service date to the
+  UTC calendar date. Between midnight UTC and 5am NZ the two differ, so every NZ morning the day
+  just ended looked like the current day and was refetched from AT twelve times an hour, and the
+  current day looked past. The rule now compares service dates, in a small helper with tests.
+- The earliest-data marker was cached for six hours, so after the nightly cleanup the day stepper
+  could offer a day that no longer existed for most of a morning; it now refreshes every ten minutes
+  like the latest-data marker. The cache pre-warm route no longer calls the two markers under the
+  belief it refreshed them (a cached read returns the cached value; it refreshed nothing).
+- The route map polled live vehicles every minute against a feed the server caches for two minutes,
+  so every second poll re-read the same snapshot; it now polls every two minutes, and the vehicles
+  endpoint's comment says 120s rather than 15s.
+
+### Removed
+
+- `POST /api/ingest/gtfs/routes` and `POST /api/ingest/gtfs/stops`, which ran one half of the static
+  sync each and were scheduled nowhere; `POST /api/ingest/gtfs/sync?force=1` runs both.
+
 ## [1.12.9] - 2026-09-13
 
 ### Fixed

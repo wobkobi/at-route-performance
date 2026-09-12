@@ -131,7 +131,7 @@ async function runCleanup(
     const usedMB = dataMB + indexMB;
 
     if (usedMB > limitMB * 0.8) {
-      console.warn("[CLEANUP] ⚠️  Storage warning", {
+      console.warn("[CLEANUP] Storage warning", {
         usedMB: usedMB.toFixed(0),
         dataMB: dataMB.toFixed(0),
         indexMB: indexMB.toFixed(0),

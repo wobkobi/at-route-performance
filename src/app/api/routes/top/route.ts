@@ -2,7 +2,7 @@
 // GET handler returning the top routes leaderboard JSON for an ISO week, ranked by on-time rate or average delay.
 
 import { getTopRoutes } from "@/lib/data";
-import { topRoutesQuery } from "@/lib/validate";
+import { queryIssues, topRoutesQuery } from "@/lib/validate";
 import { NextResponse } from "next/server";
 
 /**
@@ -16,14 +16,16 @@ export async function GET(req: Request): Promise<NextResponse> {
   const parsed = topRoutesQuery.safeParse(Object.fromEntries(sp));
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "invalid_query", issues: parsed.error.issues },
+      { error: "invalid_query", issues: queryIssues(parsed.error.issues) },
       { status: 400 },
     );
   }
   try {
     return NextResponse.json(await getTopRoutes(parsed.data));
   } catch (err) {
-    console.error("GET /api/routes/top failed", err);
+    console.error("[API] GET /api/routes/top failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
