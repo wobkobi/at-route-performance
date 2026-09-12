@@ -4,6 +4,25 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.12.9] - 2026-09-13
+
+### Fixed
+
+- The nightly aggregate now catches up. Without `?date=` it rolls up yesterday plus any of the two
+  days before it that have arrival events but no summary, oldest first, one IngestRun row per day,
+  so a night the cron missed is closed by the next run instead of leaving a permanent hole in the
+  rankings. A ghost-pass failure now fails its day rather than rolling the day up unclassified,
+  which would have pinned the noise into the archive for good; the day stays unsummarised and the
+  next run retries it. The function's time budget is raised to cover three days. The rollup itself
+  moved to `src/lib/aggregate.ts` (pipeline, upsert entries and the catch-up rule are plain
+  functions with unit tests), and the rebuild script runs the same pipeline.
+- The realtime ingest's bulk inserts and upserts bypassed the connection-reset retry, and an
+  `ordered: false` bulk command that rejected some entries still resolved, so a half-failed write
+  passed unnoticed. Both now go through the retry, which also recognises `ECONNRESET`, `EPIPE` and a
+  hung-up socket, and every bulk write checks the reply's per-entry errors, ignoring only the
+  duplicate key an idempotent insert or a raced upsert is expected to hit. The ghost pass shares the
+  check.
+
 ## [1.12.8] - 2026-09-13
 
 ### Removed
