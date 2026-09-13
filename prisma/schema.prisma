@@ -193,6 +193,7 @@ model CancelledTrip {
   tripId      String
   routeId     String
   serviceDate DateTime // NZ service-day start (5am Auckland, stored as UTC)
+  startTime   String? // GTFS-RT trip start_time "HH:MM:SS", absent on rows ingested before capture
   detectedAt  DateTime @default(now())
 
   @@unique([tripId, serviceDate])
