@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.1] - 2026-09-13
+
+### Fixed
+
+- The site had no favicon, so every first visit logged a 404 for `/favicon.ico`. It now ships a bus
+  glyph on AT Shore blue as `icon.svg`, with a 32px `favicon.ico` and a 180px `apple-icon.png`
+  rendered from it.
+
 ## [1.14.0] - 2026-09-13
 
 ### Added
