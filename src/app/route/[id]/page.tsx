@@ -47,6 +47,7 @@ import {
   weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
+import { buildTripBoardRows } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
@@ -422,32 +423,50 @@ export default async function RoutePage({
       ? null
       : new Set(activeVariants.map((v) => v.stopIds[0]).filter((s): s is string => s != null));
 
-  const dirTrips =
-    activeDir == null
-      ? sortedTrips
-      : sortedTrips.filter((t) => {
-          if (t.direction_id != null)
-            return (view.directionIdAliases.get(t.direction_id) ?? t.direction_id) === activeDir;
-          if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
-          if (t.first_stop_id != null && dirFirstStops) {
-            const matchesActive = dirFirstStops.has(t.first_stop_id);
-            const matchesAny = dirEntries.some(([, dir]) =>
-              dir.variants.some((v) => v.stopIds[0] === t.first_stop_id),
-            );
-            if (matchesAny) return matchesActive;
-          }
-          return true;
-        });
+  /**
+   * Whether a trip runs in the active direction: by direction id, then headsign,
+   * then first stop, keeping any trip none of them can place.
+   * @param t - The trip's direction clues.
+   * @param t.direction_id - GTFS direction id, when known.
+   * @param t.headsign - Destination headsign, when known.
+   * @param t.first_stop_id - First scheduled stop, when known (running trips only).
+   * @returns True when the trip belongs on the filtered board.
+   */
+  const inActiveDir = (t: {
+    direction_id?: number | null;
+    headsign?: string | null;
+    first_stop_id?: string | null;
+  }): boolean => {
+    if (activeDir == null) return true;
+    if (t.direction_id != null)
+      return (view.directionIdAliases.get(t.direction_id) ?? t.direction_id) === activeDir;
+    if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
+    if (t.first_stop_id != null && dirFirstStops) {
+      const matchesActive = dirFirstStops.has(t.first_stop_id);
+      const matchesAny = dirEntries.some(([, dir]) =>
+        dir.variants.some((v) => v.stopIds[0] === t.first_stop_id),
+      );
+      if (matchesAny) return matchesActive;
+    }
+    return true;
+  };
+  const dirTrips = sortedTrips.filter(inActiveDir);
+  const boardRows = buildTripBoardRows(
+    dirTrips,
+    cancelledTrips.filter(inActiveDir),
+    tripSort,
+    isReversed,
+  );
 
   const totalTrips = dirTrips.length;
   const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
-  const totalPages = Math.max(1, Math.ceil(totalTrips / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(boardRows.length / PAGE_SIZE));
   const requestedPage = Number.parseInt(sp.tpage ?? "1", 10);
   const tripPage = Math.min(
     Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1),
     totalPages,
   );
-  const pageTrips = dirTrips.slice((tripPage - 1) * PAGE_SIZE, tripPage * PAGE_SIZE);
+  const pageRows = boardRows.slice((tripPage - 1) * PAGE_SIZE, tripPage * PAGE_SIZE);
 
   const tripPreserved: Record<string, string> = {};
   if (requestedDay) tripPreserved.day = requestedDay;
@@ -626,7 +645,7 @@ export default async function RoutePage({
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
-                trips={pageTrips}
+                rows={pageRows}
                 sort={tripSort}
                 isReversed={isReversed}
                 mode={routeMode}
@@ -634,8 +653,6 @@ export default async function RoutePage({
                 preservedParams={tripPreserved}
                 page={tripPage}
                 totalPages={totalPages}
-                pageSize={PAGE_SIZE}
-                cancelledTrips={cancelledTrips}
               />
             </Suspense>
             {tripsCapped && (

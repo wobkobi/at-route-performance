@@ -10,6 +10,7 @@ import {
   nzWeekRange,
   nzWeekStart,
   serviceDatesInRange,
+  serviceDayClockInstant,
   shiftMonth,
   weekdayShort,
 } from "@/lib/time";
@@ -96,6 +97,30 @@ describe("nzMonthRange", () => {
 describe("nzWeekStart", () => {
   it("returns the Monday of the week", () => {
     expect(nzWeekStart(new Date("2026-06-17T00:00:00Z"))).toBe("2026-06-15");
+  });
+});
+
+describe("serviceDayClockInstant", () => {
+  const sep13 = nzServiceDayRange("2026-09-13").start; // 5am NZST = 2026-09-12T17:00Z
+  /**
+   * The instant of an hour:minute schedule time on the 13 September service day.
+   * @param hm - Hours (may exceed 23) and minutes.
+   * @returns The ISO instant.
+   */
+  const at = (hm: [number, number]): string =>
+    serviceDayClockInstant(sep13, hm[0] * 3600 + hm[1] * 60).toISOString();
+
+  it("places a daytime start on the service date", () => {
+    expect(at([7, 30])).toBe("2026-09-12T19:30:00.000Z");
+  });
+  it("reads an extended time and its next-date form as the same post-midnight run", () => {
+    expect(at([24, 30])).toBe("2026-09-13T12:30:00.000Z");
+    expect(at([0, 30])).toBe("2026-09-13T12:30:00.000Z");
+  });
+  it("matches GTFS noon-minus-12h on the NZDT-start day", () => {
+    // 27 Sep 2026 skips 02:00-03:00; 7am NZDT (+13) is 18:00Z the day before.
+    const sep27 = nzServiceDayRange("2026-09-27").start;
+    expect(serviceDayClockInstant(sep27, 7 * 3600).toISOString()).toBe("2026-09-26T18:00:00.000Z");
   });
 });
 

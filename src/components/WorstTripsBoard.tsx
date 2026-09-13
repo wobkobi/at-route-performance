@@ -2,27 +2,26 @@
 // Paginated, sortable table of a route's worst trips with delay
 // bands. Sort chips reset to page 1 and clicking the active chip toggles its
 // direction, while the prev/next page links preserve the active sort so paging
-// doesn't drop it. Cancelled trips carry no delay to rank, so they pin to the
-// top of page 1 with a CANCELLED badge; running trips get a LIVE badge from the
-// passed-in live id set, and the per-page rank number stays continuous across
-// pages.
+// doesn't drop it. Rows arrive already laid out (see trip-board.ts): cancelled
+// trips carry a CANCELLED badge and no rank, running trips get a LIVE badge from
+// the passed-in live id set, and ranks stay continuous across pages.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
-import type { CancelledTripRow, TripSort } from "@/lib/data";
+import type { TripSort } from "@/lib/data";
 import { formatDelay } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
-import type { PerTripStat } from "@/types/api";
+import type { TripBoardRow } from "@/lib/trip-board";
 import type { JSX } from "react";
 
 /** Props for {@link WorstTripsBoard}. */
 export interface WorstTripsBoardProps {
   /** Route the trips belong to (for the per-trip links). */
   routeId: string;
-  /** The current page of trips, already ordered by `sort`. */
-  trips: PerTripStat[];
+  /** The current page of rows (running and cancelled trips), in display order. */
+  rows: TripBoardRow[];
   /** Active ordering. */
   sort: TripSort;
   /** Whether the active sort direction is reversed from its default. */
@@ -37,12 +36,8 @@ export interface WorstTripsBoardProps {
   page: number;
   /** Total number of pages. */
   totalPages: number;
-  /** Trips shown per page (sets the row's continuous rank number). */
-  pageSize: number;
   /** Trip ids currently running live; those rows get a LIVE badge. */
   liveTripIds?: Set<string>;
-  /** Trips cancelled today; listed at the top of page 1 with a CANCELLED badge. */
-  cancelledTrips?: CancelledTripRow[];
 }
 
 /**
@@ -101,12 +96,13 @@ const SORTS: { key: TripSort; label: string }[] = [
 
 /**
  * Board of a route's runs for the day, ordered by the chosen sort (most
- * off-schedule, latest, earliest, or departure time). Each row shows the
- * scheduled start, vehicle, stop count, and signed average delay, and links to
- * the run's stop-by-stop timeline.
+ * off-schedule, latest, earliest, or departure time). Each running row shows
+ * the scheduled start, vehicle, stop count, and signed average delay, and links
+ * to the run's stop-by-stop timeline; a cancelled row shows its scheduled start
+ * and destination struck through.
  * @param props - Board props.
  * @param props.routeId - Route the trips belong to.
- * @param props.trips - The current page of trips, ordered by the active sort.
+ * @param props.rows - The current page of rows, in display order.
  * @param props.sort - The active ordering.
  * @param props.isReversed - Whether the active sort direction is reversed from its default.
  * @param props.mode - Route mode, for the heading noun + colour banding.
@@ -114,14 +110,12 @@ const SORTS: { key: TripSort; label: string }[] = [
  * @param props.preservedParams - Query params to keep when changing sort/page.
  * @param props.page - The 1-based current page.
  * @param props.totalPages - Total number of pages.
- * @param props.pageSize - Trips per page (sets each row's continuous rank).
  * @param props.liveTripIds - Trip ids currently broadcasting a live position (highlighted).
- * @param props.cancelledTrips - Trips cancelled today, listed atop page 1 with a CANCELLED badge.
  * @returns The board element.
  */
 export function WorstTripsBoard({
   routeId,
-  trips,
+  rows,
   sort,
   isReversed = false,
   mode,
@@ -129,13 +123,9 @@ export function WorstTripsBoard({
   preservedParams,
   page,
   totalPages,
-  pageSize,
   liveTripIds,
-  cancelledTrips = [],
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
-  // Cancelled trips have no delay to sort by, so they sit at the top of page 1.
-  const showCancelled = page === 1 && cancelledTrips.length > 0;
   return (
     <section className="border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -169,26 +159,34 @@ export function WorstTripsBoard({
           })}
         </div>
       </div>
-      {trips.length === 0 && !showCancelled ? (
+      {rows.length === 0 ? (
         <p className="text-sm text-at-muted">No trips recorded for this day yet.</p>
       ) : (
         <ol>
-          {showCancelled &&
-            cancelledTrips.map((c) => (
-              <li
-                key={`cancelled-${c.trip_id}`}
-                className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm first:border-0"
-              >
-                <span className="w-6 shrink-0" />
-                <span className="min-w-0 flex-1 truncate text-at-muted line-through">
-                  {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
-                </span>
-                <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
-                  CANCELLED
-                </span>
-              </li>
-            ))}
-          {trips.map((t, i) => {
+          {rows.map((row) => {
+            if (row.kind === "cancelled") {
+              const c = row.trip;
+              return (
+                <li
+                  key={`cancelled-${c.trip_id}`}
+                  className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm first:border-0"
+                >
+                  <span className="w-6 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-at-muted line-through">
+                    {c.scheduled_start && (
+                      <span className="font-semibold tabular-nums">
+                        {nzClockTime(c.scheduled_start)}{" "}
+                      </span>
+                    )}
+                    {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
+                  </span>
+                  <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
+                    CANCELLED
+                  </span>
+                </li>
+              );
+            }
+            const t = row.trip;
             const avg = t.avg_delay_sec ?? 0;
             const band = delayBand(avg, mode ?? "BUS");
             const valueClass =
@@ -199,7 +197,7 @@ export function WorstTripsBoard({
                 className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm transition-colors first:border-0 hover:bg-at-shore-pale"
               >
                 <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
-                  {(page - 1) * pageSize + i + 1}
+                  {row.rank}
                 </span>
                 <a
                   href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(t.scheduled_start)}`}
