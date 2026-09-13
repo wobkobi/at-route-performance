@@ -7,6 +7,7 @@ import { earlyToleranceFor, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link ShameOfDay}. */
@@ -69,7 +70,7 @@ export function ShameOfDay({
   const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
   const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
   return (
-    <a
+    <Link
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
@@ -124,6 +125,6 @@ export function ShameOfDay({
       {routeStreakDays >= 2 && routeStreakDays < 4 && (
         <p className="text-xs text-at-late">Featured {routeStreakDays} days in a row</p>
       )}
-    </a>
+    </Link>
   );
 }

@@ -9,6 +9,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { earlyToleranceFor, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
+import Link from "next/link";
 import type { JSX } from "react";
 import { useState } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
@@ -166,7 +167,7 @@ export function RankBoard({
             return (
               <li key={r.route_id}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
-                <a
+                <Link
                   href={
                     routeDay
                       ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?day=${routeDay}`
@@ -204,7 +205,7 @@ export function RankBoard({
                     {value}
                   </span>
                   <ChevronRight className="shrink-0 text-at-muted" />
-                </a>
+                </Link>
               </li>
             );
           })}

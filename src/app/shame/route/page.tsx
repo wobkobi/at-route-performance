@@ -44,6 +44,7 @@ import {
   type DateRange,
 } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 const BASE = "/shame/route";
@@ -95,7 +96,7 @@ async function RouteRangeBoard({
     const dayLabel = r.date ? weekdayShort(r.date) : "";
     const dayCount = routeDayCounts.get(r.route_id) ?? 0;
     return (
-      <a href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
           {r.date ? `${dayLabel} ${d}/${m}` : ""}
         </span>
@@ -126,7 +127,7 @@ async function RouteRangeBoard({
           avgAbsDelaySec={r.avg_abs_delay_sec}
           mode={r.mode}
         />
-      </a>
+      </Link>
     );
   };
 
@@ -264,7 +265,7 @@ export default async function RoutesShamePage({
     const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
-      <a href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
           {nzHourLabel(r.hour)}
         </span>
@@ -313,7 +314,7 @@ export default async function RoutesShamePage({
           avgAbsDelaySec={r.avg_abs_delay_sec}
           mode={r.mode}
         />
-      </a>
+      </Link>
     );
   };
 
