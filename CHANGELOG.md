@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.15] - 2026-09-13
+
+### Changed
+
+- Route icons use each route's `route_color` from the AT API exactly as published. A contrast check
+  replaced any colour under 3:1 on white with a generic mode colour, which dropped the East West
+  Line's green and the Onehunga West Line's blue to the same train purple (only the South City Line
+  kept its red), along with the ferries' teal and the InnerLink and OuterLink colours. Routes the
+  API gives no colour keep the service and mode fallbacks. The unused contrast helper is removed.
+
 ## [1.13.14] - 2026-09-13
 
 ### Fixed
