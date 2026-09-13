@@ -1,4 +1,4 @@
-// src/app/route/[id]/page.tsx
+// src/app/route/[id]/(overview)/page.tsx
 // Route detail page with a day view (worst trips and route map) and
 // a week view of aggregated stats, toggled in the header. Version-stripped and
 // case-canonical slugs are enforced up front via redirects; the day view falls
@@ -18,6 +18,7 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
+import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
@@ -53,6 +54,7 @@ import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteDay, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type ComponentProps, type JSX } from "react";
 
@@ -151,15 +153,19 @@ function RouteWeekNav({
   return (
     <div className="flex items-center gap-1">
       {prevHref ? (
-        <a href={prevHref} aria-label="Previous week" className="chip chip-off flex items-center">
+        <Link
+          href={prevHref}
+          aria-label="Previous week"
+          className="chip chip-off flex items-center"
+        >
           <ChevronLeft className="block h-4 w-4" />
-        </a>
+        </Link>
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <a href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
+        <Link href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
           <ChevronRight className="block h-4 w-4" />
-        </a>
+        </Link>
       ) : null}
     </div>
   );
@@ -176,12 +182,12 @@ function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean })
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <a href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
         Day
-      </a>
-      <a href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+      </Link>
+      <Link href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
         Week
-      </a>
+      </Link>
     </div>
   );
 }
@@ -584,11 +590,7 @@ export default async function RoutePage({
             routeId={slug}
             mode={routeMode}
           />
-          <Suspense
-            fallback={
-              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-            }
-          >
+          <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -637,11 +639,7 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Suspense
-              fallback={
-                <div className="h-96 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-              }
-            >
+            <Suspense fallback={<TripBoardSkeleton />}>
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
@@ -678,11 +676,7 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense
-            fallback={
-              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-            }
-          >
+          <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -720,12 +714,12 @@ export default async function RoutePage({
                         className="border-t border-at-border hover:bg-at-shore-pale"
                       >
                         <td className="px-3 py-2">
-                          <a
+                          <Link
                             href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {s.name}
-                          </a>
+                          </Link>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
                         <td className="px-3 py-2 text-right tabular-nums">

@@ -4,6 +4,7 @@
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Which board tab is active, or "none" for the dashboard. */
@@ -75,31 +76,31 @@ export function ShameHeader({
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
-          <a
+          <Link
             href={tabHrefs.trip}
             className={cn("chip", activeTab === "trip" ? "chip-on" : "chip-off")}
           >
             Trips
-          </a>
-          <a
+          </Link>
+          <Link
             href={tabHrefs.route}
             className={cn("chip", activeTab === "route" ? "chip-on" : "chip-off")}
           >
             Routes
-          </a>
-          <a
+          </Link>
+          <Link
             href={tabHrefs.stop}
             className={cn("chip", activeTab === "stop" ? "chip-on" : "chip-off")}
           >
             Stops
-          </a>
+          </Link>
         </div>
         {nav.kind === "day" ? (
           <>
             {nav.weekToggleHref && (
-              <a href={nav.weekToggleHref} className="chip chip-off text-sm">
+              <Link href={nav.weekToggleHref} className="chip chip-off text-sm">
                 Week
-              </a>
+              </Link>
             )}
             <DayNav
               basePath={nav.basePath}
@@ -112,28 +113,28 @@ export function ShameHeader({
           </>
         ) : (
           <>
-            <a href={nav.dayToggleHref} className="chip chip-off text-sm">
+            <Link href={nav.dayToggleHref} className="chip chip-off text-sm">
               Day
-            </a>
+            </Link>
             <div className="flex items-center gap-1">
               {nav.prevHref ? (
-                <a
+                <Link
                   href={nav.prevHref}
                   aria-label={`Previous ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
                   <ChevronLeft className="block h-4 w-4" />
-                </a>
+                </Link>
               ) : null}
               <span className="px-1 text-sm font-semibold tabular-nums">{nav.periodLabel}</span>
               {nav.nextHref ? (
-                <a
+                <Link
                   href={nav.nextHref}
                   aria-label={`Next ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
                   <ChevronRight className="block h-4 w-4" />
-                </a>
+                </Link>
               ) : null}
             </div>
           </>

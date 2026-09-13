@@ -44,13 +44,13 @@ export function WindowControls({
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
         {tabs.map((t) => (
-          <a
+          <Link
             key={t.key}
             href={buildHref("/rankings", { window: t.key })}
             className={cn("chip", window === t.key ? "chip-on" : "chip-off")}
           >
             {t.label}
-          </a>
+          </Link>
         ))}
       </div>
       <div className="flex items-center gap-1">

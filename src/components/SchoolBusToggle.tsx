@@ -3,6 +3,7 @@
 
 import { cn } from "@/lib/cn";
 import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link SchoolBusToggle}. */
@@ -31,8 +32,8 @@ export function SchoolBusToggle({
 }: SchoolBusToggleProps): JSX.Element {
   const href = buildHref(basePath, { ...preservedParams, school: active ? undefined : "1" });
   return (
-    <a href={href} className={cn("chip", active ? "chip-on" : "chip-off")}>
+    <Link href={href} scroll={false} className={cn("chip", active ? "chip-on" : "chip-off")}>
       School buses
-    </a>
+    </Link>
   );
 }

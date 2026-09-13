@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDelay } from "@/lib/format";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
+import Link from "next/link";
 import { useState, type JSX } from "react";
 
 /** Sortable columns for {@link RouteTable}. */
@@ -176,7 +177,8 @@ export function RouteTable({
                           longName={r.long_name}
                           colour={r.colour}
                         />
-                        <a
+                        <Link
+                          prefetch={false}
                           href={
                             routeDay
                               ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?day=${routeDay}`
@@ -187,7 +189,7 @@ export function RouteTable({
                           className="font-semibold text-at-shore hover:underline"
                         >
                           {r.short_name || r.long_name || r.route_id}
-                        </a>
+                        </Link>
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{r.events}</td>

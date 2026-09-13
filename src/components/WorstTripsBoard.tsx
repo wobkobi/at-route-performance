@@ -2,9 +2,13 @@
 // Paginated, sortable table of a route's worst trips with delay
 // bands. Sort chips reset to page 1 and clicking the active chip toggles its
 // direction, while the prev/next page links preserve the active sort so paging
-// doesn't drop it. Rows arrive already laid out (see trip-board.ts): cancelled
-// trips carry a CANCELLED badge and no rank, running trips get a LIVE badge from
-// the passed-in live id set, and ranks stay continuous across pages.
+// doesn't drop it. Both are client navigations that keep the scroll position,
+// so a sort or page change swaps the board in place instead of reloading the
+// document behind the route skeleton. Rows arrive already laid out (see
+// trip-board.ts): cancelled trips carry a CANCELLED badge and no rank, running
+// trips get a LIVE badge from the passed-in live id set, and ranks stay
+// continuous across pages. The section is `min-w-0` because it sits in a grid,
+// where it would otherwise grow to its truncating rows' full width on a phone.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
@@ -14,6 +18,7 @@ import { MODE_NOUN } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
 import type { TripBoardRow } from "@/lib/trip-board";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstTripsBoard}. */
@@ -127,7 +132,7 @@ export function WorstTripsBoard({
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
   return (
-    <section className="border border-at-border bg-at-surface p-4">
+    <section className="min-w-0 border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-ultra tracking-zero text-at-ink">{noun} of the day</h2>
         <div className="flex flex-wrap gap-1">
@@ -147,14 +152,15 @@ export function WorstTripsBoard({
             params.delete("tpage");
             const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
             return (
-              <a
+              <Link
                 key={s.key}
                 href={href}
+                scroll={false}
                 className={cn("chip text-xs", isActive ? "chip-on" : "chip-off")}
               >
                 {s.label}
                 {isActive && <span className="ml-0.5 opacity-60">{isReversed ? "↑" : "↓"}</span>}
-              </a>
+              </Link>
             );
           })}
         </div>
@@ -199,7 +205,7 @@ export function WorstTripsBoard({
                 <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
                   {row.rank}
                 </span>
-                <a
+                <Link
                   href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(t.scheduled_start)}`}
                   className="min-w-0 flex-1 truncate"
                 >
@@ -212,7 +218,7 @@ export function WorstTripsBoard({
                     {" · "}
                     {t.stops} stops
                   </span>
-                </a>
+                </Link>
                 {liveTripIds?.has(t.trip_id) && (
                   <span className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
                     LIVE
@@ -233,13 +239,14 @@ export function WorstTripsBoard({
           aria-label="Trip pages"
         >
           {page > 1 && (
-            <a
+            <Link
               href={pageHref(basePath, preservedParams, sort, page - 1)}
+              scroll={false}
               className="chip chip-off"
               aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
-            </a>
+            </Link>
           )}
           {pageWindow(page, totalPages).map((p, i) =>
             p === "…" ? (
@@ -247,24 +254,26 @@ export function WorstTripsBoard({
                 …
               </span>
             ) : (
-              <a
+              <Link
                 key={p}
                 href={pageHref(basePath, preservedParams, sort, p)}
+                scroll={false}
                 aria-current={p === page ? "page" : undefined}
                 className={cn("chip tabular-nums", p === page ? "chip-on" : "chip-off")}
               >
                 {p}
-              </a>
+              </Link>
             ),
           )}
           {page < totalPages && (
-            <a
+            <Link
               href={pageHref(basePath, preservedParams, sort, page + 1)}
+              scroll={false}
               className="chip chip-off"
               aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />
-            </a>
+            </Link>
           )}
         </nav>
       )}

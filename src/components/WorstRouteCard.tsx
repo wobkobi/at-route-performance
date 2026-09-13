@@ -6,6 +6,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { ShameRouteRow } from "@/types/dashboard";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstRouteCard}. */
@@ -38,7 +39,7 @@ export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Elemen
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
   const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
   return (
-    <a
+    <Link
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
@@ -77,6 +78,6 @@ export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Elemen
         )}
       </p>
       <p className="text-xs text-at-muted tabular-nums">{route.events} events</p>
-    </a>
+    </Link>
   );
 }
