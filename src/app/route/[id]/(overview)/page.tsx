@@ -18,6 +18,7 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
+import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
@@ -589,11 +590,7 @@ export default async function RoutePage({
             routeId={slug}
             mode={routeMode}
           />
-          <Suspense
-            fallback={
-              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-            }
-          >
+          <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -642,11 +639,7 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Suspense
-              fallback={
-                <div className="h-96 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-              }
-            >
+            <Suspense fallback={<TripBoardSkeleton />}>
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
@@ -683,11 +676,7 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense
-            fallback={
-              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
-            }
-          >
+          <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}

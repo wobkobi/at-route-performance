@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.3] - 2026-09-14
+
+### Fixed
+
+- Loading skeletons were close to their pages but not the same size, so content jumped a little as
+  each page arrived (the route header 20px taller, the Shame cards and hour rows shorter, the rank
+  boards 25px short, chips 2px taller, the stop page's lower sections misplaced). Every skeleton is
+  now built from shared parts (`SkeletonParts.tsx`) that mirror the real components box for box: the
+  same padding, gaps and borders, with each bar the height of the text line it stands in for.
+  Measured against the loaded pages at desktop and phone widths, every fixed block lines up; what
+  still differs depends on the data (how many hours have passed, a route's alert banner and diagram,
+  a long name wrapping). The in-page Suspense fallbacks (home cards, route trip board and diagram,
+  stop departures, Shame week boards) use the same parts.
+
 ## [1.14.2] - 2026-09-14
 
 ### Fixed

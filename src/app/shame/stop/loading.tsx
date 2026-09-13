@@ -1,42 +1,21 @@
 // src/app/shame/stop/loading.tsx
-// Loading skeleton for the worst-stop shame page.
+// Loading skeleton for the shame stop page.
 
-import { Bone, ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
+import { ShameHeaderSkeleton } from "@/components/SkeletonParts";
+import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Shame stop page loading skeleton.
+ * Shame stop page loading skeleton: the ShameHeader with its Day/Week toggle and
+ * the hourly board. Stop rows have no mode icon, and under the events line they
+ * commonly carry "was bad N times today".
  * @returns Skeleton layout matching the shame stop page structure.
  */
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        {/* Title + the one-line subtitle ShameHeader renders under it */}
-        <div className="space-y-1.5">
-          <Bone className="h-9 w-56" />
-          <Bone className="h-3 w-72 max-w-full" />
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Trips/Routes/Stops tabs */}
-          <div className="flex items-center gap-1">
-            <Bone className="h-8 w-14 rounded-full" />
-            <Bone className="h-8 w-16 rounded-full" />
-            <Bone className="h-8 w-14 rounded-full" />
-          </div>
-          {/* Day/Week toggle (single chip - shows the other view) */}
-          <Bone className="h-8 w-14 rounded-full" />
-          {/* Stepper */}
-          <div className="flex items-center gap-2">
-            <Bone className="h-8 w-7 rounded-full" />
-            <Bone className="h-5 w-28" />
-            <Bone className="h-8 w-7 rounded-full" />
-          </div>
-        </div>
-      </header>
-
-      <ShameBoardSkeleton layout="day" />
+      <ShameHeaderSkeleton toggle />
+      <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
     </main>
   );
 }
