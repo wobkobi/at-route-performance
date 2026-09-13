@@ -41,5 +41,10 @@ export {
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
 } from "@/lib/data/stops";
-export { getTripScheduledStops, getTripTimeline, getWorstTripsOfDay } from "@/lib/data/trips";
+export {
+  getTripScheduledStops,
+  getTripShape,
+  getTripTimeline,
+  getWorstTripsOfDay,
+} from "@/lib/data/trips";
 export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";

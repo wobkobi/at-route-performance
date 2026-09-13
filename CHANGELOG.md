@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.5] - 2026-09-14
+
+### Fixed
+
+- Trip page map: the line joined the trip's stops with straight segments, cutting across blocks and
+  the harbour instead of following the road. It now draws the trip's own GTFS shape (the `shape_id`
+  on AT's trip record, from the stored shapes), and only joins the stops for a trip AT no longer
+  publishes or a shape not yet ingested.
+
 ## [1.14.4] - 2026-09-14
 
 ### Fixed
