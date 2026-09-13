@@ -4,6 +4,20 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.0] - 2026-09-13
+
+### Added
+
+- `GET /api/health` answers `{ ok, version, time }` from the deployed build, uncached and without
+  touching the database, so a deploy can be confirmed to be the commit it claims.
+- A post-deploy smoke workflow (`.github/workflows/post-deploy-smoke.yml`). Vercel reports each
+  finished deployment to GitHub; the workflow checks out the deployed commit, probes `/api/health`
+  until the expected version answers, and runs the smoke test against the deployment URL. Deployment
+  Protection is on, so it needs the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET` (the
+  project's "Protection Bypass for Automation" value) and skips with a message until it exists.
+- The smoke test sends `x-vercel-protection-bypass` on every page and API request when that
+  environment variable is set, so it can read a protected deployment by hand as well.
+
 ## [1.12.19] - 2026-09-13
 
 ### Fixed

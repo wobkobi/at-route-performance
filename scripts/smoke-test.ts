@@ -11,6 +11,10 @@
 //   npx tsx scripts/smoke-test.ts --port=3001
 //   npx tsx scripts/smoke-test.ts --base-url=http://127.0.0.1:3000   # a server already running
 //
+// Against a Vercel deployment behind Deployment Protection, set
+// VERCEL_AUTOMATION_BYPASS_SECRET (the project's "Protection Bypass for
+// Automation" secret); it is sent as the bypass header on every request.
+//
 // Exit codes:
 //   0  all pages loaded without errors
 //   1  one or more pages had console errors or failed to load
@@ -95,6 +99,7 @@ const FORBIDDEN_TEXT: ReadonlyArray<string> = [
 
 /** Public endpoints fetched directly: each must answer 200 with a JSON body. */
 const API_CHECKS: ReadonlyArray<{ path: string; nonEmptyArray?: boolean }> = [
+  { path: "/api/health" },
   { path: "/api/routes", nonEmptyArray: true },
   { path: "/api/freshness" },
   { path: "/api/routes/top?limit=" },
@@ -137,6 +142,17 @@ const IGNORE_404_URLS = ["/_vercel/insights/", "/_vercel/speed-insights/", "/fav
 const IGNORE_CONSOLE = ["Failed to load resource"];
 
 /* ---------------------------------------------------------------- helpers */
+
+/**
+ * Extra headers for every request the run makes: Vercel's protection-bypass
+ * header when the secret is set, so a deployment behind SSO answers the page
+ * rather than a 302 to the login. Empty for a local server.
+ * @returns The headers.
+ */
+function requestHeaders(): Record<string, string> {
+  const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  return secret ? { "x-vercel-protection-bypass": secret } : {};
+}
 
 /**
  * Title-cases the final segments of a route for the default display name.
@@ -210,7 +226,7 @@ function discoverPages(): PageSpec[] {
  */
 async function firstLink(baseUrl: string, path: string, pattern: RegExp): Promise<string | null> {
   try {
-    const html = await (await fetch(`${baseUrl}${path}`)).text();
+    const html = await (await fetch(`${baseUrl}${path}`, { headers: requestHeaders() })).text();
     return html.match(pattern)?.[0] ?? null;
   } catch {
     // An unreachable page is reported by that page's own check.
@@ -234,7 +250,9 @@ async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
   const trip = await firstLink(baseUrl, "/route/NX1", /\/route\/NX1\/trip\/[^"'?\\]+/);
   if (trip) pages.push({ path: trip, name: "Trip detail", mustContain: ["Back to"] });
   try {
-    const routes = (await (await fetch(`${baseUrl}/api/routes`)).json()) as {
+    const routes = (await (
+      await fetch(`${baseUrl}/api/routes`, { headers: requestHeaders() })
+    ).json()) as {
       id: string;
       mode: string;
     }[];
@@ -268,7 +286,7 @@ async function checkApis(baseUrl: string): Promise<PageResult[]> {
     const started = Date.now();
     let ttfbMs: number | null = null;
     try {
-      const res = await fetch(`${baseUrl}${check.path}`);
+      const res = await fetch(`${baseUrl}${check.path}`, { headers: requestHeaders() });
       ttfbMs = Date.now() - started;
       if (res.status !== 200) errors.push(`HTTP ${res.status}`);
       const body: unknown = await res.json();
@@ -384,7 +402,10 @@ async function waitForServer(baseUrl: string, timeoutMs = 90_000): Promise<void>
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(baseUrl, { signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(baseUrl, {
+        signal: AbortSignal.timeout(15_000),
+        headers: requestHeaders(),
+      });
       if (res.status < 500) {
         console.log(`> Server ready at ${baseUrl}\n`);
         return;
@@ -418,6 +439,7 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
   const page = await browser.newPage();
   try {
+    await page.setExtraHTTPHeaders(requestHeaders());
     page.on("response", (response) => {
       const status = response.status();
       if (status < 400) return;
