@@ -3,6 +3,7 @@
 
 import { cn } from "@/lib/cn";
 import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** A transport mode, or null for "All". */
@@ -56,13 +57,14 @@ export function ModeFilter({
         const href = buildHref(basePath, { ...preservedParams, mode: m.key || undefined });
         const isActive = (active ?? "") === m.key;
         return (
-          <a
+          <Link
             key={m.key || "all"}
             href={href}
+            scroll={false}
             className={cn("chip", isActive ? "chip-on" : "chip-off")}
           >
             {m.label}
-          </a>
+          </Link>
         );
       })}
     </div>

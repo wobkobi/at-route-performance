@@ -12,6 +12,7 @@ import { ShameOfDay } from "@/components/ShameOfDay";
 import { WindowControls } from "@/components/WindowControls";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import {
+  getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
   getLatestEventDate,
@@ -83,12 +84,13 @@ async function RankingsBody({
   range: DateRange;
   anchor: Date;
 }): Promise<JSX.Element> {
-  const [rows, worstStops, prevRows, shame, cancelled] = await Promise.all([
+  const [rows, worstStops, prevRows, shame, cancelled, cancelledByRoute] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
     getRankings(resolvePrevRange(window, period, anchor), THRESHOLD_SEC, REVALIDATE),
     getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
     getCancelledCount(range, { mode, includeSchool }, REVALIDATE),
+    getCancelledByRoute(range, { mode, includeSchool }, REVALIDATE),
   ]);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
@@ -203,6 +205,7 @@ async function RankingsBody({
           accentClass="text-at-ink"
           rows={offSchedule}
           metric="delay"
+          cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
           routeWindow={window}
           routePeriod={period}

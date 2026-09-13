@@ -9,6 +9,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { earlyToleranceFor, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
+import Link from "next/link";
 import type { JSX } from "react";
 import { useState } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
@@ -69,6 +70,8 @@ export interface RankBoardProps {
   routePeriod?: string;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
+  /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
+  cancelled?: Map<string, number>;
   /**
    * When set and there are more rows than this, collapse to this many and turn
    * the heading into a toggle that reveals the full list. Omit to always show
@@ -90,6 +93,7 @@ export interface RankBoardProps {
  * @param props.routeWindow - Window to open on each route link when no day is pinned (optional).
  * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
+ * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.collapseAt - Collapse to this many rows behind a heading toggle (optional).
  * @returns The board element.
  */
@@ -102,6 +106,7 @@ export function RankBoard({
   routeWindow,
   routePeriod,
   deltas,
+  cancelled,
   collapseAt,
 }: RankBoardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
@@ -155,6 +160,7 @@ export function RankBoard({
                     ? formatDelay(signed, { mode: r.mode })
                     : `${formatDuration(abs)} off`
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
+            const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
             const valueClass =
               metric === "onTime"
                 ? "text-at-ontime"
@@ -166,7 +172,7 @@ export function RankBoard({
             return (
               <li key={r.route_id}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
-                <a
+                <Link
                   href={
                     routeDay
                       ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?day=${routeDay}`
@@ -199,12 +205,17 @@ export function RankBoard({
                   />
                   <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
                     {r.short_name || r.long_name || r.route_id}
+                    {cancelledCount > 0 && (
+                      <span className="ml-2 text-xs font-semibold text-at-late">
+                        {cancelledCount} cancelled
+                      </span>
+                    )}
                   </span>
                   <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
                     {value}
                   </span>
                   <ChevronRight className="shrink-0 text-at-muted" />
-                </a>
+                </Link>
               </li>
             );
           })}

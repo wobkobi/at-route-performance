@@ -3,6 +3,7 @@
 
 import { formatDuration } from "@/lib/format";
 import type { WorstStop } from "@/types/dashboard";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstStopCard}. */
@@ -38,7 +39,7 @@ export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps)
   }
   const href = hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${day ? `?day=${day}` : ""}`;
   return (
-    <a
+    <Link
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
@@ -50,6 +51,6 @@ export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps)
         off schedule on average
       </p>
       <p className="text-xs text-at-muted tabular-nums">{stop.events} arrivals</p>
-    </a>
+    </Link>
   );
 }

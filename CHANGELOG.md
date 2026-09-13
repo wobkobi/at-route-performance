@@ -4,6 +4,90 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.3] - 2026-09-14
+
+### Fixed
+
+- Loading skeletons were close to their pages but not the same size, so content jumped a little as
+  each page arrived (the route header 20px taller, the Shame cards and hour rows shorter, the rank
+  boards 25px short, chips 2px taller, the stop page's lower sections misplaced). Every skeleton is
+  now built from shared parts (`SkeletonParts.tsx`) that mirror the real components box for box: the
+  same padding, gaps and borders, with each bar the height of the text line it stands in for.
+  Measured against the loaded pages at desktop and phone widths, every fixed block lines up; what
+  still differs depends on the data (how many hours have passed, a route's alert banner and diagram,
+  a long name wrapping). The in-page Suspense fallbacks (home cards, route trip board and diagram,
+  stop departures, Shame week boards) use the same parts.
+
+## [1.14.2] - 2026-09-14
+
+### Fixed
+
+- Route page on a phone: the "Buses of the day" board grew to its truncating rows' full width (640px
+  in a 368px column), so its sort chips and row ends ran off the right edge. The board is a grid
+  item and now carries `min-w-0`, so its rows truncate inside the column.
+
+## [1.14.1] - 2026-09-13
+
+### Fixed
+
+- The site had no favicon, so every first visit logged a 404 for `/favicon.ico`. It now ships a bus
+  glyph on AT Shore blue as `icon.svg`, with a 32px `favicon.ico` and a 180px `apple-icon.png`
+  rendered from it.
+
+## [1.14.0] - 2026-09-13
+
+### Added
+
+- The "Most off-schedule" boards on the home and rankings pages note each route's cancelled trips
+  for the same window and filters ("4 cancelled") beside its name. The ranking stays on measured
+  delay: a cancellation has no deviation to average, so it sits next to the score instead of being
+  folded into it.
+
+## [1.13.15] - 2026-09-13
+
+### Changed
+
+- Route icons use each route's `route_color` from the AT API exactly as published. A contrast check
+  replaced any colour under 3:1 on white with a generic mode colour, which dropped the East West
+  Line's green and the Onehunga West Line's blue to the same train purple (only the South City Line
+  kept its red), along with the ferries' teal and the InnerLink and OuterLink colours. Routes the
+  API gives no colour keep the service and mode fallbacks. The unused contrast helper is removed.
+
+## [1.13.14] - 2026-09-13
+
+### Fixed
+
+- Loading skeletons: a `loading.tsx` covers every page nested under its folder, and a prefetch stops
+  at the first one it meets. So the Shame trip, route and stop pages loaded behind the Shame
+  dashboard's card skeleton, and a trip page behind the route page's board-and-map skeleton. The
+  home page, the Shame dashboard and the route day page now sit in route groups (`(home)`,
+  `shame/(overview)`, `route/[id]/(overview)`), so each skeleton covers only its own page; no URL
+  changes.
+- Skeleton shapes: the route skeleton gains the direction chip row and a board as tall as the map;
+  the home and rankings boards show the ten rows the real boards do, with the on-time window line;
+  the Shame hour boards show the subtitle line, and their row placeholders shrink to fit a phone
+  instead of running off the right edge.
+
+## [1.13.13] - 2026-09-13
+
+### Fixed
+
+- Footer freshness: a page view after a quiet spell could read "no update for 11 min, ingest may be
+  stalled" while ingest ran every two minutes, and correct itself only on the next minute's poll.
+  The last-run lookup sat in the Data Cache, which answers an expired entry with its stale value and
+  refreshes in the background. It now uses the in-process TTL cache, which refetches on expiry, so
+  the rendered and polled instants are at most 20 seconds behind the newest run.
+
+## [1.13.12] - 2026-09-13
+
+### Fixed
+
+- Every sort chip, page number, filter chip, Day/Week toggle, Shame tab and board row was a plain
+  anchor, so each click reloaded the whole document and the page's loading skeleton streamed in
+  before the content. They are client navigations now: changing a sort, page, mode or delay filter
+  swaps the content in place without the skeleton, and the in-page chips keep the scroll position.
+  The all-routes table skips prefetching so a long list does not fire a request per row.
+
 ## [1.13.11] - 2026-09-13
 
 ### Fixed

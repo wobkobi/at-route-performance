@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/(home)/page.tsx
 // Home page rendering today's network performance dashboard. When
 // no day is requested and the current service day is too sparse to fill the
 // boards (early morning, or ingest catching up), it falls back to the most
@@ -17,11 +17,12 @@ import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { ShameOfDay } from "@/components/ShameOfDay";
+import { FeatureCardPairSkeleton } from "@/components/SkeletonParts";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
+  getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
   getRankings,
@@ -43,6 +44,7 @@ import {
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -117,10 +119,11 @@ export default async function Home({
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need
   // their own count under the same filters.
-  const heroData = {
-    ...summariseRows(visible),
-    cancelled: await getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
-  };
+  const [cancelledTotal, cancelledByRoute] = await Promise.all([
+    getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
+    getCancelledByRoute(range, { mode, includeSchool }, TODAY_REVALIDATE),
+  ]);
+  const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
@@ -200,14 +203,7 @@ export default async function Home({
       <FleetSummary data={heroData} />
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
-      <Suspense
-        fallback={
-          <div className="grid gap-4 md:grid-cols-2">
-            <Bone className="h-32" />
-            <Bone className="h-32" />
-          </div>
-        }
-      >
+      <Suspense fallback={<FeatureCardPairSkeleton />}>
         <HomeShameCards
           range={range}
           mode={mode}
@@ -231,9 +227,9 @@ export default async function Home({
         <p className="text-sm text-at-muted">
           Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day — try a wider
           window on the{" "}
-          <a href="/rankings" className="underline">
+          <Link href="/rankings" className="underline">
             rankings
-          </a>{" "}
+          </Link>{" "}
           page or switch back to All.
         </p>
       )}
@@ -247,6 +243,7 @@ export default async function Home({
           accentClass="text-at-ink"
           rows={offSchedule}
           metric="delay"
+          cancelled={cancelledByRoute}
           routeDay={linkDay}
           collapseAt={10}
         />

@@ -4,6 +4,7 @@
 import { cn } from "@/lib/cn";
 import type { DelayDirection } from "@/lib/rankings";
 import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link DelayFilter}. */
@@ -38,13 +39,14 @@ export function DelayFilter({ active, basePath, preservedParams }: DelayFilterPr
         const href = buildHref(basePath, { ...preservedParams, dir: d.key || undefined });
         const isActive = (active ?? "") === d.key;
         return (
-          <a
+          <Link
             key={d.key || "all"}
             href={href}
+            scroll={false}
             className={cn("chip", isActive ? d.activeClass : "chip-off")}
           >
             {d.label}
-          </a>
+          </Link>
         );
       })}
     </div>
