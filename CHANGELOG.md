@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.6] - 2026-09-13
+
+### Fixed
+
+- Smoke test: the standalone server's stdout was piped but never read, so a chatty server would fill
+  the pipe and stall, and anything it printed there was invisible. Both streams are drained into the
+  `[server]` lines now.
+
 ## [1.13.5] - 2026-09-13
 
 ### Fixed

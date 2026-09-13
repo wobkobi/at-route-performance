@@ -779,10 +779,14 @@ async function main(): Promise<void> {
       copyStandaloneAssets();
 
       server = startServer(port);
-      server.stderr?.on("data", (chunk: Buffer) => {
-        const line = chunk.toString().trim();
-        if (line) process.stderr.write(`  [server] ${line}\n`);
-      });
+      // Drain both pipes: an unread stdout fills its buffer and stalls the
+      // server, and either stream may carry the error behind a failed render.
+      for (const stream of [server.stdout, server.stderr]) {
+        stream?.on("data", (chunk: Buffer) => {
+          const line = chunk.toString().trim();
+          if (line) process.stderr.write(`  [server] ${line}\n`);
+        });
+      }
     }
     await waitForServer(baseUrl);
 
