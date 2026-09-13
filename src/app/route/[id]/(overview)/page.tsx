@@ -1,4 +1,4 @@
-// src/app/route/[id]/page.tsx
+// src/app/route/[id]/(overview)/page.tsx
 // Route detail page with a day view (worst trips and route map) and
 // a week view of aggregated stats, toggled in the header. Version-stripped and
 // case-canonical slugs are enforced up front via redirects; the day view falls

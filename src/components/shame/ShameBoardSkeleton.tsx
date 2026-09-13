@@ -30,9 +30,9 @@ function ListRow({ withTopBorder = true }: { withTopBorder?: boolean }): JSX.Ele
     >
       <Bone className="mt-0.5 h-4 w-12 shrink-0" />
       <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-      <div className="flex-1 space-y-1.5">
-        <Bone className="h-4 w-32" />
-        <Bone className="h-3 w-52" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Bone className="h-4 w-32 max-w-full" />
+        <Bone className="h-3 w-52 max-w-full" />
       </div>
       <Bone className="mt-0.5 h-4 w-20 shrink-0" />
     </li>
@@ -86,9 +86,9 @@ export function ShameBoardSkeleton({ layout }: { layout: "day" | "week" }): JSX.
             >
               <Bone className="mt-0.5 h-4 w-12 shrink-0" />
               <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-              <div className="flex-1 space-y-1.5">
-                <Bone className="h-4 w-32" />
-                <Bone className="h-3 w-52" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Bone className="h-4 w-32 max-w-full" />
+                <Bone className="h-3 w-52 max-w-full" />
               </div>
               <Bone className="mt-0.5 h-4 w-20 shrink-0" />
             </li>

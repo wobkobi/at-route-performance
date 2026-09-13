@@ -4,6 +4,21 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.14] - 2026-09-13
+
+### Fixed
+
+- Loading skeletons: a `loading.tsx` covers every page nested under its folder, and a prefetch stops
+  at the first one it meets. So the Shame trip, route and stop pages loaded behind the Shame
+  dashboard's card skeleton, and a trip page behind the route page's board-and-map skeleton. The
+  home page, the Shame dashboard and the route day page now sit in route groups (`(home)`,
+  `shame/(overview)`, `route/[id]/(overview)`), so each skeleton covers only its own page; no URL
+  changes.
+- Skeleton shapes: the route skeleton gains the direction chip row and a board as tall as the map;
+  the home and rankings boards show the ten rows the real boards do, with the on-time window line;
+  the Shame hour boards show the subtitle line, and their row placeholders shrink to fit a phone
+  instead of running off the right edge.
+
 ## [1.13.13] - 2026-09-13
 
 ### Fixed
