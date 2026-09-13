@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.13] - 2026-09-13
+
+### Fixed
+
+- Footer freshness: a page view after a quiet spell could read "no update for 11 min, ingest may be
+  stalled" while ingest ran every two minutes, and correct itself only on the next minute's poll.
+  The last-run lookup sat in the Data Cache, which answers an expired entry with its stale value and
+  refreshes in the background. It now uses the in-process TTL cache, which refetches on expiry, so
+  the rendered and polled instants are at most 20 seconds behind the newest run.
+
 ## [1.13.12] - 2026-09-13
 
 ### Fixed

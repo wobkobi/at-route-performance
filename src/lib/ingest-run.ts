@@ -8,7 +8,7 @@
 
 import { getLatestEventDate } from "@/lib/data";
 import { prisma } from "@/lib/db";
-import { unstable_cache } from "@/lib/mem-cache";
+import { memCache } from "@/lib/mem-cache";
 
 /**
  * Realtime ingest cadence in seconds (cron-job.org posts to /api/ingest/at every
@@ -65,24 +65,33 @@ export interface LastIngestRun {
 }
 
 /**
+ * How long one instance reuses a last-run lookup. The footer renders on every
+ * page view and prefetch, so the indexed query is shared briefly, but never for
+ * long enough to lap the ingest cadence.
+ */
+const LAST_RUN_TTL_SEC = 20;
+
+/**
  * The newest successful run for an endpoint, for the data-freshness footer.
- * Cached briefly so the footer query is cheap under the page's revalidation.
+ *
+ * Held in the in-process TTL cache rather than the Data Cache: `unstable_cache`
+ * answers an expired entry with its stale value and only refreshes in the
+ * background, so the first page view after a quiet spell would show a run from
+ * whenever the entry was last written, and the footer reads that as a stalled
+ * ingest. An expired `memCache` entry is refetched before it is returned,
+ * capping the lag at {@link LAST_RUN_TTL_SEC}.
  * @param endpoint - Endpoint slug to look up (e.g. "at" for the realtime feed).
  * @returns The latest successful run, or null when none has been logged yet.
  */
 export async function getLastIngestRun(endpoint: string): Promise<LastIngestRun | null> {
-  return unstable_cache(
-    async () => {
-      const run = await prisma.ingestRun.findFirst({
-        where: { endpoint, success: true },
-        orderBy: { completedAt: "desc" },
-        select: { completedAt: true, count: true },
-      });
-      return run ? { completedAt: run.completedAt, count: run.count } : null;
-    },
-    ["last-ingest-run", endpoint],
-    { revalidate: 60 },
-  )();
+  return memCache(`last-ingest-run|${endpoint}`, LAST_RUN_TTL_SEC, async () => {
+    const run = await prisma.ingestRun.findFirst({
+      where: { endpoint, success: true },
+      orderBy: { completedAt: "desc" },
+      select: { completedAt: true, count: true },
+    });
+    return run ? { completedAt: run.completedAt, count: run.count } : null;
+  });
 }
 
 /** A resolved "last updated" instant plus the projected "next update" instant. */
@@ -116,8 +125,8 @@ export function resolveFreshness(
   latestEvent: Date | null,
   now: Date,
 ): DataFreshness | null {
-  // unstable_cache JSON-serialises Date objects to strings; convert back so
-  // getTime() works whether the value came from the cache or from Prisma.
+  // Normalise to a Date so getTime() works even if the instant arrives as an
+  // ISO string (any JSON round trip turns a Date into one).
   const resolved = run ? new Date(run.completedAt) : latestEvent;
   if (!resolved) return null;
   const lastUpdated = resolved > now ? now : resolved;
