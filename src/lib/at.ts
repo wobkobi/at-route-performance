@@ -23,6 +23,8 @@ export interface StopTimeUpdate {
 export interface Trip {
   trip_id: string;
   route_id: string;
+  /** Scheduled start "HH:MM:SS"; hours may exceed 23 for post-midnight trips. */
+  start_time?: string;
   /** GTFS-RT schedule relationship: 0=SCHEDULED, 1=ADDED, 2=UNSCHEDULED, 3=CANCELED. */
   schedule_relationship?: number;
 }

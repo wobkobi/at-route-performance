@@ -173,7 +173,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const stopRows: StopRow[] = [];
     const tripRows: TripRow[] = [];
-    const cancelledRows: { tripId: string; routeId: string }[] = [];
+    const cancelledRows: { tripId: string; routeId: string; startTime?: string }[] = [];
     // Service day a cancellation belongs to (the one in progress when ingest runs).
     const serviceDate = nzServiceDayRange(new Date()).start;
 
@@ -184,9 +184,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       // schedule_relationship 3 = CANCELED: no valid stop times, so it never
       // becomes an ArrivalEvent. Record it (idempotent on the trip+day unique
       // key) so the route board can flag the cancellation, then skip the rest.
+      // The start time is kept so the board can place it in departure order.
       if (tu.trip.schedule_relationship === 3) {
         if (tu.trip.trip_id && tu.trip.route_id) {
-          cancelledRows.push({ tripId: tu.trip.trip_id, routeId: tu.trip.route_id });
+          cancelledRows.push({
+            tripId: tu.trip.trip_id,
+            routeId: tu.trip.route_id,
+            ...(typeof tu.trip.start_time === "string" ? { startTime: tu.trip.start_time } : {}),
+          });
         }
         continue;
       }
@@ -288,6 +293,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         tripId: r.tripId,
         routeId: r.routeId,
         serviceDate: { $date: serviceDate.toISOString() },
+        ...(r.startTime ? { startTime: r.startTime } : {}),
         detectedAt: { $date: new Date().toISOString() },
       })),
     );

@@ -4,6 +4,28 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.11] - 2026-09-13
+
+### Fixed
+
+- Route trip board: cancelled trips pinned to the top of page 1 whatever the sort, so "Most off",
+  "Latest", "Earliest" and "Departure" all opened on them. A cancellation now takes its place by
+  scheduled start on "Departure" (following a reversed sort too) and sits below every ranked run on
+  the delay sorts, since it has no delay to rank by. It follows the direction filter like a running
+  trip, shows its scheduled start, and the rank numbers count running trips only.
+- Ingest records each cancellation's `start_time` from the realtime feed. Cancellations stored
+  before this fall back to the start seconds AT encodes in the trip id.
+
+## [1.13.10] - 2026-09-13
+
+### Fixed
+
+- Maps: CARTO now stamps "API KEY REQUIRED" across every basemap tile requested without a key. The
+  tile URL appends `NEXT_PUBLIC_CARTO_API_KEY` when set (a free key from carto.com/basemaps/apikey,
+  inlined at build time and visible in tile requests, so restrict it to the site's host). Tile
+  requests send the site's origin as the Referer, which the site-wide `same-origin` policy otherwise
+  strips, so a host-restricted key accepts them.
+
 ## [1.13.9] - 2026-09-13
 
 ### Changed

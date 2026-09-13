@@ -6,23 +6,30 @@ import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
-import type { DateRange } from "@/lib/time";
+import { type DateRange, serviceDayClockInstant } from "@/lib/time";
+import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-board";
 
 /** A trip cancelled on a route for a service day, for the trip board. */
 export interface CancelledTripRow {
   trip_id: string;
   /** GTFS trip_headsign (destination), from TripMeta when known. */
   headsign: string | null;
+  /** GTFS direction_id, from TripMeta when known (for the direction filter). */
+  direction_id: number | null;
+  /** ISO instant the trip was scheduled to start, or null when it cannot be told. */
+  scheduled_start: string | null;
 }
 
 /**
  * Trips cancelled on a route for a service day (from the realtime feed's
- * CANCELED trip updates), with each one's headsign resolved from TripMeta.
+ * CANCELED trip updates), with each one's headsign and direction resolved from
+ * TripMeta. The scheduled start comes from the feed's `start_time` captured at
+ * ingest, or failing that the start seconds in the AT trip id.
  * Empty for any day before cancellation capture began - the feed discards
  * cancellations without storing them, so there is no history.
  * @param routeId - Route slug.
  * @param range - The service-day window; its `start` is the stored service date.
- * @returns The day's cancelled trips, ordered by destination then trip id.
+ * @returns The day's cancelled trips, earliest scheduled start first.
  */
 export async function getCancelledTrips(
   routeId: string,
@@ -35,20 +42,35 @@ export async function getCancelledTrips(
         // Range match, as the other cancellation reads do, so the helper serves
         // any window rather than only a day whose start equals a stored stamp.
         where: { routeId: { in: routeIds }, serviceDate: { gte: range.start, lt: range.end } },
-        select: { tripId: true },
+        select: { tripId: true, serviceDate: true, startTime: true },
       });
       if (rows.length === 0) return [];
-      const tripIds = [...new Set(rows.map((r) => r.tripId))];
+      // One row per trip: the unique key is (trip, day), and a wider window than
+      // a day would otherwise list a trip once per day it was cancelled.
+      const byTrip = new Map(rows.map((r) => [r.tripId, r]));
       const meta = await prisma.tripMeta.findMany({
-        where: { id: { in: tripIds } },
-        select: { id: true, headsign: true },
+        where: { id: { in: [...byTrip.keys()] } },
+        select: { id: true, headsign: true, directionId: true },
       });
-      const headsignById = new Map(meta.map((m) => [m.id, m.headsign]));
-      return tripIds
-        .map((id) => ({ trip_id: id, headsign: headsignById.get(id) ?? null }))
-        .sort((a, b) => (a.headsign ?? a.trip_id).localeCompare(b.headsign ?? b.trip_id));
+      const metaById = new Map(meta.map((m) => [m.id, m]));
+      return [...byTrip.values()]
+        .map((r) => {
+          const sec = gtfsTimeSeconds(r.startTime) ?? tripIdStartSeconds(r.tripId);
+          return {
+            trip_id: r.tripId,
+            headsign: metaById.get(r.tripId)?.headsign ?? null,
+            direction_id: metaById.get(r.tripId)?.directionId ?? null,
+            scheduled_start:
+              sec === null ? null : serviceDayClockInstant(r.serviceDate, sec).toISOString(),
+          };
+        })
+        .sort(
+          (a, b) =>
+            (a.scheduled_start ?? "~").localeCompare(b.scheduled_start ?? "~") ||
+            a.trip_id.localeCompare(b.trip_id),
+        );
     },
-    ["cancelled-trips", routeId, range.start.toISOString(), range.end.toISOString()],
+    ["cancelled-trips-v2", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
     300,
   );
