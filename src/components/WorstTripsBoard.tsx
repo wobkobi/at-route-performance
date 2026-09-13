@@ -4,9 +4,11 @@
 // direction, while the prev/next page links preserve the active sort so paging
 // doesn't drop it. Both are client navigations that keep the scroll position,
 // so a sort or page change swaps the board in place instead of reloading the
-// document behind the route skeleton. Rows arrive already laid out (see trip-board.ts): cancelled
-// trips carry a CANCELLED badge and no rank, running trips get a LIVE badge from
-// the passed-in live id set, and ranks stay continuous across pages.
+// document behind the route skeleton. Rows arrive already laid out (see
+// trip-board.ts): cancelled trips carry a CANCELLED badge and no rank, running
+// trips get a LIVE badge from the passed-in live id set, and ranks stay
+// continuous across pages. The section is `min-w-0` because it sits in a grid,
+// where it would otherwise grow to its truncating rows' full width on a phone.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
@@ -130,7 +132,7 @@ export function WorstTripsBoard({
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
   return (
-    <section className="border border-at-border bg-at-surface p-4">
+    <section className="min-w-0 border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-ultra tracking-zero text-at-ink">{noun} of the day</h2>
         <div className="flex flex-wrap gap-1">
