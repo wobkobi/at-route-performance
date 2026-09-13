@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.2] - 2026-09-14
+
+### Fixed
+
+- Route page on a phone: the "Buses of the day" board grew to its truncating rows' full width (640px
+  in a 368px column), so its sort chips and row ends ran off the right edge. The board is a grid
+  item and now carries `min-w-0`, so its rows truncate inside the column.
+
 ## [1.14.1] - 2026-09-13
 
 ### Fixed
