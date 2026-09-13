@@ -118,6 +118,28 @@ export async function getCancelledCount(
   )();
 }
 
+/** Row cap that lets {@link getCancelledRoutes} return every route with a cancellation. */
+const ALL_ROUTES = 10_000;
+
+/**
+ * Cancellations per route slug in a window, for the note beside each route on
+ * the "Most off-schedule" boards. The ranking itself stays on measured delay: a
+ * cancellation has no deviation to average, so it is shown next to the route
+ * rather than folded into its score.
+ * @param range - The window to count over (a service day, week, or month).
+ * @param filter - Mode and school-service filters, matching the board's rows.
+ * @param revalidate - Cache TTL in seconds.
+ * @returns Route slug to cancelled-trip count, for routes with at least one.
+ */
+export async function getCancelledByRoute(
+  range: DateRange,
+  filter: ShameFilter,
+  revalidate: number,
+): Promise<Map<string, number>> {
+  const rows = await getCancelledRoutes(range, filter, ALL_ROUTES, revalidate);
+  return new Map(rows.map((r) => [r.route_id, r.cancelled]));
+}
+
 /** A route's cancellation tally for a service day. */
 export interface CancelledRouteRow {
   route_id: string;

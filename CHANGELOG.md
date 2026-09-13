@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.0] - 2026-09-13
+
+### Added
+
+- The "Most off-schedule" boards on the home and rankings pages note each route's cancelled trips
+  for the same window and filters ("4 cancelled") beside its name. The ranking stays on measured
+  delay: a cancellation has no deviation to average, so it sits next to the score instead of being
+  folded into it.
+
 ## [1.13.15] - 2026-09-13
 
 ### Changed
