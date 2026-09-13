@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.5] - 2026-09-13
+
+### Fixed
+
+- Smoke test: a bad argument prints one message and exits 2 instead of an unhandled rejection with a
+  stack trace; `--base-url` must be a full http(s) URL, so a bare host fails at once rather than
+  after the 90-second readiness wait; `--port` rejects `3001abc`, which `parseInt` read as 3001.
+- Smoke test: on Windows the server tree was never force-stopped, because `execSync` runs through
+  `cmd.exe`, which rejects the Git Bash `//F` switch form; `taskkill` now takes single slashes, so
+  the port and the Prisma engine are released when the run ends.
+- Smoke test: a web manifest is fetched without cookies and is not reliably intercepted, so on a
+  protected deployment it loops between the site and SSO whatever bypass is primed. That one
+  redirect loop is ignored, only for a `.webmanifest` path on the target's own origin and only while
+  the bypass secret is set; the cookie priming comment no longer claims to cover it.
+- Smoke test: the summary counts "checks", since it includes the endpoint checks; a status echo with
+  no URL no longer prints empty parentheses.
+
 ## [1.13.4] - 2026-09-13
 
 ### Fixed
