@@ -1,6 +1,7 @@
-// src/app/loading.tsx
+// src/app/(home)/loading.tsx
 // Loading skeleton for the home page.
 
+import { RankBoardSkeleton } from "@/components/RankingsBodySkeleton";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
@@ -54,18 +55,8 @@ export default function Loading(): JSX.Element {
 
       {/* Board grid */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 border border-at-border p-4">
-          <Bone className="mb-3 h-6 w-40" />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Bone key={i} className="h-10" />
-          ))}
-        </div>
-        <div className="space-y-2 border border-at-border p-4">
-          <Bone className="mb-3 h-6 w-40" />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Bone key={i} className="h-10" />
-          ))}
-        </div>
+        <RankBoardSkeleton />
+        <RankBoardSkeleton />
       </div>
 
       {/* Collapsed "All routes" summary bar */}

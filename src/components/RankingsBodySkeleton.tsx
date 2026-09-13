@@ -7,14 +7,16 @@ import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Skeleton for a single rank-board card.
+ * Skeleton for a single rank-board card: the title, the on-time window line
+ * under it, and the ten rows the boards show before "Show all".
  * @returns The card placeholder.
  */
-function RankBoardSkeleton(): JSX.Element {
+export function RankBoardSkeleton(): JSX.Element {
   return (
     <div className="space-y-2 border border-at-border p-4">
-      <Bone className="mb-3 h-6 w-40" />
-      {Array.from({ length: 5 }).map((_, i) => (
+      <Bone className="h-6 w-40" />
+      <Bone className="mb-3 h-3 w-64 max-w-full" />
+      {Array.from({ length: 10 }).map((_, i) => (
         <Bone key={i} className="h-10" />
       ))}
     </div>

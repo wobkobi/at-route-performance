@@ -1,4 +1,4 @@
-// src/app/shame/loading.tsx
+// src/app/shame/(overview)/loading.tsx
 // Loading skeleton for the shame dashboard.
 
 import { Bone } from "@/components/shame/ShameBoardSkeleton";

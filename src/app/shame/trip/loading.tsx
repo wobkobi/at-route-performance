@@ -13,7 +13,11 @@ export default function Loading(): JSX.Element {
     <main className="space-y-6">
       {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <Bone className="h-9 w-56" />
+        {/* Title + the one-line subtitle ShameHeader renders under it */}
+        <div className="space-y-1.5">
+          <Bone className="h-9 w-56" />
+          <Bone className="h-3 w-72 max-w-full" />
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* Trips/Routes/Stops tabs */}
           <div className="flex items-center gap-1">

@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/(home)/page.tsx
 // Home page rendering today's network performance dashboard. When
 // no day is requested and the current service day is too sparse to fill the
 // boards (early morning, or ingest catching up), it falls back to the most
