@@ -310,7 +310,10 @@ async function checkApis(baseUrl: string): Promise<PageResult[]> {
 }
 
 /**
- * Parses `--flag` and `--flag=value` CLI arguments.
+ * Parses the CLI arguments: `--skip-build`, and `--port` and `--base-url` in
+ * both `--flag=value` and `--flag value` form. An unknown argument is a hard
+ * error rather than an ignored one: a misspelt or mis-quoted `--base-url` would
+ * otherwise start a local build when a deployment was meant to be read.
  * @returns Parsed flags.
  */
 function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null } {
@@ -318,10 +321,20 @@ function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null
   let skipBuild = false;
   let port = 3100;
   let baseUrl: string | null = null;
-  for (const arg of args) {
-    if (arg === "--skip-build") skipBuild = true;
-    else if (arg.startsWith("--port=")) port = parseInt(arg.slice(7), 10);
-    else if (arg.startsWith("--base-url=")) baseUrl = arg.slice(11).replace(/\/$/, "");
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    const eq = arg.indexOf("=");
+    const flag = eq === -1 ? arg : arg.slice(0, eq);
+    if (flag === "--skip-build") {
+      skipBuild = true;
+      continue;
+    }
+    if (flag !== "--port" && flag !== "--base-url") throw new Error(`Unknown argument: ${arg}`);
+    // The value follows "=" or is the next argument.
+    const value = eq === -1 ? args[++i] : arg.slice(eq + 1);
+    if (value === undefined || value === "") throw new Error(`${flag} needs a value`);
+    if (flag === "--port") port = parseInt(value, 10);
+    else baseUrl = value.replace(/\/$/, "");
   }
   return { skipBuild, port, baseUrl };
 }
