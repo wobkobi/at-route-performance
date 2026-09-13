@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.14.4] - 2026-09-14
+
+### Fixed
+
+- The skeleton `Bone` joined its classes with a template string, so a caller's `rounded-full` or
+  `rounded-none` sat beside the default `rounded` and CSS order decided the shape. It merges through
+  `cn()` now, as do the route page's Day/Week toggle and the delay spans in the highlight cards and
+  Shame rows, which were the last class names built by string concatenation.
+
 ## [1.14.3] - 2026-09-14
 
 ### Fixed

@@ -2,6 +2,7 @@
 // Highlight card for the day's most off-schedule run, linking to its detail page.
 
 import { ModeIcon } from "@/components/ModeIcon";
+import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { earlyToleranceFor, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
@@ -96,7 +97,10 @@ export function ShameOfDay({
           <>
             Ran{" "}
             <span
-              className={`font-semibold ${(trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early"}`}
+              className={cn(
+                "font-semibold",
+                (trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early",
+              )}
             >
               {formatDelay(trip.avg_delay_sec, { mode: trip.mode })}
             </span>{" "}
@@ -106,7 +110,10 @@ export function ShameOfDay({
           <>
             Ran{" "}
             <span
-              className={`font-semibold ${(trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early"}`}
+              className={cn(
+                "font-semibold",
+                (trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early",
+              )}
             >
               {formatDuration(trip.avg_abs_delay_sec)}
             </span>{" "}
