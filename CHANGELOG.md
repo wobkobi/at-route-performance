@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.7] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: the job also passes an `ADMIN_SECRET` repository secret through to the smoke
+  test, so the same workflow file serves a project with an admin surface. This project has none and
+  no such secret, so it resolves to an empty string the script never reads.
+
 ## [1.13.6] - 2026-09-13
 
 ### Fixed

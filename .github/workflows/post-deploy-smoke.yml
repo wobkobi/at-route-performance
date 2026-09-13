@@ -28,10 +28,15 @@ jobs:
 
     env:
       DEPLOY_URL: ${{ inputs.deploy_url || github.event.deployment_status.environment_url }}
+      # Must match the DEPLOYED environment's value so admin pages authenticate;
+      # without it the smoke test skips every admin page. A repo with no admin
+      # surface simply has no such secret, and this resolves to an empty string
+      # that the script never reads.
+      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
       # Vercel "Protection Bypass for Automation" secret. Deployment Protection
-      # is on for this project, so without it every request is bounced to SSO
-      # (a redirect for a browser, a 401 for anything else); the job skips
-      # rather than fails until the secret exists.
+      # is on for these projects (SSO on every *.vercel.app URL), so without it
+      # every request is bounced to SSO (a redirect for a browser, a 401 for
+      # anything else); the job skips rather than fails until the secret exists.
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
     steps:
@@ -58,7 +63,7 @@ jobs:
           cache: "npm"
 
       # The smoke test needs puppeteer and tsx only; skip postinstall (prisma
-      # generate) so no database or engine download is required.
+      # generate and the like) so no database or engine download is required.
       - name: Install dependencies
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npm ci --ignore-scripts
@@ -105,8 +110,9 @@ jobs:
           echo "Health probe failed: did not see HTTP 200 with ok:true and version $expected"
           exit 1
 
-      # The script reads VERCEL_AUTOMATION_BYPASS_SECRET from the environment
-      # and sends it only to the deployment's own origin.
+      # The script reads ADMIN_SECRET (where the project has admin pages) and
+      # VERCEL_AUTOMATION_BYPASS_SECRET from the environment and sends them only
+      # to the deployment's own origin.
       - name: Remote smoke
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npx tsx scripts/smoke-test.ts --base-url="$DEPLOY_URL"
