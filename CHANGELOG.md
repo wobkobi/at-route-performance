@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.1] - 2026-09-13
+
+### Changed
+
+- The post-deploy smoke workflow can be started by hand ("Run workflow" with a deployment URL) from
+  any branch, so a preview or production deployment can be checked before the workflow reaches
+  `main`. Its health probe prints the HTTP status, so a rejected bypass secret (401 or 303), a build
+  without the health route (404) and a version mismatch read differently in the log.
+
 ## [1.13.0] - 2026-09-13
 
 ### Added

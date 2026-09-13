@@ -59,7 +59,10 @@ finished deployment to GitHub, the workflow probes `/api/health` for the deploye
 smokes the deployment URL. Deployment Protection is on, so the workflow needs the project's
 "Protection Bypass for Automation" secret as the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET`
 (Vercel: Settings > Deployment Protection); until it exists the workflow skips with a message. The
-smoke script sends the same secret from that environment variable when run by hand.
+smoke script sends the same secret from that environment variable when run by hand. The workflow
+also runs on demand ("Run workflow" in the Actions tab, or
+`gh workflow run post-deploy-smoke.yml --ref <branch> -f deploy_url=<url>`) against any deployment
+that runs the chosen branch's commit.
 
 ## Ingest
 
