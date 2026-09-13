@@ -54,6 +54,13 @@ forks get no secrets and skip it. The same check runs against a deployment with
 `npx tsx scripts/smoke-test.ts --base-url=https://<your-app>.vercel.app`: every page is read for
 leaked values and empty sections, so it is the first thing to run after a deploy.
 
+`.github/workflows/post-deploy-smoke.yml` runs that check automatically: Vercel reports each
+finished deployment to GitHub, the workflow probes `/api/health` for the deployed version and then
+smokes the deployment URL. Deployment Protection is on, so the workflow needs the project's
+"Protection Bypass for Automation" secret as the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET`
+(Vercel: Settings > Deployment Protection); until it exists the workflow skips with a message. The
+smoke script sends the same secret from that environment variable when run by hand.
+
 ## Ingest
 
 Data collection runs on scheduled POSTs to `/api/ingest/*`, driven by an external scheduler rather

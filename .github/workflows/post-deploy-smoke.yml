@@ -1,0 +1,90 @@
+name: Post-deploy smoke
+
+# Vercel emits deployment_status events to GitHub. These fire only for the
+# workflow file on the default branch (main), so this is inert until it merges;
+# after that, every preview and production deploy is smoked at its own URL.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    # Only after the deployment succeeded, and only when Vercel gave a URL to hit.
+    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
+      # Vercel "Protection Bypass for Automation" secret. Deployment Protection
+      # is on for this project (SSO on every *.vercel.app URL), so without it
+      # every request answers 302 to the SSO page; the job skips rather than
+      # fails until the secret exists.
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Report a skipped run
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET == ''
+        run: echo "VERCEL_AUTOMATION_BYPASS_SECRET not available; the deployment is behind SSO, smoke skipped."
+
+      - name: Checkout at the deployed commit
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        uses: actions/checkout@v7
+        with:
+          # Discovered routes and package.json's version must match the deployed
+          # build, so check out the exact SHA Vercel deployed.
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Setup Node.js
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: "npm"
+
+      # The smoke test needs puppeteer and tsx only; skip postinstall (prisma
+      # generate) so no database or engine download is required.
+      - name: Install dependencies
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        run: npm ci --ignore-scripts
+
+      - name: Cache Puppeteer Chromium
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # --ignore-scripts skipped puppeteer's own browser download, so install it
+      # explicitly (a no-op on a cache hit).
+      - name: Ensure Chromium is installed
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        run: npx puppeteer browsers install chrome
+
+      - name: Health probe
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        run: |
+          set -euo pipefail
+          expected="$(node -p "require('./package.json').version")"
+          echo "Expecting version $expected at $DEPLOY_URL/api/health"
+          for attempt in 1 2 3 4 5; do
+            body="$(curl -fsS --max-time 20 \
+              -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+              "$DEPLOY_URL/api/health" || true)"
+            echo "Attempt $attempt: $body"
+            if echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q "\"version\":\"$expected\""; then
+              echo "Health OK: version $expected is live."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Health probe failed: did not see ok:true and version $expected"
+          exit 1
+
+      # The script reads VERCEL_AUTOMATION_BYPASS_SECRET from the environment
+      # and sends it on every request.
+      - name: Remote smoke
+        if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        run: npx tsx scripts/smoke-test.ts --base-url "$DEPLOY_URL"

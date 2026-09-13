@@ -34,7 +34,9 @@ look scheduled while nothing ingests.
 Check Settings > Deployment Protection. The common setting is "all except custom domains", which
 protects nothing only once a custom domain exists - on a project with no custom domain it covers
 every URL, including production. Either attach a custom domain and point the jobs at it, disable SSO
-protection, or append a protection-bypass secret to each job URL.
+protection, or append a protection-bypass secret to each job URL. The same "Protection Bypass for
+Automation" secret, stored as the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET`, lets the
+post-deploy smoke workflow reach a protected deployment.
 
 ## Jobs
 
