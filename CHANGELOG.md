@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.4] - 2026-09-13
+
+### Fixed
+
+- A raw MongoDB command that fails with the driver's "I/O error: timed out" (a socket read timing
+  out on a long-haul link, which the server labels retryable) is retried once like a connection
+  reset. The CI smoke job, running from a GitHub runner far from the database, hit it once on the
+  rankings page and landed on the error boundary.
+
 ## [1.13.3] - 2026-09-13
 
 ### Fixed

@@ -32,6 +32,7 @@ describe("runCommand", () => {
       "read ECONNRESET",
       "write EPIPE",
       "socket hang up",
+      'Raw query failed. Code: `unknown`. Message: `Kind: I/O error: timed out, labels: {"RetryableWriteError"}, source: None`',
     ]) {
       expect(isTransientConnectionError(new Error(msg))).toBe(true);
     }

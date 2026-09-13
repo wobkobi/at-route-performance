@@ -16,13 +16,17 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
  * Messages of the socket-level failures a fresh connection fixes. Hosted MongoDB
  * and intermediate NATs close idle TCP connections; the driver reports that as
  * a reset, a broken pipe or a hung-up socket depending on which side noticed.
+ * A socket read that times out on a long-haul link (a CI runner far from the
+ * database) surfaces as the driver's "I/O error: timed out", which the server
+ * itself labels retryable.
  */
-const TRANSIENT_MESSAGE = /forcibly closed|connection reset|ECONNRESET|EPIPE|socket hang up/i;
+const TRANSIENT_MESSAGE =
+  /forcibly closed|connection reset|ECONNRESET|EPIPE|socket hang up|I\/O error: timed out/i;
 
 /**
  * Whether an error is a transient connection failure worth one retry.
  * @param err - The thrown value.
- * @returns True for a socket reset, broken pipe or hang-up.
+ * @returns True for a socket reset, broken pipe, hang-up or I/O timeout.
  */
 export function isTransientConnectionError(err: unknown): boolean {
   return err instanceof Error && TRANSIENT_MESSAGE.test(err.message);
