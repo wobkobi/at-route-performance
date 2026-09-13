@@ -45,6 +45,7 @@ import {
   type DateRange,
 } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 const BASE = "/shame/trip";
@@ -97,7 +98,7 @@ async function TripRangeBoard({
     const dayLabel = t.date ? weekdayShort(t.date) : "";
     const dayCount = routeDayCounts.get(t.route_id) ?? 0;
     return (
-      <a href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
           {dayLabel} {d}/{m}
         </span>
@@ -131,7 +132,7 @@ async function TripRangeBoard({
           avgAbsDelaySec={t.avg_abs_delay_sec}
           mode={t.mode}
         />
-      </a>
+      </Link>
     );
   };
 
@@ -260,7 +261,7 @@ export default async function TripShamePage({
     const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
-      <a href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
           {nzHourLabel(t.hour)}
         </span>
@@ -308,7 +309,7 @@ export default async function TripShamePage({
           avgAbsDelaySec={t.avg_abs_delay_sec}
           mode={t.mode}
         />
-      </a>
+      </Link>
     );
   };
 

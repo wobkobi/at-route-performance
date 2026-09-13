@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/cn";
 import { routeSlug } from "@/lib/route-slug";
 import { NZ_TZ } from "@/lib/time";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link AlertBanner}. */
@@ -215,13 +216,13 @@ export function AlertBanner({
               {routeIds.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-0.5">
                   {routeIds.map((id) => (
-                    <a
+                    <Link
                       key={id}
                       href={`/route/${encodeURIComponent(routeSlug(id))}`}
                       className="rounded-full bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
                       {routeNames?.[id] ?? id}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               )}

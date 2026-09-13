@@ -36,6 +36,7 @@ import {
   type DateRange,
 } from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 const BASE = "/shame/stop";
@@ -84,7 +85,7 @@ async function StopRangeBoard({
     const dayLabel = weekdayShort(s.date);
     const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
     return (
-      <a
+      <Link
         href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
@@ -109,7 +110,7 @@ async function StopRangeBoard({
         >
           {formatDuration(s.avg_abs_delay_sec)} off
         </span>
-      </a>
+      </Link>
     );
   };
 
@@ -229,7 +230,7 @@ export default async function StopShamePage({
     const isWorst = s.stop_id === worstId;
     const hourCount = stopHourCounts.get(s.stop_id) ?? 0;
     return (
-      <a
+      <Link
         href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
@@ -254,7 +255,7 @@ export default async function StopShamePage({
         >
           {formatDuration(s.avg_abs_delay_sec)} off
         </span>
-      </a>
+      </Link>
     );
   };
 

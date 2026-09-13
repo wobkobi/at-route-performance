@@ -53,6 +53,7 @@ import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteDay, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type ComponentProps, type JSX } from "react";
 
@@ -151,15 +152,19 @@ function RouteWeekNav({
   return (
     <div className="flex items-center gap-1">
       {prevHref ? (
-        <a href={prevHref} aria-label="Previous week" className="chip chip-off flex items-center">
+        <Link
+          href={prevHref}
+          aria-label="Previous week"
+          className="chip chip-off flex items-center"
+        >
           <ChevronLeft className="block h-4 w-4" />
-        </a>
+        </Link>
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <a href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
+        <Link href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
           <ChevronRight className="block h-4 w-4" />
-        </a>
+        </Link>
       ) : null}
     </div>
   );
@@ -176,12 +181,12 @@ function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean })
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <a href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
         Day
-      </a>
-      <a href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+      </Link>
+      <Link href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
         Week
-      </a>
+      </Link>
     </div>
   );
 }
@@ -720,12 +725,12 @@ export default async function RoutePage({
                         className="border-t border-at-border hover:bg-at-shore-pale"
                       >
                         <td className="px-3 py-2">
-                          <a
+                          <Link
                             href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {s.name}
-                          </a>
+                          </Link>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
                         <td className="px-3 py-2 text-right tabular-nums">

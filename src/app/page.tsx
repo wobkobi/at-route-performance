@@ -43,6 +43,7 @@ import {
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -231,9 +232,9 @@ export default async function Home({
         <p className="text-sm text-at-muted">
           Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day — try a wider
           window on the{" "}
-          <a href="/rankings" className="underline">
+          <Link href="/rankings" className="underline">
             rankings
-          </a>{" "}
+          </Link>{" "}
           page or switch back to All.
         </p>
       )}

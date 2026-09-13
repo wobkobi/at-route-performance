@@ -7,6 +7,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";
 import { lineName } from "@/lib/line-name";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link CancelledBoard}. */
@@ -49,7 +50,7 @@ export function CancelledBoard({ rows, total, routeDay }: CancelledBoardProps): 
             const subtitle = lineName(r.mode, r.short_name);
             return (
               <li key={r.route_id}>
-                <a
+                <Link
                   href={`/route/${encodeURIComponent(r.route_id)}${routeDay ? `?day=${routeDay}` : ""}`}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
@@ -67,7 +68,7 @@ export function CancelledBoard({ rows, total, routeDay }: CancelledBoardProps): 
                   <span className="shrink-0 font-ultra tracking-zero text-at-late tabular-nums">
                     {r.cancelled}
                   </span>
-                </a>
+                </Link>
               </li>
             );
           })}

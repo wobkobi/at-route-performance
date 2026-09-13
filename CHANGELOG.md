@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.12] - 2026-09-13
+
+### Fixed
+
+- Every sort chip, page number, filter chip, Day/Week toggle, Shame tab and board row was a plain
+  anchor, so each click reloaded the whole document and the page's loading skeleton streamed in
+  before the content. They are client navigations now: changing a sort, page, mode or delay filter
+  swaps the content in place without the skeleton, and the in-page chips keep the scroll position.
+  The all-routes table skips prefetching so a long list does not fire a request per row.
+
 ## [1.13.11] - 2026-09-13
 
 ### Fixed

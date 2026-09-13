@@ -13,6 +13,7 @@ import { buildRouteView, type MapStop } from "@/lib/route-view";
 import { nzClockTime, nzServiceDayRange } from "@/lib/time";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
@@ -118,13 +119,13 @@ export default async function TripPage({
 
   return (
     <main className={cn("space-y-6")}>
-      <a
+      <Link
         href={`/route/${encodeURIComponent(slug)}`}
         className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to {title}
-      </a>
+      </Link>
 
       <header className="space-y-1">
         <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
