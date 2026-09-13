@@ -4,6 +4,35 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.3] - 2026-09-13
+
+### Fixed
+
+- The remote smoke test against a preview deployment failed on every page because Vercel injects its
+  preview toolbar script and the site's CSP blocks it; that console error is now ignored (the CSP is
+  doing its job, and production never carries the script).
+- The bypass secret was attached to every request the page made, including the map tile host. It now
+  rides only requests to the deployment's own origin, through request interception, and is also
+  stored as a session cookie up front so a request the browser starts on its own cannot loop through
+  SSO.
+- Console errors that begin "Failed to load resource" were all ignored, which also hid network
+  failures (a blocked, aborted or unresolved request) that never produce a response event. Only the
+  HTTP-status echo of a failure the response handler already recorded is dropped now.
+- The 404 page check now asserts the document's status, so a soft 404 with the right copy fails.
+- A dynamic sample (stop, trip, train line, station) that cannot be found is reported instead of
+  silently narrowing the run; the direct fetches carry a 30-second timeout; the endpoint checks no
+  longer follow redirects, so an SSO bounce reads as its real status rather than a JSON error;
+  `--port` rejects a non-number; the empty-section check looks at the nearest section rather than
+  the heading's parent.
+- Post-deploy workflow: a skipped run raises a warning annotation, the health probe strips a
+  trailing slash from a hand-entered URL and clears the previous body between attempts, and a failed
+  connection logs `000` once.
+
+### Changed
+
+- The smoke test loads `.env.local` through Node's own `process.loadEnvFile`, which handles quoting,
+  comments and multi-line values; existing environment variables still win.
+
 ## [1.13.2] - 2026-09-13
 
 ### Fixed
