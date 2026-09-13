@@ -13,7 +13,10 @@
 //
 // Against a Vercel deployment behind Deployment Protection, set
 // VERCEL_AUTOMATION_BYPASS_SECRET (the project's "Protection Bypass for
-// Automation" secret); it is sent as the bypass header on every request.
+// Automation" secret). It is sent as the bypass header only to the deployment's
+// own origin, never to a third-party host such as the map tiles, and it is also
+// stored as a session cookie before any page is measured so that requests the
+// browser starts on its own do not loop through SSO.
 //
 // Exit codes:
 //   0  all pages loaded without errors
@@ -135,23 +138,93 @@ const NAV_TIMEOUT_MS = 60_000;
 const IGNORE_404_URLS = ["/_vercel/insights/", "/_vercel/speed-insights/", "/favicon.ico"];
 
 /**
- * Console substrings ignored everywhere. The browser echoes every failed
- * resource as a generic console error; the response handler already owns those
- * (with the real URL + ignore list), so the echo would just double-count.
+ * Console-error substrings ignored on every page. Vercel injects its preview
+ * toolbar script into preview deployments and the site's CSP blocks it, which
+ * Chrome reports as a console error: that is the CSP working, and production
+ * never carries the script.
  */
-const IGNORE_CONSOLE = ["Failed to load resource"];
+const IGNORE_CONSOLE_GLOBAL = ["vercel.live/"];
+
+/**
+ * Chrome echoes every 4xx/5xx sub-resource as a console error starting with
+ * this. The response handler already records those with the real URL, so an
+ * echo counts only when no response event was seen for its URL. Any other
+ * "Failed to load resource" message (a net::ERR_* failure such as a blocked,
+ * aborted or unresolved request) never produces a response event and is kept.
+ */
+const STATUS_ECHO_PREFIX = "Failed to load resource: the server responded with a status of";
+
+/** Timeout for the direct fetches (samples, endpoints), so a hung request cannot stall the run. */
+const FETCH_TIMEOUT_MS = 30_000;
 
 /* ---------------------------------------------------------------- helpers */
 
 /**
- * Extra headers for every request the run makes: Vercel's protection-bypass
- * header when the secret is set, so a deployment behind SSO answers the page
- * rather than a 302 to the login. Empty for a local server.
+ * Headers for the direct fetches this script makes to the target: Vercel's
+ * protection-bypass header when the secret is set, so a deployment behind SSO
+ * answers rather than redirecting to the login. Every direct fetch goes to the
+ * target's own origin, so the secret never leaves it. Empty for a local server.
  * @returns The headers.
  */
 function requestHeaders(): Record<string, string> {
   const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   return secret ? { "x-vercel-protection-bypass": secret } : {};
+}
+
+/**
+ * Whether a request URL shares an origin (scheme, host, port) with the target.
+ * @param requestUrl - The outgoing request URL.
+ * @param origin - The target origin to match.
+ * @returns True when the origins match; false for an unparsable URL.
+ */
+function isSameOrigin(requestUrl: string, origin: string): boolean {
+  try {
+    return new URL(requestUrl).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Store Vercel's Deployment Protection bypass as a session cookie. The
+ * per-request header in {@link checkPage} covers the requests the interceptor
+ * sees, which is not every request the browser makes: a browser-initiated fetch
+ * (a manifest, a favicon) can miss interception, bounce to SSO and loop until
+ * Chrome gives up with ERR_TOO_MANY_REDIRECTS. Loading the site once with the
+ * bypass as query parameters plus `x-vercel-set-bypass-cookie` sets the
+ * `_vercel_jwt` cookie, which then rides every request in the session however
+ * it started. A no-op without the secret (a local server).
+ * @param browser - Puppeteer browser instance.
+ * @param baseUrl - The target's base URL.
+ */
+async function primeBypassCookie(browser: Browser, baseUrl: string): Promise<void> {
+  const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (!secret) return;
+  const page = await browser.newPage();
+  try {
+    const query = `x-vercel-protection-bypass=${encodeURIComponent(secret)}&x-vercel-set-bypass-cookie=true`;
+    await page.goto(`${baseUrl}/?${query}`, {
+      waitUntil: "domcontentloaded",
+      timeout: NAV_TIMEOUT_MS,
+    });
+    const primed = (await browser.cookies()).some((c) => c.name === "_vercel_jwt");
+    console.log(
+      primed
+        ? "  Deployment Protection bypass cookie set.\n"
+        : "  (no bypass cookie returned; Deployment Protection may be off)\n",
+    );
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * Note a dynamic sample that could not be found, so a run that visits fewer
+ * pages than usual says so instead of passing quietly with less coverage.
+ * @param what - The sample that is missing.
+ */
+function warnMissingSample(what: string): void {
+  console.log(`  (no ${what} found; that page is not visited)`);
 }
 
 /**
@@ -226,8 +299,11 @@ function discoverPages(): PageSpec[] {
  */
 async function firstLink(baseUrl: string, path: string, pattern: RegExp): Promise<string | null> {
   try {
-    const html = await (await fetch(`${baseUrl}${path}`, { headers: requestHeaders() })).text();
-    return html.match(pattern)?.[0] ?? null;
+    const res = await fetch(`${baseUrl}${path}`, {
+      headers: requestHeaders(),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    return (await res.text()).match(pattern)?.[0] ?? null;
   } catch {
     // An unreachable page is reported by that page's own check.
     return null;
@@ -247,28 +323,33 @@ async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
   const pages = [...DYNAMIC_SAMPLES];
   const stop = await firstLink(baseUrl, "/", /\/stop\/[^"'?\\]+/);
   if (stop) pages.push({ path: stop, name: "Stop detail" });
+  else warnMissingSample("stop link on the home page");
   const trip = await firstLink(baseUrl, "/route/NX1", /\/route\/NX1\/trip\/[^"'?\\]+/);
   if (trip) pages.push({ path: trip, name: "Trip detail", mustContain: ["Back to"] });
+  else warnMissingSample("trip link on the NX1 board");
   try {
-    const routes = (await (
-      await fetch(`${baseUrl}/api/routes`, { headers: requestHeaders() })
-    ).json()) as {
-      id: string;
-      mode: string;
-    }[];
+    const res = await fetch(`${baseUrl}/api/routes`, {
+      headers: requestHeaders(),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    const routes = (await res.json()) as { id: string; mode: string }[];
     const train = routes.find((r) => r.mode === "TRAIN");
-    if (train) {
-      const slug = train.id.replace(/-\d+$/, "");
-      pages.push({ path: `/route/${encodeURIComponent(slug)}`, name: `Route ${slug} (train)` });
-      const station = await firstLink(
-        baseUrl,
-        `/route/${encodeURIComponent(slug)}`,
-        /\/stop\/station(?::|%3A)[^"'?\\]+/,
-      );
-      if (station) pages.push({ path: station, name: "Train station" });
+    if (!train) {
+      warnMissingSample("train line in the directory");
+      return pages;
     }
+    const slug = train.id.replace(/-\d+$/, "");
+    pages.push({ path: `/route/${encodeURIComponent(slug)}`, name: `Route ${slug} (train)` });
+    const station = await firstLink(
+      baseUrl,
+      `/route/${encodeURIComponent(slug)}`,
+      /\/stop\/station(?::|%3A)[^"'?\\]+/,
+    );
+    if (station) pages.push({ path: station, name: "Train station" });
+    else warnMissingSample(`station link on the ${slug} page`);
   } catch {
     // The directory endpoint is checked on its own below.
+    console.log("  (directory unreadable; the train line and station pages are not visited)");
   }
   return pages;
 }
@@ -286,12 +367,21 @@ async function checkApis(baseUrl: string): Promise<PageResult[]> {
     const started = Date.now();
     let ttfbMs: number | null = null;
     try {
-      const res = await fetch(`${baseUrl}${check.path}`, { headers: requestHeaders() });
+      const res = await fetch(`${baseUrl}${check.path}`, {
+        headers: requestHeaders(),
+        // A protected deployment answers a redirect to SSO; following it would
+        // parse the login page and hide the real status behind a JSON error.
+        redirect: "manual",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
       ttfbMs = Date.now() - started;
-      if (res.status !== 200) errors.push(`HTTP ${res.status}`);
-      const body: unknown = await res.json();
-      if (check.nonEmptyArray && !(Array.isArray(body) && body.length > 0)) {
-        errors.push("expected a non-empty JSON array");
+      if (res.status !== 200) {
+        errors.push(`HTTP ${res.status}`);
+      } else {
+        const body: unknown = await res.json();
+        if (check.nonEmptyArray && !(Array.isArray(body) && body.length > 0)) {
+          errors.push("expected a non-empty JSON array");
+        }
       }
     } catch (err) {
       errors.push(`Failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -333,8 +423,14 @@ function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null
     // The value follows "=" or is the next argument.
     const value = eq === -1 ? args[++i] : arg.slice(eq + 1);
     if (value === undefined || value === "") throw new Error(`${flag} needs a value`);
-    if (flag === "--port") port = parseInt(value, 10);
-    else baseUrl = value.replace(/\/$/, "");
+    if (flag === "--port") {
+      port = Number.parseInt(value, 10);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error(`--port needs a port number, got "${value}"`);
+      }
+    } else {
+      baseUrl = value.replace(/\/$/, "");
+    }
   }
   return { skipBuild, port, baseUrl };
 }
@@ -342,22 +438,15 @@ function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null
 /**
  * Load `.env.local` into `process.env` so the standalone server can reach Mongo
  * (Next loads it automatically in dev, but the spawned production server inherits
- * only what we pass it). Existing env vars win.
+ * only what it is passed). Node's own parser handles quoting, comments and
+ * multi-line values the way Next does, minus `$` expansion, which the file does
+ * not use. Existing env vars win, so CI's environment is never overwritten.
  */
 function loadEnvLocal(): void {
-  const file = ".env.local";
-  if (!fs.existsSync(file)) return;
-  for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
-    const val = line
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "");
-    if (!(key in process.env)) process.env[key] = val;
+  try {
+    process.loadEnvFile(".env.local");
+  } catch {
+    // No .env.local: the environment already carries the variables (CI).
   }
 }
 
@@ -452,13 +541,37 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
   const page = await browser.newPage();
   try {
-    await page.setExtraHTTPHeaders(requestHeaders());
+    const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    if (bypass) {
+      // Scope the bypass header to the target's own origin through request
+      // interception: a page-wide extra header would also ride to the map tile
+      // host and every other third-party request, leaking the secret and
+      // forcing a CORS preflight those hosts may reject.
+      const origin = new URL(baseUrl).origin;
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const overrides = isSameOrigin(req.url(), origin)
+          ? { headers: { ...req.headers(), "x-vercel-protection-bypass": bypass } }
+          : {};
+        // A request already handled elsewhere (redirects can race) rejects; ignore it.
+        void req.continue(overrides).catch(() => undefined);
+      });
+    }
+
+    // URLs that answered 4xx/5xx, so the console echo of the same failure is
+    // dropped instead of double-counted; echoes are resolved after navigation,
+    // once every response event is in.
+    const failedResponseUrls = new Set<string>();
+    const statusEchoes: { text: string; locUrl: string }[] = [];
+
     page.on("response", (response) => {
       const status = response.status();
       if (status < 400) return;
-      // The 404 page is expected to answer 404 for its own document.
-      if (spec.expectStatus === status && response.request().resourceType() === "document") return;
       const resUrl = response.url();
+      failedResponseUrls.add(resUrl);
+      // The 404 page is expected to answer 404 for its own document; the status
+      // itself is asserted after navigation.
+      if (spec.expectStatus === status && response.request().resourceType() === "document") return;
       if (IGNORE_404_URLS.some((s) => resUrl.includes(s))) return;
       if (ignored(resUrl)) return;
       errors.push(`HTTP ${status}: ${resUrl}`);
@@ -466,8 +579,14 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
     page.on("console", (msg) => {
       if (msg.type() !== "error") return;
       const text = msg.text();
-      if (IGNORE_CONSOLE.some((s) => text.includes(s)) || ignored(text)) return;
-      errors.push(`[console] ${text}`);
+      const locUrl = msg.location().url ?? "";
+      if (IGNORE_CONSOLE_GLOBAL.some((s) => text.includes(s) || locUrl.includes(s))) return;
+      if (ignored(text) || ignored(locUrl)) return;
+      if (text.startsWith(STATUS_ECHO_PREFIX)) {
+        statusEchoes.push({ text, locUrl });
+        return;
+      }
+      errors.push(locUrl ? `[console] ${text} (${locUrl})` : `[console] ${text}`);
     });
     page.on("pageerror", (err: unknown) => {
       const text = err instanceof Error ? err.message : String(err);
@@ -475,7 +594,22 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
       errors.push(`[pageerror] ${text}`);
     });
 
-    await page.goto(url, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT_MS });
+    const docResponse = await page.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: NAV_TIMEOUT_MS,
+    });
+
+    for (const echo of statusEchoes) {
+      if (!failedResponseUrls.has(echo.locUrl)) {
+        errors.push(`[console] ${echo.text} (${echo.locUrl})`);
+      }
+    }
+
+    // The 404 page must answer a real 404, not a soft 404 with the right copy.
+    const docStatus = docResponse?.status() ?? null;
+    if (spec.expectStatus !== undefined && docStatus !== spec.expectStatus) {
+      errors.push(`document answered HTTP ${docStatus ?? "none"}, expected ${spec.expectStatus}`);
+    }
 
     // Where the browser ended up: a streamed redirect lands here as a client
     // navigation, which the response status never shows.
@@ -496,7 +630,10 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
     const emptySections = await page.evaluate(() =>
       Array.from(document.querySelectorAll("h2"))
         .filter((h) => {
-          const container = h.parentElement;
+          // The section is the nearest sectioning ancestor, or the parent when
+          // the heading sits in none, so a heading wrapped in its own header
+          // element still counts the content beside that wrapper.
+          const container = h.closest<HTMLElement>("section, article") ?? h.parentElement;
           if (!container) return false;
           return container.innerText.trim() === h.innerText.trim();
         })
@@ -616,6 +753,7 @@ async function main(): Promise<void> {
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
+    if (liveUrl) await primeBypassCookie(browser, baseUrl);
 
     const pages = [...discoverPages(), ...(await dynamicPages(baseUrl))];
     console.log(`Checking ${pages.length} pages...\n`);

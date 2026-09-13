@@ -29,15 +29,17 @@ jobs:
     env:
       DEPLOY_URL: ${{ inputs.deploy_url || github.event.deployment_status.environment_url }}
       # Vercel "Protection Bypass for Automation" secret. Deployment Protection
-      # is on for this project (SSO on every *.vercel.app URL), so without it
-      # every request answers 302 to the SSO page; the job skips rather than
-      # fails until the secret exists.
+      # is on for this project, so without it every request is bounced to SSO
+      # (a redirect for a browser, a 401 for anything else); the job skips
+      # rather than fails until the secret exists.
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
     steps:
+      # A skipped run still finishes green, so raise a warning annotation to
+      # keep the skip visible on the run summary.
       - name: Report a skipped run
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET == ''
-        run: echo "VERCEL_AUTOMATION_BYPASS_SECRET not available; the deployment is behind SSO, smoke skipped."
+        run: echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET not available; the deployment is behind SSO, smoke skipped."
 
       - name: Checkout at the deployed commit
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
@@ -63,7 +65,7 @@ jobs:
 
       - name: Cache Puppeteer Chromium
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@v6
         with:
           path: ~/.cache/puppeteer
           key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -74,19 +76,24 @@ jobs:
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npx puppeteer browsers install chrome
 
-      # The status line tells the failure apart: 401 or 303 means the bypass
-      # secret was rejected, 404 means the build has no health route yet, 200
-      # with another version means the URL runs a different commit.
+      # The status line tells the failure apart: a 401 or a redirect means the
+      # bypass secret was rejected, 404 means the build has no health route yet,
+      # 200 with another version means the URL runs a different commit.
       - name: Health probe
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: |
           set -euo pipefail
+          base="${DEPLOY_URL%/}"
           expected="$(node -p "require('./package.json').version")"
-          echo "Expecting version $expected at $DEPLOY_URL/api/health"
+          echo "Expecting version $expected at $base/api/health"
           for attempt in 1 2 3 4 5; do
+            # Clear the previous body so a failed connection never logs stale output.
+            rm -f health.json
+            # curl -w already prints 000 when the connection fails; || true only
+            # stops set -e from ending the loop.
             code="$(curl -sS --max-time 20 -o health.json -w '%{http_code}' \
               -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-              "$DEPLOY_URL/api/health" || echo 000)"
+              "$base/api/health" || true)"
             body="$(head -c 300 health.json 2>/dev/null || true)"
             echo "Attempt $attempt: HTTP $code $body"
             if [ "$code" = "200" ] && echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q "\"version\":\"$expected\""; then
@@ -99,7 +106,7 @@ jobs:
           exit 1
 
       # The script reads VERCEL_AUTOMATION_BYPASS_SECRET from the environment
-      # and sends it on every request.
+      # and sends it only to the deployment's own origin.
       - name: Remote smoke
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npx tsx scripts/smoke-test.ts --base-url="$DEPLOY_URL"
