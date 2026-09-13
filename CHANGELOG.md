@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.9] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: its header claimed the automatic trigger waits until the file is on `main`.
+  GitHub runs a `deployment_status` workflow from the deployed commit, so it fires for every preview
+  as well, and it has done so for each push to `dev` since 1.13.5. The job is named
+  `deployment-smoke` so it can be a required check on `main` without colliding with CI's `smoke`.
+
 ## [1.13.8] - 2026-09-13
 
 ### Changed
