@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.2] - 2026-09-13
+
+### Fixed
+
+- The post-deploy smoke workflow's first run reached the deployment (the bypass secret and the
+  health probe both worked) and then started a local build: it passed `--base-url` and the URL as
+  two arguments, and the smoke script only read the `--base-url=` form, so the URL was ignored. The
+  script now accepts both forms and refuses an argument it does not know instead of falling back to
+  a build, and the workflow passes the `=` form.
+
 ## [1.13.1] - 2026-09-13
 
 ### Changed
