@@ -16,7 +16,8 @@
 // Automation" secret). It is sent as the bypass header only to the deployment's
 // own origin, never to a third-party host such as the map tiles, and it is also
 // stored as a session cookie before any page is measured so that requests the
-// browser starts on its own do not loop through SSO.
+// browser starts on its own carry it too. The one request that carries no
+// cookies, a web manifest, is ignored if it loops through SSO.
 //
 // Exit codes:
 //   0  all pages loaded without errors
@@ -188,12 +189,14 @@ function isSameOrigin(requestUrl: string, origin: string): boolean {
 /**
  * Store Vercel's Deployment Protection bypass as a session cookie. The
  * per-request header in {@link checkPage} covers the requests the interceptor
- * sees, which is not every request the browser makes: a browser-initiated fetch
- * (a manifest, a favicon) can miss interception, bounce to SSO and loop until
- * Chrome gives up with ERR_TOO_MANY_REDIRECTS. Loading the site once with the
- * bypass as query parameters plus `x-vercel-set-bypass-cookie` sets the
- * `_vercel_jwt` cookie, which then rides every request in the session however
- * it started. A no-op without the secret (a local server).
+ * sees; a request the browser starts on its own (a favicon, a prefetch) can
+ * miss interception, and the cookie covers those as long as they carry
+ * cookies. Loading the site once with the bypass as query parameters plus
+ * `x-vercel-set-bypass-cookie` sets the `_vercel_jwt` cookie for the session.
+ * A web manifest is the exception: browsers fetch `<link rel="manifest">`
+ * without cookies, so on a protected deployment it bounces between the site and
+ * SSO whatever is primed, and the page check ignores that one redirect loop.
+ * A no-op without the secret (a local server).
  * @param browser - Puppeteer browser instance.
  * @param baseUrl - The target's base URL.
  */
@@ -424,11 +427,23 @@ function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null
     const value = eq === -1 ? args[++i] : arg.slice(eq + 1);
     if (value === undefined || value === "") throw new Error(`${flag} needs a value`);
     if (flag === "--port") {
-      port = Number.parseInt(value, 10);
+      // Number() rejects "3001abc", which parseInt would read as 3001.
+      port = Number(value);
       if (!Number.isInteger(port) || port < 1 || port > 65535) {
         throw new Error(`--port needs a port number, got "${value}"`);
       }
     } else {
+      // A bare host would make every readiness probe throw until the wait
+      // times out, so require a full http(s) URL up front.
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        throw new Error(`--base-url needs a full URL such as https://host, got "${value}"`);
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(`--base-url needs an http or https URL, got "${value}"`);
+      }
       baseUrl = value.replace(/\/$/, "");
     }
   }
@@ -541,13 +556,13 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
   const page = await browser.newPage();
   try {
+    const origin = new URL(baseUrl).origin;
     const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
     if (bypass) {
       // Scope the bypass header to the target's own origin through request
       // interception: a page-wide extra header would also ride to the map tile
       // host and every other third-party request, leaking the secret and
       // forcing a CORS preflight those hosts may reject.
-      const origin = new URL(baseUrl).origin;
       await page.setRequestInterception(true);
       page.on("request", (req) => {
         const overrides = isSameOrigin(req.url(), origin)
@@ -582,6 +597,18 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
       const locUrl = msg.location().url ?? "";
       if (IGNORE_CONSOLE_GLOBAL.some((s) => text.includes(s) || locUrl.includes(s))) return;
       if (ignored(text) || ignored(locUrl)) return;
+      // A web manifest is fetched without cookies and is not reliably
+      // intercepted, so on a protected deployment it bounces between the site
+      // and SSO until Chrome gives up. Ignored for that file only, on the
+      // target's own origin only, and only while the bypass secret is in play.
+      if (
+        bypass &&
+        text.includes("ERR_TOO_MANY_REDIRECTS") &&
+        isSameOrigin(locUrl, origin) &&
+        new URL(locUrl).pathname.endsWith(".webmanifest")
+      ) {
+        return;
+      }
       if (text.startsWith(STATUS_ECHO_PREFIX)) {
         statusEchoes.push({ text, locUrl });
         return;
@@ -601,7 +628,9 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
     for (const echo of statusEchoes) {
       if (!failedResponseUrls.has(echo.locUrl)) {
-        errors.push(`[console] ${echo.text} (${echo.locUrl})`);
+        errors.push(
+          echo.locUrl ? `[console] ${echo.text} (${echo.locUrl})` : `[console] ${echo.text}`,
+        );
       }
     }
 
@@ -727,7 +756,15 @@ function printTable(results: PageResult[]): void {
  * @returns Resolves once the process exit code is set and resources are freed.
  */
 async function main(): Promise<void> {
-  const { skipBuild, port, baseUrl: liveUrl } = parseArgs();
+  let args: ReturnType<typeof parseArgs>;
+  try {
+    args = parseArgs();
+  } catch (err) {
+    // A usage error: the message alone, not a stack trace.
+    console.error(`\n${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(2);
+  }
+  const { skipBuild, port, baseUrl: liveUrl } = args;
   const baseUrl = liveUrl ?? `http://127.0.0.1:${port}`;
   let server: ChildProcess | null = null;
   let browser: Browser | null = null;
@@ -770,9 +807,9 @@ async function main(): Promise<void> {
     printTable(results);
     const failed = results.filter((r) => r.status !== "pass");
     if (failed.length === 0) {
-      console.log(`\n> All ${results.length} pages passed\n`);
+      console.log(`\n> All ${results.length} checks passed\n`);
     } else {
-      console.log(`\n> ${failed.length} page(s) failed\n`);
+      console.log(`\n> ${failed.length} check(s) failed\n`);
       exitCode = 1;
     }
   } catch (err) {
@@ -782,9 +819,11 @@ async function main(): Promise<void> {
     await browser?.close();
     if (server?.pid) {
       // On Windows, SIGTERM doesn't reach the child tree; taskkill stops it all so
-      // the Prisma DLL is released and the port is freed.
+      // the Prisma DLL is released and the port is freed. execSync runs through
+      // cmd.exe, which takes single-slash switches (the double-slash form is a
+      // Git Bash convention and fails here with "Invalid argument/option").
       try {
-        execSync(`taskkill //F //T //PID ${server.pid}`, { stdio: "ignore" });
+        execSync(`taskkill /F /T /PID ${server.pid}`, { stdio: "ignore" });
       } catch {
         server.kill("SIGTERM");
       }
