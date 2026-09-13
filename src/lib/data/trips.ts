@@ -1,6 +1,6 @@
 // src/lib/data/trips.ts
 // Runs of a route: the day's worst trips board, one trip's timeline and its schedule.
-import { fetchAll } from "@/lib/at-static";
+import { fetchAll, getJson } from "@/lib/at-static";
 import { cachedForRange, scheduledAtWindow, toIso } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
@@ -384,6 +384,42 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
       return out;
     },
     ["trip-scheduled-stops", tripId],
+    { revalidate: 86_400 },
+  )();
+}
+
+/**
+ * The road path one trip drives, as `[lat, lon]` pairs for the map. AT's trip
+ * record names its GTFS `shape_id`, and the shapes ingest stores that geometry
+ * (simplified, in `[lon, lat]` order). Cached for a day like the schedule. A
+ * trip AT no longer publishes (a 404 for an older feed version) or a shape the
+ * ingest has not stored yet resolves to an empty path, so the caller can fall
+ * back to joining the stops. Any other AT failure throws out of the cache, as
+ * {@link getTripScheduledStops} does, so an outage is not pinned for the day.
+ * @param tripId - AT GTFS trip id.
+ * @returns The trip's road path, or an empty array when it cannot be resolved.
+ */
+export async function getTripShape(tripId: string): Promise<Array<[number, number]>> {
+  return unstable_cache(
+    async () => {
+      const trip = await getJson<{ shape_id?: string | null }>(
+        `/trips/${encodeURIComponent(tripId)}`,
+      ).catch((err: unknown) => {
+        if (err instanceof Error && err.message.startsWith("AT v3 404 ")) return null;
+        throw err;
+      });
+      // A single-resource JSON:API response carries one object in `data`, not a list.
+      const data = trip?.data as unknown as { attributes?: { shape_id?: string | null } } | null;
+      const shapeId = data?.attributes?.shape_id;
+      if (!shapeId) return [];
+      const shape = await prisma.shape.findUnique({
+        where: { id: shapeId },
+        select: { points: true },
+      });
+      const points = (shape?.points ?? []) as unknown as [number, number][];
+      return points.map(([lon, lat]): [number, number] => [lat, lon]);
+    },
+    ["trip-shape", tripId],
     { revalidate: 86_400 },
   )();
 }

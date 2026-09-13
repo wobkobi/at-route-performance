@@ -5,7 +5,12 @@ import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { cn } from "@/lib/cn";
-import { getTripScheduledStops, getTripTimeline, type ScheduledStop } from "@/lib/data";
+import {
+  getTripScheduledStops,
+  getTripShape,
+  getTripTimeline,
+  type ScheduledStop,
+} from "@/lib/data";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
@@ -59,10 +64,11 @@ export default async function TripPage({
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange).
   const dAt = d ? new Date(d) : null;
   const day = dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : undefined;
-  // An AT outage costs this request its schedule, not the day's cache entry.
-  const [timeline, scheduledStops] = await Promise.all([
+  // An AT outage costs this request its schedule and road path, not the day's cache entries.
+  const [timeline, scheduledStops, roadPath] = await Promise.all([
     getTripTimeline(tripId, slug, day),
     getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
+    getTripShape(tripId).catch((): Array<[number, number]> => []),
   ]);
   const { route, vehicle_id } = timeline;
   // Nothing knows this run: no route row, no arrival on any day, no schedule.
@@ -101,12 +107,15 @@ export default async function TripPage({
     avg_delay_sec: s.kind === "served" ? s.deviation_sec : null,
     on_time_pct: null,
   }));
-  const tripPath: Array<[number, number]> = mergedStops.map((s) => [s.lat, s.lon]);
+  // The trip's own GTFS shape follows the road; joining the stops is the fallback
+  // for a trip AT no longer publishes or a shape not yet ingested.
+  const tripPath: Array<[number, number]> =
+    roadPath.length > 1 ? roadPath : mergedStops.map((s) => [s.lat, s.lon]);
 
-  // When no stops are available (AT API failure + no ArrivalEvents), fall back to
-  // the route shape from GTFS so at least the map renders.
+  // When there is neither a trip path nor any stop (AT API failure + no
+  // ArrivalEvents), fall back to the route's shapes so at least the map renders.
   let fallbackLines: Array<[number, number]>[] = [];
-  if (tripMapStops.length === 0) {
+  if (tripPath.length < 2) {
     const fallback = await buildRouteView(slug, [], routeMode);
     fallbackLines = fallback.routeLines.map((l) => l.points);
   }
@@ -146,7 +155,7 @@ export default async function TripPage({
         </p>
       </header>
 
-      {(tripMapStops.length > 0 || fallbackLines.length > 0) && (
+      {(tripMapStops.length > 0 || tripPath.length > 1 || fallbackLines.length > 0) && (
         <section className="border border-at-border bg-at-surface p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
