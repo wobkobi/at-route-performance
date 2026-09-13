@@ -2,7 +2,12 @@
 // Barrel over src/lib/data/*.ts: the server-side data-access layer, split by
 // concern. Import sites use this path; each module below owns one concern.
 
-export { getCancelledCount, getCancelledRoutes, getCancelledTrips } from "@/lib/data/cancelled";
+export {
+  getCancelledByRoute,
+  getCancelledCount,
+  getCancelledRoutes,
+  getCancelledTrips,
+} from "@/lib/data/cancelled";
 export type { CancelledRouteRow, CancelledTripRow } from "@/lib/data/cancelled";
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";

@@ -22,6 +22,7 @@ import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
+  getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
   getRankings,
@@ -118,10 +119,11 @@ export default async function Home({
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need
   // their own count under the same filters.
-  const heroData = {
-    ...summariseRows(visible),
-    cancelled: await getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
-  };
+  const [cancelledTotal, cancelledByRoute] = await Promise.all([
+    getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
+    getCancelledByRoute(range, { mode, includeSchool }, TODAY_REVALIDATE),
+  ]);
+  const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
@@ -248,6 +250,7 @@ export default async function Home({
           accentClass="text-at-ink"
           rows={offSchedule}
           metric="delay"
+          cancelled={cancelledByRoute}
           routeDay={linkDay}
           collapseAt={10}
         />
