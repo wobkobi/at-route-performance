@@ -1,0 +1,137 @@
+// src/lib/trip-board.test.ts
+// Unit tests for placing cancelled trips on the route trip board.
+import type { CancelledTripRow } from "@/lib/data/cancelled";
+import {
+  buildTripBoardRows,
+  gtfsTimeSeconds,
+  tripIdStartSeconds,
+  type TripBoardRow,
+} from "@/lib/trip-board";
+import type { PerTripStat } from "@/types/api";
+import { describe, expect, it } from "vitest";
+
+/**
+ * A running trip starting at the given instant.
+ * @param id - Trip id.
+ * @param start - ISO scheduled start.
+ * @param abs - Average absolute delay, seconds.
+ * @returns The trip row.
+ */
+function run(id: string, start: string, abs = 60): PerTripStat {
+  return {
+    trip_id: id,
+    vehicle_id: null,
+    scheduled_start: start,
+    stops: 10,
+    avg_delay_sec: abs,
+    avg_abs_delay_sec: abs,
+    worst_delay_sec: abs,
+  };
+}
+
+/**
+ * A cancelled trip starting at the given instant.
+ * @param id - Trip id.
+ * @param start - ISO scheduled start, or null when unknown.
+ * @returns The cancellation row.
+ */
+function cancel(id: string, start: string | null): CancelledTripRow {
+  return { trip_id: id, headsign: null, direction_id: null, scheduled_start: start };
+}
+
+/**
+ * Compact label per row: the trip id, prefixed "x" for a cancellation.
+ * @param rows - Board rows.
+ * @returns The labels in display order.
+ */
+function labels(rows: TripBoardRow[]): string[] {
+  return rows.map((r) => (r.kind === "cancelled" ? `x${r.trip.trip_id}` : r.trip.trip_id));
+}
+
+const T7 = "2026-09-13T19:00:00.000Z"; // 7:00am NZST
+const T8 = "2026-09-13T20:00:00.000Z";
+const T9 = "2026-09-13T21:00:00.000Z";
+
+describe("buildTripBoardRows", () => {
+  it("puts cancellations below every run on the delay sorts, whatever the direction", () => {
+    const runs = [run("a", T9, 300), run("b", T7, 100)];
+    const cancelled = [cancel("c8", T8), cancel("c7", T7)];
+    for (const sort of ["off", "late", "early"] as const) {
+      for (const rev of [false, true]) {
+        expect(labels(buildTripBoardRows(runs, cancelled, sort, rev))).toEqual([
+          "a",
+          "b",
+          "xc7",
+          "xc8",
+        ]);
+      }
+    }
+  });
+
+  it("ranks only the runs, 1..n", () => {
+    const rows = buildTripBoardRows(
+      [run("a", T7), run("b", T9)],
+      [cancel("c", T8)],
+      "departure",
+      false,
+    );
+    expect(rows.map((r) => (r.kind === "run" ? r.rank : null))).toEqual([1, null, 2]);
+  });
+
+  it("slots cancellations in by scheduled start on the departure sort", () => {
+    const rows = buildTripBoardRows(
+      [run("a", T7), run("b", T9)],
+      [cancel("c9", T9), cancel("c8", T8)],
+      "departure",
+      false,
+    );
+    // Ties go to the cancellation, as it was due at the same time.
+    expect(labels(rows)).toEqual(["a", "xc8", "xc9", "b"]);
+  });
+
+  it("follows a reversed departure sort", () => {
+    const rows = buildTripBoardRows(
+      [run("b", T9), run("a", T7)],
+      [cancel("c8", T8), cancel("cEarly", "2026-09-13T18:00:00.000Z")],
+      "departure",
+      true,
+    );
+    expect(labels(rows)).toEqual(["b", "xc8", "a", "xcEarly"]);
+  });
+
+  it("puts a cancellation with no known start last", () => {
+    const rows = buildTripBoardRows(
+      [run("a", T9)],
+      [cancel("u", null), cancel("c", T7)],
+      "departure",
+      false,
+    );
+    expect(labels(rows)).toEqual(["xc", "a", "xu"]);
+  });
+
+  it("lists cancellations alone when nothing ran", () => {
+    expect(labels(buildTripBoardRows([], [cancel("c", T8)], "off", false))).toEqual(["xc"]);
+  });
+});
+
+describe("gtfsTimeSeconds", () => {
+  it("parses ordinary and extended times", () => {
+    expect(gtfsTimeSeconds("07:30:15")).toBe(7 * 3600 + 30 * 60 + 15);
+    expect(gtfsTimeSeconds("24:15:00")).toBe(24 * 3600 + 15 * 60);
+  });
+  it("rejects missing and malformed values", () => {
+    expect(gtfsTimeSeconds(null)).toBeNull();
+    expect(gtfsTimeSeconds("7:3")).toBeNull();
+    expect(gtfsTimeSeconds("07:61:00")).toBeNull();
+  });
+});
+
+describe("tripIdStartSeconds", () => {
+  it("reads the start seconds segment of an AT trip id", () => {
+    expect(tripIdStartSeconds("1060-14804-82800-2-efb6f52a")).toBe(82800);
+  });
+  it("returns null for another id shape", () => {
+    expect(tripIdStartSeconds("abc")).toBeNull();
+    expect(tripIdStartSeconds("1060-14804-x-2-efb6f52a")).toBeNull();
+  });
+});

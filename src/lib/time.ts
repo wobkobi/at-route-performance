@@ -207,6 +207,24 @@ export function nzServiceDayRange(
 }
 
 /**
+ * The instant a GTFS schedule time falls at within a service day. GTFS measures
+ * times from "noon minus 12h" of the service date, which is local midnight
+ * except on a DST-switch day; the service day's 5am start minus five real hours
+ * is that same instant, because the 02:00/03:00 switch sits before both 5am and
+ * noon. A time earlier than the start hour is a post-midnight run filed under
+ * this service day but written against the next calendar date ("00:30:00"
+ * rather than "24:30:00"), so it moves forward a day.
+ * @param serviceDayStart - The service day's start instant (its 5am, as stored).
+ * @param seconds - Seconds since the GTFS reference; may exceed 24h for post-midnight runs.
+ * @returns The UTC instant of that schedule time.
+ */
+export function serviceDayClockInstant(serviceDayStart: Date, seconds: number): Date {
+  const startSec = SERVICE_START_HOUR * 3600;
+  const offset = seconds < startSec ? seconds + 86_400 : seconds;
+  return new Date(serviceDayStart.getTime() + (offset - startSec) * 1000);
+}
+
+/**
  * The service date (`YYYY-MM-DD`) of the service day containing an instant.
  * @param at - The instant to label.
  * @param startHour - Local hour the service day begins.
