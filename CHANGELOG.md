@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.8] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: the `ADMIN_SECRET` pass-through added in 1.13.7 belongs to a different
+  project's copy of this workflow and is removed again; this project has no admin pages.
+
 ## [1.13.7] - 2026-09-13
 
 ### Changed

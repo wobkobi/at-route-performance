@@ -28,13 +28,8 @@ jobs:
 
     env:
       DEPLOY_URL: ${{ inputs.deploy_url || github.event.deployment_status.environment_url }}
-      # Must match the DEPLOYED environment's value so admin pages authenticate;
-      # without it the smoke test skips every admin page. A repo with no admin
-      # surface simply has no such secret, and this resolves to an empty string
-      # that the script never reads.
-      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
       # Vercel "Protection Bypass for Automation" secret. Deployment Protection
-      # is on for these projects (SSO on every *.vercel.app URL), so without it
+      # is on for this project (SSO on every *.vercel.app URL), so without it
       # every request is bounced to SSO (a redirect for a browser, a 401 for
       # anything else); the job skips rather than fails until the secret exists.
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
@@ -110,9 +105,8 @@ jobs:
           echo "Health probe failed: did not see HTTP 200 with ok:true and version $expected"
           exit 1
 
-      # The script reads ADMIN_SECRET (where the project has admin pages) and
-      # VERCEL_AUTOMATION_BYPASS_SECRET from the environment and sends them only
-      # to the deployment's own origin.
+      # The script reads VERCEL_AUTOMATION_BYPASS_SECRET from the environment
+      # and sends it only to the deployment's own origin.
       - name: Remote smoke
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npx tsx scripts/smoke-test.ts --base-url="$DEPLOY_URL"
