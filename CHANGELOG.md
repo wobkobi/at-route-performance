@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.10] - 2026-09-13
+
+### Fixed
+
+- Maps: CARTO now stamps "API KEY REQUIRED" across every basemap tile requested without a key. The
+  tile URL appends `NEXT_PUBLIC_CARTO_API_KEY` when set (a free key from carto.com/basemaps/apikey,
+  inlined at build time and visible in tile requests, so restrict it to the site's host). Tile
+  requests send the site's origin as the Referer, which the site-wide `same-origin` policy otherwise
+  strips, so a host-restricted key accepts them.
+
 ## [1.13.9] - 2026-09-13
 
 ### Changed

@@ -41,6 +41,18 @@ const POLL_MS = 120_000;
 const STOP_FOCUS_ZOOM = 14;
 
 /**
+ * CARTO Positron raster tiles. CARTO stamps "API KEY REQUIRED" across every tile
+ * requested without `?key=`, so the key (free, from carto.com/basemaps/apikey) is
+ * appended when set. It ships to the browser in each tile URL, so it is public by
+ * design; restrict the production key to the site's host in the CARTO dashboard.
+ */
+const TILE_URL =
+  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" +
+  (process.env.NEXT_PUBLIC_CARTO_API_KEY
+    ? `?key=${encodeURIComponent(process.env.NEXT_PUBLIC_CARTO_API_KEY)}`
+    : "");
+
+/**
  * Haversine distance in kilometres between two WGS-84 coordinates.
  * @param lat1 - Latitude of point 1.
  * @param lon1 - Longitude of point 1.
@@ -419,10 +431,14 @@ export default function StopMap({
 
       const colours = readColours();
       const map = L.map(divRef.current);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer(TILE_URL, {
         maxZoom: 19,
         subdomains: "abcd",
         attribution: "© OpenStreetMap contributors © CARTO",
+        // The site-wide Referrer-Policy is same-origin, which strips the Referer
+        // from tile requests and fails a host-restricted CARTO key. Send the
+        // origin only (no page path) to the tile host.
+        referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(map);
 
       const state: MapState = {
