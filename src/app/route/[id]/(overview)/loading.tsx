@@ -1,82 +1,64 @@
 // src/app/route/[id]/(overview)/loading.tsx
 // Loading skeleton for the route detail page.
 
+import {
+  ChipBone,
+  DayNavSkeleton,
+  LineDiagramSkeleton,
+  MapSectionSkeleton,
+  StatCellsSkeleton,
+  TitleBone,
+  TripBoardSkeleton,
+} from "@/components/SkeletonParts";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Skeleton for a single stat cell in the stats strip.
- * @returns The stat cell placeholder.
- */
-function StatCell(): JSX.Element {
-  return (
-    <div className="p-4">
-      <Bone className="mb-2 h-3 w-20" />
-      <Bone className="h-8 w-16" />
-    </div>
-  );
-}
-
-/**
  * Route page loading skeleton. It mirrors the day view; the week view shares it
- * because a loading file cannot read `?window` to pick a layout.
+ * because a loading file cannot read `?window` to pick a layout. Most routes run
+ * both ways, so the direction chips are drawn, wrapping onto their own lines on
+ * a phone the way the long headsign chips do.
  * @returns Skeleton layout matching the route day page structure.
  */
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      {/* Header: mode icon + route name + view toggle + day nav, then the direction chips */}
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Bone className="h-9 w-9 shrink-0 rounded-full" />
-            <div>
-              <Bone className="h-9 w-24" />
-              <Bone className="mt-0.5 h-4 w-44" />
-            </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Bone className="h-6 w-6 shrink-0 rounded-full" />
+            <TitleBone className="w-14" />
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
-              <Bone className="h-8 w-12 rounded-full" />
-              <Bone className="h-8 w-14 rounded-full" />
+              <ChipBone className="w-11" />
+              <ChipBone className="w-14" />
             </div>
-            <div className="flex items-center gap-2">
-              <Bone className="h-8 w-7 rounded-full" />
-              <Bone className="h-5 w-28" />
-              <Bone className="h-8 w-7 rounded-full" />
-            </div>
+            <DayNavSkeleton />
           </div>
         </div>
-        {/* Most routes run both ways, so the direction row is the common case */}
         <div className="flex flex-wrap items-center gap-2">
-          <Bone className="h-3 w-16" />
-          <Bone className="h-8 w-14 rounded-full" />
-          <Bone className="h-8 w-56 max-w-full rounded-full" />
-          <Bone className="h-8 w-56 max-w-full rounded-full" />
+          <Bone className="h-4 w-16" />
+          <ChipBone className="w-14" />
+          <ChipBone className="w-72 max-w-full" />
+          <ChipBone className="w-72 max-w-full" />
         </div>
       </header>
 
-      {/* Stats strip */}
-      <section className="border border-at-border bg-at-surface">
-        <div className="grid grid-cols-2 sm:grid-cols-4">
-          <StatCell />
-          <StatCell />
-          <StatCell />
-          <StatCell />
-        </div>
-      </section>
+      <StatCellsSkeleton />
 
-      {/* Worst trips board + map side by side; a ten-row board stands as tall as the h-125 map */}
+      {/* The board and map share a row from lg, so both stretch to the map card's height */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Bone className="h-125" />
-        <Bone className="h-125" />
+        <TripBoardSkeleton />
+        <MapSectionSkeleton mapClass="h-125" />
       </div>
 
-      {/* Route line diagram */}
-      <Bone className="h-64" />
+      <LineDiagramSkeleton />
 
-      {/* Collapsible stops summary bar */}
-      <Bone className="h-12" />
+      {/* Collapsed "Stops" details: px-4 py-3 around a 24px summary line */}
+      <div className="border border-at-border bg-at-surface px-4 py-3">
+        <Bone className="h-6 w-16" />
+      </div>
     </main>
   );
 }

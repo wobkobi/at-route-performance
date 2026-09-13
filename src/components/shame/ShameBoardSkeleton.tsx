@@ -1,7 +1,10 @@
 // src/components/shame/ShameBoardSkeleton.tsx
 // Pulse-placeholder skeleton for a shame board list, shared by the
 // shame loading pages and the in-page Suspense fallbacks while a board streams.
+// Rows mirror the ShameBoard anchors box for box (padding, rules, line heights)
+// so the list occupies the same height as the rows it turns into.
 
+import { cn } from "@/lib/cn";
 import { ITEMS_PER_COL } from "@/lib/shame-page";
 import type { JSX } from "react";
 
@@ -17,25 +20,44 @@ export function Bone({ className }: { className: string }): JSX.Element {
   );
 }
 
+/** How a board's rows are drawn: which glyphs they carry and how their subtitle wraps. */
+export interface ShameRowShape {
+  /** Whether rows carry a route mode icon (trips and routes; stops have none). */
+  icon: boolean;
+  /** Subtitle lines in the single-column list (phones and the week list). */
+  mobileLines: number;
+  /** Subtitle lines in a desktop grid cell. */
+  gridLines: number;
+}
+
+/** Route rows: a name line over one `text-xs` line of events. */
+const ONE_LINE: ShameRowShape = { icon: true, mobileLines: 1, gridLines: 1 };
+
 /**
- * Skeleton for a single shame list row.
+ * The body of one hour row: the `text-sm` hour (with its 1px nudge), the icon,
+ * a 24px name line over `text-xs` subtitle lines, and the delay value.
  * @param root0 - Props.
- * @param root0.withTopBorder - Whether the row draws a top border.
- * @returns The list item placeholder.
+ * @param root0.shape - The row's glyphs.
+ * @param root0.lines - Subtitle lines for this surface.
+ * @returns The row contents.
  */
-function ListRow({ withTopBorder = true }: { withTopBorder?: boolean }): JSX.Element {
+function RowBody({ shape, lines }: { shape: ShameRowShape; lines: number }): JSX.Element {
   return (
-    <li
-      className={`flex items-start gap-3 px-4 py-3 ${withTopBorder ? "border-t border-at-border" : ""}`}
-    >
-      <Bone className="mt-0.5 h-4 w-12 shrink-0" />
-      <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <Bone className="h-4 w-32 max-w-full" />
-        <Bone className="h-3 w-52 max-w-full" />
+    <>
+      <Bone className="mt-px h-5 w-12 shrink-0" />
+      {shape.icon && <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />}
+      <div className="min-w-0 flex-1">
+        <div className="flex h-6 items-center">
+          <Bone className="h-4 w-20" />
+        </div>
+        {Array.from({ length: lines }).map((_, i) => (
+          <div key={i} className="flex h-4 items-center">
+            <Bone className={cn("h-3 max-w-full", i === lines - 1 ? "w-32" : "w-52")} />
+          </div>
+        ))}
       </div>
-      <Bone className="mt-0.5 h-4 w-20 shrink-0" />
-    </li>
+      <Bone className="mt-px h-5 w-20 shrink-0" />
+    </>
   );
 }
 
@@ -45,29 +67,39 @@ function ListRow({ withTopBorder = true }: { withTopBorder?: boolean }): JSX.Ele
  * single-column day-per-row list the week and month boards render.
  * @param root0 - Props.
  * @param root0.layout - Which board shape to mirror.
+ * @param root0.shape - The rows' glyphs and subtitle wrapping (a route row by default).
  * @returns The board placeholder.
  */
-export function ShameBoardSkeleton({ layout }: { layout: "day" | "week" }): JSX.Element {
+export function ShameBoardSkeleton({
+  layout,
+  shape = ONE_LINE,
+}: {
+  layout: "day" | "week";
+  shape?: ShameRowShape;
+}): JSX.Element {
+  /**
+   * One single-column row; each carries a top rule, as the real list anchors do.
+   * @param i - Row index, for the key.
+   * @returns The row placeholder.
+   */
+  const listRow = (i: number): JSX.Element => (
+    <li key={i} className="flex items-start gap-3 border-t border-at-border px-4 py-3">
+      <RowBody shape={shape} lines={shape.mobileLines} />
+    </li>
+  );
   if (layout === "week") {
     return (
       <div className="border border-at-border bg-at-surface">
-        <ul>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <ListRow key={i} withTopBorder={i > 0} />
-          ))}
-        </ul>
+        <ul>{Array.from({ length: 7 }).map((_, i) => listRow(i))}</ul>
       </div>
     );
   }
   return (
     <div className="border border-at-border bg-at-surface">
-      {/* Mobile: single column, the same rows the desktop grid holds */}
       <ul className="md:hidden">
-        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => (
-          <ListRow key={i} withTopBorder={i > 0} />
-        ))}
+        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => listRow(i))}
       </ul>
-      {/* Desktop: 2-column grid matching the real page layout */}
+      {/* Desktop: the same explicit two-column grid the real board places cells in */}
       <ul className="hidden md:grid md:grid-cols-2">
         {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => {
           const isRight = i >= ITEMS_PER_COL;
@@ -75,22 +107,15 @@ export function ShameBoardSkeleton({ layout }: { layout: "day" | "week" }): JSX.
           return (
             <li
               key={i}
-              className={[
-                "flex items-start gap-3 px-4 py-3",
-                rowIdx > 0 ? "border-t border-at-border" : "",
-                isRight ? "border-l border-at-border" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
+              className={cn(
+                rowIdx > 0 && "border-t border-at-border",
+                isRight && "border-l border-at-border",
+              )}
               style={{ gridColumn: isRight ? 2 : 1, gridRow: rowIdx + 1 }}
             >
-              <Bone className="mt-0.5 h-4 w-12 shrink-0" />
-              <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <Bone className="h-4 w-32 max-w-full" />
-                <Bone className="h-3 w-52 max-w-full" />
+              <div className="flex h-full items-start gap-3 px-4 py-3">
+                <RowBody shape={shape} lines={shape.gridLines} />
               </div>
-              <Bone className="mt-0.5 h-4 w-20 shrink-0" />
             </li>
           );
         })}

@@ -11,7 +11,7 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/RankBoard";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
@@ -226,7 +226,7 @@ export default async function StopPage({
         routeDay={linkDay}
       />
 
-      <Suspense fallback={<Bone className="h-40" />}>
+      <Suspense fallback={<StopScheduleSkeleton />}>
         <StopScheduleSection
           stopIds={stats.platform_ids}
           serviceDate={serviceDate}

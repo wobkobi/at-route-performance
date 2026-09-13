@@ -198,7 +198,14 @@ export default async function TripShamePage({
             nextHref,
           }}
         />
-        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+        <Suspense
+          fallback={
+            <ShameBoardSkeleton
+              layout="week"
+              shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
+            />
+          }
+        >
           <TripRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
         </Suspense>
       </main>

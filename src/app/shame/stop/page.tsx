@@ -177,7 +177,14 @@ export default async function StopShamePage({
             nextHref,
           }}
         />
-        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+        <Suspense
+          fallback={
+            <ShameBoardSkeleton
+              layout="week"
+              shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
+            />
+          }
+        >
           <StopRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
         </Suspense>
       </main>

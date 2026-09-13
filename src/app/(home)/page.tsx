@@ -17,8 +17,8 @@ import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { ShameOfDay } from "@/components/ShameOfDay";
+import { FeatureCardPairSkeleton } from "@/components/SkeletonParts";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -203,14 +203,7 @@ export default async function Home({
       <FleetSummary data={heroData} />
 
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
-      <Suspense
-        fallback={
-          <div className="grid gap-4 md:grid-cols-2">
-            <Bone className="h-32" />
-            <Bone className="h-32" />
-          </div>
-        }
-      >
+      <Suspense fallback={<FeatureCardPairSkeleton />}>
         <HomeShameCards
           range={range}
           mode={mode}
