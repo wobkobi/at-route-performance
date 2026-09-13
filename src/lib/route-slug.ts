@@ -1,12 +1,10 @@
 // src/lib/route-slug.ts
-/**
- * @description Map an AT route id to a stable URL slug by stripping its trailing
- * GTFS feed-version suffix ("501-217" > "501"). AT bumps that suffix whenever a
- * route's schedule republishes, which would otherwise break shared links and
- * split one route's history across many ids; routes that differ only by suffix
- * are the same route. The companion helper reads the suffix back out as a number
- * so callers can pick the most recent feed version.
- */
+// Map an AT route id to a stable URL slug by stripping its trailing
+// GTFS feed-version suffix ("501-217" > "501"). AT bumps that suffix whenever a
+// route's schedule republishes, which would otherwise break shared links and
+// split one route's history across many ids; routes that differ only by suffix
+// are the same route. The companion helper reads the suffix back out as a number
+// so callers can pick the most recent feed version.
 
 /**
  * Strip the trailing GTFS feed-version suffix from an AT route id, yielding a

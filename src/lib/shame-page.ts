@@ -1,12 +1,10 @@
 // src/lib/shame-page.ts
-/**
- * @description Shared filters, cache settings and query helpers for the shame
- * board pages. Parses the mode/school query params into the filter every board
- * shares and the derived view state (week flag, preserved nav params, subtitle).
- * A worst entry is only crowned when its average absolute deviation clears the
- * on-time late bound, so quiet days where everything sits within the window
- * crown nothing.
- */
+// Shared filters, cache settings and query helpers for the shame
+// board pages. Parses the mode/school query params into the filter every board
+// shares and the derived view state (week flag, preserved nav params, subtitle).
+// A worst entry is only crowned when its average absolute deviation clears the
+// on-time late bound, so quiet days where everything sits within the window
+// crown nothing.
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { buildHref } from "@/lib/utils";
 
@@ -67,7 +65,7 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
   const includeSchool = sp.school === "1";
   const subtitle = mode
-    ? MODE_LABEL[mode]
+    ? (MODE_LABEL[mode] ?? mode)
     : includeSchool
       ? "All services"
       : "Buses, trains & ferries";

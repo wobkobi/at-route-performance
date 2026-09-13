@@ -1,9 +1,8 @@
 // src/app/not-found.tsx
-/**
- * @description Global 404 page with a page directory and the full route list.
- */
+// Global 404 page with a page directory and the full route list.
+
 import { ModeIcon } from "@/components/ModeIcon";
-import { prisma } from "@/lib/db";
+import { getDirectoryRoutes, type DirectoryRoute } from "@/lib/data";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import Link from "next/link";
@@ -25,34 +24,16 @@ const PAGES = [
  * @returns 404 markup.
  */
 export default async function NotFound(): Promise<JSX.Element> {
-  let rawRoutes: {
-    id: string;
-    shortName: string | null;
-    longName: string | null;
-    mode: string;
-    colour: string | null;
-  }[] = [];
+  let rawRoutes: DirectoryRoute[] = [];
 
   try {
-    rawRoutes = await prisma.route.findMany({
-      select: { id: true, shortName: true, longName: true, mode: true, colour: true },
-      orderBy: { shortName: "asc" },
-    });
+    rawRoutes = await getDirectoryRoutes();
   } catch {
     // DATABASE_URL not configured (CI builds, static export) - show page without route list.
   }
 
   // Deduplicate by slug (same route across feed versions), keep first encountered.
-  const bySlug = new Map<
-    string,
-    {
-      id: string;
-      shortName: string | null;
-      longName: string | null;
-      mode: string;
-      colour: string | null;
-    }
-  >();
+  const bySlug = new Map<string, DirectoryRoute>();
   for (const r of rawRoutes) {
     const slug = routeSlug(r.id);
     if (!bySlug.has(slug)) bySlug.set(slug, r);
@@ -96,7 +77,15 @@ export default async function NotFound(): Promise<JSX.Element> {
       </div>
 
       {/* Route directory */}
-      {all.length > 0 && (
+      {all.length === 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
+          <p className="text-sm text-at-muted">
+            The route directory is not available right now. The home page lists every route with
+            arrivals today.
+          </p>
+        </section>
+      ) : (
         <section className="space-y-3">
           <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
           <div

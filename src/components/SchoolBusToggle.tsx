@@ -1,7 +1,6 @@
 // src/components/SchoolBusToggle.tsx
-/**
- * @description Toggle linking between including and excluding school bus services.
- */
+// Toggle linking between including and excluding school bus services.
+
 import { cn } from "@/lib/cn";
 import { buildHref } from "@/lib/utils";
 import type { JSX } from "react";

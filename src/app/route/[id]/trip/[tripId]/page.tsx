@@ -1,7 +1,6 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
-/**
- * @description Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
- */
+// Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
+
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
@@ -13,10 +12,32 @@ import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
 import { nzClockTime, nzServiceDayRange } from "@/lib/time";
 import type { TripStop } from "@/types/api";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
 /**
+ * Per-trip page title, so a tab and a shared link name the route and the run.
+ * @param root0 - Page props.
+ * @param root0.params - Promise resolving to the dynamic params `{ id, tripId }`.
+ * @returns Title metadata for the trip.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string; tripId: string }>;
+}): Promise<Metadata> {
+  const { id, tripId } = await params;
+  return {
+    title: `Trip ${tripId} on ${routeSlug(id)}`,
+    description: `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`,
+  };
+}
+
+/**
  * Trip timeline page: one run's stop-by-stop scheduled-vs-actual punctuality.
+ * A trip id that matches no route, no recorded stop and no published schedule
+ * is a 404 rather than an empty page.
  * @param root0 - Page props.
  * @param root0.params - Dynamic route params `{ id, tripId }`.
  * @param root0.searchParams - Optional query params (`d` = the run's instant).
@@ -37,11 +58,14 @@ export default async function TripPage({
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange).
   const dAt = d ? new Date(d) : null;
   const day = dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : undefined;
+  // An AT outage costs this request its schedule, not the day's cache entry.
   const [timeline, scheduledStops] = await Promise.all([
     getTripTimeline(tripId, slug, day),
-    getTripScheduledStops(tripId),
+    getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
   ]);
   const { route, vehicle_id } = timeline;
+  // Nothing knows this run: no route row, no arrival on any day, no schedule.
+  if (!route && timeline.stops.length === 0 && scheduledStops.length === 0) notFound();
   const routeMode = route?.mode ?? "BUS";
 
   // Merge served stops (with actual deviation data) and unserved scheduled stops

@@ -1,15 +1,14 @@
 // src/app/route/[id]/page.tsx
-/**
- * @description Route detail page with a day view (worst trips and route map) and
- * a week view of aggregated stats, toggled in the header. Version-stripped and
- * case-canonical slugs are enforced up front via redirects; the day view falls
- * back to the most recent populated service day when the requested one is empty.
- * The live AT calls (service alerts, live vehicles) are kicked off without
- * awaiting and streamed in through Suspense - they feed only the alert banner,
- * the diagram's alerted-stop rings/detour dashing, and the board's LIVE badges,
- * so the shell never blocks on AT realtime latency (the main cold-cache cost).
- * The week view skips the expensive trips query and the live vehicle fetch.
- */
+// Route detail page with a day view (worst trips and route map) and
+// a week view of aggregated stats, toggled in the header. Version-stripped and
+// case-canonical slugs are enforced up front via redirects; the day view falls
+// back to the most recent populated service day when the requested one is empty.
+// The live AT calls (service alerts, live vehicles) start without awaiting so
+// they overlap the day's queries. The diagram's alerted-stop rings and the
+// board's LIVE badges still stream in through Suspense; the alert banner is
+// awaited, because it sits above the page body and streaming it in shoved
+// everything below it down as the reader arrived.
+// The week view skips the expensive trips query and the live vehicle fetch.
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DirectionFilter } from "@/components/DirectionFilter";
@@ -23,6 +22,7 @@ import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import {
   findCanonicalRouteSlug,
+  findSuccessorRouteSlug,
   getCancelledTrips,
   getEarliestDataDay,
   getRouteDailyStats,
@@ -33,6 +33,8 @@ import {
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
+import { lineName } from "@/lib/line-name";
+import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
@@ -49,6 +51,7 @@ import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteDay, RouteVariant } from "@/types/api";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type ComponentProps, type JSX } from "react";
 
@@ -105,7 +108,10 @@ function aggregateWeek(days: RouteDay[]): {
  * @returns The headsign, or `Direction N` when none is available.
  */
 function directionLabel(variants: RouteVariant[], dirId: number): string {
-  const busiest = variants.reduce((a, b) => (b.tripCount > a.tripCount ? b : a), variants[0]);
+  const busiest = variants.reduce<RouteVariant | undefined>(
+    (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
+    undefined,
+  );
   return busiest?.headsign || `Direction ${dirId + 1}`;
 }
 
@@ -180,6 +186,33 @@ function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean })
 }
 
 /**
+ * Per-route page title, so a tab and a shared link name the line rather than
+ * repeating the site title. Uses the published line name where there is one
+ * (AT's `route_long_name` for a train is just the bare code).
+ * @param root0 - Page props.
+ * @param root0.params - Promise resolving to the dynamic route params `{ id }`.
+ * @returns Title and description metadata for the route.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const slug = routeSlug((await params).id);
+  const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
+    () => null,
+  );
+  const route = stats?.route;
+  if (!route) return { title: `Route ${slug}` };
+  const name = lineName(route.mode, route.shortName);
+  const label = route.shortName ?? slug;
+  return {
+    title: name ? `${label} - ${name}` : label,
+    description: `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`,
+  };
+}
+
+/**
  * Route detail page: a day view (today's worst trips + route map) and a week
  * view (7-day aggregated stats from DailyRouteSummary). Toggle between them via
  * the Day / Week control in the header.
@@ -212,6 +245,15 @@ export default async function RoutePage({
   if (canonSlug !== slug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
     redirect(`/route/${encodeURIComponent(canonSlug)}${qs ? `?${qs}` : ""}`);
+  }
+
+  // A train line retired by the CRL rename keeps its Route row, so /route/STH
+  // resolves rather than 404s; send it to the line that replaced it, which reads
+  // both lines' history. Only redirects once the successor has carried traffic.
+  const successorSlug = await findSuccessorRouteSlug(slug);
+  if (successorSlug) {
+    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
+    redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
   dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp);
@@ -291,7 +333,8 @@ export default async function RoutePage({
         }),
     buildRouteView(slug, byStop, routeMode),
     getEarliestDataDay(1),
-    // Rolling default uses take:7 (most recent records); fixed period uses a date range.
+    // Rolling default covers the last seven service days, today included;
+    // a fixed period uses its calendar week.
     getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
     isWeekView
       ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
@@ -328,24 +371,28 @@ export default async function RoutePage({
   const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
   const nameByStop = Object.fromEntries(view.nameByStop);
 
-  const dirKeys = Object.keys(view.directions)
-    .map(Number)
-    .sort((a, b) => a - b);
-  const activeDir =
-    sp.dir != null && /^\d+$/.test(sp.dir) && view.directions[Number(sp.dir)]
-      ? Number(sp.dir)
-      : null;
+  // Direction entries sorted by id. Carrying the direction alongside its id
+  // means the active direction's variants are looked up once, below, rather
+  // than re-indexed by id at every use.
+  const dirEntries = Object.entries(view.directions)
+    .map(([d, dir]): [number, { variants: RouteVariant[] }] => [Number(d), dir])
+    .sort(([a], [b]) => a - b);
+  const dirKeys = dirEntries.map(([d]) => d);
+  const requestedDir = sp.dir != null && /^\d+$/.test(sp.dir) ? Number(sp.dir) : null;
+  // An unknown ?dir falls back to the unfiltered "both" view.
+  const activeEntry =
+    requestedDir == null ? null : (dirEntries.find(([d]) => d === requestedDir) ?? null);
+  const activeDir = activeEntry?.[0] ?? null;
+  const activeVariants = activeEntry?.[1].variants ?? null;
   const mapLines = (
     activeDir == null ? view.routeLines : view.routeLines.filter((l) => l.directionId === activeDir)
   ).map((l) => l.points);
   const dirStopIds =
-    activeDir == null
-      ? null
-      : new Set(view.directions[activeDir].variants.flatMap((v) => v.stopIds));
+    activeVariants == null ? null : new Set(activeVariants.flatMap((v) => v.stopIds));
   const mapStops =
     dirStopIds == null ? view.stops : view.stops.filter((s) => dirStopIds.has(s.stop_id));
   const diagramDirections =
-    activeDir == null ? view.directions : { [activeDir]: view.directions[activeDir] };
+    activeEntry == null ? view.directions : { [activeEntry[0]]: activeEntry[1] };
 
   const sortedTrips = isReversed ? [...trips].reverse() : trips;
 
@@ -367,21 +414,13 @@ export default async function RoutePage({
   if (tripSort !== "off") dirBase.set("tsort", tripSort);
 
   const dirHeadsigns =
-    activeDir == null
+    activeVariants == null
       ? null
-      : new Set(
-          view.directions[activeDir].variants
-            .map((v) => v.headsign)
-            .filter((h): h is string => h != null),
-        );
+      : new Set(activeVariants.map((v) => v.headsign).filter((h): h is string => h != null));
   const dirFirstStops =
-    activeDir == null
+    activeVariants == null
       ? null
-      : new Set(
-          view.directions[activeDir].variants
-            .map((v) => v.stopIds[0])
-            .filter((s): s is string => s != null),
-        );
+      : new Set(activeVariants.map((v) => v.stopIds[0]).filter((s): s is string => s != null));
 
   const dirTrips =
     activeDir == null
@@ -392,8 +431,8 @@ export default async function RoutePage({
           if (t.headsign != null && dirHeadsigns) return dirHeadsigns.has(t.headsign);
           if (t.first_stop_id != null && dirFirstStops) {
             const matchesActive = dirFirstStops.has(t.first_stop_id);
-            const matchesAny = dirKeys.some((d) =>
-              view.directions[d].variants.some((v) => v.stopIds[0] === t.first_stop_id),
+            const matchesAny = dirEntries.some(([, dir]) =>
+              dir.variants.some((v) => v.stopIds[0] === t.first_stop_id),
             );
             if (matchesAny) return matchesActive;
           }
@@ -401,6 +440,7 @@ export default async function RoutePage({
         });
 
   const totalTrips = dirTrips.length;
+  const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
   const totalPages = Math.max(1, Math.ceil(totalTrips / PAGE_SIZE));
   const requestedPage = Number.parseInt(sp.tpage ?? "1", 10);
   const tripPage = Math.min(
@@ -416,6 +456,9 @@ export default async function RoutePage({
   if (isReversed) tripPreserved.trev = "1";
 
   const title = route?.shortName ?? slug;
+  // AT sets every train route's long name to its bare code ("STH", "S-C"), so
+  // the published line name is the only readable label the header can show.
+  const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
 
   return (
     <main className="space-y-6">
@@ -434,8 +477,8 @@ export default async function RoutePage({
               )}
               {title}
             </h1>
-            {route?.longName && route.longName !== title && (
-              <p className="mt-0.5 text-sm text-at-muted">{route.longName}</p>
+            {subtitle && subtitle !== title && (
+              <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -466,7 +509,7 @@ export default async function RoutePage({
             dirKeys={dirKeys}
             activeDir={activeDir}
             labels={Object.fromEntries(
-              dirKeys.map((d) => [d, directionLabel(view.directions[d].variants, d)]),
+              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d)]),
             )}
             hrefs={{
               both: routeDirHref(slug, dirBase, null),
@@ -478,9 +521,7 @@ export default async function RoutePage({
         )}
       </header>
 
-      <Suspense fallback={null}>
-        <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
-      </Suspense>
+      <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
 
       {isWeekView ? (
         <>
@@ -524,7 +565,11 @@ export default async function RoutePage({
             routeId={slug}
             mode={routeMode}
           />
-          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+          <Suspense
+            fallback={
+              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+            }
+          >
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -573,7 +618,11 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Suspense fallback={<div className="h-96 animate-pulse rounded bg-at-border" />}>
+            <Suspense
+              fallback={
+                <div className="h-96 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+              }
+            >
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
@@ -589,6 +638,11 @@ export default async function RoutePage({
                 cancelledTrips={cancelledTrips}
               />
             </Suspense>
+            {tripsCapped && (
+              <p className="text-xs text-at-muted lg:col-span-2">
+                Showing the first {TRIPS_FETCH_CAP} runs of the day.
+              </p>
+            )}
             <RouteMapDiagram
               stops={mapStops}
               routeLines={mapLines}
@@ -607,7 +661,11 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense fallback={<div className="h-64 animate-pulse rounded bg-at-border" />}>
+          <Suspense
+            fallback={
+              <div className="h-64 animate-pulse rounded bg-at-border motion-reduce:animate-none" />
+            }
+          >
             <RouteDiagramSection
               alertsPromise={alertsPromise}
               slug={slug}
@@ -619,7 +677,14 @@ export default async function RoutePage({
             />
           </Suspense>
 
-          {byStop.length > 0 && (
+          {byStop.length === 0 ? (
+            <section className="border border-at-border bg-at-surface px-4 py-3">
+              <h2 className="font-semibold">Stops</h2>
+              <p className="mt-1 text-sm text-at-muted">
+                No stop-level arrivals recorded for this route on this day.
+              </p>
+            </section>
+          ) : (
             <details className="border border-at-border bg-at-surface">
               <summary className="cursor-pointer px-4 py-3 font-semibold">Stops</summary>
               <div className="overflow-x-auto px-4 pb-4">

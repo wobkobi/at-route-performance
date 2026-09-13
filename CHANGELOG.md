@@ -4,6 +4,692 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.13.9] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: its header claimed the automatic trigger waits until the file is on `main`.
+  GitHub runs a `deployment_status` workflow from the deployed commit, so it fires for every preview
+  as well, and it has done so for each push to `dev` since 1.13.5. The job is named
+  `deployment-smoke` so it can be a required check on `main` without colliding with CI's `smoke`.
+
+## [1.13.8] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: the `ADMIN_SECRET` pass-through added in 1.13.7 belongs to a different
+  project's copy of this workflow and is removed again; this project has no admin pages.
+
+## [1.13.7] - 2026-09-13
+
+### Changed
+
+- Post-deploy workflow: the job also passes an `ADMIN_SECRET` repository secret through to the smoke
+  test, so the same workflow file serves a project with an admin surface. This project has none and
+  no such secret, so it resolves to an empty string the script never reads.
+
+## [1.13.6] - 2026-09-13
+
+### Fixed
+
+- Smoke test: the standalone server's stdout was piped but never read, so a chatty server would fill
+  the pipe and stall, and anything it printed there was invisible. Both streams are drained into the
+  `[server]` lines now.
+
+## [1.13.5] - 2026-09-13
+
+### Fixed
+
+- Smoke test: a bad argument prints one message and exits 2 instead of an unhandled rejection with a
+  stack trace; `--base-url` must be a full http(s) URL, so a bare host fails at once rather than
+  after the 90-second readiness wait; `--port` rejects `3001abc`, which `parseInt` read as 3001.
+- Smoke test: on Windows the server tree was never force-stopped, because `execSync` runs through
+  `cmd.exe`, which rejects the Git Bash `//F` switch form; `taskkill` now takes single slashes, so
+  the port and the Prisma engine are released when the run ends.
+- Smoke test: a web manifest is fetched without cookies and is not reliably intercepted, so on a
+  protected deployment it loops between the site and SSO whatever bypass is primed. That one
+  redirect loop is ignored, only for a `.webmanifest` path on the target's own origin and only while
+  the bypass secret is set; the cookie priming comment no longer claims to cover it.
+- Smoke test: the summary counts "checks", since it includes the endpoint checks; a status echo with
+  no URL no longer prints empty parentheses.
+
+## [1.13.4] - 2026-09-13
+
+### Fixed
+
+- A raw MongoDB command that fails with the driver's "I/O error: timed out" (a socket read timing
+  out on a long-haul link, which the server labels retryable) is retried once like a connection
+  reset. The CI smoke job, running from a GitHub runner far from the database, hit it once on the
+  rankings page and landed on the error boundary.
+
+## [1.13.3] - 2026-09-13
+
+### Fixed
+
+- The remote smoke test against a preview deployment failed on every page because Vercel injects its
+  preview toolbar script and the site's CSP blocks it; that console error is now ignored (the CSP is
+  doing its job, and production never carries the script).
+- The bypass secret was attached to every request the page made, including the map tile host. It now
+  rides only requests to the deployment's own origin, through request interception, and is also
+  stored as a session cookie up front so a request the browser starts on its own cannot loop through
+  SSO.
+- Console errors that begin "Failed to load resource" were all ignored, which also hid network
+  failures (a blocked, aborted or unresolved request) that never produce a response event. Only the
+  HTTP-status echo of a failure the response handler already recorded is dropped now.
+- The 404 page check now asserts the document's status, so a soft 404 with the right copy fails.
+- A dynamic sample (stop, trip, train line, station) that cannot be found is reported instead of
+  silently narrowing the run; the direct fetches carry a 30-second timeout; the endpoint checks no
+  longer follow redirects, so an SSO bounce reads as its real status rather than a JSON error;
+  `--port` rejects a non-number; the empty-section check looks at the nearest section rather than
+  the heading's parent.
+- Post-deploy workflow: a skipped run raises a warning annotation, the health probe strips a
+  trailing slash from a hand-entered URL and clears the previous body between attempts, and a failed
+  connection logs `000` once.
+
+### Changed
+
+- The smoke test loads `.env.local` through Node's own `process.loadEnvFile`, which handles quoting,
+  comments and multi-line values; existing environment variables still win.
+
+## [1.13.2] - 2026-09-13
+
+### Fixed
+
+- The post-deploy smoke workflow's first run reached the deployment (the bypass secret and the
+  health probe both worked) and then started a local build: it passed `--base-url` and the URL as
+  two arguments, and the smoke script only read the `--base-url=` form, so the URL was ignored. The
+  script now accepts both forms and refuses an argument it does not know instead of falling back to
+  a build, and the workflow passes the `=` form.
+
+## [1.13.1] - 2026-09-13
+
+### Changed
+
+- The post-deploy smoke workflow can be started by hand ("Run workflow" with a deployment URL) from
+  any branch, so a preview or production deployment can be checked before the workflow reaches
+  `main`. Its health probe prints the HTTP status, so a rejected bypass secret (401 or 303), a build
+  without the health route (404) and a version mismatch read differently in the log.
+
+## [1.13.0] - 2026-09-13
+
+### Added
+
+- `GET /api/health` answers `{ ok, version, time }` from the deployed build, uncached and without
+  touching the database, so a deploy can be confirmed to be the commit it claims.
+- A post-deploy smoke workflow (`.github/workflows/post-deploy-smoke.yml`). Vercel reports each
+  finished deployment to GitHub; the workflow checks out the deployed commit, probes `/api/health`
+  until the expected version answers, and runs the smoke test against the deployment URL. Deployment
+  Protection is on, so it needs the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET` (the
+  project's "Protection Bypass for Automation" value) and skips with a message until it exists.
+- The smoke test sends `x-vercel-protection-bypass` on every page and API request when that
+  environment variable is set, so it can read a protected deployment by hand as well.
+
+## [1.12.19] - 2026-09-13
+
+### Fixed
+
+- The smoke test's train-station sample never ran: the station link it looked for is percent-encoded
+  on the page, so the pattern now accepts both spellings.
+
+### Changed
+
+- Docs: the README says how to run the smoke test against a deployment, and the cron guide notes
+  that the two removed GTFS endpoints should point at the sync endpoint and how to check a deploy.
+
+## [1.12.18] - 2026-09-13
+
+### Changed
+
+- The smoke test now reads the pages it visits. Every page's rendered text is checked for a leaked
+  raw value (`NaN`, `undefined`, an empty search quote, `Invalid Date`, `[object Object]`), every
+  section heading must have content under it, a page can require or forbid copy, and the path the
+  browser lands on is compared with the requested one so a streamed redirect is caught. It visits
+  more of the site: the route week view, the month rankings, the week shame boards, a trip page
+  found on the NX1 board, the first train line in the directory and one of its stations, and the 404
+  page, and it fetches the three public endpoints directly. `--base-url` runs it against a server
+  that is already up, so a deployment can be checked without a local build.
+
+## [1.12.17] - 2026-09-13
+
+### Added
+
+- Tests for the parts of the pipeline and the API that had none. The cleanup run moved into
+  `src/lib/cleanup.ts` behind a small storage port so a test drives it with an in-memory store: the
+  cutoff snaps to the 5am service-day start and takes the offset in force on the cutoff day across
+  both DST switches, retention under seven days is refused without `?force=1`, and one collection's
+  delete failing does not skip the others. The query schemas are pinned (empty values read as unset,
+  bounds hold, the 400 body carries field and message only), as are the on-time window per mode, the
+  banding's rounding and the cron bearer guard's 500/401/pass outcomes. Two handler tests exercise
+  `GET /api/routes/top` (defaults, sanitised 400, bare 500 with a message-only log) and
+  `POST /api/ingest/aggregate` (401, an impossible date, the explicit-date form, the catch-up form
+  oldest first, and a failed day recorded without stopping the others). The suite is now 212 tests
+  across 28 files.
+
+## [1.12.16] - 2026-09-13
+
+### Changed
+
+- `src/lib/data.ts` (3,640 lines, every server read in one file) is split by concern into
+  `src/lib/data/`: the cache policy, route identity and the directory, rankings, one route's stats,
+  the archive's edges, trips, cancellations, the shared shame filter, the worst-trip and worst-route
+  boards, and stops and stations. `data.ts` is now a barrel re-exporting exactly the 45 names it
+  exported before, so no import site changed. Every declaration moved verbatim with its comment; the
+  only new text is each file's header and imports, the barrel, and `export` on twelve helpers that
+  were private to the one file and now serve another.
+
+## [1.12.15] - 2026-09-13
+
+### Fixed
+
+- The footer's freshness line no longer reads "update due now" forever. While no ingest run has been
+  logged (a fresh deploy, or the run log reset) it says it is awaiting the first run rather than
+  projecting a due time from an arrival stamp, and once three ingest cadences pass with no run it
+  says how long ago the last update was and that ingest may be stalled. The resolver behind it is a
+  plain function with tests, and the label re-evaluates every 15 seconds instead of every second.
+- The worst-stops board's hourly rows linked to the stop without the day being viewed, so a past
+  day's row opened today's page; they carry `?day=` like the week rows.
+- The worst-routes week board printed "undefined/undefined" beside a row with no date; the date span
+  renders only when there is one. The worst-stop card called a stop's arrivals "buses" whatever ran
+  there; it says arrivals. The alert banner's route links now encode the slug. The route page says
+  when the trips board holds only the first 500 runs of the day.
+- Motion and accessibility: the map's pan to a selected stop and the pill and button hover
+  transitions honour a reduced-motion preference; the KPI breakdown popover is linked to its button,
+  closes on Escape and returns focus; the flame badge's tooltip opens on keyboard focus as well as
+  hover; the mode icon is labelled once instead of twice; a skip link leads to the page content.
+
+## [1.12.14] - 2026-09-13
+
+### Added
+
+- Error boundaries. A page that throws while rendering (the database unreachable, an AT feed timing
+  out inside a query) now shows a recovery page inside the normal masthead and footer, with a retry
+  button and a link home, instead of Next's blank default; a failure inside the root layout itself
+  falls through to a bare last-resort page with the same retry. Both log the message and Next's
+  error digest so the failure can be found in the function logs.
+- The trip page has its own title and description, so a tab or a shared link names the route and the
+  run.
+
+### Fixed
+
+- A trip id that matched no route, no recorded arrival on any day and no published schedule rendered
+  an empty page with a 200; it is now a 404 like an unknown route or stop.
+
+## [1.12.13] - 2026-09-13
+
+### Fixed
+
+- Loading skeletons now match the pages they stand in for, so a page no longer shifts as it arrives.
+  The home and rankings skeletons showed four separate KPI tiles where the page renders one bordered
+  strip of five cells; the route skeleton drew dividers the stats strip does not have; the shame
+  dashboard skeleton lacked the cancelled-routes board that sits under its cards; the hourly shame
+  board skeleton drew 12 rows on mobile and hard-coded its desktop split, and now takes both from
+  the board's own per-column constant. The three pages that carried their own copy of the bone
+  element share the one component.
+
+## [1.12.12] - 2026-09-13
+
+### Fixed
+
+- Delays are worded through the route's own on-time window everywhere. Seven places rendered a
+  signed deviation with no mode, so a bus 4 seconds behind schedule read "+4s late" under a caption
+  that calls 5 minutes on time: the home and rankings boards, the routes table, the route page's
+  trip board, the line diagram's labels and tooltips, and the map's stop and live vehicle popups now
+  all say "on time" inside the window, as the shame boards already did.
+- A delay or duration that is not a finite number (NaN from an empty average, an infinity from a bad
+  divisor) rendered as "NaNs late"; both formatters now return the unknown dash the tables already
+  use, with tests.
+
+## [1.12.11] - 2026-09-13
+
+### Fixed
+
+- Boards and cards with nothing to show now say so instead of vanishing or showing a hole. The
+  routes table on an empty day printed `No routes match ""` as if a search had failed; it now tells
+  a search miss and an empty period apart. The worst-route and worst-stop cards on the shame
+  dashboard, the home page and the rankings page rendered nothing when no route or stop qualified,
+  leaving a gap in the card grid; each keeps its slot with a quiet "Nothing to rank yet" state. The
+  route page's map, line diagram and stops table disappeared for a route with no arrivals; each
+  keeps its heading and says what it is waiting for. The 404 page's route directory says when it is
+  unavailable rather than omitting the section. The rankings caption mentions movement arrows only
+  when a previous period exists to compare against.
+
+## [1.12.10] - 2026-09-13
+
+### Fixed
+
+- An empty query value (`GET /api/routes/top?limit=`) returned 400; every parameter now reads an
+  empty string as unset and falls back to its default, as `week` and `mode` already did. A failed
+  parse used to echo Zod's whole issue objects, received input included; the 400 body now carries
+  each issue's field and message only. The API handlers log the error message, not the raw error
+  object, under one `[API]` prefix with the route id where there is one, and the remaining log
+  prefixes are one style (`[AUTH]`); the emoji and the em-dash in two log lines are gone.
+- A stop's scheduled departures decided their cache lifetime by comparing the NZ service date to the
+  UTC calendar date. Between midnight UTC and 5am NZ the two differ, so every NZ morning the day
+  just ended looked like the current day and was refetched from AT twelve times an hour, and the
+  current day looked past. The rule now compares service dates, in a small helper with tests.
+- The earliest-data marker was cached for six hours, so after the nightly cleanup the day stepper
+  could offer a day that no longer existed for most of a morning; it now refreshes every ten minutes
+  like the latest-data marker. The cache pre-warm route no longer calls the two markers under the
+  belief it refreshed them (a cached read returns the cached value; it refreshed nothing).
+- The route map polled live vehicles every minute against a feed the server caches for two minutes,
+  so every second poll re-read the same snapshot; it now polls every two minutes, and the vehicles
+  endpoint's comment says 120s rather than 15s.
+
+### Removed
+
+- `POST /api/ingest/gtfs/routes` and `POST /api/ingest/gtfs/stops`, which ran one half of the static
+  sync each and were scheduled nowhere; `POST /api/ingest/gtfs/sync?force=1` runs both.
+
+## [1.12.9] - 2026-09-13
+
+### Fixed
+
+- The nightly aggregate now catches up. Without `?date=` it rolls up yesterday plus any of the two
+  days before it that have arrival events but no summary, oldest first, one IngestRun row per day,
+  so a night the cron missed is closed by the next run instead of leaving a permanent hole in the
+  rankings. A ghost-pass failure now fails its day rather than rolling the day up unclassified,
+  which would have pinned the noise into the archive for good; the day stays unsummarised and the
+  next run retries it. The function's time budget is raised to cover three days. The rollup itself
+  moved to `src/lib/aggregate.ts` (pipeline, upsert entries and the catch-up rule are plain
+  functions with unit tests), and the rebuild script runs the same pipeline.
+- The realtime ingest's bulk inserts and upserts bypassed the connection-reset retry, and an
+  `ordered: false` bulk command that rejected some entries still resolved, so a half-failed write
+  passed unnoticed. Both now go through the retry, which also recognises `ECONNRESET`, `EPIPE` and a
+  hung-up socket, and every bulk write checks the reply's per-entry errors, ignoring only the
+  duplicate key an idempotent insert or a raced upsert is expected to hit. The ghost pass shares the
+  check.
+
+## [1.12.8] - 2026-09-13
+
+### Removed
+
+- Dead code and inert settings. `getModeBreakdown` and `getShameStreak` had no caller and the
+  `ModeBreakdown` component rendered nowhere; all three are gone, with the `ModeStat` and
+  `ShameStreak` types only they used. The nightly aggregate and the rebuild script no longer compute
+  the median and 95th-percentile delay per route: nothing read `p50DelaySec` or `p95DelaySec`, and
+  the `$percentile` stage was the one reason the runbook demanded MongoDB 7. The schema keeps the
+  two nullable columns so existing rows need no migration; new summaries simply do not set them.
+  `ON_TIME_THRESHOLD_SEC` is no longer read (the on-time late bound is the code's own constant, and
+  summaries record that), and `NEXT_PUBLIC_SITE_URL`, which nothing read, leaves the README's
+  environment table.
+
+## [1.12.7] - 2026-09-13
+
+### Added
+
+- CI runs the smoke test. A `smoke` job builds the app, starts the standalone server and visits
+  every public page with Puppeteer against the real database, so a pull request that breaks a page
+  at runtime fails before it merges. The job runs only when the `DATABASE_URL` repository secret is
+  set (`AT_API_KEY` is optional), so Dependabot pull requests and forks, which get no secrets, skip
+  it rather than fail. The `test` job now runs the unit suite as well as lint and build, and the
+  unused `MONGODB_URI` secret is no longer passed to the jobs that never open the database.
+
+## [1.12.6] - 2026-09-13
+
+### Changed
+
+- Every file-level `/** @description */` block (95 files across the app, components, libraries, API
+  routes and scripts) is now a plain `//` comment with the same prose. A top-of-file JSDoc block
+  attaches to no declaration, so the tag was dead ceremony; the smoke test's `@file` tag went with
+  it, and one `{@link}` inside a demoted header names its symbol plainly, since the tag is inert
+  outside a JSDoc block. No code changed.
+- The pre-commit hook chunks lint-staged's command lines (`--max-arg-length=4000`): a commit
+  touching this many files exceeded Windows' command-line limit and the hook failed before it could
+  format anything.
+
+## [1.12.5] - 2026-09-12
+
+### Changed
+
+- The Auckland timezone name is written once. `NZ_TZ` lives in `src/lib/nz-tz.ts` and reaches
+  everything else through `@/lib/time` alongside the date helpers; the 27 places that spelled
+  `"Pacific/Auckland"` themselves (the data layer's pipelines, the formatters, the alert banner, the
+  freshness label, the service-date expression and its test) now use the constant. A lint rule
+  rejects the literal anywhere else, since a hand-written timezone is how a file ends up doing its
+  own date maths and how a DST bug gets in. `format.ts` reads the leaf module directly because
+  `time.ts` imports it, which keeps the two free of an import cycle.
+
+## [1.12.4] - 2026-09-12
+
+### Fixed
+
+- A run's stop count meant two different things. The route page's trip board counted every row the
+  run had, ghost re-reports included, while the shame boards counted only the real ones, so the same
+  run showed different "N stops" on the two pages, and a stop carrying both a real arrival and a
+  re-report counted twice. Every board now counts the distinct stops that have a real reading. The
+  trip board also named the run's vehicle from its earliest row, which for a re-reported run is the
+  other vehicle; it now takes the vehicle from the first real reading.
+- A route's cancelled-trips list matched the service date by equality with the window's start, so it
+  served only a window whose start equalled a stored stamp; it now range-matches like the
+  cancellation count and board, and is cached by both ends of the window.
+- `GET /api/routes/top` took an ISO week as Monday midnight UTC, twelve or thirteen hours late for a
+  New Zealand week; the week now runs from Auckland midnight like every other window.
+- A failed AT stop-times fetch was cached as an empty schedule for a day, so a trip page whose first
+  visitor hit an AT outage showed no upcoming stops until the next day. The failure now throws out
+  of the cache and only that request goes without a schedule.
+
+## [1.12.3] - 2026-09-12
+
+### Fixed
+
+- The nightly ghost pass cleared every flag in the day before deciding them again, so between the
+  two steps the day read as unclassified, and a pass that failed in between left it that way. It now
+  rewrites each trip's flags from its level in one multi-update, setting the flag on rows outside
+  the gap and removing it from the rest in the same write, so every trip's rows agree at any instant
+  and a re-run reaches the same verdicts with no clearing step. A failed entry in a bulk update was
+  ignored (`ordered: false` carries on past it and the promise still resolves); the reply's write
+  errors now fail the pass. The trip levels are computed inside the aggregation (the exact median,
+  the same element the in-memory path picks), so the reply carries one number per trip instead of
+  every reading and stays far under the 16 MB reply limit; the pass refuses a reply that fills its
+  batch rather than classify a silently truncated day. The flagged count is read back from the day
+  rather than inferred from rows changed either way.
+- Draining an aggregation cursor through Prisma is not possible (`getMore` needs the 64-bit cursor
+  id, which arrives as a rounded JavaScript number), so the per-day reads keep their single batch
+  and the one unbounded per-trip scan was shrunk instead.
+
+### Added
+
+- Unit tests for the pass's pipeline shape and update batches, and an integration test that runs it
+  on a scratch collection: median per trip, outliers flagged, a stale flag cleared, the gap
+  exclusive at its boundary, the previous day untouched, and a re-run idempotent.
+
+## [1.12.2] - 2026-09-12
+
+### Fixed
+
+- The three-hour deviation guard applied to every read, classified days included, although its only
+  purpose is to stand in for the ghost flags on a day the nightly pass has not reached; on a
+  classified day it silently capped any service that really did run more than three hours off
+  schedule, which is the kind of run this site exists to show. The two filters now take the window's
+  classification: the guard stays on for the current service day, for a completed day whose
+  aggregate has not run, and for a window that mixes classified and live days, and comes off once
+  every day in the window has a `DailyRouteSummary`. The nightly aggregate rolls a day up without
+  the guard, since its own ghost pass has just run, and keeps it only when that pass failed; the
+  rebuild script keeps it, as it does not classify. A unit test pins both shapes.
+
+## [1.12.1] - 2026-09-12
+
+### Fixed
+
+- A completed day's boards were held for a week from the moment the day ended, about twenty hours
+  before the nightly aggregate classified its ghost readings, so whichever visitor first opened a
+  board for yesterday pinned the unclassified version for the week. Every date-scoped aggregation
+  (the worst route, trip and stop boards, route, stop and trip stats, the rankings' live days, the
+  shame streaks) now holds for a week only once every service day in its window has a
+  `DailyRouteSummary`, which the aggregate writes after the ghost pass; until then the caller's
+  short TTL applies. The Data Cache judges staleness by the calling TTL, so the state is part of the
+  cache key as well: once the summary lands the key changes and the earlier entry is abandoned
+  rather than kept fresh under the long TTL. The summary check is one indexed point read cached for
+  five minutes.
+
+## [1.12.0] - 2026-09-12
+
+### Added
+
+- Rankings now cover every day in the window, including today. The week and month boards read
+  `DailyRouteSummary` for the days the nightly aggregate has covered and scan `ArrivalEvent` live
+  for the rest (today, and any earlier day whose aggregate has not run), merging the two by event
+  weight. Before, a window fell back to the live scan only when it held no summaries at all, so as
+  soon as the first nightly aggregate landed the newest one or two days vanished from `/rankings`:
+  on 12 September the week view listed ten routes from a 79-event sliver of 10 September and none of
+  the 240,000 arrivals recorded since. Each live day is cached on its own, so every window that
+  covers it shares one aggregation, and a summary written for the current service day is ignored in
+  favour of the live scan.
+- The route page's week view fills the same way: completed days come from the summaries and the rest
+  from one live aggregation grouped by service date, using the same real-reading filter and per-mode
+  on-time window as the day view, so today appears in the table as it happens. Two versions of a
+  route summarised for the same day merge into one row. When the window holds no arrivals the table
+  says so instead of leaving a bare heading over `0` and dashes.
+
+### Fixed
+
+- Live-day boards counted AT's predictions for stops not yet due. The ingest stores the predicted
+  arrival for every remaining stop of a running trip and revises it each poll, so a window reaching
+  past the present ranked guesses alongside observations. Every stats aggregation over a live window
+  (rankings, the worst route, trip and stop boards, route and stop stats, the shame boards) now
+  clips its end to the present; completed days are unchanged, and the trip timeline still shows a
+  run's upcoming stops.
+
+## [1.11.8] - 2026-09-12
+
+### Changed
+
+- Dependencies advanced: Next.js, `@next/bundle-analyzer` and `eslint-config-next` to 16.3.5, zod to
+  4.6.2, `eslint-plugin-jsdoc` to 64, and vitest to 5 (which now needs `vite` installed alongside
+  it). Three majors were tried and held back: Prisma 7 has no MongoDB connector; TypeScript 7.0
+  builds and typechecks but typescript-eslint refuses to load under it, so lint and the pre-commit
+  hook fail; ESLint 10 breaks `eslint-plugin-react` 7.37.5, which `eslint-config-next` depends on
+  and which supports ESLint 9 at most. TypeScript stays at 6.0.3 and ESLint at 9.39.5.
+
+## [1.11.7] - 2026-09-12
+
+### Fixed
+
+- Every Mongo pipeline that buckets runs by service day (the shame-of-the-week route, trip and stop
+  boards and the route streak heatmap) derived the day by subtracting five absolute hours and then
+  truncating to the Auckland calendar date. On a DST-switch Sunday the five-hour shift crosses the
+  transition: 27 September 2026 05:30 NZDT minus five hours is 26 September 23:30 NZST, so the first
+  hour of the new service day filed under the day before and the week boards showed two rows
+  labelled 26 September; on 5 April the same shift files 04:30 NZST under 5 April instead of 4
+  April. One shared expression, `serviceDateExpr`, now decides from the Auckland hour exactly as
+  `nzServiceDayString` does and yields the date string itself, so the pipelines no longer hand back
+  an instant for a second helper to reformat.
+- `scripts/check-data-gaps.ts` labelled every day one short: it took the UTC date of the Auckland
+  midnight instant, which is the previous date. It now buckets events and ingest runs by the same
+  service-date expression, so its tables line up with each other and with the site.
+- `scripts/backfill-aggregate.ts --days=N` stepped back in 24-hour blocks from the wall clock, which
+  can skip or repeat a day across a DST switch; it now steps by service date from the current
+  service day.
+
+### Added
+
+- `npm run test:int` runs integration tests (`src/**/*.int.test.ts`) against the database in
+  `.env.local`. The first proves MongoDB evaluates the service-date expression as the TypeScript
+  helper does at fifteen boundary instants across both DST switches, through a collectionless
+  `$documents` pipeline that touches no collection. The unit run excludes these files.
+
+## [1.11.6] - 2026-09-12
+
+### Added
+
+- Regression tests for the City Rail Link station names as AT publishes them. The platforms are
+  `Te Waihorotiu Train Station 1` and `Waitemata Train Station 3` under their station's parent id
+  and collapse onto it; `Stop C Te Waihorotiu Station` is a bus pole under the bus-station parent
+  and keeps its own id; a stale platform row the feed left without a parent goes to the name-keyed
+  legacy id. Pins the behaviour before the 13 September cutover puts real arrivals through it.
+
+## [1.11.5] - 2026-09-12
+
+### Fixed
+
+- A retired City Rail Link line redirected to its successor as soon as the successor's route row
+  existed. AT published `S-C-201`, `E-W-201` and `O-W-201` in static GTFS on 10 September, three
+  days before the first train, so `/route/STH`, `/route/EAST`, `/route/WEST` and `/route/ONE` were
+  already bouncing to lines with nothing to show (the redirect streams inside the page shell, so
+  browsers followed it while a plain HTTP probe saw a 200). The redirect now waits until the
+  successor has recorded an arrival in the last seven days, checked with one indexed point read that
+  is cached for ten minutes, so a retired line's page stands until its replacement is actually
+  running and then moves within ten minutes of the first train.
+- The route directory listed a successor line beside the line it replaces. It now lists exactly one
+  of the two: the retired line until the successor is running, then the successor, so the 404 page
+  and `GET /api/routes` never offer an empty line or a link that bounces.
+- Cross-route rankings listed one line twice when the window spanned a change of route id: a feed
+  republish that bumps the version suffix (`501-217` and `501-218` both run in a week with a
+  schedule change), and the CRL cutover, where the retired line and its successor each earn a row in
+  the same week or month. `/rankings`, the home page boards and `GET /api/routes/top` now fold such
+  rows into one per line, summing events and event-weighting the averages and percentages, and the
+  merged row carries the successor's (or newest version's) name and colour. A retired line with no
+  successor row in the window is left alone, so nothing changes before the cutover.
+- The lineage map now carries the published ids only; the flattened `SC`/`EW`/`OW` fallbacks that
+  covered the unknown spelling are gone.
+
+## [1.11.4] - 2026-09-12
+
+### Fixed
+
+- Auckland local midnight on a DST-switch day resolved an hour off. `nzLocalToUtc` sampled the
+  offset once, at UTC midnight, which is local noon and already on the far side of the 02:00/03:00
+  switch, then applied that offset to local midnight on the near side. The offset is now resolved in
+  two passes (estimate, then re-sample at the estimate), so 27 September 2026 starts at NZST
+  midnight and runs 23 hours, 5 April 2026 starts at NZDT midnight and runs 25 hours, and the week
+  and month ranges built on it end on the right instant. Only a range whose start date is itself a
+  switch Sunday was affected: no week (they start on Mondays) and no month before April 2029.
+- The rankings page's previous-week comparison window stepped back by a fixed seven days of
+  milliseconds, which lands an hour off the 5am service-day boundary when the two windows straddle a
+  DST switch; it now steps by service date.
+
+## [1.11.3] - 2026-09-12
+
+### Fixed
+
+- The summary rankings pipelines divided by a stored `events` total with no guard, unlike the live
+  path beside them. Both writers count events with `$sum: 1`, so a zero cannot be stored today, but
+  Mongo throws on a zero divisor rather than returning NaN, and a single such row would take the
+  whole rankings page down. The divisors now go through the same `$max: [1, ...]` guard the live
+  path uses.
+
+## [1.11.2] - 2026-09-12
+
+### Fixed
+
+- `Route.lastSeenAt` was being stored as an ISO string. The routes sync handed a JS `Date` to
+  `$runCommandRaw`, which JSON-serialises its arguments, so every stamp landed as text: Prisma then
+  refused to read the field as `DateTime` (P2023), `GET /api/routes` answered 500, and the 404 page
+  silently dropped its route directory. The stamp now goes through extended JSON (`{ $date }`) like
+  every other raw write, a unit test pins that shape, and `scripts/migrate-last-seen-at.ts` converts
+  the stored strings in place.
+- The route directory no longer lists rows that carry no `lastSeenAt` once any stamp exists. A row
+  the last sync did not touch is one AT no longer publishes; treating it as current kept nine
+  superseded route versions beside their replacements and six retired routes in the directory.
+
+## [1.11.1] - 2026-09-12
+
+### Changed
+
+- `noUncheckedIndexedAccess` is on. Every array and object-key index now reads as possibly
+  undefined, and the 198 places that relied on the old assumption are made explicit: real narrowing
+  where a missing element is a genuine case, a `??` fallback where a sensible default exists,
+  `.at()` for last-element reads, and small parse helpers (`parseYmd` / `parseYm` in `time.ts`)
+  where the same `split("-")` destructure had been repeated. No non-null assertions and no `as`
+  casts were added, and no exported function signature changed. `DirectionFilter`'s `hrefs` prop now
+  requires `both`, which its only caller already passed.
+- `DayNav` drops its private `shiftDate` and weekday table in favour of `shiftWeek` and
+  `weekdayShort` from `time.ts`, which it had duplicated byte for byte.
+- `scripts/tsconfig.json` no longer overrides `moduleResolution` to `node`, which TypeScript 6
+  deprecates; it inherits `bundler` from the root config. The root `include` drops a `tests`
+  directory that never existed.
+- File-level `@description` JSDoc blocks in the files this change touched are demoted to plain `//`
+  lines: a top-of-file block attaches to no declaration, so the tag was dead ceremony.
+
+## [1.11.0] - 2026-09-11
+
+### Added
+
+- Ghost re-reports are classified out of the stats. AT reuses a `trip_id` against a later vehicle
+  block, so a vehicle running about an hour off its slot reports that same offset at every stop of
+  the trip, and a couple of those float a quiet stop to the top of the worst-stops board. A nightly
+  pass over each completed service day tells a ghost apart by its shape rather than its size: it
+  sits at a near-constant offset from the run's own level, while a real delay accumulates along the
+  trip. A magnitude cap cannot make that distinction, and would throw away the genuinely
+  catastrophic delays this site exists to show. Rows are flagged, never deleted, and re-running a
+  day clears its flags first, so the pass is idempotent.
+- A cancelled-trips board. Cancellations sit outside every other board here: a cancelled trip
+  records no arrival, so it cannot be ranked by lateness and it cannot drag an on-time rate down -
+  it silently improves one. This is where that shows.
+- Route brand colours are checked for legibility instead of trusted. AT publishes `route_color` for
+  its own maps and printed material: the Eastern Line's yellow sits at about 1.7:1 against the page
+  surface, well under the 3:1 minimum for a meaningful non-text graphic, and Te Huia ships pure
+  black. The contrast is measured rather than kept as an exception list, since the City Rail Link
+  brings new lines and new colours in September 2026.
+- The route directory can list only what currently runs, off the new `lastSeenAt` stamp. Rows are
+  still never deleted, so a retired route keeps its retained summaries and its URL keeps resolving.
+
+### Changed
+
+- A station's identity is now AT's own `parent_station` id wherever the feed supplies it, falling
+  back to the name only when it does not. AT renames stations (Britomart became Waitemata, Mount
+  Eden became Maungawhau, with more to come from the City Rail Link), and a name-keyed id changes
+  with them, forking a station's history and breaking every shared link.
+- Service alerts are graded by effect. The feed mixes line closures with routine notices, and
+  rendering both in the same alarm styling is what teaches people to ignore the bar, so only a
+  service-stopping effect gets the loud treatment.
+- Loading skeletons honour `prefers-reduced-motion`.
+- The README describes the project instead of `create-next-app`.
+
+## [1.10.1] - 2026-09-11
+
+### Fixed
+
+- The self-hosted database could not build indexes at all. mongod presents one certificate for both
+  client traffic and its own replication connections, and a replication connection is a client
+  connection, so the certificate needs the `clientAuth` extended key usage. Let's Encrypt stopped
+  issuing that usage, so from the 8 July renewal onward mongod rejected its own replication
+  connections with `unsuitable certificate purpose` and every `createIndex` hung forever. Reads,
+  writes and index drops stayed fast throughout, which is why nothing looked wrong. A separate
+  self-signed cluster certificate (`--tlsClusterFile` / `--tlsClusterCAFile`) now carries
+  member-to-member TLS, so an ACME renewal cannot break replication again.
+- `npm run smoke` never ran from a clean install: `scripts/smoke-test.ts` imports puppeteer, which
+  was not a dependency. It only worked while a stray copy sat in `node_modules`, so `pre-push` was
+  failing for anyone starting fresh.
+- `npm run analyze` was dead for the same class of reason. The `dotenv` package ships no CLI, so
+  `dotenv -v ANALYZE=true -- next build` had no binary to run; `dotenv-cli` supplies it.
+- The runbook claimed `mongorestore` rebuilds every index. It does not reliably: the builds are a
+  per-collection final phase, and an interrupted restore leaves the documents in place with some
+  collections holding only `_id_`. Nothing reports the gap, so the verification checklist now starts
+  with an explicit index check.
+
+### Changed
+
+- Dependencies advanced 17 packages. Five majors are held back deliberately: Prisma 7 has no MongoDB
+  connector (Prisma's own docs recommend 6.19 for MongoDB), ESLint 10 conflicts with the
+  `eslint-plugin-react` peer that `eslint-config-next` pins, and TypeScript 7, Vitest 5 and
+  `eslint-plugin-jsdoc` 64 are untested majors.
+- CI now builds Dependabot pull requests instead of skipping them, because auto-merge treats a green
+  run as the signal that a bump still compiles; skipping the build while auto-merging meant merging
+  bumps nothing had built. Auto-merge parses the version pair in the title and holds back majors,
+  and pre-1.0 minors, for a person to judge. Push runs are limited to `main`, since the
+  `pull_request` event already covers every branch with an open pull request.
+- `tsconfig.json` gains `noImplicitOverride` and `noFallthroughCasesInSwitch`, both clean at zero
+  errors. `noUncheckedIndexedAccess` is not adopted: it reports 198. `ignoreDeprecations` and
+  `baseUrl` are dropped as vestigial.
+- `lint` and `lint:fix` cache to `.eslintcache`, and the pre-commit hook refreshes the lockfile at
+  most once a day rather than on every commit.
+
+## [1.10.0] - 2026-08-07
+
+### Added
+
+- Train lines now read as their published names. AT sets every train route's `route_long_name` to
+  the bare code, so the header showed only "STH"; it now shows "Southern Line" beside the code, and
+  covers the City Rail Link codes that replace them on 13 September 2026 ("S-C" > "South City Line",
+  "E-W" > "East West Line", "O-W" > "Onehunga West Line") plus "HUIA" > "Te Huia".
+- Route history survives the CRL rename. The cutover retires `STH`, `EAST`, `WEST` and `ONE` and
+  introduces `S-C`, `E-W` and `O-W` (Eastern and Western merge into one line), which would strand
+  every retained `DailyRouteSummary` under a slug that never receives another event and restart the
+  replacement from zero. Route reads now aggregate a line together with the lines it replaced, and a
+  retired line's URL redirects to its successor once that appears in the feed. Both hyphenated and
+  flattened forms of the new codes are recognised, since AT has not yet published the ids.
+
+### Fixed
+
+- The fleet KPI strip labelled its headline count "Trips" when it counts stop arrivals - one trip
+  contributes one row per stop it serves, so the number read 20-40x higher than the trips it
+  claimed, and contradicted the "Of all arrivals" popover directly beneath it. Now "Arrivals".
+- The GTFS static sync read `version` from AT's `/versions` payload, which only carries
+  `feed_version` - so the version always came back `undefined`, the sync's version gate never
+  engaged, and `gtfs_version` was never stored. The version is now read correctly and selected by
+  the `feed_start_date`/`feed_end_date` window covering the service day, since AT sends no
+  `is_current` flag. This is the gate that pulls in the renamed routes at the cutover.
+- The stop sync no longer stores AT's ~140 `location_type: 1` parent stations. Nothing departs from
+  one, so they could never gain an arrival event, and each duplicates the name of the platforms
+  beneath it in the stop directory.
+
+### Changed
+
+- Stops keep their GTFS `parent_station` and `platform_code`, so station collapsing can key off AT's
+  own grouping rather than off stop names, which AT renames (Britomart > Waitemata, Mount Eden
+  > Maungawhau).
+
 ## [1.9.5] - 2026-07-23
 
 ### Fixed

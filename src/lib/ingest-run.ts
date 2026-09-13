@@ -1,12 +1,11 @@
 // src/lib/ingest-run.ts
-/**
- * @description Record and read ingest-run outcomes, and project the footer's
- * next-update time. Recording is best-effort so a logging failure never breaks
- * the ingest request itself. Freshness prefers the last successful realtime run
- * but falls back to the freshest recorded arrival until the first run is logged
- * (e.g. just after deploy), clamping that fallback to now since a scheduled
- * arrival can sit in the near future once the morning's timetable is loaded.
- */
+// Record and read ingest-run outcomes, and project the footer's
+// next-update time. Recording is best-effort so a logging failure never breaks
+// the ingest request itself. Freshness prefers the last successful realtime run
+// but falls back to the freshest recorded arrival until the first run is logged
+// (e.g. just after deploy), clamping that fallback to now since a scheduled
+// arrival can sit in the near future once the morning's timetable is loaded.
+
 import { getLatestEventDate } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -92,27 +91,48 @@ export interface DataFreshness {
   lastUpdated: Date;
   /** When the next refresh is expected (lastUpdated + cadence). */
   nextUpdate: Date;
+  /**
+   * Where the instant came from: a logged ingest run, or the freshest recorded
+   * arrival while no run has been logged yet (a fresh deploy, or a reset of the
+   * IngestRun collection). The footer words the two differently, since only a
+   * run can be "due".
+   */
+  source: "run" | "event";
 }
 
 /**
- * Resolve the footer's freshness window. Prefers the last successful realtime
- * ingest run; falls back to the freshest recorded arrival ({@link getLatestEventDate})
- * until the first run has been logged (e.g. immediately after deploy).
- * @returns The last-updated and next-update instants, or null when there is no data.
+ * Resolve the footer's freshness window from what is known. Prefers the last
+ * successful realtime ingest run; falls back to the freshest recorded arrival
+ * until the first run has been logged. The event fallback is the newest
+ * scheduled arrival, which sits in the near future when the feed already
+ * holds the morning's timetable, so it is clamped to now.
+ * @param run - The last successful realtime run, or null.
+ * @param latestEvent - The freshest recorded arrival, or null.
+ * @param now - The current instant.
+ * @returns The last-updated and next-update instants with their source, or null when there is no data.
  */
-export async function getDataFreshness(): Promise<DataFreshness | null> {
-  const run = await getLastIngestRun("at");
+export function resolveFreshness(
+  run: LastIngestRun | null,
+  latestEvent: Date | null,
+  now: Date,
+): DataFreshness | null {
   // unstable_cache JSON-serialises Date objects to strings; convert back so
-  // getTime() calls below work whether the value came from cache or Prisma.
-  const resolved = run ? new Date(run.completedAt) : await getLatestEventDate();
+  // getTime() works whether the value came from the cache or from Prisma.
+  const resolved = run ? new Date(run.completedAt) : latestEvent;
   if (!resolved) return null;
-  // The event-date fallback is the newest *scheduled* arrival, which sits in the
-  // near future when the feed already holds the morning's timetable - clamp so
-  // "last updated" never reads as a future time. Real ingest-run times are past.
-  const now = new Date();
   const lastUpdated = resolved > now ? now : resolved;
   return {
     lastUpdated,
     nextUpdate: new Date(lastUpdated.getTime() + INGEST_INTERVAL_SEC * 1000),
+    source: run ? "run" : "event",
   };
+}
+
+/**
+ * The footer's freshness window (see {@link resolveFreshness}).
+ * @returns The window, or null when there is no data at all.
+ */
+export async function getDataFreshness(): Promise<DataFreshness | null> {
+  const run = await getLastIngestRun("at");
+  return resolveFreshness(run, run ? null : await getLatestEventDate(), new Date());
 }

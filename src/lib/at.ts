@@ -1,14 +1,13 @@
 // src/lib/at.ts
-/**
- * @description Types and fetcher for AT's GTFS-RT trip-update feed. AT's JSON
- * deviates from the standard shape in ways the normaliser has to absorb: the
- * payload may be wrapped in a legacy `response` envelope, a single stop-time
- * update can arrive as an object rather than an array, and `delay` sometimes
- * sits at the trip_update root. The fetcher retries 429s and transient 5xx with
- * exponential backoff (capped at 60s) and a one-shot retry on the first
- * timeout/network blip, since AT's realtime endpoint rate-limits and stalls
- * under load.
- */
+// Types and fetcher for AT's GTFS-RT trip-update feed. AT's JSON
+// deviates from the standard shape in ways the normaliser has to absorb: the
+// payload may be wrapped in a legacy `response` envelope, a single stop-time
+// update can arrive as an object rather than an array, and `delay` sometimes
+// sits at the trip_update root. The fetcher retries 429s and transient 5xx with
+// exponential backoff (capped at 60s) and a one-shot retry on the first
+// timeout/network blip, since AT's realtime endpoint rate-limits and stalls
+// under load.
+
 import { isObj, sleep } from "@/lib/utils";
 
 export interface DelayTime {

@@ -1,7 +1,5 @@
 // src/lib/gtfs-shapes.ts
-/**
- * @description Fetch and simplify road geometry from the AT GTFS feed's `shapes.txt`.
- */
+// Fetch and simplify road geometry from the AT GTFS feed's `shapes.txt`.
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `shapes.txt` holds road geometry per shape_id. */
@@ -57,13 +55,15 @@ function perpDistM(p: RawPoint, a: RawPoint, b: RawPoint): number {
  * @returns The simplified points (endpoints always kept).
  */
 function simplify(pts: RawPoint[], epsM: number): RawPoint[] {
-  if (pts.length < 3) return pts;
+  const first = pts[0];
+  const last = pts.at(-1);
+  if (pts.length < 3 || first === undefined || last === undefined) return pts;
   let maxD = 0;
   let idx = 0;
-  const first = pts[0];
-  const last = pts[pts.length - 1];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const d = perpDistM(pts[i], first, last);
+  // Interior points only: the endpoints are always kept.
+  for (const [i, p] of pts.entries()) {
+    if (i === 0 || i === pts.length - 1) continue;
+    const d = perpDistM(p, first, last);
     if (d > maxD) {
       maxD = d;
       idx = i;
@@ -86,7 +86,11 @@ function decimate<T>(arr: T[], max: number): T[] {
   if (arr.length <= max) return arr;
   const step = (arr.length - 1) / (max - 1);
   const out: T[] = [];
-  for (let i = 0; i < max; i++) out.push(arr[Math.round(i * step)]);
+  for (let i = 0; i < max; i++) {
+    // Math.round(i * step) stays within [0, arr.length - 1] for every i < max.
+    const item = arr[Math.round(i * step)];
+    if (item !== undefined) out.push(item);
+  }
   return out;
 }
 
@@ -108,8 +112,9 @@ function parseShapes(txt: string): ShapeGeom[] {
 
   const byId = new Map<string, RawPoint[]>();
   for (let i = 1; i < lines.length; i++) {
-    if (!lines[i]) continue;
-    const c = lines[i].split(",");
+    const line = lines[i];
+    if (!line) continue;
+    const c = line.split(",");
     const id = c[iId];
     const lat = Number(c[iLat]);
     const lon = Number(c[iLon]);

@@ -1,7 +1,5 @@
 // src/components/RouteWeekSummary.tsx
-/**
- * @description Render a route's per-day on-time summary for the trailing week.
- */
+// Render a route's per-day on-time summary for a week window.
 import { formatDelay } from "@/lib/format";
 import type { RouteDay } from "@/types/api";
 import type { JSX } from "react";
@@ -17,14 +15,15 @@ function shortDate(iso: string): string {
 }
 
 /**
- * Compact per-day history table for a single route. Pulls from `DailyRouteSummary`
- * records and shows each completed service day's event count, average delay, and
- * on-time percentage. Renders nothing when no summary records exist yet.
+ * Compact per-day history table for a single route: each service day's event
+ * count, average delay and on-time percentage, the current day included. When
+ * the window holds no arrivals the section stays, with a line saying so, so the
+ * week view never shows a bare heading over nothing.
  * @param props - Component props.
  * @param props.days - Per-day stats, newest first (from `getRouteDailyStats`).
  * @param props.mode - Route mode for the per-mode delay colour banding.
  * @param props.label - Section heading (defaults to "Last 7 days").
- * @returns The summary table, or null when there are no days.
+ * @returns The summary table, or the empty-state section.
  */
 export function RouteWeekSummary({
   days,
@@ -34,8 +33,19 @@ export function RouteWeekSummary({
   days: RouteDay[];
   mode: string;
   label?: string;
-}): JSX.Element | null {
-  if (days.length === 0) return null;
+}): JSX.Element {
+  if (days.length === 0) {
+    return (
+      <section className="border border-at-border bg-at-surface">
+        <h2 className="border-b border-at-border px-4 py-3 text-lg font-ultra tracking-zero">
+          {label}
+        </h2>
+        <p className="px-4 py-6 text-sm text-at-muted">
+          No arrivals were recorded for this route in this period.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="border border-at-border bg-at-surface">

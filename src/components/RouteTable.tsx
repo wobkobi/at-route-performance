@@ -1,8 +1,6 @@
 "use client";
 // src/components/RouteTable.tsx
-/**
- * @description Render a sortable table of routes with event counts and on-time stats.
- */
+// Render a sortable table of routes with event counts and on-time stats.
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -158,7 +156,9 @@ export function RouteTable({
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={head.length} className="px-3 py-4 text-center text-at-muted">
-                  No routes match &ldquo;{query.trim()}&rdquo;.
+                  {q
+                    ? `No routes match "${query.trim()}".`
+                    : "No routes have recorded arrivals in this period yet."}
                 </td>
               </tr>
             ) : (
@@ -192,7 +192,9 @@ export function RouteTable({
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{r.events}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
-                      {r.avg_delay_sec == null ? "—" : formatDelay(r.avg_delay_sec)}
+                      {r.avg_delay_sec == null
+                        ? "—"
+                        : formatDelay(r.avg_delay_sec, { mode: r.mode })}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
                       {r.on_time_pct?.toFixed(1) ?? "—"}

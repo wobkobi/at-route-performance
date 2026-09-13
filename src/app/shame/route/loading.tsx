@@ -1,7 +1,6 @@
 // src/app/shame/route/loading.tsx
-/**
- * @description Loading skeleton for the worst-route shame page.
- */
+// Loading skeleton for the worst-route shame page.
+
 import { Bone, ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 

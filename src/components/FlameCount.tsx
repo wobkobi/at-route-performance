@@ -1,7 +1,6 @@
 // src/components/FlameCount.tsx
-/**
- * @description Render flame icons whose colour scales with a tier-and-count severity.
- */
+// Render flame icons whose colour scales with a tier-and-count severity.
+
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
 import { FaFire } from "react-icons/fa";
@@ -63,7 +62,7 @@ function flameColour(tier: FlameTier, count: number): string {
  * @param props.tier - Severity tier: same-day repeats, week appearances, or streak.
  * @param props.count - Repeat count or streak length (must be >= 2).
  * @param props.worst - True when this row holds the day's worst badge.
- * @param props.label - Tooltip text shown on hover.
+ * @param props.label - Tooltip text shown on hover and keyboard focus.
  * @returns The badge element.
  */
 export function FlameCount({
@@ -79,7 +78,11 @@ export function FlameCount({
 }): JSX.Element {
   const colour = flameColour(tier, count);
   return (
-    <span className="group/flame relative flex items-center gap-0.5 leading-none">
+    <span
+      className="group/flame relative flex items-center gap-0.5 leading-none"
+      tabIndex={label ? 0 : undefined}
+      aria-label={label}
+    >
       <FaFire
         aria-hidden
         className={cn("shrink-0", worst ? "h-4 w-4" : "h-3.5 w-3.5")}
@@ -94,7 +97,7 @@ export function FlameCount({
       {label && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-xs font-medium whitespace-nowrap text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/flame:opacity-100"
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-xs font-medium whitespace-nowrap text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/flame:opacity-100 group-focus-visible/flame:opacity-100"
         >
           {label}
         </span>

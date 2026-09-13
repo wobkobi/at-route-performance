@@ -1,7 +1,6 @@
 // src/app/shame/route/page.tsx
-/**
- * @description Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
- */
+// Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
+
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
@@ -92,13 +91,13 @@ async function RouteRangeBoard({
     const href = isMonth
       ? `/route/${encodeURIComponent(slug)}?day=${r.date}`
       : `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&period=${periodParam}` : ""}`;
-    const [, m, d] = (r.date ?? "").split("-");
+    const [, m, d] = r.date ? r.date.split("-") : [];
     const dayLabel = r.date ? weekdayShort(r.date) : "";
     const dayCount = routeDayCounts.get(r.route_id) ?? 0;
     return (
       <a href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-          {dayLabel} {d}/{m}
+          {r.date ? `${dayLabel} ${d}/${m}` : ""}
         </span>
         <ModeIcon
           mode={r.mode}

@@ -1,7 +1,6 @@
 // src/app/shame/stop/page.tsx
-/**
- * @description Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
- */
+// Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
+
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
@@ -231,7 +230,7 @@ export default async function StopShamePage({
     const hourCount = stopHourCounts.get(s.stop_id) ?? 0;
     return (
       <a
-        href={`/stop/${encodeURIComponent(s.stop_id)}`}
+        href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
         <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">

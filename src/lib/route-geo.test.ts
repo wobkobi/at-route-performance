@@ -1,9 +1,19 @@
 // src/lib/route-geo.test.ts
-/**
- * @description Unit tests for the road-line offset geometry helper in route-geo.ts.
- */
+// Unit tests for the road-line offset geometry helper in route-geo.ts.
 import { offsetPath } from "@/lib/route-geo";
 import { describe, expect, it } from "vitest";
+
+/**
+ * Read a point from a path, failing loudly when the index is out of range.
+ * @param path - The `[lat, lon]` path.
+ * @param i - Index to read.
+ * @returns The point at `i`.
+ */
+function at(path: [number, number][], i: number): [number, number] {
+  const p = path[i];
+  if (!p) throw new Error(`expected a point at index ${i}`);
+  return p;
+}
 
 describe("offsetPath", () => {
   it("returns the path unchanged when it has fewer than 2 points", () => {
@@ -20,10 +30,10 @@ describe("offsetPath", () => {
     const right = offsetPath(line, 100, 1);
     const left = offsetPath(line, 100, -1);
     const expectedDeg = 100 / 111_320;
-    expect(right[0][0]).toBeCloseTo(-36.85 - expectedDeg, 5);
-    expect(left[0][0]).toBeCloseTo(-36.85 + expectedDeg, 5);
+    expect(at(right, 0)[0]).toBeCloseTo(-36.85 - expectedDeg, 5);
+    expect(at(left, 0)[0]).toBeCloseTo(-36.85 + expectedDeg, 5);
     // Longitude barely changes along an east-west heading.
-    expect(right[0][1]).toBeCloseTo(174.7, 4);
+    expect(at(right, 0)[1]).toBeCloseTo(174.7, 4);
   });
 
   it("offsets the two sides in opposite directions", () => {
@@ -34,9 +44,11 @@ describe("offsetPath", () => {
     ];
     const a = offsetPath(line, 20, 1);
     const b = offsetPath(line, 20, -1);
-    for (let i = 0; i < line.length; i++) {
-      expect(a[i][0] - line[i][0]).toBeCloseTo(-(b[i][0] - line[i][0]), 9);
-      expect(a[i][1] - line[i][1]).toBeCloseTo(-(b[i][1] - line[i][1]), 9);
+    for (const [i, orig] of line.entries()) {
+      const pa = at(a, i);
+      const pb = at(b, i);
+      expect(pa[0] - orig[0]).toBeCloseTo(-(pb[0] - orig[0]), 9);
+      expect(pa[1] - orig[1]).toBeCloseTo(-(pb[1] - orig[1]), 9);
     }
   });
 });

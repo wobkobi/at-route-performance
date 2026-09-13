@@ -1,15 +1,15 @@
 // src/app/api/routes/[id]/vehicles/route.ts
-/**
- * @description GET handler returning live vehicle positions JSON for a route, each with its current delay.
- */
+// GET handler returning live vehicle positions JSON for a route, each with its current delay.
+
 import { routeSlug } from "@/lib/route-slug";
 import { getLiveVehicles } from "@/lib/vehicles";
 import { NextResponse } from "next/server";
 
 /**
  * Live vehicle positions for a route, each with its current delay.
- * Public read; the route detail map polls this. Backed by a 15s cache so the
- * upstream AT feed is hit at most once per window regardless of viewers.
+ * Public read; the route detail map polls this every two minutes. Backed by a
+ * 120s cache so the upstream AT feed is hit at most once per window regardless
+ * of viewers.
  * @param _req - Incoming request (unused).
  * @param ctx - Route context.
  * @param ctx.params - Promise resolving to the dynamic `{ id }` route param.
@@ -26,7 +26,10 @@ export async function GET(
     // the version suffix before comparing so they match the URL slug "NX1".
     return NextResponse.json({ vehicles: all.filter((v) => routeSlug(v.routeId) === id) });
   } catch (err) {
-    console.error("GET /api/routes/[id]/vehicles failed", err);
+    console.error("[API] GET /api/routes/[id]/vehicles failed", {
+      routeId: id,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "server_error", vehicles: [] }, { status: 502 });
   }
 }

@@ -1,7 +1,6 @@
 // src/components/WindowControls.tsx
-/**
- * @description Period switcher and previous/next stepper for the week or month window.
- */
+// Period switcher and previous/next stepper for the week or month window.
+
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { buildHref } from "@/lib/utils";

@@ -14,6 +14,10 @@ enum Mode {
 }
 
 // Route and Stop use AT's external string IDs as primary keys.
+// Rows are never deleted: a route retired from the feed keeps years of retained
+// DailyRouteSummary, and its URL has to keep resolving (to redirect to whatever
+// replaced it). `lastSeenAt` records the last sync that still found it in AT's
+// feed, so directories can list only what currently runs.
 model Route {
   id         String              @id @map("_id")
   shortName  String?
@@ -21,6 +25,7 @@ model Route {
   mode       Mode
   colour     String?
   textColour String?
+  lastSeenAt DateTime?
   events     ArrivalEvent[]
   tripDelays TripDelay[]
   summaries  DailyRouteSummary[]
@@ -28,17 +33,27 @@ model Route {
   @@index([shortName])
   // Supports the optional mode filter on the top-routes lookup.
   @@index([mode])
+  // Supports the "currently in the feed" filter on the route directory.
+  @@index([lastSeenAt])
 }
 
+// Boardable GTFS stops only; AT's location_type=1 parent stations are dropped at
+// ingest. `parentStation` and `platformCode` are AT's own grouping of platforms
+// and poles into one station, kept so station collapsing can key off the feed
+// instead of stop names.
 model Stop {
-  id     String         @id @map("_id")
-  name   String
-  code   String?
-  lat    Float
-  lon    Float
-  events ArrivalEvent[]
+  id            String         @id @map("_id")
+  name          String
+  code          String?
+  lat           Float
+  lon           Float
+  parentStation String?
+  platformCode  String?
+  events        ArrivalEvent[]
 
   @@index([name])
+  // Resolves a station id back to its platforms (stop page, alerts, departures).
+  @@index([parentStation])
 }
 
 // GTFS shape geometry (from shapes.txt), keyed by AT shape_id.
@@ -75,6 +90,10 @@ model ArrivalEvent {
   deviationSec Int
   vehicleId    String?
   source       String?
+  // Set by the nightly pass on readings that sit a vehicle cycle off their own
+  // run - AT's trip_id block reuse, not a real delay (see lib/deviation.ts).
+  // Absent until that day is classified; rows are flagged, never deleted.
+  ghost        Boolean?
 
   route Route @relation(fields: [routeId], references: [id])
   stop  Stop  @relation(fields: [stopId], references: [id])
@@ -88,6 +107,8 @@ model ArrivalEvent {
   @@index([scheduledAt, routeId])
   // Supports the per-route by-stop stats: filter by routeId, group by stopId.
   @@index([routeId, stopId])
+  // Supports the nightly ghost pass: walk a day's events grouped by trip.
+  @@index([scheduledAt, tripId])
 }
 
 // Trip-level delay fallback for runs that report only a single `trip_update.delay`

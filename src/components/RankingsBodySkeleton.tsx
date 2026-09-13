@@ -1,9 +1,8 @@
 // src/components/RankingsBodySkeleton.tsx
-/**
- * @description Pulse-placeholder skeleton for the rankings page body (KPI strip
- * to route table), shared by the rankings loading page and the in-page Suspense
- * fallback while the ranking batch streams.
- */
+// Pulse-placeholder skeleton for the rankings page body (KPI strip
+// to route table), shared by the rankings loading page and the in-page Suspense
+// fallback while the ranking batch streams.
+
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
@@ -30,11 +29,16 @@ function RankBoardSkeleton(): JSX.Element {
 export function RankingsBodySkeleton(): JSX.Element {
   return (
     <>
-      {/* Fleet KPI strip */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Bone key={i} className="h-20" />
-        ))}
+      {/* KPI strip: one bordered box of five cells, as FleetSummary renders it */}
+      <div className="border border-at-border bg-at-surface">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-3">
+              <Bone className="mb-2 h-3 w-16" />
+              <Bone className="h-7 w-20" />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Shame heading */}

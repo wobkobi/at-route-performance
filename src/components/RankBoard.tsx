@@ -1,14 +1,12 @@
 "use client";
 // src/components/RankBoard.tsx
-/**
- * @description Ranked table of routes with position-movement badges and expandable delay detail.
- */
+// Ranked table of routes with position-movement badges and expandable delay detail.
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { EARLY_TOLERANCE_SEC, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { earlyToleranceFor, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import type { JSX } from "react";
@@ -41,7 +39,7 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
 }
 
 /** Plain-English on-time window for the off-schedule board caption. */
-const ON_TIME_CAPTION = `On time = ${EARLY_TOLERANCE_SEC.BUS / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way)`;
+const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way)`;
 
 /** A single leaderboard of routes with a metric value per row. */
 export interface RankBoardProps {
@@ -154,7 +152,7 @@ export function RankBoard({
                 ? noDelayData
                   ? "—"
                   : isConsistentlyLateOrEarly(signed, abs)
-                    ? formatDelay(signed)
+                    ? formatDelay(signed, { mode: r.mode })
                     : `${formatDuration(abs)} off`
                 : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
             const valueClass =

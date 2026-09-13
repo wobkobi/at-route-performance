@@ -24,6 +24,20 @@ Authorization: Bearer <CRON_SECRET>
 
 (Use the same value as the `CRON_SECRET` env var in Vercel.)
 
+## Deployment protection blocks the scheduler
+
+`CRON_SECRET` is checked inside the app, which the request only reaches if Vercel lets it through
+first. With Vercel Authentication (SSO) enabled, every `*.vercel.app` URL answers `302` to
+`vercel.com/sso-api` and no route ever runs; cron-job.org records the 302 as a result, so the jobs
+look scheduled while nothing ingests.
+
+Check Settings > Deployment Protection. The common setting is "all except custom domains", which
+protects nothing only once a custom domain exists - on a project with no custom domain it covers
+every URL, including production. Either attach a custom domain and point the jobs at it, disable SSO
+protection, or append a protection-bypass secret to each job URL. The same "Protection Bypass for
+Automation" secret, stored as the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET`, lets the
+post-deploy smoke workflow reach a protected deployment.
+
 ## Jobs
 
 All endpoints are **POST**. Create one cron-job.org job per row.
@@ -50,8 +64,17 @@ job if you prefer to schedule in NZ local time.
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
+- The aggregate job catches up on its own: without `?date=` it rolls up yesterday plus any of the
+  two days before it that have events but no summary yet (a night the cron missed, or a day whose
+  ghost pass failed). Each day records its own IngestRun row. A longer gap closes over successive
+  nights; to close one at once, POST `?date=YYYY-MM-DD` per day or run
+  `scripts/rebuild-daily-summaries.ts` (which skips the ghost pass).
 - The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
   so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
+- `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for
+  either should point at `/api/ingest/gtfs/sync?force=1`, which runs both halves.
+- After a deploy, `npx tsx scripts/smoke-test.ts --base-url=https://<your-app>.vercel.app` visits
+  every page and endpoint against production and fails on a leaked value or an empty section.
 - cron-job.org's free tier supports down to 1-minute intervals and custom headers.

@@ -1,14 +1,12 @@
 // src/components/DayNav.tsx
-/**
- * @description Date label with previous/next day stepper links for the shame views.
- */
+// Date label with previous/next day stepper links for the shame views.
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { parseYmd, shiftWeek, weekdayShort } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** Props for {@link DayNav}. */
 export interface DayNavProps {
@@ -30,25 +28,13 @@ export interface DayNavProps {
 }
 
 /**
- * Shift a `YYYY-MM-DD` date by whole days.
- * @param ymd - The date.
- * @param delta - Days to add (may be negative).
- * @returns The shifted `YYYY-MM-DD`.
- */
-function shiftDate(ymd: string, delta: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
-}
-
-/**
  * Format a `YYYY-MM-DD` service date as `Wed 18 Jun`.
  * @param ymd - The date.
  * @returns The label.
  */
 function dateLabel(ymd: string): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const wd = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  return `${wd} ${d} ${MONTHS[m - 1]}`;
+  const { mo, d } = parseYmd(ymd);
+  return `${weekdayShort(ymd)} ${d} ${MONTHS[mo - 1] ?? ""}`;
 }
 
 /**
@@ -88,7 +74,7 @@ export function DayNav({
       {/* Step links are omitted (not disabled) at the edges of the data range. */}
       {hasPrev && (
         <Link
-          href={dayHref(basePath, preservedParams, shiftDate(serviceDate, -1))}
+          href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
           className="chip chip-off"
           aria-label="Previous day"
         >
@@ -98,7 +84,7 @@ export function DayNav({
       <span className="px-2 text-sm font-semibold tabular-nums">{dateLabel(serviceDate)}</span>
       {hasNext && (
         <Link
-          href={nextHref ?? dayHref(basePath, preservedParams, shiftDate(serviceDate, 1))}
+          href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
           className="chip chip-off"
           aria-label="Next day"
         >

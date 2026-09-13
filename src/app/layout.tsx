@@ -1,7 +1,6 @@
 // src/app/layout.tsx
-/**
- * @description Root layout - AT-branded masthead, page container, and footer wrapping every route.
- */
+// Root layout - AT-branded masthead, page container, and footer wrapping every route.
+
 import { FooterFreshness } from "@/components/FooterFreshness";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
@@ -42,6 +41,12 @@ export default function RootLayout({
           "flex min-h-screen flex-col bg-at-bg font-brand text-at-ink antialiased",
         )}
       >
+        <a
+          href="#main"
+          className="sr-only z-50 bg-at-surface px-4 py-2 text-at-shore focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Skip to content
+        </a>
         {/* Sticky white masthead with a hairline border, like at.govt.nz. */}
         <header className="sticky top-0 z-40 border-b border-at-border bg-at-surface">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 min-[1440px]:max-w-[80vw]">
@@ -62,7 +67,10 @@ export default function RootLayout({
             <SiteNav />
           </div>
         </header>
-        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 min-[1440px]:max-w-[80vw]">
+        <div
+          id="main"
+          className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 min-[1440px]:max-w-[80vw]"
+        >
           {children}
         </div>
         {/* Dark Ocean footer with link columns + a legal sub-bar, like at.govt.nz. */}

@@ -1,7 +1,6 @@
 // src/components/DelayFilter.tsx
-/**
- * @description Chip row filtering rankings by late, early, or all delay directions.
- */
+// Chip row filtering rankings by late, early, or all delay directions.
+
 import { cn } from "@/lib/cn";
 import type { DelayDirection } from "@/lib/rankings";
 import { buildHref } from "@/lib/utils";

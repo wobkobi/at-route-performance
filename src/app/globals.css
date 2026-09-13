@@ -154,3 +154,11 @@
 .vehicle-marker {
   line-height: 0;
 }
+
+/* Reduced motion: the pill and button hover transitions become instant. */
+@media (prefers-reduced-motion: reduce) {
+  .chip,
+  .at-btn {
+    transition: none;
+  }
+}

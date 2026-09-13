@@ -1,9 +1,8 @@
 // src/components/FooterFreshness.tsx
-/**
- * @description Async server component that fetches data freshness and renders the footer line.
- */
+// Async server component that fetches data freshness and renders the footer line.
+
 import { DataFreshness } from "@/components/DataFreshness";
-import { getDataFreshness } from "@/lib/ingest-run";
+import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import type { JSX } from "react";
 
 /**
@@ -21,6 +20,8 @@ export async function FooterFreshness(): Promise<JSX.Element> {
     <DataFreshness
       lastUpdatedIso={freshness.lastUpdated.toISOString()}
       nextUpdateIso={freshness.nextUpdate.toISOString()}
+      source={freshness.source}
+      intervalSec={INGEST_INTERVAL_SEC}
     />
   );
 }

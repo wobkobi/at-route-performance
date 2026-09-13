@@ -1,8 +1,13 @@
 // src/components/FleetSummary.tsx
-/**
- * @description Render the fleet KPI strip of trips, on-time %, average off-schedule, and routes.
- */
+// Render the fleet KPI strip of arrivals, on-time %, average
+// off-schedule, cancellations, and routes. The arrivals count is stop arrivals,
+// not trips: one trip contributes one ArrivalEvent per stop it serves, so
+// labelling it "trips" overstates it by the route's stop count. Cancellations
+// sit beside the percentages rather than inside them - a cancelled trip records
+// no arrival, so it cannot appear in an on-time rate at all.
+
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
+import { cn } from "@/lib/cn";
 import { formatDuration } from "@/lib/format";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
@@ -14,7 +19,7 @@ export interface FleetSummaryProps {
 }
 
 /**
- * Render the fleet KPI strip (trips, on-time %, average off-schedule, routes).
+ * Render the fleet KPI strip (arrivals, on-time %, average off-schedule, routes).
  * The on-time and "off by" cards open a punctuality breakdown on click, so a
  * near-zero net average does not look at odds with the on-time share.
  * @param props - Component props.
@@ -34,9 +39,9 @@ export function FleetSummary({ data }: FleetSummaryProps): JSX.Element {
 
   return (
     <div className="border border-at-border bg-at-surface">
-      <div className="grid grid-cols-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <div className="p-3">
-          <div className={labelClass}>Trips</div>
+          <div className={labelClass}>Arrivals</div>
           <div className={valueClass}>{data.events.toLocaleString()}</div>
         </div>
         <PunctualityStat
@@ -55,6 +60,12 @@ export function FleetSummary({ data }: FleetSummaryProps): JSX.Element {
           value={data.avg_abs_delay_sec === null ? "—" : formatDuration(data.avg_abs_delay_sec)}
           breakdown={breakdown}
         />
+        <div className="p-3">
+          <div className={labelClass}>Cancelled</div>
+          <div className={cn(valueClass, data.cancelled ? "text-at-late" : undefined)}>
+            {data.cancelled === null ? "—" : data.cancelled.toLocaleString()}
+          </div>
+        </div>
         <div className="p-3">
           <div className={labelClass}>Routes</div>
           <div className={valueClass}>{data.route_count.toLocaleString()}</div>

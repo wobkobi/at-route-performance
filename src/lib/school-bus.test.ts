@@ -1,7 +1,6 @@
 // src/lib/school-bus.test.ts
-/**
- * @description Unit tests for the school-bus route-code classifier in school-bus.ts.
- */
+// Unit tests for the school-bus route-code classifier in school-bus.ts.
+
 import { isSchoolBus } from "@/lib/school-bus";
 import { describe, expect, it } from "vitest";
 
