@@ -21,6 +21,7 @@ import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import { cn } from "@/lib/cn";
 import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
@@ -182,10 +183,13 @@ function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean })
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <Link href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link href={base} className={cn("chip", isWeekView ? "chip-off" : "chip-on")}>
         Day
       </Link>
-      <Link href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link
+        href={`${base}?window=week`}
+        className={cn("chip", isWeekView ? "chip-on" : "chip-off")}
+      >
         Week
       </Link>
     </div>
