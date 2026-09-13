@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 // The module reads the database for the run and the latest arrival; the resolver itself is pure.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 vi.mock("@/lib/data", () => ({ getLatestEventDate: vi.fn() }));
-vi.mock("@/lib/mem-cache", () => ({ unstable_cache: vi.fn() }));
+vi.mock("@/lib/mem-cache", () => ({ memCache: vi.fn() }));
 
 const now = new Date("2026-09-13T08:00:00Z");
 
@@ -22,7 +22,7 @@ describe("resolveFreshness", () => {
     });
   });
 
-  it("accepts a run whose instant was serialised to a string by the cache", () => {
+  it("accepts a run whose instant was serialised to a string", () => {
     const run = { completedAt: "2026-09-13T07:58:30Z" as unknown as Date, count: null };
     expect(resolveFreshness(run, null, now)?.lastUpdated).toEqual(new Date("2026-09-13T07:58:30Z"));
   });
