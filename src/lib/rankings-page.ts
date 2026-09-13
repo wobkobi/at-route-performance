@@ -1,18 +1,18 @@
 // src/lib/rankings-page.ts
-/**
- * @description Window, sort and href helpers for the rankings page. Ranges are
- * anchored to the latest day with data rather than the wall clock, so a quiet
- * "today" still opens on a populated period. The week view defaults to the
- * rolling last 7 days; an explicit `period` is a calendar week reached by
- * stepping back. A matching previous range is resolved alongside each window so
- * the table can show rank movement.
- */
+// Window, sort and href helpers for the rankings page. Ranges are anchored to
+// the latest day with data rather than the wall clock, so a quiet "today" still
+// opens on a populated period. The week view defaults to the rolling last 7
+// days; an explicit `period` is a calendar week reached by stepping back. A
+// matching previous range is resolved alongside each window so the table can
+// show rank movement.
 import { type DelayDirection } from "@/lib/rankings";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
   nzMonthKey,
   nzMonthRange,
+  nzServiceDayRange,
+  nzServiceDayString,
   nzWeekRange,
   shiftMonth,
   shiftWeek,
@@ -121,7 +121,10 @@ export function resolvePrevRange(
     return nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1));
   }
   if (period) return nzWeekRange(shiftWeek(period, -7));
-  return nzLast7DaysRange(new Date(anchor.getTime() - 7 * 86_400_000));
+  // Step by service date rather than a fixed 7 * 24 h of milliseconds, which
+  // lands an hour off the 5am boundary when the two windows straddle a DST switch.
+  const prevDay = shiftWeek(nzServiceDayString(anchor), -7);
+  return nzLast7DaysRange(nzServiceDayRange(prevDay).start);
 }
 
 /**

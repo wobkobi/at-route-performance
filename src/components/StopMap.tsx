@@ -1,8 +1,6 @@
 "use client";
 // src/components/StopMap.tsx
-/**
- * @description Render a Leaflet map of stops and live vehicles with delay-coloured markers.
- */
+// Render a Leaflet map of stops and live vehicles with delay-coloured markers.
 
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
@@ -30,8 +28,11 @@ type RouteLine = Array<[number, number]>;
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
-/** How often to refresh live vehicle positions while the tab is visible. */
-const POLL_MS = 60_000;
+/**
+ * How often to refresh live vehicle positions while the tab is visible. The
+ * server caches the AT feed for 120s, so polling faster only re-reads the cache.
+ */
+const POLL_MS = 120_000;
 
 /**
  * Zoom for focusing a single stop: a neighbourhood view that shows surrounding
@@ -177,7 +178,9 @@ function clearArrowIdx(line: [number, number][], start: number, stops: StopPoint
     for (let offset = 0; offset < line.length; offset++) {
       const idx = start + dir * offset;
       if (idx < 1 || idx >= line.length) continue;
-      const [lat, lon] = line[idx];
+      const point = line[idx];
+      if (point === undefined) continue;
+      const [lat, lon] = point;
       if (!stops.some((s) => haversineKm(lat, lon, s.lat, s.lon) < CLEARANCE_KM)) return idx;
     }
   }
@@ -251,8 +254,13 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoi
       ),
     ];
     for (const i of rawIdxs.map((idx) => clearArrowIdx(line, idx, stops))) {
-      const [aLat, aLon] = line[i - 1];
-      const [bLat, bLon] = line[i];
+      // clearArrowIdx only returns indices in [1, line.length), so both ends of
+      // the segment exist; the guard makes that explicit to the type checker.
+      const from = line[i - 1];
+      const to = line[i];
+      if (from === undefined || to === undefined) continue;
+      const [aLat, aLon] = from;
+      const [bLat, bLon] = to;
       const bearing =
         (Math.atan2((bLon - aLon) * Math.cos((aLat * Math.PI) / 180), bLat - aLat) * 180) / Math.PI;
       L.marker([(aLat + bLat) / 2, (aLon + bLon) / 2], {
@@ -295,7 +303,7 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
             weight: 1.5,
           },
     );
-    const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec);
+    const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec, { mode });
     const popup =
       s.avg_abs_delay_sec != null
         ? `<strong>${esc(s.name)}</strong><br>Net: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
@@ -339,8 +347,9 @@ function setInitialViewport(
     ...stops.map((s) => [s.lat, s.lon] as [number, number]),
     ...routeLines.flat(),
   ];
-  if (pts.length === 1) {
-    map.setView(pts[0], STOP_FOCUS_ZOOM);
+  const [only] = pts;
+  if (pts.length === 1 && only !== undefined) {
+    map.setView(only, STOP_FOCUS_ZOOM);
   } else if (pts.length > 1) {
     map.fitBounds(L.latLngBounds(pts).pad(0.1));
   } else {
@@ -385,6 +394,9 @@ export default function StopMap({
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
+  // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
+  // the current mode reachable without rebuilding the map when the prop changes.
+  const modeRef = useRef<RouteMode>(mode);
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
@@ -511,7 +523,7 @@ export default function StopMap({
               });
             }
             vehMarker.bindPopup(
-              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${d == null ? "No live delay" : formatDelay(d)}`,
+              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${d == null ? "No live delay" : formatDelay(d, { mode: modeRef.current })}`,
             );
             vehMarker.addTo(state.vehicleLayer);
           }
@@ -540,6 +552,7 @@ export default function StopMap({
   // page, props are server-rendered and stable; on direction-filter changes the
   // page navigates, so this mainly guards against any parent re-renders.
   useEffect(() => {
+    modeRef.current = mode;
     const state = stateRef.current;
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);
@@ -554,7 +567,7 @@ export default function StopMap({
     const marker = state.markerById.get(selectedStopId);
     if (!marker) return;
     state.map.flyTo(marker.getLatLng(), Math.max(state.map.getZoom(), STOP_FOCUS_ZOOM), {
-      animate: true,
+      animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       duration: 0.4,
     });
     marker.openPopup();

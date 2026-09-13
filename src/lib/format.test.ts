@@ -1,8 +1,7 @@
 // src/lib/format.test.ts
-/**
- * @description Unit tests for the delay and duration formatting helpers in format.ts.
- */
-import { formatDelay } from "@/lib/format";
+// Unit tests for the delay and duration formatting helpers in format.ts.
+
+import { formatDelay, formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { describe, expect, it } from "vitest";
 
 describe("formatDelay", () => {
@@ -28,5 +27,18 @@ describe("formatDelay", () => {
   });
   it("rounds fractional seconds (no decimals)", () => {
     expect(formatDelay(90.7)).toBe("1m 31s late");
+  });
+});
+
+describe("non-finite guards", () => {
+  it("renders NaN and infinities as the unknown dash instead of wording them", () => {
+    expect(formatDelay(Number.NaN)).toBe(UNKNOWN_VALUE);
+    expect(formatDelay(Number.POSITIVE_INFINITY, { mode: "BUS" })).toBe(UNKNOWN_VALUE);
+    expect(formatDuration(Number.NaN)).toBe(UNKNOWN_VALUE);
+    expect(formatDuration(Number.NEGATIVE_INFINITY)).toBe(UNKNOWN_VALUE);
+  });
+  it("still words a finite value", () => {
+    expect(formatDuration(75)).toBe("1m 15s");
+    expect(formatDelay(-60, { mode: "BUS" })).toBe("on time");
   });
 });

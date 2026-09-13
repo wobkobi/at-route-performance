@@ -1,12 +1,11 @@
 // src/lib/at-static.ts
-/**
- * @description Client for AT's GTFS v3 JSON:API static feed (routes, stops,
- * trips, stoptimes). Wraps the JSON:API envelope with a fetcher that retries
- * 429/5xx and network/timeout errors on exponential backoff, follows
- * `links.next` to flatten paginated collections (with a hard guard against a
- * runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
- * subscription key is read once at module load into the shared header.
- */
+// Client for AT's GTFS v3 JSON:API static feed (routes, stops,
+// trips, stoptimes). Wraps the JSON:API envelope with a fetcher that retries
+// 429/5xx and network/timeout errors on exponential backoff, follows
+// `links.next` to flatten paginated collections (with a hard guard against a
+// runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
+// subscription key is read once at module load into the shared header.
+
 import { sleep } from "@/lib/utils";
 
 // Base URL for AT GTFS v3 JSON:API.
@@ -43,6 +42,12 @@ export interface StopAttr {
   stop_name: string;
   stop_lat: number;
   stop_lon: number;
+  /** GTFS location_type: 0 (or absent) is a boardable stop, 1 a parent station. */
+  location_type?: number | null;
+  /** The parent station's stop_id, on a platform or bus/ferry pole. */
+  parent_station?: string | null;
+  /** The platform or pole label at that station: "1", "2B", "A". */
+  platform_code?: string | null;
 }
 
 /**

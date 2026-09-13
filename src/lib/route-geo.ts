@@ -1,13 +1,11 @@
 // src/lib/route-geo.ts
-/**
- * @description Geometry for route polylines: offset a `[lat, lon]` path sideways
- * by a fixed metric distance, perpendicular to its local direction, so a route's
- * two directions draw as parallel lines either side of the road centreline rather
- * than overlapping. Distances convert through a flat metres-per-degree
- * approximation (with a longitude cos-latitude correction), which is accurate
- * enough for an offset of a few metres anywhere; the shift uses the right-hand
- * normal of each segment, flipped by `side` for the opposing direction.
- */
+// Geometry for route polylines: offset a `[lat, lon]` path sideways
+// by a fixed metric distance, perpendicular to its local direction, so a route's
+// two directions draw as parallel lines either side of the road centreline rather
+// than overlapping. Distances convert through a flat metres-per-degree
+// approximation (with a longitude cos-latitude correction), which is accurate
+// enough for an offset of a few metres anywhere; the shift uses the right-hand
+// normal of each segment, flipped by `side` for the opposing direction.
 
 /** Metres per degree of latitude (close enough anywhere for a small offset). */
 const M_PER_DEG = 111_320;
@@ -27,9 +25,13 @@ export function offsetPath(
   side: 1 | -1,
 ): [number, number][] {
   if (points.length < 2) return points;
-  return points.map(([lat, lon], i) => {
-    const prev = points[Math.max(0, i - 1)];
-    const next = points[Math.min(points.length - 1, i + 1)];
+  return points.map((point, i) => {
+    const [lat, lon] = point;
+    // Both indices are clamped to [0, length - 1], so the fallback to the
+    // current point never fires; it matches the endpoint case (a zero-length
+    // segment on that side) if it ever did.
+    const prev = points[Math.max(0, i - 1)] ?? point;
+    const next = points[Math.min(points.length - 1, i + 1)] ?? point;
     const cosLat = Math.cos((lat * Math.PI) / 180) || 1e-6;
     // Local segment direction in metres (east = x, north = y).
     const dx = (next[1] - prev[1]) * M_PER_DEG * cosLat;

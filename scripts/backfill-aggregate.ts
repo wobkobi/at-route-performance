@@ -1,18 +1,16 @@
 // scripts/backfill-aggregate.ts
-/**
- * POST to /api/ingest/aggregate for each NZ service day in a range so that
- * DailyRouteSummary is populated for days the cron job missed.
- *
- * Usage:
- *   npx tsx scripts/backfill-aggregate.ts --from=2026-06-22 --to=2026-06-24
- *   npx tsx scripts/backfill-aggregate.ts --days=7   # last 7 completed days
- *   npx tsx scripts/backfill-aggregate.ts --url=https://my-app.vercel.app --days=3
- *
- * CRON_SECRET is read from .env.local (or the environment). The --url flag
- * overrides the default http://localhost:3000.
- */
+// POST to /api/ingest/aggregate for each NZ service day in a range so that
+// DailyRouteSummary is populated for days the cron job missed.
+//
+// Usage:
+//   npx tsx scripts/backfill-aggregate.ts --from=2026-06-22 --to=2026-06-24
+//   npx tsx scripts/backfill-aggregate.ts --days=7   # last 7 completed days
+//   npx tsx scripts/backfill-aggregate.ts --url=https://my-app.vercel.app --days=3
+//
+// CRON_SECRET is read from .env.local (or the environment). The --url flag
+// overrides the default http://localhost:3000.
 
-import { shiftWeek } from "@/lib/time";
+import { nzServiceDayString, shiftWeek } from "@/lib/time";
 import fs from "node:fs";
 
 /* ---------------------------------------------------------------- env load */
@@ -59,20 +57,6 @@ function parseArgs(): { from?: string; to?: string; days?: number; baseUrl: stri
   return { from, to, days, baseUrl };
 }
 
-/**
- * Produce a `YYYY-MM-DD` string in NZ local time for a Date.
- * @param d - The date to format.
- * @returns NZ date string.
- */
-function toNzDateStr(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Pacific/Auckland",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
-}
-
 /* ------------------------------------------------------------------- main */
 
 /**
@@ -96,9 +80,8 @@ async function main(): Promise<void> {
   const dates: string[] = [];
 
   if (from && to) {
-    // Explicit range: the flags already ARE NZ service dates, so step them as
-    // pure date strings, `from` to `to` inclusive. The old wall-clock parse
-    // hardcoded +12:00 (wrong during NZDT) and iterated in the host timezone.
+    // The flags already are NZ service dates, so step them as pure date
+    // strings, `from` to `to` inclusive, with no timezone in the loop.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       console.error("Invalid --from or --to date (expected YYYY-MM-DD)");
       process.exit(1);
@@ -107,14 +90,11 @@ async function main(): Promise<void> {
       dates.push(d);
     }
   } else {
-    // --days=N: last N completed service days (excludes today's ongoing day).
-    const n = days ?? 1;
-    // The most recently completed service day ended at 5am NZ today, so start
-    // from yesterday NZ time and go back N days.
-    for (let i = n; i >= 1; i--) {
-      const d = new Date(Date.now() - i * 86_400_000);
-      dates.push(toNzDateStr(d));
-    }
+    // --days=N: the N completed service days before the current one, stepped
+    // by service date rather than 24-hour blocks so a DST switch inside the
+    // range cannot skip or repeat a day.
+    const today = nzServiceDayString();
+    for (let i = days ?? 1; i >= 1; i--) dates.push(shiftWeek(today, -i));
   }
 
   console.log(`Backfilling ${dates.length} day(s) against ${baseUrl}\n`);

@@ -1,18 +1,19 @@
 // src/app/api/ingest/at/route.ts
-/**
- * @description Cron-only POST that pulls AT's GTFS-RT trip updates and writes
- * stop-level arrival events, with a trip-level delay fallback when a trip only
- * carries an aggregate delay. Several safeguards keep the data clean: physically
- * impossible deviations are dropped as feed noise before they reach the DB,
- * cancellations are recorded once per trip per service day, and the vehicle feed
- * is joined best-effort so a feed outage leaves rows unnamed rather than failing.
- * Inserts go through ordered:false bulk commands so duplicate polls are skipped
- * in one round-trip per batch, making repeated runs idempotent.
- */
+// Cron-only POST that pulls AT's GTFS-RT trip updates and writes
+// stop-level arrival events, with a trip-level delay fallback when a trip only
+// carries an aggregate delay. Every reading is stored as reported - separating a
+// real delay from AT's trip_id block reuse needs the whole run, which only the
+// nightly pass has (see deviation.ts), and a magnitude cut here would delete the
+// worst genuine delays along with the noise. Cancellations are recorded once per
+// trip per service day, and the vehicle feed is joined best-effort so a feed
+// outage leaves rows unnamed rather than failing.
+// Inserts go through ordered:false bulk commands so duplicate polls are skipped
+// in one round-trip per batch, making repeated runs idempotent.
+
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { isPlausibleDeviation } from "@/lib/deviation";
+import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
+import { NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { nzServiceDayRange } from "@/lib/time";
 import { fetchVehicleByTrip } from "@/lib/vehicles";
@@ -31,7 +32,10 @@ const INSERT_BATCH = 1000;
 /**
  * Insert documents into a collection in batches, skipping duplicate-key rows
  * (ordered: false) in a single round-trip per batch - no per-document fallback
- * and no multi-document transaction.
+ * and no multi-document transaction. A duplicate key is the expected outcome of
+ * a repeated poll; any other per-entry error fails the run, since the command
+ * itself resolves even when entries were rejected. Each batch goes through the
+ * connection-reset retry.
  * @param collection - Target collection name.
  * @param docs - Extended-JSON documents (dates as `{ $date }`).
  * @returns Count actually inserted (duplicates excluded).
@@ -39,11 +43,14 @@ const INSERT_BATCH = 1000;
 async function bulkInsert(collection: string, docs: Record<string, unknown>[]): Promise<number> {
   let inserted = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await prisma.$runCommandRaw({
-      insert: collection,
-      documents: docs.slice(i, i + INSERT_BATCH) as never,
-      ordered: false,
-    })) as unknown as { n?: number };
+    const res = (await runCommand(() =>
+      prisma.$runCommandRaw({
+        insert: collection,
+        documents: docs.slice(i, i + INSERT_BATCH) as never,
+        ordered: false,
+      }),
+    )) as unknown as { n?: number };
+    throwOnWriteErrors(res, [DUPLICATE_KEY], `${collection} insert`);
     inserted += res.n ?? 0;
   }
   return inserted;
@@ -60,15 +67,20 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
 async function bulkUpsertArrivals(docs: Record<string, unknown>[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await prisma.$runCommandRaw({
-      update: "ArrivalEvent",
-      updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
-        q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
-        u: { $set: doc },
-        upsert: true,
-      })) as never,
-      ordered: false,
-    })) as unknown as { n?: number };
+    const res = (await runCommand(() =>
+      prisma.$runCommandRaw({
+        update: "ArrivalEvent",
+        updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
+          q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
+          u: { $set: doc },
+          upsert: true,
+        })) as never,
+        ordered: false,
+      }),
+    )) as unknown as { n?: number };
+    // Two overlapping polls can race an upsert of the same visit; the loser's
+    // duplicate-key error means the row exists, which is the outcome wanted.
+    throwOnWriteErrors(res, [DUPLICATE_KEY], "ArrivalEvent upsert");
     written += res.n ?? 0;
   }
   return written;
@@ -81,7 +93,6 @@ interface DebugStats {
   withTime: number;
   withDelay: number;
   withTripDelay: number;
-  dropped: number;
   loose: boolean;
 }
 
@@ -142,7 +153,6 @@ export async function POST(req: Request): Promise<NextResponse> {
           withTime: 0,
           withDelay: Number(hasTripDelay),
           withTripDelay: Number(hasTripDelay),
-          dropped: 0,
           loose,
         },
         sample: null,
@@ -160,7 +170,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     let withTime = 0;
     let withDelay = 0;
     let withTripDelay = 0;
-    let dropped = 0; // rows skipped for an implausible deviation (feed noise)
 
     const stopRows: StopRow[] = [];
     const tripRows: TripRow[] = [];
@@ -204,12 +213,6 @@ export async function POST(req: Request): Promise<NextResponse> {
         if (!hasDelay && !loose) continue;
 
         const delay = hasDelay ? (a.delay as number) : 0;
-        // Drop physically-impossible deviations (feed noise) before they reach
-        // the DB and pollute averages/on-time rates.
-        if (hasDelay && !isPlausibleDeviation(delay)) {
-          dropped++;
-          continue;
-        }
         const time = a.time;
         const actualAt = new Date(time * 1000);
         const scheduledAt = new Date((time - delay) * 1000);
@@ -222,7 +225,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           actualAt,
           deviationSec: delay,
           vehicleId,
-          source: hasDelay ? "AT_GTFSRT" : "AT_GTFSRT_NO_DELAY",
+          source: hasDelay ? "AT_GTFSRT" : NO_DELAY_SOURCE,
         });
       }
 
@@ -231,10 +234,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       if (stopRows.length === rowsBefore) {
         const tDelay = (tu as { delay?: unknown }).delay;
         if (typeof tDelay === "number") {
-          if (!isPlausibleDeviation(tDelay)) {
-            dropped++;
-            continue;
-          }
           withTripDelay++;
           const ts =
             typeof tu.timestamp === "number" ? tu.timestamp : Math.floor(Date.now() / 1000);
@@ -322,7 +321,6 @@ export async function POST(req: Request): Promise<NextResponse> {
         withTime,
         withDelay,
         withTripDelay,
-        dropped,
         loose,
       };
       body.sample = stopRows[0] ?? tripRows[0] ?? null;
@@ -337,7 +335,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       tried: stopRows.length,
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
-      dropped,
       duration_ms: duration,
       source: "cron",
     });

@@ -1,16 +1,14 @@
 // src/lib/route-view.ts
-/**
- * @description Builds the map view data for a route - stops, direction-tagged
- * path lines, and per-stop delay overlays - from the GTFS schedule pattern. The
- * heavy lifting is normalising AT's messy data into one clean line per
- * direction: train platforms and suffixed busway poles are collapsed to a single
- * canonical station, near-identical variants are merged, interior short-workings
- * the full line already covers are dropped, and directions that share terminals
- * (or are a prefix/suffix extension of one another) are folded together so the
- * diagram shows branches rather than duplicate panels. The static shape depends
- * only on the schedule, so it is cached for 24 h; only the day's delay colouring
- * is recomputed per request.
- */
+// Builds the map view data for a route - stops, direction-tagged
+// path lines, and per-stop delay overlays - from the GTFS schedule pattern. The
+// heavy lifting is normalising AT's messy data into one clean line per
+// direction: train platforms and suffixed busway poles are collapsed to a single
+// canonical station, near-identical variants are merged, interior short-workings
+// the full line already covers are dropped, and directions that share terminals
+// (or are a prefix/suffix extension of one another) are folded together so the
+// diagram shows branches rather than duplicate panels. The static shape depends
+// only on the schedule, so it is cached for 24 h; only the day's delay colouring
+// is recomputed per request.
 import { getRecentStopIds } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { memCache } from "@/lib/mem-cache";
@@ -136,30 +134,45 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
 
   const stopDocs = await prisma.stop.findMany({
     where: { id: { in: patternStopIds } },
-    select: { id: true, name: true, lat: true, lon: true },
+    select: {
+      id: true,
+      name: true,
+      lat: true,
+      lon: true,
+      parentStation: true,
+      platformCode: true,
+    },
   });
   if (stopDocs.length === 0) return empty;
 
   // Canonical-station remap: collapse each train platform to its station id,
-  // keeping one display name + coordinate per station. Busway stops that share a
-  // physical station but carry letter suffixes ("Albany Station Stop A",
-  // "Albany Station Stop B") are also collapsed so variants using different poles
-  // do not split into separate diagram directions.
-  const BUSWAY_STOP_RE = /^(.*?)\s+Stop\s+[A-Z]{1,2}$/i;
+  // keeping one display name + coordinate per station. Interchange poles that
+  // share a physical station ("Stop A Albany Bus Station", "Stop B Albany Bus
+  // Station") are also collapsed so variants using different poles do not split
+  // into separate diagram directions.
+  //
+  // Poles are matched on name, not on AT's `parent_station`, even though train
+  // platforms now key off it. AT's parents are reliable for stations (platforms
+  // sit within ~140 m) but group bus and ferry stops up to ~465 m apart, and
+  // sometimes span distinct intersections - merging those would pull real
+  // geography out of the diagram. The place name is the tighter grouping here.
+  const BUSWAY_STOP_RE = /^Stop\s+[A-Z]{1,2}\s+(.*)$/i;
   const buswayBaseToFirstId = new Map<string, string>();
   const idToCanon = new Map<string, string>();
   const canonName = new Map<string, string>();
   const canonCoord = new Map<string, { lat: number; lon: number }>();
   for (const s of stopDocs) {
-    let cid = stationId(s.id, s.name);
-    const bm = BUSWAY_STOP_RE.exec(s.name);
-    if (bm) {
-      if (!buswayBaseToFirstId.has(bm[1])) buswayBaseToFirstId.set(bm[1], cid);
-      cid = buswayBaseToFirstId.get(bm[1])!;
+    let cid = stationId(s.id, s.name, s);
+    // Capture group 1 is the station name after the "Stop X" pole prefix.
+    const buswayBase = BUSWAY_STOP_RE.exec(s.name)?.[1];
+    if (buswayBase !== undefined) {
+      const firstId = buswayBaseToFirstId.get(buswayBase);
+      if (firstId === undefined) buswayBaseToFirstId.set(buswayBase, cid);
+      else cid = firstId;
     }
     idToCanon.set(s.id, cid);
     if (!canonName.has(cid)) {
-      canonName.set(cid, bm ? bm[1] : stationName(s.name));
+      canonName.set(cid, buswayBase ?? stationName(s.name));
       canonCoord.set(cid, { lat: s.lat, lon: s.lon });
     }
   }
@@ -221,26 +234,31 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
   // direction filtering and map display stay consistent.
   const directionIdAliases = new Map<number, number>();
   const byTerminals = new Map<string, number[]>();
-  for (const dir of Object.keys(directions).map(Number)) {
-    const verts = directions[dir].variants;
-    const first = verts[0]?.stopIds[0] ?? "";
-    const last = verts[0]?.stopIds.at(-1) ?? "";
+  for (const [dirKey, d] of Object.entries(directions)) {
+    const dir = Number(dirKey);
+    const first = d.variants[0]?.stopIds[0] ?? "";
+    const last = d.variants[0]?.stopIds.at(-1) ?? "";
     const tKey = `${first}::${last}`;
-    if (!byTerminals.has(tKey)) byTerminals.set(tKey, []);
-    byTerminals.get(tKey)!.push(dir);
+    const group = byTerminals.get(tKey);
+    if (group) group.push(dir);
+    else byTerminals.set(tKey, [dir]);
   }
   for (const group of byTerminals.values()) {
     if (group.length < 2) continue;
     group.sort((a, b) => a - b);
-    const primary = group[0];
-    for (let i = 1; i < group.length; i++) {
-      directionIdAliases.set(group[i], primary);
-      directions[primary].variants.push(
-        ...directions[group[i]].variants.map((v) => ({ ...v, directionId: primary })),
-      );
-      delete directions[group[i]];
+    // Lowest direction id in the group is the primary; the rest fold into it.
+    const [primary, ...rest] = group;
+    if (primary === undefined) continue;
+    const target = directions[primary];
+    if (!target) continue;
+    for (const dir of rest) {
+      const source = directions[dir];
+      if (!source) continue;
+      directionIdAliases.set(dir, primary);
+      target.variants.push(...source.variants.map((v) => ({ ...v, directionId: primary })));
+      delete directions[dir];
     }
-    directions[primary].variants.sort((a, b) => b.tripCount - a.tripCount);
+    target.variants.sort((a, b) => b.tripCount - a.tripCount);
   }
 
   // Merge directions where one is a prefix extension of another: when direction A's
@@ -256,9 +274,9 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
         (acc, v) => (v.stopIds.length > acc.length ? v.stopIds : acc),
         [],
       );
-      if (aSeq.length < 2) continue;
       const aFirst = aSeq[0];
-      const aLast = aSeq.at(-1)!;
+      const aLast = aSeq.at(-1);
+      if (aSeq.length < 2 || aFirst === undefined || aLast === undefined) continue;
       for (const dB of extKeys) {
         if (dA === dB || !directions[dB]) continue;
         const bSeq = directions[dB].variants.reduce<string[]>(
@@ -296,9 +314,9 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
         (acc, v) => (v.stopIds.length > acc.length ? v.stopIds : acc),
         [],
       );
-      if (aSeq.length < 2) continue;
       const aFirst = aSeq[0];
-      const aLast = aSeq.at(-1)!;
+      const aLast = aSeq.at(-1);
+      if (aSeq.length < 2 || aFirst === undefined || aLast === undefined) continue;
       for (const dB of extKeys) {
         if (dA === dB || !directions[dB]) continue;
         const bSeq = directions[dB].variants.reduce<string[]>(

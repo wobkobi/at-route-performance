@@ -1,16 +1,14 @@
 "use client";
 // src/components/RouteLineDiagram.tsx
-/**
- * @description Build a route's stop graph layout and render it as a line diagram.
- * Stops sharing a base name (same display name, or the same name once busway
- * "Stop A/B" pole suffixes are stripped) collapse to one canonical node, so
- * variants differing only by pole merge onto the trunk instead of spawning
- * separate diagrams. Each direction is laid out as a snake, box loop, or
- * triangle, with disjoint variants becoming their own labelled sub-lines; all
- * panels share one viewBox width for a consistent scale. Tiny routes drop the
- * SVG for a 2-column grid or a flat stop table, and directions with no data yet
- * render a "coming soon" placeholder.
- */
+// Build a route's stop graph layout and render it as a line diagram.
+// Stops sharing a base name (same display name, or the same name once busway
+// "Stop A/B" pole suffixes are stripped) collapse to one canonical node, so
+// variants differing only by pole merge onto the trunk instead of spawning
+// separate diagrams. Each direction is laid out as a snake, box loop, or
+// triangle, with disjoint variants becoming their own labelled sub-lines; all
+// panels share one viewBox width for a consistent scale. Tiny routes drop the
+// SVG for a 2-column grid or a flat stop table, and directions with no data yet
+// render a "coming soon" placeholder.
 
 import { DiagramSvg, type DiagramNodeView } from "@/components/DiagramSvg";
 import { delayColour } from "@/lib/delay-colour";
@@ -23,7 +21,7 @@ import {
   type DiagramNode,
   type SnakeOpts,
 } from "@/lib/route-graph";
-import type { RoutePattern } from "@/types/api";
+import type { RoutePattern, RouteVariant } from "@/types/api";
 import type { JSX } from "react";
 
 /** Props for {@link RouteLineDiagram}. */
@@ -122,8 +120,7 @@ const BUSWAY_STOP_RE = /^(.*?)\s+Stop\s+[A-Z]{1,2}$/i;
  * @returns Base name without the suffix, or the original name when none matches.
  */
 function busStopBase(name: string): string {
-  const m = BUSWAY_STOP_RE.exec(name);
-  return m ? m[1] : name;
+  return BUSWAY_STOP_RE.exec(name)?.[1] ?? name;
 }
 
 /**
@@ -189,27 +186,31 @@ export function RouteLineDiagram({
   alertStopIds,
   hasDetour,
 }: RouteLineDiagramProps): JSX.Element {
-  const dirKeys = Object.keys(directions)
+  // Direction keys in numeric order, each paired with its variants. Resolved
+  // once here so nothing below indexes `directions` by a possibly-missing key.
+  const dirs = Object.keys(directions)
     .map(Number)
-    .sort((a, b) => a - b);
+    .sort((a, b) => a - b)
+    .map((dir) => ({ dir, variants: directions[dir]?.variants ?? [] }));
 
   /**
    * True when at least one arrival event was recorded for the direction today;
    * directions with none are shown as a "coming soon" placeholder below.
-   * @param dir - Direction key.
+   * @param variants - The direction's stopping patterns.
    * @returns True when `delayByStop` contains any stop in the direction.
    */
-  const dirHasData = (dir: number): boolean =>
-    directions[dir].variants.some((v) => v.stopIds.some((id) => delayByStop.has(id)));
+  const hasData = (variants: RouteVariant[]): boolean =>
+    variants.some((v) => v.stopIds.some((id) => delayByStop.has(id)));
 
-  const dataKeys = dirKeys.filter(dirHasData);
-  const emptyKeys = dirKeys.filter((d) => !dirHasData(d));
+  const dataDirs = dirs.filter((d) => hasData(d.variants));
+  const emptyDirs = dirs.filter((d) => !hasData(d.variants));
 
-  // Headings for directions with no data yet (parallel to emptyKeys).
-  const emptyHeadings = emptyKeys.map((dir) => {
-    const { variants } = directions[dir];
-    const busiest = variants.reduce((a, b) => (b.tripCount > a.tripCount ? b : a), variants[0]);
-    return busiest?.headsign ?? `Direction ${emptyKeys.indexOf(dir) + 1}`;
+  // Headings for directions with no data yet (parallel to emptyDirs): the
+  // busiest variant's headsign (first wins a tie), or a numbered fallback.
+  const emptyHeadings = emptyDirs.map(({ variants }, i) => {
+    let busiest: RouteVariant | undefined;
+    for (const v of variants) if (!busiest || v.tripCount > busiest.tripCount) busiest = v;
+    return busiest?.headsign ?? `Direction ${i + 1}`;
   });
 
   // Collapse stop IDs that share the same base name to a canonical ID: same
@@ -236,9 +237,8 @@ export function RouteLineDiagram({
 
   // Lay out every diagram (main line per direction + disjoint sub-lines) up
   // front so they can share one viewBox width > one scale, all filling the card.
-  const blocks = dataKeys
-    .map((dir, di) => {
-      const { variants } = directions[dir];
+  const blocks = dataDirs
+    .map(({ dir, variants }, di) => {
       const trunkLen = variants[0]?.stopIds.length ?? 1;
       const mainOpts = { ...OPTS, cols: dynamicCols(trunkLen) };
       // A route that returns to its start draws as a closed box loop.
@@ -281,16 +281,17 @@ export function RouteLineDiagram({
   // Multiple small panels: 2-column grid of SVGs. Require no subs so merged
   // directions that produce sub-diagrams fall through to the normal nested rendering.
   const useGrid = allPanelsSmall && panels.length >= 2 && blocks.every((b) => b.subs.length === 0);
-  // Single tiny panel: stop table instead of a SVG with only 2-3 stops.
-  const useSingleTable = allPanelsSmall && panels.length === 1;
+  // Single tiny panel: stop table instead of a SVG with only 2-3 stops. Holding
+  // the panel itself (rather than a boolean) lets the JSX below narrow on it.
+  const singlePanel = allPanelsSmall && panels.length === 1 ? panels[0] : undefined;
 
   return (
     <section className="border border-at-border bg-at-surface p-4">
       <h2 className="mb-1 text-lg font-ultra tracking-zero">Line diagram</h2>
-      {!useSingleTable && blocks.length > 0 && (
+      {!singlePanel && blocks.length > 0 && (
         <p className="mb-3 text-xs text-at-muted">Hover a stop for its name.</p>
       )}
-      {blocks.length === 0 && emptyKeys.length === 0 ? (
+      {blocks.length === 0 && emptyDirs.length === 0 ? (
         <p className="text-sm text-at-muted">No schedule pattern available for this route.</p>
       ) : useGrid ? (
         <div className="grid grid-cols-2 gap-4">
@@ -317,13 +318,13 @@ export function RouteLineDiagram({
             </div>
           ))}
         </div>
-      ) : useSingleTable ? (
+      ) : singlePanel ? (
         <div className="space-y-2">
           <p className="text-center text-lg font-ultra tracking-zero text-at-ink">
-            {panels[0].heading}
+            {singlePanel.heading}
           </p>
           <StopTable
-            nodes={panels[0].layout.nodes}
+            nodes={singlePanel.layout.nodes}
             nameByStop={nameByStop}
             delayByStop={delayByStop}
             mode={mode}
@@ -375,7 +376,7 @@ export function RouteLineDiagram({
           ))}
         </div>
       )}
-      {emptyKeys.map((dir, i) => (
+      {emptyDirs.map(({ dir }, i) => (
         <div key={`empty-${dir}`} className="mt-4 space-y-2">
           <p className="text-center text-lg font-ultra tracking-zero text-at-ink">
             {emptyHeadings[i]}

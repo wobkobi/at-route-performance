@@ -1,7 +1,6 @@
 // src/app/shame/trip/page.tsx
-/**
- * @description Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
- */
+// Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
+
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
 import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";

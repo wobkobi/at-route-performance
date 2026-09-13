@@ -1,7 +1,5 @@
 // src/types/dashboard.ts
-/**
- * @description Dashboard view-model types, including fleet-wide summary totals.
- */
+// Dashboard view-model types, including fleet-wide summary totals.
 
 /** Fleet-wide totals for a window. */
 export interface FleetSummary {
@@ -15,15 +13,12 @@ export interface FleetSummary {
   /** Percent of events beyond the late bound. */
   late_pct: number | null;
   route_count: number;
-}
-
-/** Per-mode aggregate for a window. */
-export interface ModeStat {
-  mode: "BUS" | "TRAIN" | "FERRY";
-  events: number;
-  on_time_pct: number | null;
-  avg_delay_sec: number | null;
-  route_count: number;
+  /**
+   * Trips cancelled outright in the window. Counted separately because a
+   * cancellation produces no arrival, so it cannot appear in the percentages
+   * above - null when the count wasn't fetched.
+   */
+  cancelled: number | null;
 }
 
 /** One run nominated as a day's (or hour's) worst, for the Shame board. */
@@ -101,20 +96,6 @@ export interface ShameStopOfWeek {
   worst: ShameDayStop | null;
   /** Worst stop per service day, ordered earliest day first. */
   days: ShameDayStop[];
-}
-
-/**
- * A run of consecutive "bad" service days ending with the current service day,
- * derived from the last 7 days of DailyRouteSummary data. A day is bad when the
- * worst-route average absolute delay exceeds 120 seconds.
- */
-export interface ShameStreak {
-  /** Consecutive bad days ending with today (0 = no streak). */
-  count: number;
-  /** Whether max delays trended up, down, or flat across the streak window. */
-  trend: "worsening" | "improving" | "stable";
-  /** Per-day delay snapshots (up to 7), earliest first. */
-  recentDelays: { date: string; avgAbsDelaySec: number | null }[];
 }
 
 /** One route nominated as an hour's or day's worst, for the Route Shame board. */

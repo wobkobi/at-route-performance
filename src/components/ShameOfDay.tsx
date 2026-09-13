@@ -1,7 +1,6 @@
 // src/components/ShameOfDay.tsx
-/**
- * @description Highlight card for the day's most off-schedule run, linking to its detail page.
- */
+// Highlight card for the day's most off-schedule run, linking to its detail page.
+
 import { ModeIcon } from "@/components/ModeIcon";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { earlyToleranceFor, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";

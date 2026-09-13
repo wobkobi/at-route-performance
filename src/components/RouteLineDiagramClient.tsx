@@ -1,8 +1,6 @@
 "use client";
 // src/components/RouteLineDiagramClient.tsx
-/**
- * @description Client wrapper that memoises diagram inputs before rendering the route line diagram.
- */
+// Client wrapper that memoises diagram inputs before rendering the route line diagram.
 
 import { RouteLineDiagram } from "@/components/RouteLineDiagram";
 import type { RoutePattern } from "@/types/api";
@@ -34,7 +32,7 @@ interface RouteLineDiagramClientProps {
  * @param props.mode - Route mode.
  * @param props.alertStopIds - Stop ids with active alerts (drawn with a warning badge).
  * @param props.hasDetour - When true, dashes the route lines to indicate a detour.
- * @returns The line diagram, or null when there are no directions to render.
+ * @returns The line diagram, or a note when there are no directions to render.
  */
 export function RouteLineDiagramClient({
   directions,
@@ -43,14 +41,23 @@ export function RouteLineDiagramClient({
   mode,
   alertStopIds,
   hasDetour,
-}: RouteLineDiagramClientProps): JSX.Element | null {
+}: RouteLineDiagramClientProps): JSX.Element {
   const delayMap = useMemo(() => new Map(Object.entries(delayByStop)), [delayByStop]);
   const nameMap = useMemo(() => new Map(Object.entries(nameByStop)), [nameByStop]);
   const alertSet = useMemo(
     () => (alertStopIds ? new Set(alertStopIds) : undefined),
     [alertStopIds],
   );
-  if (Object.keys(directions).length === 0) return null;
+  if (Object.keys(directions).length === 0) {
+    return (
+      <section className="border border-at-border bg-at-surface p-4">
+        <h2 className="text-lg font-ultra tracking-zero">Line diagram</h2>
+        <p className="mt-2 text-sm text-at-muted">
+          No stopping pattern yet. The diagram fills in once this route records a full run.
+        </p>
+      </section>
+    );
+  }
   return (
     <RouteLineDiagram
       directions={directions}

@@ -1,7 +1,6 @@
 // src/components/shame/ShameWorstBadge.tsx
-/**
- * @description Small "Worst" pill shown beside a shame board's crowned row.
- */
+// Small "Worst" pill shown beside a shame board's crowned row.
+
 import type { JSX } from "react";
 
 /**

@@ -1,7 +1,6 @@
 // src/app/shame/trip/loading.tsx
-/**
- * @description Loading skeleton for the shame trip page.
- */
+// Loading skeleton for the shame trip page.
+
 import { Bone, ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
