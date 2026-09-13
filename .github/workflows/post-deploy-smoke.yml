@@ -1,23 +1,33 @@
 name: Post-deploy smoke
 
-# Vercel emits deployment_status events to GitHub. These fire only for the
-# workflow file on the default branch (main), so this is inert until it merges;
-# after that, every preview and production deploy is smoked at its own URL.
+# Vercel records every deployment (production and preview) as a GitHub
+# deployment and marks it with a status; the status event fires only for the
+# workflow file on the default branch (main), so the automatic path is inert
+# until this merges. "Run workflow" with a URL smokes any deployment on demand
+# from any branch: the checked-out ref must be the commit that URL is running,
+# because the health probe expects that ref's package.json version.
 on:
   deployment_status:
+  workflow_dispatch:
+    inputs:
+      deploy_url:
+        description: "Deployment URL to smoke (must run the selected branch's commit)"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   smoke:
-    # Only after the deployment succeeded, and only when Vercel gave a URL to hit.
-    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment_url != ''
+    # Automatic runs: only after the deployment succeeded, and only when Vercel
+    # gave a URL to hit. Manual runs always have a URL.
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment_status.environment_url != '')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
+      DEPLOY_URL: ${{ inputs.deploy_url || github.event.deployment_status.environment_url }}
       # Vercel "Protection Bypass for Automation" secret. Deployment Protection
       # is on for this project (SSO on every *.vercel.app URL), so without it
       # every request answers 302 to the SSO page; the job skips rather than
@@ -34,8 +44,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           # Discovered routes and package.json's version must match the deployed
-          # build, so check out the exact SHA Vercel deployed.
-          ref: ${{ github.event.deployment.sha }}
+          # build, so check out the exact SHA Vercel deployed (a manual run
+          # takes the selected branch's head).
+          ref: ${{ github.event.deployment.sha || github.sha }}
 
       - name: Setup Node.js
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
@@ -63,6 +74,9 @@ jobs:
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: npx puppeteer browsers install chrome
 
+      # The status line tells the failure apart: 401 or 303 means the bypass
+      # secret was rejected, 404 means the build has no health route yet, 200
+      # with another version means the URL runs a different commit.
       - name: Health probe
         if: env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
         run: |
@@ -70,17 +84,18 @@ jobs:
           expected="$(node -p "require('./package.json').version")"
           echo "Expecting version $expected at $DEPLOY_URL/api/health"
           for attempt in 1 2 3 4 5; do
-            body="$(curl -fsS --max-time 20 \
+            code="$(curl -sS --max-time 20 -o health.json -w '%{http_code}' \
               -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-              "$DEPLOY_URL/api/health" || true)"
-            echo "Attempt $attempt: $body"
-            if echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q "\"version\":\"$expected\""; then
+              "$DEPLOY_URL/api/health" || echo 000)"
+            body="$(head -c 300 health.json 2>/dev/null || true)"
+            echo "Attempt $attempt: HTTP $code $body"
+            if [ "$code" = "200" ] && echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q "\"version\":\"$expected\""; then
               echo "Health OK: version $expected is live."
               exit 0
             fi
             sleep 5
           done
-          echo "Health probe failed: did not see ok:true and version $expected"
+          echo "Health probe failed: did not see HTTP 200 with ok:true and version $expected"
           exit 1
 
       # The script reads VERCEL_AUTOMATION_BYPASS_SECRET from the environment
