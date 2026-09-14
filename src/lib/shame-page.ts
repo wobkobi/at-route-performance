@@ -12,7 +12,10 @@ import { buildHref } from "@/lib/utils";
 export const TODAY_REVALIDATE = 300;
 /** Cache TTL for the week boards (seconds). */
 export const WEEK_REVALIDATE = 3600;
-/** Rows per column in the desktop two-column board grid. */
+/**
+ * Rows per column the day-board skeleton draws. The real board splits its rows
+ * evenly across the two columns, so its height depends on how many hours have data.
+ */
 export const ITEMS_PER_COL = 10;
 
 /** A transport mode the boards can filter by, or null for every mode. */

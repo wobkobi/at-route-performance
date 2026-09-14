@@ -1,6 +1,12 @@
 // src/lib/data/rankings.ts
 // Per-route rankings over a window: summaries for rolled-up days, live scans for the rest.
-import { cachedForDay, rangeIsFinal, scheduledAtWindow, toIso } from "@/lib/data/cache";
+import {
+  cachedForDay,
+  cachedForRange,
+  rangeIsFinal,
+  scheduledAtWindow,
+  toIso,
+} from "@/lib/data/cache";
 import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
@@ -360,10 +366,11 @@ async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
 }
 
 /**
- * Cached per-route rows for a window.
+ * Cached per-route rows for a window, keyed by the window's state so a live
+ * window is never served more than one TTL behind (see cachedForRange).
  * @param range - UTC half-open window.
  * @param thresholdSec - On-time threshold in seconds.
- * @param revalidate - Cache TTL in seconds.
+ * @param revalidate - Cache TTL in seconds while the window can still change.
  * @returns Per-route rows.
  */
 export async function getRankings(
@@ -371,9 +378,10 @@ export async function getRankings(
   thresholdSec: number,
   revalidate: number,
 ): Promise<TopRouteRow[]> {
-  return unstable_cache(
+  return cachedForRange(
     () => queryRankings(range),
     ["rankings-v2", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate },
-  )();
+    range,
+    revalidate,
+  );
 }

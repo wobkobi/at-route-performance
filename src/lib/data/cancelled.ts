@@ -300,7 +300,7 @@ export async function getCancelledCount(
   revalidate: number,
 ): Promise<number> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       return prisma.cancelledTrip.count({
@@ -319,8 +319,9 @@ export async function getCancelledCount(
       mode ?? "all",
       String(includeSchool),
     ],
-    { revalidate },
-  )();
+    range,
+    revalidate,
+  );
 }
 
 /** Row cap that lets {@link getCancelledRoutes} return every route with a cancellation. */
@@ -372,7 +373,7 @@ export async function getCancelledRoutes(
   revalidate: number,
 ): Promise<CancelledRouteRow[]> {
   const { mode = null, includeSchool = false } = filter;
-  return unstable_cache(
+  return cachedForRange(
     async () => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const grouped = await prisma.cancelledTrip.groupBy({
@@ -425,6 +426,7 @@ export async function getCancelledRoutes(
       String(includeSchool),
       String(limit),
     ],
-    { revalidate },
-  )();
+    range,
+    revalidate,
+  );
 }

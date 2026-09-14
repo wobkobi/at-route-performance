@@ -59,16 +59,43 @@ export async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
 }
 
 /**
- * Cache a date-scoped ArrivalEvent aggregation. A window over completed days
- * holds for a week once every day in it is summarised: the nightly aggregate
- * classifies ghost readings some twenty hours after a day ends, and a board
- * computed before that would otherwise pin the unclassified result. Until
- * then, and for a window touching the live day, the caller's short TTL
- * applies. The Data Cache judges staleness by the calling TTL, so the key
- * carries the state as well: once the summary lands the key changes and the
- * earlier entry is abandoned rather than kept fresh under the long TTL. A
- * week bounds staleness if a past day is ever re-ingested while still
- * covering a day's ~2-week navigable life in one computation.
+ * Which cache entry a window reads, as the last key part. The Data Cache answers
+ * an expired entry with its stale value and refreshes it in the background, so a
+ * key reused across states serves the old state once more - on a quiet site,
+ * for as long as nobody has visited. The state is in the key so that never
+ * crosses a boundary:
+ * - `final` once every day in the window is summarised, held for a week;
+ * - `ended` for a window that is over but not yet summarised, so a board
+ *   computed while the day was still running (cut off at that moment) is never
+ *   served for the finished day;
+ * - `live-<n>` for a window still running, a new key every TTL, so the live day
+ *   is never more than one TTL behind however long ago the last visit was.
+ * @param final - Whether every day in the window is summarised.
+ * @param range - The queried half-open window, or null for a rolling live one.
+ * @param liveRevalidate - TTL while the window can still change, in seconds.
+ * @param now - The current time, epoch ms (injectable for tests).
+ * @returns The key part.
+ */
+export function cacheState(
+  final: boolean,
+  range: DateRange | null,
+  liveRevalidate: number,
+  now: number = Date.now(),
+): string {
+  if (final) return "final";
+  if (range !== null && range.end.getTime() <= now) return "ended";
+  return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
+}
+
+/**
+ * Cache a date-scoped aggregation. A window over completed days holds for a
+ * week once every day in it is summarised: the nightly aggregate classifies
+ * ghost readings some twenty hours after a day ends, and a board computed
+ * before that would otherwise pin the unclassified result. Until then, and for
+ * a window touching the live day, the caller's short TTL applies, and the key
+ * carries the state (see {@link cacheState}) so no entry outlives the state it
+ * was computed in. A week bounds staleness if a past day is ever re-ingested
+ * while still covering a day's ~2-week navigable life in one computation.
  * The same flag tells the producer whether the window is classified, so its
  * pipeline can drop the unclassified magnitude guard (see
  * {@link realDeviationMatchFor}); a window mixing classified and live days
@@ -86,7 +113,7 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  return unstable_cache(fn, [...keyParts, final ? "final" : "live"], {
+  return unstable_cache(fn, [...keyParts, cacheState(final, range, liveRevalidate)], {
     revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
   })(final);
 }
