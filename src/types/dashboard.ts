@@ -14,9 +14,9 @@ export interface FleetSummary {
   late_pct: number | null;
   route_count: number;
   /**
-   * Trips cancelled outright in the window. Counted separately because a
-   * cancellation produces no arrival, so it cannot appear in the percentages
-   * above - null when the count wasn't fetched.
+   * Trips flagged cancelled in the window, counted from the flags because a
+   * cancellation produces no arrival row (the percentages take it in as the
+   * wait for the next trip) - null when the count wasn't fetched.
    */
   cancelled: number | null;
 }

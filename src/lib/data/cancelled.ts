@@ -285,11 +285,10 @@ export async function getTripCancellation(
 /**
  * How many trips were cancelled outright in a window.
  *
- * A cancelled trip carries no stop times, so it never becomes an ArrivalEvent
- * and cannot count as late - cancelling a service quietly *improves* a route's
- * on-time rate. This is the counterweight: the worst thing a service can do
- * against its schedule, counted separately and shown beside the on-time figure.
- * Forward-only, since nothing was stored before capture began.
+ * A cancelled trip carries no stop times, so it never becomes an ArrivalEvent;
+ * the punctuality figures take it in as the wait for the next trip
+ * (lib/rider-wait.ts), and this counts the flagged trips themselves, reinstated
+ * ones included. Forward-only, since nothing was stored before capture began.
  * @param range - The window to count over (a service day, week, or month).
  * @param filter - Mode and school-service filters, matching the other day queries.
  * @param revalidate - Cache TTL in seconds.
@@ -329,9 +328,8 @@ const ALL_ROUTES = 10_000;
 
 /**
  * Cancellations per route slug in a window, for the note beside each route on
- * the "Most off-schedule" boards. The ranking itself stays on measured delay: a
- * cancellation has no deviation to average, so it is shown next to the route
- * rather than folded into its score.
+ * the "Most off-schedule" boards. The count sits beside the score, which already
+ * takes the cancellations in as the wait for the next trip.
  * @param range - The window to count over (a service day, week, or month).
  * @param filter - Mode and school-service filters, matching the board's rows.
  * @param revalidate - Cache TTL in seconds.
