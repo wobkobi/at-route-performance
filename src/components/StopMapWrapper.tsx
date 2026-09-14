@@ -2,6 +2,7 @@
 // src/components/StopMapWrapper.tsx
 // Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
+import type { OffRoutePoint } from "@/components/StopMap";
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
@@ -50,6 +51,8 @@ interface StopMapWrapperProps {
    * Pass all raw GTFS direction ids that alias to the active direction.
    */
   filterDirectionIds?: number[];
+  /** Readings of the vehicle off its road path, in time order (trip map). */
+  offRoute?: OffRoutePoint[];
   className?: string;
 }
 

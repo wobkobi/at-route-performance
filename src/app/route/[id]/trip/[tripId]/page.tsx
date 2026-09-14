@@ -5,11 +5,13 @@ import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { TripCancellationNote } from "@/components/TripCancellationNote";
+import { TripDetourNote } from "@/components/TripDetourNote";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import {
   getLatestTripDay,
   getTripCancellation,
+  getTripDetour,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -72,11 +74,12 @@ export default async function TripPage({
   const day =
     dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
   // An AT outage costs this request its schedule and road path, not the day's cache entries.
-  const [timeline, scheduledStops, roadPath, flag] = await Promise.all([
+  const [timeline, scheduledStops, roadPath, flag, detour] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
     getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
     getTripShape(tripId).catch((): Array<[number, number]> => []),
     getTripCancellation(tripId, day),
+    day ? getTripDetour(tripId, day) : Promise.resolve(null),
   ]);
   const { route, vehicle_id } = timeline;
   // Nothing knows this run: no route row, no arrival on any day, no schedule.
@@ -149,6 +152,19 @@ export default async function TripPage({
   // repeats every day, so an older run would otherwise show today's vehicle.
   const isLiveRun = day !== null && nzServiceDayString(day.start) === nzServiceDayString();
 
+  // Detour: the stop nearest the furthest off-route reading places it for the
+  // reader, since the readings carry no street names.
+  const furthest = detour?.sightings.reduce((a, b) => (b.distanceM > a.distanceM ? b : a));
+  const nearestStop = furthest
+    ? (mergedStops.reduce<{ name: string; d: number } | null>((best, s) => {
+        const d = Math.hypot(
+          s.lat - furthest.lat,
+          (s.lon - furthest.lon) * Math.cos((s.lat * Math.PI) / 180),
+        );
+        return best === null || d < best.d ? { name: s.name, d } : best;
+      }, null)?.name ?? null)
+    : null;
+
   const title = route?.shortName ?? slug;
   const firstServed = mergedStops.find(
     (s): s is { kind: "served" } & TripStop => s.kind === "served",
@@ -199,6 +215,15 @@ export default async function TripPage({
         </p>
       </header>
 
+      {detour && (
+        <TripDetourNote
+          sightings={detour.sightings}
+          alert={detour.alert}
+          nearestStop={nearestStop}
+          noun={routeMode === "TRAIN" ? "train" : routeMode === "FERRY" ? "ferry" : "bus"}
+        />
+      )}
+
       {flag && stage && (
         <TripCancellationNote
           stage={stage}
@@ -232,6 +257,11 @@ export default async function TripPage({
             routeId={slug}
             live={isLiveRun}
             filterTripId={tripId}
+            offRoute={detour?.sightings.map((s) => ({
+              lat: s.lat,
+              lon: s.lon,
+              label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
+            }))}
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
             className="h-100"
           />

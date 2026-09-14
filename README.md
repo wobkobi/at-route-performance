@@ -20,6 +20,11 @@ the Routes list, the per-route and per-stop pages - is built from those two coll
   Waiheke & islands) come from where each route stopped over the last week, placed against
   approximate boundaries in [`src/lib/areas.ts`](src/lib/areas.ts). AT publishes no fare zone for a
   stop.
+- **Detours** come from GPS, not alerts. Each ingest poll measures every bus and train part-way
+  through a trip against that trip's road shape, and a trip counts as having left its route when two
+  readings more than 200 m off it fall between arrivals it recorded before and after (see
+  [`src/lib/off-route.ts`](src/lib/off-route.ts)). AT's detour alert is shown alongside when one was
+  active. Ferries are left out, since a sailing's shape is a rough line between wharves.
 - **Ghost readings** are excluded. AT reuses a `trip_id` against a later vehicle block, so one run
   can report a near-constant hour-off offset at every stop. A nightly pass classifies those by shape
   rather than by size, so genuinely catastrophic delays survive into the stats (see
