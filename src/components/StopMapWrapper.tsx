@@ -35,8 +35,10 @@ interface StopMapWrapperProps {
   }>;
   /** Per-variant stop-coordinate sequences drawn as the route path. */
   routeLines?: Array<Array<[number, number]>>;
-  /** When set, the map polls and plots live vehicles for this route. */
+  /** Route id, keying the saved viewport and the live-vehicle poll. */
   routeId?: string;
+  /** Poll and plot the route's live vehicles; set only when the view covers now. */
+  live?: boolean;
   /** Route transport mode, selecting the live-vehicle glyph. */
   mode?: "BUS" | "TRAIN" | "FERRY";
   /** When set, the map centres on this stop and opens its popup. */

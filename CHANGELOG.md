@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.15.1] - 2026-09-14
+
+### Fixed
+
+- Maps on past days showed where the route's vehicles are right now. The route map polls live
+  vehicles only on today's day view or the rolling week ending today, not on a past day or a
+  stepped-back week, and a trip page only for a run on today's service day. The route trip board
+  only looks up LIVE badges for today: AT reuses trip ids every day, so a past day's run could be
+  marked LIVE because the same trip id was running now.
+
 ## [1.15.0] - 2026-09-14
 
 ### Added
