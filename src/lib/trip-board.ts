@@ -2,14 +2,22 @@
 // Row order for a route's "of the day" board: where cancelled trips sit among the
 // running ones. A cancellation has a scheduled start but no delay, so it takes
 // its place in departure order and falls below every ranked run on the delay
-// sorts instead of pinning to the top of whichever sort is active.
+// sorts instead of pinning to the top of whichever sort is active. A trip that
+// recorded arrivals and was also flagged (cut short mid-trip, or cancelled and
+// then reinstated) stays one ranked run carrying its stage, not a run plus a
+// separate cancelled row.
+import type { CancellationStage } from "@/lib/cancellation";
 import type { CancelledTripRow } from "@/lib/data/cancelled";
 import type { TripSort } from "@/lib/data/trips";
 import type { PerTripStat } from "@/types/api";
 
-/** One row of the trip board: a ranked running trip or an unranked cancellation. */
+/**
+ * One row of the trip board: a ranked running trip (with its cancellation stage
+ * when AT also flagged it) or an unranked cancellation that recorded nothing.
+ */
 export type TripBoardRow =
-  { kind: "run"; trip: PerTripStat; rank: number } | { kind: "cancelled"; trip: CancelledTripRow };
+  | { kind: "run"; trip: PerTripStat; rank: number; cancellation: CancellationStage | null }
+  | { kind: "cancelled"; trip: CancelledTripRow };
 
 /** A running-trip row of {@link TripBoardRow}. */
 type RunRow = Extract<TripBoardRow, { kind: "run" }>;
@@ -65,6 +73,7 @@ function byStart(a: string | null, b: string | null): number {
  * in at its scheduled start (following the reversed direction too); on the
  * delay sorts, where it has nothing to rank by, cancellations follow the last
  * run in departure order. A cancellation with no known start always goes last.
+ * A cancellation whose trip is also among the runs is folded into that run.
  * @param runs - The running trips, already in the active sort and direction.
  * @param cancelled - The day's cancelled trips, any order.
  * @param sort - The active ordering.
@@ -77,9 +86,21 @@ export function buildTripBoardRows(
   sort: TripSort,
   isReversed: boolean,
 ): TripBoardRow[] {
-  const ranked: RunRow[] = runs.map((trip, i) => ({ kind: "run", trip, rank: i + 1 }));
-  const known = cancelled.filter((c) => c.scheduled_start !== null);
-  const unknown = cancelled.filter((c) => c.scheduled_start === null);
+  const stageByTrip = new Map(cancelled.map((c) => [c.trip_id, c.stage]));
+  // A flagged trip that never ran can still appear among the runs through a
+  // leftover first-stop prediction; it belongs with the cancellations, unranked.
+  const ranked: RunRow[] = runs
+    .filter((trip) => stageByTrip.get(trip.trip_id) !== "before")
+    .map((trip, i) => ({
+      kind: "run",
+      trip,
+      rank: i + 1,
+      cancellation: stageByTrip.get(trip.trip_id) ?? null,
+    }));
+  const rankedIds = new Set(ranked.map((r) => r.trip.trip_id));
+  const unran = cancelled.filter((c) => !rankedIds.has(c.trip_id));
+  const known = unran.filter((c) => c.scheduled_start !== null);
+  const unknown = unran.filter((c) => c.scheduled_start === null);
   const direction = sort === "departure" && isReversed ? -1 : 1;
   known.sort((a, b) => direction * byStart(a.scheduled_start, b.scheduled_start));
   const tail: TripBoardRow[] = unknown.map((trip) => ({ kind: "cancelled", trip }));
