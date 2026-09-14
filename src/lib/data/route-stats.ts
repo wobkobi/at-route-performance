@@ -1,11 +1,13 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
 import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
+import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
 import { serviceDateExpr } from "@/lib/service-day-expr";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/station";
 import {
@@ -205,11 +207,27 @@ async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promis
 
 /**
  * Summarise a route's performance over a window (defaults to the last 7 days).
- * Cached briefly; shared by the route page and the API route.
+ * Cached briefly; shared by the route page and the API route. The summary
+ * counts the route's cancellations as the wait for the next trip (see
+ * lib/rider-wait.ts); the per-stop rows stay on measured arrivals.
  * @param p - Validated parameters.
  * @returns Summary and top stops.
  */
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
+  const range: DateRange = p.from && p.to ? { start: p.from, end: p.to } : nzLast7DaysRange();
+  const [stats, penalties] = await Promise.all([measuredRouteStats(p), getRouteRiderWait(range)]);
+  const penalty = penaltyForRoute(penalties, p.routeId);
+  return stats.summary && penalty
+    ? { ...stats, summary: applyPenalty(stats.summary, penalty) }
+    : stats;
+}
+
+/**
+ * {@link getRouteStats} on measured arrivals alone, cached.
+ * @param p - Validated parameters.
+ * @returns Summary and top stops.
+ */
+function measuredRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   return cachedForRange(
     (classified) => queryRouteStats(p, classified),
     [
@@ -309,7 +327,8 @@ function mergeRouteDays(rows: readonly RouteDay[]): RouteDay[] {
  * the same real-reading filter and per-mode on-time window as the route's day
  * view, so a day reads the same in both places. Supply `from`/`to` for a
  * specific window; omit both for the last seven service days. Days with no
- * arrivals are omitted.
+ * arrivals are omitted. Each day counts the route's cancellations that day as
+ * the wait for the next trip (see lib/rider-wait.ts).
  * @param routeId - AT route id (slug form).
  * @param from - Inclusive window start (UTC). Omit for the rolling week.
  * @param to - Exclusive window end (UTC). Omit for the rolling week.
@@ -321,7 +340,7 @@ export async function getRouteDailyStats(
   to?: Date,
 ): Promise<RouteDay[]> {
   const range: DateRange = from && to ? { start: from, end: to } : nzLast7DaysRange();
-  return cachedForRange(
+  const days = await cachedForRange(
     async () => {
       // DailyRouteSummary stores versioned route IDs (e.g. "209-217"), not slugs.
       const routeIds = await routeIdsForSlug(routeId);
@@ -415,4 +434,8 @@ export async function getRouteDailyStats(
     range,
     300,
   );
+  const penalties = await Promise.all(
+    days.map((d) => getRouteRiderWait(nzServiceDayRange(d.date))),
+  );
+  return days.map((d, i) => applyPenalty(d, penaltyForRoute(penalties[i] ?? {}, routeId)));
 }

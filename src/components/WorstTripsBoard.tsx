@@ -5,7 +5,8 @@
 // doesn't drop it. Both are client navigations that keep the scroll position,
 // so a sort or page change swaps the board in place instead of reloading the
 // document behind the route skeleton. Rows arrive already laid out (see
-// trip-board.ts): cancelled trips carry a CANCELLED badge and no rank, a run AT
+/// trip-board.ts): cancelled trips carry a CANCELLED badge, and on the delay sorts
+// a rank and the wait a rider had for the next trip when that is known; a run AT
 // also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT SHORT on a
 // phone, or REINSTATED), a run whose vehicle left its route an OFF ROUTE badge, running
 // trips get a LIVE badge from the passed-in live id set, and ranks stay
@@ -20,7 +21,7 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDelay } from "@/lib/format";
+import { formatDelay, formatDuration } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
@@ -195,7 +196,9 @@ export function WorstTripsBoard({
                   key={`cancelled-${c.trip_id}`}
                   className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm transition-colors first:border-0 hover:bg-at-shore-pale"
                 >
-                  <span className="w-6 shrink-0" />
+                  <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
+                    {row.rank}
+                  </span>
                   {/* Links to the trip page, which lists the stops the trip would have served. */}
                   <Link
                     href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(c.trip_id)}${c.scheduled_start ? `?d=${encodeURIComponent(c.scheduled_start)}` : ""}`}
@@ -211,6 +214,14 @@ export function WorstTripsBoard({
                   <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
                     {CANCELLATION_BADGE.before}
                   </span>
+                  {row.waitSec !== undefined && (
+                    <span
+                      title="A rider waited this long for the next trip"
+                      className="shrink-0 font-semibold text-at-late tabular-nums"
+                    >
+                      {formatDuration(row.waitSec)} wait
+                    </span>
+                  )}
                   <ChevronRight className="shrink-0 text-at-muted" />
                 </li>
               );

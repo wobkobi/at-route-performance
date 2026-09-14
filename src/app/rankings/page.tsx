@@ -216,7 +216,8 @@ async function RankingsBody({
       </div>
 
       <p className="text-xs text-at-muted">
-        Rankings are built from real-time stop events and refresh hourly.
+        Rankings are built from real-time stop events and refresh hourly. A cancelled trip counts as
+        late at every stop it missed, by the wait for the next trip.
         {(offScheduleDeltas || reliableDeltas) &&
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>

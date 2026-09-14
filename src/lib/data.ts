@@ -21,6 +21,8 @@ export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
+export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
+export type { DayRiderWait } from "@/lib/data/rider-wait";
 export { getRouteAreas } from "@/lib/data/route-areas";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";

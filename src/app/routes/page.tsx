@@ -162,7 +162,8 @@ export default async function RoutesPage({
       <p className="text-xs text-at-muted">
         Areas come from the stops each route served over the last seven days, placed against
         approximate boundaries; a route is listed under every area it serves. Routes with
-        cancellations but no recorded arrivals are listed without punctuality figures.
+        cancellations but no recorded arrivals are listed without punctuality figures. A cancelled
+        trip counts as late at every stop it missed, by the wait for the next trip.
       </p>
     </main>
   );

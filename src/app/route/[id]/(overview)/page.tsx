@@ -31,6 +31,7 @@ import {
   getRouteDailyStats,
   getRouteNames,
   getRouteStats,
+  getTripRiderWait,
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
@@ -40,6 +41,7 @@ import { lineName } from "@/lib/line-name";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView } from "@/lib/route-view";
 import {
@@ -50,7 +52,7 @@ import {
   weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
-import { buildTripBoardRows } from "@/lib/trip-board";
+import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
@@ -339,26 +341,30 @@ export default async function RoutePage({
 
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
-  const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds] = await Promise.all([
-    isWeekView
-      ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
-      : getWorstTripsOfDay({
-          routeId: slug,
-          range,
-          thresholdSec,
-          sort: tripSort,
-          limit: TRIPS_FETCH_CAP,
-        }),
-    buildRouteView(slug, byStop, routeMode),
-    getEarliestDataDay(1),
-    // Rolling default covers the last seven service days, today included;
-    // a fixed period uses its calendar week.
-    getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
-    isWeekView
-      ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
-      : getCancelledTrips(slug, range),
-    isWeekView ? Promise.resolve<string[]>([]) : getDetouredTripIds(slug, range),
-  ]);
+  const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds, tripWaits] =
+    await Promise.all([
+      isWeekView
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
+        : getWorstTripsOfDay({
+            routeId: slug,
+            range,
+            thresholdSec,
+            sort: tripSort,
+            limit: TRIPS_FETCH_CAP,
+          }),
+      buildRouteView(slug, byStop, routeMode),
+      getEarliestDataDay(1),
+      // Rolling default covers the last seven service days, today included;
+      // a fixed period uses its calendar week.
+      getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
+      isWeekView
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
+        : getCancelledTrips(slug, range),
+      isWeekView ? Promise.resolve<string[]>([]) : getDetouredTripIds(slug, range),
+      isWeekView
+        ? Promise.resolve<Awaited<ReturnType<typeof getTripRiderWait>>>({})
+        : getTripRiderWait(range),
+    ]);
 
   // Week stepper navigation - computed after earliestDay is available.
   let weekPrevHref: string | null = null;
@@ -413,7 +419,19 @@ export default async function RoutePage({
   const diagramDirections =
     activeEntry == null ? view.directions : { [activeEntry[0]]: activeEntry[1] };
 
-  const sortedTrips = isReversed ? [...trips].reverse() : trips;
+  // A cut-short run carries the wait for the stops it never reached (see
+  // lib/rider-wait.ts), which can move it on a delay sort, so those sorts are
+  // redone here rather than taken from the database.
+  const penalisedTrips = trips.map((t) => withTripPenalty(t, tripWaits[t.trip_id]));
+  const sortedTrips =
+    tripSort === "departure"
+      ? isReversed
+        ? [...penalisedTrips].reverse()
+        : penalisedTrips
+      : sortRuns(penalisedTrips, tripSort, isReversed);
+  const cancelledWaits = Object.fromEntries(
+    Object.entries(tripWaits).map(([tripId, p]) => [tripId, p.waitSec]),
+  );
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
   const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
@@ -474,6 +492,7 @@ export default async function RoutePage({
     cancelledTrips.filter(inActiveDir),
     tripSort,
     isReversed,
+    cancelledWaits,
   );
 
   const totalTrips = dirTrips.length;

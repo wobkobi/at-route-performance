@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.19.0] - 2026-09-14
+
+### Changed
+
+- Cancellations count against a route's punctuality as the wait a rider had. On arrivals alone a
+  cancelled trip can never be late, so cancelling runs improved a route's figures. Every stop a
+  flagged trip failed to serve now counts as late by the gap to the next trip that ran on the same
+  route and direction, capped at an hour: all the usual stops (the median of that day's runs) for a
+  trip that never ran, the stops after the cut for one cut short, nothing for one reinstated
+  (`lib/rider-wait.ts`). Applied at read time, per service day, so it reaches the Most off-schedule
+  and Most reliable boards, the KPI strips, the Routes page, and the route page's summary and week
+  table; the Shame boards and stop pages stay on measured arrivals, and the cancellation counts are
+  unchanged. Only routes with a flagged trip are rescanned, and each day is cached.
+- Route trip board: on Most off, Latest and Earliest a cancellation ranks among the runs by its wait
+  ("10m wait"), and a run cut short averages its unserved stops in at the wait, so it can move up. A
+  cancellation whose wait cannot be told stays unranked below the runs.
+
 ## [1.18.0] - 2026-09-14
 
 ### Added
