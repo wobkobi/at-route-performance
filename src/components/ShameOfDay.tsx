@@ -19,7 +19,7 @@ export interface ShameOfDayProps {
   href: string;
   /**
    * The time period being shown - controls empty-state copy. Defaults to `"day"`.
-   * Use `"week"` or `"month"` when rendering on the rankings page.
+   * Use `"week"` or `"month"` on the home page's week or month view.
    */
   period?: "day" | "week" | "month";
   /** All hourly shame entries for the day, used to count this route's appearances. */

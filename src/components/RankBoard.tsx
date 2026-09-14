@@ -81,7 +81,7 @@ export interface RankBoardProps {
 
 /**
  * Render a ranked board of routes (most off-schedule or most reliable) from the
- * rows given; the home and rankings pages pass the top ten and link the heading
+ * rows given; the home page passes the top ten and link the heading
  * to the full ranking on the Routes page.
  * @param props - Board props.
  * @param props.title - Board heading.

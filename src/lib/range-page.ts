@@ -1,8 +1,8 @@
 // src/lib/range-page.ts
-// Day / Week / Month window handling for the Routes and Cancellations pages:
-// parse `?window`, resolve the range and its stepper, and the query a route link
-// carries so the route opens on the same window. Week and month anchor to the
-// latest day with data, as the rankings page does (see rankings-page.ts).
+// Day / Week / Month window handling for the Overview, Routes and Cancellations
+// pages: parse `?window`, resolve the range and its stepper, and the query a route
+// link carries so the route opens on the same window. Week and month anchor to the
+// latest day with data (see rankings-page.ts).
 import {
   resolveMonthNav,
   resolveRequestedDay,
@@ -10,7 +10,7 @@ import {
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { resolveRange } from "@/lib/rankings-page";
-import { type DateRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { type DateRange, nzServiceDayString, parseYmd, shiftWeek } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** The window a range page shows. */
@@ -102,6 +102,36 @@ export function periodRangeNav(
       ? resolveWeekNav({ periodParam: period, earliestDay, makeHref, now: anchor })
       : resolveMonthNav({ periodParam: period, earliestDay, makeHref, now: anchor });
   return { range, period, nav: { window, label, prevHref, nextHref } };
+}
+
+/**
+ * The week `period` holding a day, for a Week toggle that stays on the day's
+ * week: its Monday, or null (the rolling last 7 days) for today.
+ * @param serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param today - Today's service date (injectable for tests).
+ * @returns The Monday `YYYY-MM-DD`, or null.
+ */
+export function weekPeriodOf(
+  serviceDate: string,
+  today: string = nzServiceDayString(),
+): string | null {
+  if (serviceDate >= today) return null;
+  const { y, mo, d } = parseYmd(serviceDate);
+  const weekday = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+  return shiftWeek(serviceDate, -((weekday + 6) % 7));
+}
+
+/**
+ * The home page heading for a window. The stepper beside it names the date, so
+ * the heading only says whether the window is the current one.
+ * @param nav - The stepper state for the shown window.
+ * @param period - The shown week or month, or null for the current one.
+ * @returns The heading text.
+ */
+export function overviewHeading(nav: RangeNav, period: string | null): string {
+  if (nav.window === "day")
+    return nav.hasNext ? "How bad was it that day?" : "How bad was it today?";
+  return `How bad was ${period === null ? "this" : "that"} ${nav.window}?`;
 }
 
 /**

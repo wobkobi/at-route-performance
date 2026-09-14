@@ -43,7 +43,7 @@ export const metadata: Metadata = {
 
 /** Cache TTL for the live day's rows (seconds). */
 const DAY_REVALIDATE = 300;
-/** Cache TTL for a week or month's rows (seconds), as on the rankings page. */
+/** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
 const PERIOD_REVALIDATE = 3600;
 /** Row cap that returns every route with a cancellation. */
 const ALL_ROUTES = 10_000;

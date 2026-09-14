@@ -1,6 +1,12 @@
 // src/lib/range-page.test.ts
 // Unit tests for the Day / Week / Month window helpers.
-import { dayRangeNav, parseRangeWindow, routeLinkQuery } from "@/lib/range-page";
+import {
+  dayRangeNav,
+  overviewHeading,
+  parseRangeWindow,
+  routeLinkQuery,
+  weekPeriodOf,
+} from "@/lib/range-page";
 import { nzServiceDayRange } from "@/lib/time";
 import { describe, expect, it } from "vitest";
 
@@ -47,5 +53,34 @@ describe("routeLinkQuery", () => {
 
   it("sends a month to the route's default view, which has no month", () => {
     expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("");
+  });
+});
+
+describe("weekPeriodOf", () => {
+  it("keeps today on the rolling week", () => {
+    expect(weekPeriodOf(TODAY, TODAY)).toBeNull();
+  });
+
+  it("snaps a past day to its Monday", () => {
+    expect(weekPeriodOf("2026-09-13", TODAY)).toBe("2026-09-07");
+    expect(weekPeriodOf("2026-09-07", TODAY)).toBe("2026-09-07");
+    expect(weekPeriodOf("2026-09-01", TODAY)).toBe("2026-08-31");
+  });
+});
+
+describe("overviewHeading", () => {
+  const day = { window: "day", serviceDate: TODAY, hasPrev: true, nextIsToday: false } as const;
+  const week = { window: "week", label: "Last 7 days", prevHref: null, nextHref: null } as const;
+
+  it("names today, or another day, from the stepper", () => {
+    expect(overviewHeading({ ...day, hasNext: false }, null)).toBe("How bad was it today?");
+    expect(overviewHeading({ ...day, hasNext: true }, null)).toBe("How bad was it that day?");
+  });
+
+  it("tells the current week or month from a stepped-back one", () => {
+    expect(overviewHeading(week, null)).toBe("How bad was this week?");
+    expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
+      "How bad was that month?",
+    );
   });
 });

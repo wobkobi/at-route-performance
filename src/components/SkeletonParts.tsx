@@ -113,7 +113,7 @@ export function FeatureCardSkeleton({
 }
 
 /**
- * Mirrors the home and rankings pair of highlight cards.
+ * Mirrors the home page's pair of highlight cards.
  * @returns The two-card grid placeholder.
  */
 export function FeatureCardPairSkeleton(): JSX.Element {
@@ -132,7 +132,7 @@ export function FeatureCardPairSkeleton(): JSX.Element {
  * 1px rules.
  * @param root0 - Props.
  * @param root0.caption - Whether the board carries the on-time caption.
- * @param root0.rows - How many rows to draw (the home and rankings boards show ten).
+ * @param root0.rows - How many rows to draw (the home boards show ten).
  * @returns The board placeholder.
  */
 export function RankBoardSkeleton({

@@ -306,7 +306,7 @@ export async function getCancelledCount(
       return prisma.cancelledTrip.count({
         where: {
           // Range match, not equality: the same helper serves a single service
-          // day and the rankings page's week and month windows.
+          // day and its week and month windows.
           serviceDate: { gte: range.start, lt: range.end },
           ...(routeIds ? { routeId: { in: routeIds } } : {}),
         },
@@ -380,7 +380,7 @@ export async function getCancelledRoutes(
         by: ["routeId"],
         where: {
           // Range match, not equality: the same helper serves a single service
-          // day and the rankings page's week and month windows.
+          // day and its week and month windows.
           serviceDate: { gte: range.start, lt: range.end },
           ...(routeIds ? { routeId: { in: routeIds } } : {}),
         },

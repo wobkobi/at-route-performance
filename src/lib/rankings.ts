@@ -1,5 +1,5 @@
 // src/lib/rankings.ts
-// Aggregate, sort and rank per-route rows for the rankings page.
+// Aggregate, sort and rank per-route rows for the home page boards and the Routes page.
 // Fleet totals are event-weighted so the KPI strip always reflects exactly the
 // rows on screen - turning school buses off or filtering by mode drops their
 // events too. Boards rank by signed delay (latest/earliest) or by average

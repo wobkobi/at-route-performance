@@ -81,7 +81,7 @@ function dataDayNoon(day: string): Date {
  */
 export async function getLatestEventDate(): Promise<Date | null> {
   // Indexed endpoint lookup; still cached because the latest event only
-  // advances once per ingest cycle and this sits on the rankings page's
+  // advances once per ingest cycle and this sits on the home page's
   // critical path.
   const iso = await unstable_cache(
     async () => (await endpointEventTime(-1))?.toISOString() ?? null,

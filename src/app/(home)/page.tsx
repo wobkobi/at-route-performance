@@ -1,5 +1,6 @@
 // src/app/(home)/page.tsx
-// Home page rendering today's network performance dashboard. When
+// Home page: the network dashboard for a day, week or month. The day view is
+// rendered here; a week or month streams in PeriodOverview behind the header. When
 // no day is requested and the current service day is too sparse to fill the
 // boards (early morning, or ingest catching up), it falls back to the most
 // recent day that does. Mode, school-bus, delay-direction, and day filters each
@@ -10,12 +11,15 @@
 // streaming it in shoved the whole dashboard down as the reader arrived.
 
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
+import { PeriodOverview } from "@/components/PeriodOverview";
+import { RangeControls } from "@/components/RangeControls";
 import { RankBoard } from "@/components/RankBoard";
+import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { FeatureCardPairSkeleton } from "@/components/SkeletonParts";
 import { WorstStopCard } from "@/components/WorstStopCard";
@@ -24,6 +28,7 @@ import {
   getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
+  getLatestEventDate,
   getRankings,
   getShameOfDay,
   getShameRouteStreak,
@@ -32,6 +37,7 @@ import {
 import { dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { dayRangeNav, overviewHeading, parseRangeWindow, periodRangeNav } from "@/lib/range-page";
 import {
   deriveBoards,
   deriveOffSchedule,
@@ -40,9 +46,11 @@ import {
   summariseRows,
   type DelayDirection,
 } from "@/lib/rankings";
+import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
+import { buildShameHref } from "@/lib/shame-page";
+import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
@@ -55,6 +63,8 @@ const BOARD_SIZE = 10;
 
 /** Query params for the home page. */
 interface HomeSearchParams {
+  window?: string;
+  period?: string;
   mode?: string;
   school?: string;
   dir?: string;
@@ -62,9 +72,54 @@ interface HomeSearchParams {
 }
 
 /**
- * Home: today's network performance dashboard.
+ * Home for a week or month. The header and stepper render from two cheap cached
+ * lookups; the ranking batch streams in behind them.
+ * @param root0 - Props.
+ * @param root0.window - "week" or "month".
+ * @param root0.sp - The page's query params.
+ * @returns Page markup.
+ */
+async function PeriodHome({
+  window,
+  sp,
+}: {
+  window: "week" | "month";
+  sp: HomeSearchParams;
+}): Promise<JSX.Element> {
+  const { mode, dir, includeSchool } = parseRankingsParams(sp);
+  // Anchor every window to the latest day with data so a quiet "today" still
+  // shows a populated period.
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  const anchor = latest ?? new Date();
+  const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest);
+  return (
+    <main className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+          {overviewHeading(nav, period)}
+        </h1>
+        <RangeControls basePath="/" nav={nav} />
+      </header>
+
+      <Suspense fallback={<RankingsBodySkeleton />}>
+        <PeriodOverview
+          window={window}
+          mode={mode}
+          dir={dir}
+          includeSchool={includeSchool}
+          period={period ?? undefined}
+          range={range}
+          anchor={anchor}
+        />
+      </Suspense>
+    </main>
+  );
+}
+
+/**
+ * Home: the network performance dashboard.
  * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (mode, school, delay direction, day).
+ * @param root0.searchParams - Optional query params (window, period, mode, school, delay direction, day).
  * @returns Page markup.
  */
 export default async function Home({
@@ -73,6 +128,8 @@ export default async function Home({
   searchParams?: Promise<HomeSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  const window = parseRangeWindow(sp.window);
+  if (window !== "day") return <PeriodHome window={window} sp={sp} />;
   dropTodayParam("/", sp);
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
@@ -96,7 +153,6 @@ export default async function Home({
     serviceDate = nzServiceDayString(range.start);
     rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
   }
-  const hasNextDay = serviceDate < nzServiceDayString();
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
   // Kick the alerts fetch off early so it overlaps the queries below; it is
@@ -105,7 +161,6 @@ export default async function Home({
   // heavier "of the day" cards do still stream.
   const alertsPromise = getServiceAlerts();
   const earliestDay = await getEarliestDataDay(1);
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
@@ -139,21 +194,17 @@ export default async function Home({
   const modePreserved: Record<string, string> = {};
   const schoolPreserved: Record<string, string> = {};
   const dirPreserved: Record<string, string> = {};
-  const dayPreserved: Record<string, string> = {};
   if (mode) {
     schoolPreserved.mode = mode;
     dirPreserved.mode = mode;
-    dayPreserved.mode = mode;
   }
   if (includeSchool) {
     modePreserved.school = "1";
     dirPreserved.school = "1";
-    dayPreserved.school = "1";
   }
   if (dir) {
     modePreserved.dir = dir;
     schoolPreserved.dir = dir;
-    dayPreserved.dir = dir;
   }
   // A non-default day pins itself onto every other control's links.
   if (requestedDay) {
@@ -162,36 +213,23 @@ export default async function Home({
     dirPreserved.day = requestedDay;
   }
 
-  const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/" : undefined;
-
-  const shameHref = buildHref("/shame/trip", {
-    day: serviceDate !== nzServiceDayString() ? serviceDate : undefined,
-    school: includeSchool ? "1" : undefined,
-    mode: mode ?? undefined,
-  });
+  const nav = dayRangeNav(serviceDate, earliestDay);
+  const shameHref = buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool });
 
   return (
     <main className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-          How bad was it today?
+          {overviewHeading(nav, null)}
         </h1>
-        <DayNav
-          basePath="/"
-          serviceDate={serviceDate}
-          preservedParams={dayPreserved}
-          hasPrev={hasPrevDay}
-          hasNext={hasNextDay}
-          nextHref={nextDayHref}
-        />
+        <RangeControls basePath="/" nav={nav} />
       </header>
 
       <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />
 
       <FleetSummary data={heroData} />
 
-      <h2 className="text-lg font-ultra tracking-zero text-at-ink">Shame of the day</h2>
+      <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
       <Suspense fallback={<FeatureCardPairSkeleton />}>
         <HomeShameCards
           range={range}
@@ -217,12 +255,14 @@ export default async function Home({
 
       {mode && visible.every((r) => r.events < boardMin) && (
         <p className="text-sm text-at-muted">
-          Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day — try a wider
-          window on the{" "}
-          <Link href="/rankings" className="underline">
-            rankings
+          Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day - try the{" "}
+          <Link
+            href={buildHref("/", { window: "week", mode, school: includeSchool ? "1" : undefined })}
+            className="underline"
+          >
+            week
           </Link>{" "}
-          page or switch back to All.
+          or switch back to All.
         </p>
       )}
 
