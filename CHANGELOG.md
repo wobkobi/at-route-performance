@@ -4,6 +4,24 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.20.1] - 2026-09-14
+
+### Fixed
+
+- Shame of the Day boards showed the wrong hours. The Data Cache answers an expired entry with its
+  stale value and refreshes it in the background, and the cache key only told a summarised window
+  from an unsummarised one. So at 9:14pm on production the Trips tab stopped at 7pm, Routes at 8pm
+  and Stops at 9pm (each as old as its last visit), and a finished day could open cut off at the
+  hour it was last viewed while live (Sunday 13 September loaded to 4pm on its first visit the next
+  evening). The key now carries three states: `final` (summarised), `ended` (over but not yet
+  summarised, so nothing computed while the day ran is reused) and `live-<n>`, which moves to a new
+  key every TTL so a live day is never more than one TTL behind (`cacheState` in
+  `lib/data/cache.ts`). Every date-scoped aggregation goes through it, and the ranking rows and the
+  cancellation counts behind the home, rankings, Routes and Shame pages now do too.
+- The Shame day boards put ten hours in the left column and the rest in the right, so a full day ran
+  5am to 2pm beside 3pm to 4am with a gap under the left. The rows now split evenly (12 and 12 for a
+  full day).
+
 ## [1.20.0] - 2026-09-14
 
 ### Added
