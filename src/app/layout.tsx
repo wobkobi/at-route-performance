@@ -50,7 +50,7 @@ export default function RootLayout({
         {/* Sticky white masthead with a hairline border, like at.govt.nz. */}
         <header className="sticky top-0 z-40 border-b border-at-border bg-at-surface">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 min-[1440px]:max-w-[80vw]">
-            <Link href="/" className="flex items-center gap-3">
+            <Link href="/" className="flex shrink-0 items-center gap-3">
               {/* Shore colourway on the light header; never recolour/distort (guide p13/p14) */}
               <Image
                 src="/source/logos/at-logo-shore.png"
@@ -60,7 +60,8 @@ export default function RootLayout({
                 priority
                 className="h-11 w-auto"
               />
-              <span className="text-lg font-ultra tracking-zero text-at-ink">
+              {/* The nav needs the width on a phone, where the logo stands alone. */}
+              <span className="hidden text-lg font-ultra tracking-zero text-at-ink sm:inline">
                 Transport Tracker
               </span>
             </Link>
@@ -101,6 +102,11 @@ export default function RootLayout({
                 <li>
                   <Link href="/" className="text-white/90 hover:text-at-safety">
                     Today
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/routes" className="text-white/90 hover:text-at-safety">
+                    Routes
                   </Link>
                 </li>
                 <li>

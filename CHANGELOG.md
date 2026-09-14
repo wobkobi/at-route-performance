@@ -4,6 +4,31 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.16.0] - 2026-09-14
+
+### Added
+
+- Routes page (`/routes`, in the top bar): every route for a day, week or month, with a KPI strip
+  over exactly the routes that pass the filters and a "More details" link to each route's page
+  (opening on the same day or week). Filters: search, mode, area, running late or early, enough data
+  to rank, had cancellations, and school buses. Sorts: route number, on-time %, average off by,
+  average delay, late %, early %, arrivals and cancellations, either direction. Filtering runs in
+  the browser and is written to the URL, so a filtered view reloads and shares as it is, and the
+  Day/Week/Month controls carry the filters along.
+- Areas (Central, North Shore, West, East, South, Hibiscus Coast & Rodney, Waiheke & islands). AT's
+  feed gives stops no zone, so each stop is placed by its coordinates against approximate boundaries
+  (`lib/areas.ts`), checked against stop names across 80 suburbs. A route belongs to every area
+  holding at least two of the stops it served over the last seven completed days, or a quarter of
+  them.
+- Routes with cancellations but no recorded arrivals (Te Huia, the Pine Harbour ferry) are listed
+  without punctuality figures, so the page's cancellation total matches the rankings page.
+
+### Changed
+
+- The All routes table left the home and rankings pages for the Routes page; both link to it with
+  their filters. The mode, school-bus and late/early chips share one row above the boards.
+- On a phone the header drops the "Transport Tracker" wordmark beside the logo so the nav fits.
+
 ## [1.15.1] - 2026-09-14
 
 ### Fixed

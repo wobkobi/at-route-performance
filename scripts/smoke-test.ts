@@ -64,6 +64,7 @@ interface PageSpec {
 const PAGE_OVERRIDES: Record<string, { name?: string; ignoreErrors?: string[] }> = {
   "/": { name: "Home" },
   "/rankings": { name: "Rankings" },
+  "/routes": { name: "Routes" },
   "/shame": { name: "Shame of the Day" },
 };
 
@@ -78,6 +79,7 @@ const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/route/NX1?dir=0", name: "Route NX1 (one direction)" },
   { path: "/route/NX1?window=week", name: "Route NX1 (week)", mustContain: ["Last 7 days"] },
   { path: "/rankings?window=month", name: "Rankings (month)" },
+  { path: "/routes?window=week&area=north", name: "Routes (week, North Shore)" },
   { path: "/shame/trip?window=week", name: "Shame trips (week)" },
   { path: "/shame/stop?window=week", name: "Shame stops (week)" },
   {

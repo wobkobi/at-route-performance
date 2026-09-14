@@ -39,10 +39,8 @@ export default function Loading(): JSX.Element {
         <RankBoardSkeleton />
       </div>
 
-      {/* Collapsed "All routes" details: px-4 py-3 around a 24px summary line */}
-      <div className="border border-at-border bg-at-surface px-4 py-3">
-        <Bone className="h-6 w-24" />
-      </div>
+      {/* The Routes link: one text-sm line */}
+      <Bone className="h-5 w-72" />
     </main>
   );
 }

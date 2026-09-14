@@ -13,9 +13,9 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
+import { ChevronRight } from "@/components/icons";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
-import { RouteTable, type RouteSort } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { FeatureCardPairSkeleton } from "@/components/SkeletonParts";
@@ -53,7 +53,6 @@ const TODAY_REVALIDATE = 300; // 5 minutes
 
 /** Query params for the home page. */
 interface HomeSearchParams {
-  sort?: string;
   mode?: string;
   school?: string;
   dir?: string;
@@ -63,7 +62,7 @@ interface HomeSearchParams {
 /**
  * Home: today's network performance dashboard.
  * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (table sort).
+ * @param root0.searchParams - Optional query params (mode, school, delay direction, day).
  * @returns Page markup.
  */
 export default async function Home({
@@ -73,9 +72,6 @@ export default async function Home({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   dropTodayParam("/", sp);
-  const sort = (
-    ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
-  ) as RouteSort;
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
@@ -128,10 +124,6 @@ export default async function Home({
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
   const availableModes = new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode));
-  // Route table always shows all routes regardless of the active mode chip.
-  const tableRows = includeSchool
-    ? rows
-    : rows.filter((r) => !isSchoolBus(r.short_name, r.long_name));
   // Full ranked lists: the boards show the top 10 and expand to the rest in place.
   const boards = deriveBoards(visible, { minEvents: boardMin, size: Infinity });
   const offSchedule = deriveOffSchedule(visible, {
@@ -145,12 +137,6 @@ export default async function Home({
   const schoolPreserved: Record<string, string> = {};
   const dirPreserved: Record<string, string> = {};
   const dayPreserved: Record<string, string> = {};
-  if (sort !== "on_time") {
-    modePreserved.sort = sort;
-    schoolPreserved.sort = sort;
-    dirPreserved.sort = sort;
-    dayPreserved.sort = sort;
-  }
   if (mode) {
     schoolPreserved.mode = mode;
     dirPreserved.mode = mode;
@@ -213,14 +199,17 @@ export default async function Home({
         />
       </Suspense>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <ModeFilter
-          active={mode}
-          basePath="/"
-          preservedParams={modePreserved}
-          availableModes={availableModes}
-        />
-        <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <ModeFilter
+            active={mode}
+            basePath="/"
+            preservedParams={modePreserved}
+            availableModes={availableModes}
+          />
+          <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+        </div>
+        <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
       </div>
 
       {mode && visible.every((r) => r.events < boardMin) && (
@@ -234,9 +223,6 @@ export default async function Home({
         </p>
       )}
 
-      <div className="flex justify-end">
-        <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <RankBoard
           title="Most off-schedule"
@@ -257,12 +243,18 @@ export default async function Home({
         />
       </div>
 
-      <details className="border border-at-border bg-at-surface">
-        <summary className="cursor-pointer px-4 py-3 font-semibold">All routes</summary>
-        <div className="p-2">
-          <RouteTable rows={tableRows} sort={sort} routeDay={linkDay} />
-        </div>
-      </details>
+      <Link
+        href={buildHref("/routes", {
+          day: linkDay,
+          mode: mode ?? undefined,
+          school: includeSchool ? "1" : undefined,
+          lean: dir ?? undefined,
+        })}
+        className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
+      >
+        Every route, with filters by area and more
+        <ChevronRight className="h-4 w-4" />
+      </Link>
     </main>
   );
 }
