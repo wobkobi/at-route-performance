@@ -6,7 +6,7 @@ feeds.
 The site polls AT's GTFS-RT trip updates every couple of minutes, stores one row per observed stop
 arrival with its signed deviation from schedule, and rolls each completed service day into per-route
 summaries that are kept indefinitely. Everything on the front end - the daily boards, the rankings,
-the per-route and per-stop pages - is built from those two collections.
+the Routes list, the per-route and per-stop pages - is built from those two collections.
 
 ## What it measures
 
@@ -16,6 +16,10 @@ the per-route and per-stop pages - is built from those two collections.
 - **Cancellations** are counted separately. A cancelled trip records no arrival, so it can never
   appear as "late" - without a separate count, cancelling a service silently improves a route's
   on-time rate.
+- **Areas** on the Routes page (Central, North Shore, West, East, South, Hibiscus Coast & Rodney,
+  Waiheke & islands) come from where each route stopped over the last week, placed against
+  approximate boundaries in [`src/lib/areas.ts`](src/lib/areas.ts). AT publishes no fare zone for a
+  stop.
 - **Ghost readings** are excluded. AT reuses a `trip_id` against a later vehicle block, so one run
   can report a near-constant hour-off offset at every stop. A nightly pass classifies those by shape
   rather than by size, so genuinely catastrophic delays survive into the stats (see

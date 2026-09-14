@@ -1,5 +1,5 @@
 // src/lib/rankings-page.ts
-// Window, sort and href helpers for the rankings page. Ranges are anchored to
+// Window, filter and href helpers for the rankings page. Ranges are anchored to
 // the latest day with data rather than the wall clock, so a quiet "today" still
 // opens on a populated period. The week view defaults to the rolling last 7
 // days; an explicit `period` is a calendar week reached by stepping back. A
@@ -23,15 +23,12 @@ import { buildHref } from "@/lib/utils";
 
 /** Active rankings window. */
 export type RankWindow = "week" | "month";
-/** Sort column for the rankings table. */
-export type RankSort = "route" | "events" | "avg_delay" | "on_time";
 /** Active mode filter, or null for every mode. */
 export type RankMode = "BUS" | "TRAIN" | "FERRY" | null;
-/** The active mode / school / sort / direction filters. */
+/** The active mode / school / direction filters. */
 export interface RankFilters {
   mode: string | null;
   school: boolean;
-  sort: string;
   dir: string | null;
 }
 
@@ -39,7 +36,6 @@ export interface RankFilters {
 export interface RankingsSearchParams {
   window?: string;
   period?: string;
-  sort?: string;
   mode?: string;
   school?: string;
   dir?: string;
@@ -48,7 +44,6 @@ export interface RankingsSearchParams {
 /** Parsed rankings params: validated controls plus the combined filter struct. */
 export interface ParsedRankingsParams {
   window: RankWindow;
-  sort: RankSort;
   mode: RankMode;
   dir: DelayDirection;
   includeSchool: boolean;
@@ -58,23 +53,19 @@ export interface ParsedRankingsParams {
 /**
  * Parse and validate the rankings query params.
  * @param sp - The raw search params.
- * @returns The validated window/sort/mode/direction plus the combined filters.
+ * @returns The validated window/mode/direction plus the combined filters.
  */
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
   const window: RankWindow = sp.window === "month" ? "month" : "week";
-  const sort = (
-    ["route", "events", "avg_delay", "on_time"].includes(sp.sort ?? "") ? sp.sort : "on_time"
-  ) as RankSort;
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as RankMode;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
   const includeSchool = sp.school === "1";
   return {
     window,
-    sort,
     mode,
     dir,
     includeSchool,
-    filters: { mode, school: includeSchool, sort, dir },
+    filters: { mode, school: includeSchool, dir },
   };
 }
 
@@ -131,7 +122,7 @@ export function resolvePrevRange(
  * Build a rankings URL for a window/period, preserving the active filters.
  * @param window - The window.
  * @param period - The period (Monday `YYYY-MM-DD`), or null for the rolling default.
- * @param filters - The active mode / school / sort / direction filters.
+ * @param filters - The active mode / school / direction filters.
  * @returns The href.
  */
 export function rankHref(window: RankWindow, period: string | null, filters: RankFilters): string {
@@ -140,7 +131,6 @@ export function rankHref(window: RankWindow, period: string | null, filters: Ran
     period: period ?? undefined,
     mode: filters.mode ?? undefined,
     school: filters.school ? "1" : undefined,
-    sort: filters.sort !== "on_time" ? filters.sort : undefined,
     dir: filters.dir ?? undefined,
   });
 }

@@ -3,10 +3,10 @@
 
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
+import { ChevronRight } from "@/components/icons";
 import { ModeFilter } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
-import { RouteTable } from "@/components/RouteTable";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WindowControls } from "@/components/WindowControls";
@@ -38,11 +38,12 @@ import {
   resolveRange,
   type RankingsSearchParams,
   type RankMode,
-  type RankSort,
   type RankWindow,
 } from "@/lib/rankings-page";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { DateRange } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
+import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -51,12 +52,11 @@ const REVALIDATE = 3600; // 1 hour
 
 /**
  * Rankings body: runs the four-query ranking batch and derives the KPI strip,
- * shame cards, rank boards and route table. Streams in behind the header so
+ * shame cards and rank boards. Streams in behind the header so
  * the shell never waits on a cold period (a cold month fans out to ~30 per-day
  * aggregations).
  * @param root0 - Props.
  * @param root0.window - The active window.
- * @param root0.sort - Route-table sort column.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.dir - Delay-direction filter for the off-schedule board.
  * @param root0.includeSchool - Whether school services are included.
@@ -67,7 +67,6 @@ const REVALIDATE = 3600; // 1 hour
  */
 async function RankingsBody({
   window,
-  sort,
   mode,
   dir,
   includeSchool,
@@ -76,7 +75,6 @@ async function RankingsBody({
   anchor,
 }: {
   window: RankWindow;
-  sort: RankSort;
   mode: RankMode;
   dir: DelayDirection;
   includeSchool: boolean;
@@ -143,11 +141,6 @@ async function RankingsBody({
     schoolPreserved.mode = mode;
     dirPreserved.mode = mode;
   }
-  if (sort !== "on_time") {
-    modePreserved.sort = sort;
-    schoolPreserved.sort = sort;
-    dirPreserved.sort = sort;
-  }
   if (includeSchool) {
     modePreserved.school = "1";
     dirPreserved.school = "1";
@@ -174,18 +167,21 @@ async function RankingsBody({
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <ModeFilter
-          active={mode}
-          basePath="/rankings"
-          preservedParams={modePreserved}
-          availableModes={availableModes}
-        />
-        <SchoolBusToggle
-          active={includeSchool}
-          basePath="/rankings"
-          preservedParams={schoolPreserved}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <ModeFilter
+            active={mode}
+            basePath="/rankings"
+            preservedParams={modePreserved}
+            availableModes={availableModes}
+          />
+          <SchoolBusToggle
+            active={includeSchool}
+            basePath="/rankings"
+            preservedParams={schoolPreserved}
+          />
+        </div>
+        <DelayFilter active={dir} basePath="/rankings" preservedParams={dirPreserved} />
       </div>
 
       {mode && visible.every((r) => r.events < boardMin) && (
@@ -194,10 +190,6 @@ async function RankingsBody({
           wider window or switch back to All.
         </p>
       )}
-
-      <div className="flex justify-end">
-        <DelayFilter active={dir} basePath="/rankings" preservedParams={dirPreserved} />
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <RankBoard
@@ -229,7 +221,19 @@ async function RankingsBody({
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>
 
-      <RouteTable rows={visible} sort={sort} routeWindow={window} routePeriod={period} />
+      <Link
+        href={buildHref("/routes", {
+          window,
+          period,
+          mode: mode ?? undefined,
+          school: includeSchool ? "1" : undefined,
+          lean: dir ?? undefined,
+        })}
+        className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
+      >
+        Every route this {window}, with filters by area and more
+        <ChevronRight className="h-4 w-4" />
+      </Link>
     </>
   );
 }
@@ -239,7 +243,7 @@ async function RankingsBody({
  * stepper render immediately from cheap cached lookups; the ranking batch
  * streams in behind them.
  * @param root0 - Page props.
- * @param root0.searchParams - Window, period, and sort params.
+ * @param root0.searchParams - Window, period, mode, school and delay-direction params.
  * @returns Page markup.
  */
 export default async function RankingsPage({
@@ -248,7 +252,7 @@ export default async function RankingsPage({
   searchParams?: Promise<RankingsSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const { window, sort, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
+  const { window, mode, dir, includeSchool, filters } = parseRankingsParams(sp);
 
   // Anchor every window to the latest day with data so a quiet "today" still
   // shows a populated period. Both lookups are cheap cached point queries.
@@ -294,7 +298,6 @@ export default async function RankingsPage({
       <Suspense fallback={<RankingsBodySkeleton />}>
         <RankingsBody
           window={window}
-          sort={sort}
           mode={mode}
           dir={dir}
           includeSchool={includeSchool}

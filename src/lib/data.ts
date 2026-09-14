@@ -13,6 +13,7 @@ export type { CancelledRouteRow, CancelledTripRow, TripCancellation } from "@/li
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
+export { getRouteAreas } from "@/lib/data/route-areas";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";
 export {

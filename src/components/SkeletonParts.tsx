@@ -171,13 +171,14 @@ export function RankBoardSkeleton({
 }
 
 /**
- * Mirrors the filter rows above the boards: the mode chips with the school-bus
- * toggle, then the right-aligned All/Late/Early delay chips.
- * @returns The two filter rows.
+ * Mirrors the filter row above the boards: the mode chips with the school-bus
+ * toggle on the left, the All/Late/Early delay chips at the right (wrapping under
+ * them on a phone).
+ * @returns The filter row.
  */
 export function BoardFiltersSkeleton(): JSX.Element {
   return (
-    <>
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap gap-2">
           <ChipBone className="w-11" />
@@ -186,14 +187,12 @@ export function BoardFiltersSkeleton(): JSX.Element {
         </div>
         <ChipBone className="w-27" />
       </div>
-      <div className="flex justify-end">
-        <div className="flex flex-wrap gap-2">
-          <ChipBone className="w-11" />
-          <ChipBone className="w-14" />
-          <ChipBone className="w-16" />
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <ChipBone className="w-11" />
+        <ChipBone className="w-14" />
+        <ChipBone className="w-16" />
       </div>
-    </>
+    </div>
   );
 }
 
