@@ -6,7 +6,8 @@
 // nightly pass has (see deviation.ts), and a magnitude cut here would delete the
 // worst genuine delays along with the noise. Cancellations are recorded once per
 // trip per service day, and the vehicle feed is joined best-effort so a feed
-// outage leaves rows unnamed rather than failing.
+// outage leaves rows unnamed rather than failing. The same vehicle read feeds
+// the off-route check (lib/off-route.ts), also best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
@@ -15,8 +16,9 @@ import { requireCronAuth } from "@/lib/auth";
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
+import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { nzServiceDayRange } from "@/lib/time";
-import { fetchVehicleByTrip } from "@/lib/vehicles";
+import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -162,7 +164,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     // The tripupdates feed has no vehicle, so join the vehicle-locations feed by
     // trip_id to name each running vehicle. Best-effort: an empty map (off-peak,
     // or the feed failing) just leaves rows without a vehicle, never fails ingest.
-    const vehicleByTrip = await fetchVehicleByTrip().catch(() => new Map<string, string>());
+    const vehicles = await fetchVehicleSnapshot().catch((): VehicleSnapshot => ({
+      byTrip: new Map(),
+      readings: [],
+    }));
+    const vehicleByTrip = vehicles.byTrip;
 
     let seen = 0;
     let withTU = 0;
@@ -298,6 +304,17 @@ export async function POST(req: Request): Promise<NextResponse> {
       })),
     );
 
+    // Off-route readings never fail the poll: the arrival events above are the
+    // point of the run, and a missed reading only shortens a detour by one poll.
+    const offRouteCount = await recordOffRouteSightings(vehicles.readings, feed, serviceDate).catch(
+      (err: unknown) => {
+        console.warn("[INGEST] Off-route check failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return 0;
+      },
+    );
+
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
 
@@ -308,6 +325,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tripTried: tripRows.length,
       cancelledInserted: cancelledCount,
       cancelledTried: cancelledRows.length,
+      offRouteInserted: offRouteCount,
     } as {
       inserted: number;
       tried: number;
@@ -315,6 +333,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tripTried: number;
       cancelledInserted: number;
       cancelledTried: number;
+      offRouteInserted: number;
       debug?: DebugStats;
       sample?: StopRow | TripRow | null;
     };
@@ -341,6 +360,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tried: stopRows.length,
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
+      offRouteInserted: offRouteCount,
       duration_ms: duration,
       source: "cron",
     });

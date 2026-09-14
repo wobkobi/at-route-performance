@@ -26,6 +26,7 @@ import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
   getCancelledTrips,
+  getDetouredTripIds,
   getEarliestDataDay,
   getRouteDailyStats,
   getRouteNames,
@@ -338,7 +339,7 @@ export default async function RoutePage({
 
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
-  const [trips, view, earliestDay, weekDays, cancelledTrips] = await Promise.all([
+  const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds] = await Promise.all([
     isWeekView
       ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
       : getWorstTripsOfDay({
@@ -356,6 +357,7 @@ export default async function RoutePage({
     isWeekView
       ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
       : getCancelledTrips(slug, range),
+    isWeekView ? Promise.resolve<string[]>([]) : getDetouredTripIds(slug, range),
   ]);
 
   // Week stepper navigation - computed after earliestDay is available.
@@ -662,6 +664,7 @@ export default async function RoutePage({
                 preservedParams={tripPreserved}
                 page={tripPage}
                 totalPages={totalPages}
+                detouredTripIds={new Set(detouredTripIds)}
               />
             </Suspense>
             {tripsCapped && (

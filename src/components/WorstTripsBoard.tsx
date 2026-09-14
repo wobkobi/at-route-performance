@@ -7,7 +7,7 @@
 // document behind the route skeleton. Rows arrive already laid out (see
 // trip-board.ts): cancelled trips carry a CANCELLED badge and no rank, a run AT
 // also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT SHORT on a
-// phone, or REINSTATED), running
+// phone, or REINSTATED), a run whose vehicle left its route an OFF ROUTE badge, running
 // trips get a LIVE badge from the passed-in live id set, and ranks stay
 // continuous across pages. The section is `min-w-0` because it sits in a grid,
 // where it would otherwise grow to its truncating rows' full width on a phone.
@@ -50,6 +50,8 @@ export interface WorstTripsBoardProps {
   totalPages: number;
   /** Trip ids currently running live; those rows get a LIVE badge. */
   liveTripIds?: Set<string>;
+  /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
+  detouredTripIds?: ReadonlySet<string>;
 }
 
 /**
@@ -130,6 +132,7 @@ const SORTS: { key: TripSort; label: string }[] = [
  * @param props.page - The 1-based current page.
  * @param props.totalPages - Total number of pages.
  * @param props.liveTripIds - Trip ids currently broadcasting a live position (highlighted).
+ * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
  * @returns The board element.
  */
 export function WorstTripsBoard({
@@ -143,6 +146,7 @@ export function WorstTripsBoard({
   page,
   totalPages,
   liveTripIds,
+  detouredTripIds,
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
   return (
@@ -238,6 +242,14 @@ export function WorstTripsBoard({
                     {t.stops} stops
                   </span>
                 </Link>
+                {detouredTripIds?.has(t.trip_id) && (
+                  <span
+                    title="GPS put this vehicle well off its route mid-run"
+                    className="shrink-0 rounded bg-at-commercial px-1.5 py-0.5 text-xs font-bold text-at-ink"
+                  >
+                    OFF ROUTE
+                  </span>
+                )}
                 {row.cancellation && (
                   <span
                     title={STAGE_TITLE[row.cancellation]}

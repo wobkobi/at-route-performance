@@ -17,6 +17,8 @@ export type {
   TripCancellation,
 } from "@/lib/data/cancelled";
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
+export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
+export type { TripDetour } from "@/lib/data/off-route";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
 export { getRouteAreas } from "@/lib/data/route-areas";

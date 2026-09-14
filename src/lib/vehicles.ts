@@ -6,6 +6,7 @@
 
 import { fetchATTripUpdates, type TripUpdate } from "@/lib/at";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { VehicleReading } from "@/lib/off-route";
 
 /** A live vehicle position with its current schedule deviation (if known). */
 export interface LiveVehicle {
@@ -29,6 +30,8 @@ interface VehicleEntity {
     trip?: { trip_id?: string; route_id?: string; direction_id?: number | string };
     position?: { latitude?: number; longitude?: number; bearing?: number | string };
     vehicle?: { id?: string; label?: string };
+    /** Position timestamp, epoch seconds (a number or numeric string). */
+    timestamp?: number | string;
   };
 }
 
@@ -116,16 +119,24 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
   return out;
 }
 
+/** What the realtime ingest takes from one read of the vehicle-locations feed. */
+export interface VehicleSnapshot {
+  /** `trip_id` > vehicle label (fleet label preferred, else feed id) for every vehicle on a trip. */
+  byTrip: Map<string, string>;
+  /** Every vehicle on a trip with a position, for the off-route check. */
+  readings: VehicleReading[];
+}
+
 /**
- * Map each currently-tracked trip to its running vehicle (fleet label preferred,
- * else feed id), from the vehicle-locations feed. The realtime ingest tags
- * arrival rows with this so the trip boards can name the vehicle instead of
- * "unknown bus" - the tripupdates feed that ingest reads does not carry vehicle,
- * so this join (by trip_id, the same one the live map uses) is the source.
- * Uncached: the ingest wants the snapshot at its own moment.
- * @returns `trip_id` > vehicle label/id for every live vehicle on a trip.
+ * Read the vehicle-locations feed once for the realtime ingest. The trip map
+ * tags arrival rows so the trip boards can name the vehicle instead of "unknown
+ * bus" - the tripupdates feed that ingest reads does not carry vehicle, so this
+ * join (by trip_id, the same one the live map uses) is the source. The readings
+ * feed the off-route check (see lib/off-route.ts). Uncached: the ingest wants
+ * the snapshot at its own moment.
+ * @returns The trip map and the positioned readings.
  */
-export async function fetchVehicleByTrip(): Promise<Map<string, string>> {
+export async function fetchVehicleSnapshot(): Promise<VehicleSnapshot> {
   const res = await fetch(process.env.AT_VEHICLELOCATIONS_URL ?? DEFAULT_VEHICLES_URL, {
     headers: {
       "Ocp-Apim-Subscription-Key": process.env.AT_API_KEY ?? "",
@@ -141,13 +152,29 @@ export async function fetchVehicleByTrip(): Promise<Map<string, string>> {
   };
   const entities = (raw.response ?? raw).entity ?? [];
   const byTrip = new Map<string, string>();
+  const readings: VehicleReading[] = [];
   for (const e of entities) {
     const v = e.vehicle;
     const tripId = v?.trip?.trip_id;
     const vid = v?.vehicle?.label ?? v?.vehicle?.id;
-    if (tripId && vid) byTrip.set(tripId, vid);
+    if (!tripId || !vid) continue;
+    byTrip.set(tripId, vid);
+    const lat = v?.position?.latitude;
+    const lon = v?.position?.longitude;
+    const timestamp = Number(v?.timestamp);
+    const routeId = v?.trip?.route_id;
+    if (routeId && Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(timestamp)) {
+      readings.push({
+        tripId,
+        routeId,
+        vehicleId: vid,
+        lat: lat as number,
+        lon: lon as number,
+        timestamp,
+      });
+    }
   }
-  return byTrip;
+  return { byTrip, readings };
 }
 
 /**

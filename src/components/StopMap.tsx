@@ -25,6 +25,17 @@ interface StopPoint {
 /** A route variant's path: stop coordinates in schedule order. */
 type RouteLine = Array<[number, number]>;
 
+/** A vehicle reading off its trip's road path, drawn on the trip map. */
+export interface OffRoutePoint {
+  lat: number;
+  lon: number;
+  /** Tooltip text, e.g. "8:14 am, 420 m off route". */
+  label: string;
+}
+
+/** Stable empty default for `offRoute`, so the redraw effect does not rerun on every render. */
+const NO_OFF_ROUTE: OffRoutePoint[] = [];
+
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
@@ -208,6 +219,8 @@ interface MapColours {
   shore: string;
   border: string;
   surface: string;
+  /** Off-route readings (AT Commercial orange). */
+  offRoute: string;
 }
 
 /**
@@ -223,6 +236,7 @@ function readColours(): MapColours {
     shore: cssVar("--color-at-shore") || "#0073bd",
     border: cssVar("--color-at-border") || "#c7ced6",
     surface: cssVar("--color-at-surface") || "#ffffff",
+    offRoute: cssVar("--color-at-commercial") || "#f7941f",
   };
 }
 
@@ -232,6 +246,7 @@ interface MapState {
   map: Leaflet.Map;
   colours: MapColours;
   routeLayer: Leaflet.LayerGroup;
+  offRouteLayer: Leaflet.LayerGroup;
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
   markerById: Map<string, Leaflet.CircleMarker>;
@@ -281,6 +296,34 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoi
         keyboard: false,
       }).addTo(routeLayer);
     }
+  }
+}
+
+/**
+ * Redraw the off-route readings: a dashed orange line through them in time
+ * order, and a dot with its time and distance at each.
+ * @param state - Live map state.
+ * @param points - The readings, in time order.
+ */
+function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
+  const { L, offRouteLayer, colours } = state;
+  offRouteLayer.clearLayers();
+  if (points.length > 1) {
+    L.polyline(
+      points.map((p) => [p.lat, p.lon] as [number, number]),
+      { color: colours.offRoute, weight: 3, dashArray: "6 6", opacity: 0.9 },
+    ).addTo(offRouteLayer);
+  }
+  for (const p of points) {
+    L.circleMarker([p.lat, p.lon], {
+      radius: 6,
+      color: colours.ink,
+      fillColor: colours.offRoute,
+      fillOpacity: 1,
+      weight: 1.5,
+    })
+      .bindTooltip(esc(p.label))
+      .addTo(offRouteLayer);
   }
 }
 
@@ -383,6 +426,7 @@ function setInitialViewport(
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
+ * @param root0.offRoute - Readings of the vehicle off its road path, in time order (trip map).
  * @param root0.className - Optional extra classes for the container div.
  * @returns Map container element.
  */
@@ -395,6 +439,7 @@ export default function StopMap({
   selectedStopId,
   filterTripId,
   filterDirectionIds,
+  offRoute = NO_OFF_ROUTE,
   className,
 }: {
   stops: StopPoint[];
@@ -405,6 +450,7 @@ export default function StopMap({
   selectedStopId?: string;
   filterTripId?: string;
   filterDirectionIds?: number[];
+  offRoute?: OffRoutePoint[];
   className?: string;
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
@@ -423,6 +469,7 @@ export default function StopMap({
     mode,
     filterTripId,
     filterDirectionIds,
+    offRoute,
   });
   useLayoutEffect(() => {
     latestRef.current = {
@@ -433,6 +480,7 @@ export default function StopMap({
       mode,
       filterTripId,
       filterDirectionIds,
+      offRoute,
     };
   });
 
@@ -465,6 +513,7 @@ export default function StopMap({
         map,
         colours,
         routeLayer: L.layerGroup().addTo(map),
+        offRouteLayer: L.layerGroup().addTo(map),
         stopLayer: L.layerGroup().addTo(map),
         vehicleLayer: L.layerGroup().addTo(map),
         markerById: new Map(),
@@ -474,6 +523,7 @@ export default function StopMap({
       // Draw initial content from the current prop values.
       const { stops: s0, routeLines: rl0, routeId: rId, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
+      drawOffRouteLayer(state, latestRef.current.offRoute);
       drawStopLayer(state, s0, m0);
 
       const storageKey = rId ? `map-viewport:${rId}` : null;
@@ -593,8 +643,9 @@ export default function StopMap({
     const state = stateRef.current;
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);
+    drawOffRouteLayer(state, offRoute);
     drawStopLayer(state, stops, mode);
-  }, [stops, routeLines, mode]);
+  }, [stops, routeLines, mode, offRoute]);
 
   // --- Effect 3: smooth-pan to the selected stop (no map rebuild) ---------------
   // A flyTo with a short duration keeps the context visible while centering.

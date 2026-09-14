@@ -4,6 +4,28 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.18.0] - 2026-09-14
+
+### Added
+
+- Detours: the realtime ingest measures every bus and train part-way through a trip against that
+  trip's GTFS road shape and stores each reading more than 200 m off it (`OffRouteSighting`, pruned
+  with the arrival events). Most such readings are not detours - AT keeps a vehicle signed onto the
+  trip it finished while it drives to its next run or parks at a depot (9% of in-progress vehicles
+  read over 150 m off at one midday snapshot) - so a trip counts as off its route only when two
+  readings fall between arrivals it recorded before and after. Ferries are left out.
+- Trip page: a "Went off its route" note with how far, when, the stop nearest the furthest reading,
+  and AT's detour alert when one was active on the route; the readings are drawn on the trip map as
+  orange dots on a dashed line.
+- Route trip board: an OFF ROUTE badge on runs that left their route.
+- The GTFS shapes sync stores each trip's `shape_id`. Until it has run, a trip is matched to its
+  shape by the `{block}-{service}` prefix its id shares with the shape's (12 of 12 sampled).
+
+### Changed
+
+- The realtime ingest reads the vehicle-locations feed once for both the vehicle names on arrival
+  rows and the off-route check; the check is best-effort and never fails a poll.
+
 ## [1.17.0] - 2026-09-14
 
 ### Added
