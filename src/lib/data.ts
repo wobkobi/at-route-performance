@@ -7,9 +7,15 @@ export {
   getCancelledCount,
   getCancelledRoutes,
   getCancelledTrips,
+  getNetworkCancelledTrips,
   getTripCancellation,
 } from "@/lib/data/cancelled";
-export type { CancelledRouteRow, CancelledTripRow, TripCancellation } from "@/lib/data/cancelled";
+export type {
+  CancelledRouteRow,
+  CancelledTripRow,
+  NetworkCancelledTrip,
+  TripCancellation,
+} from "@/lib/data/cancelled";
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";

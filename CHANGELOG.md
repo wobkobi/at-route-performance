@@ -4,6 +4,18 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.17.0] - 2026-09-14
+
+### Added
+
+- Cancellations page (`/cancellations`, in the top bar) for a day, week or month: a KPI strip of
+  every trip AT flagged, split into never ran, cut short and reinstated, and how many routes had
+  one; the Most cancelled board (top 15, linking to the rest on the Routes page); and every flagged
+  trip with its route, destination and stage badge, filterable by stage and linking to its trip
+  page. The mode and school-bus chips filter all three alike, and the Day/Week/Month controls keep
+  them. The trips are read a service day at a time and cached under the day, so a week or month
+  reuses each day.
+
 ## [1.16.0] - 2026-09-14
 
 ### Added

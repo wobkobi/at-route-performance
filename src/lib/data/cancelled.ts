@@ -1,13 +1,19 @@
 // src/lib/data/cancelled.ts
 // Cancellations: per-route lists, counts and the most-cancelled board.
 import { cancellationStage, type CancellationStage } from "@/lib/cancellation";
-import { cachedForRange } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
-import { type DateRange, nzServiceDayRange, serviceDayClockInstant } from "@/lib/time";
+import { isSchoolBus } from "@/lib/school-bus";
+import {
+  type DateRange,
+  nzServiceDayRange,
+  serviceDatesInRange,
+  serviceDayClockInstant,
+} from "@/lib/time";
 import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-board";
 
 /** A trip cancelled on a route for a service day, for the trip board. */
@@ -96,41 +102,143 @@ export async function getCancelledTrips(
         where: { routeId: { in: routeIds }, serviceDate: { gte: range.start, lt: range.end } },
         select: { tripId: true, serviceDate: true, startTime: true, detectedAt: true },
       });
-      if (rows.length === 0) return [];
       // One row per trip: the unique key is (trip, day), and a wider window than
       // a day would otherwise list a trip once per day it was cancelled.
       const byTrip = new Map(rows.map((r) => [r.tripId, r]));
-      const [meta, stages] = await Promise.all([
-        prisma.tripMeta.findMany({
-          where: { id: { in: [...byTrip.keys()] } },
-          select: { id: true, headsign: true, directionId: true },
-        }),
-        flagStages([...byTrip.values()]),
-      ]);
-      const metaById = new Map(meta.map((m) => [m.id, m]));
-      return [...byTrip.values()]
-        .map((r) => {
-          const sec = gtfsTimeSeconds(r.startTime) ?? tripIdStartSeconds(r.tripId);
-          return {
-            trip_id: r.tripId,
-            headsign: metaById.get(r.tripId)?.headsign ?? null,
-            direction_id: metaById.get(r.tripId)?.directionId ?? null,
-            scheduled_start:
-              sec === null ? null : serviceDayClockInstant(r.serviceDate, sec).toISOString(),
-            detected_at: r.detectedAt.toISOString(),
-            stage: stages.get(`${r.tripId}|${r.serviceDate.toISOString()}`) ?? "before",
-          };
-        })
-        .sort(
-          (a, b) =>
-            (a.scheduled_start ?? "~").localeCompare(b.scheduled_start ?? "~") ||
-            a.trip_id.localeCompare(b.trip_id),
-        );
+      return (await describeFlags([...byTrip.values()])).sort(byScheduledStart);
     },
     ["cancelled-trips-v3", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
     300,
   );
+}
+
+/** A stored cancellation flag with the start time ingest captured. */
+interface StoredFlag extends FlagKey {
+  startTime: string | null;
+}
+
+/**
+ * Turn stored flags into board rows: headsign and direction from TripMeta, the
+ * scheduled start from the captured `start_time` (or the start seconds in the
+ * AT trip id), and the stage from the trip's arrivals.
+ * @param flags - The stored flags.
+ * @returns One row per flag, in the order given.
+ */
+async function describeFlags(flags: readonly StoredFlag[]): Promise<CancelledTripRow[]> {
+  if (flags.length === 0) return [];
+  const [meta, stages] = await Promise.all([
+    prisma.tripMeta.findMany({
+      where: { id: { in: [...new Set(flags.map((f) => f.tripId))] } },
+      select: { id: true, headsign: true, directionId: true },
+    }),
+    flagStages(flags),
+  ]);
+  const metaById = new Map(meta.map((m) => [m.id, m]));
+  return flags.map((f) => {
+    const sec = gtfsTimeSeconds(f.startTime) ?? tripIdStartSeconds(f.tripId);
+    return {
+      trip_id: f.tripId,
+      headsign: metaById.get(f.tripId)?.headsign ?? null,
+      direction_id: metaById.get(f.tripId)?.directionId ?? null,
+      scheduled_start:
+        sec === null ? null : serviceDayClockInstant(f.serviceDate, sec).toISOString(),
+      detected_at: f.detectedAt.toISOString(),
+      stage: stages.get(`${f.tripId}|${f.serviceDate.toISOString()}`) ?? "before",
+    };
+  });
+}
+
+/**
+ * Order cancellation rows by scheduled start, unknown starts last, then trip id.
+ * @param a - First row.
+ * @param b - Second row.
+ * @returns The standard sort contract.
+ */
+function byScheduledStart(a: CancelledTripRow, b: CancelledTripRow): number {
+  return (
+    (a.scheduled_start ?? "~").localeCompare(b.scheduled_start ?? "~") ||
+    a.trip_id.localeCompare(b.trip_id)
+  );
+}
+
+/** A cancelled trip anywhere on the network, for the Cancellations page. */
+export interface NetworkCancelledTrip extends CancelledTripRow {
+  /** Route slug. */
+  route_id: string;
+  short_name: string | null;
+  long_name: string | null;
+  mode: string;
+  colour: string | null;
+  /** Whether the route is a school service. */
+  school: boolean;
+  /** The service date the flag belongs to (`YYYY-MM-DD`). */
+  service_date: string;
+}
+
+/**
+ * Every trip cancelled on the network on one service day, with its route and
+ * stage. Cached under the day, so a week or month reads each day once; a
+ * completed day holds for a week once summarised, the live day for five minutes.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns The day's cancelled trips, earliest scheduled start first.
+ */
+function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[]> {
+  return cachedForDay(
+    async () => {
+      const range = nzServiceDayRange(date);
+      const flags = await prisma.cancelledTrip.findMany({
+        where: { serviceDate: { gte: range.start, lt: range.end } },
+        select: {
+          tripId: true,
+          routeId: true,
+          serviceDate: true,
+          startTime: true,
+          detectedAt: true,
+        },
+      });
+      if (flags.length === 0) return [];
+      const [rows, routes] = await Promise.all([
+        describeFlags(flags),
+        prisma.route.findMany({
+          where: { id: { in: [...new Set(flags.map((f) => f.routeId))] } },
+          select: { id: true, shortName: true, longName: true, mode: true, colour: true },
+        }),
+      ]);
+      const routeById = new Map(routes.map((r) => [r.id, r]));
+      return rows
+        .map((row, i) => {
+          const flag = flags[i];
+          const route = flag ? routeById.get(flag.routeId) : undefined;
+          return {
+            ...row,
+            route_id: routeSlug(flag?.routeId ?? ""),
+            short_name: route?.shortName ?? null,
+            long_name: route?.longName ?? null,
+            mode: route?.mode ?? "BUS",
+            colour: route?.colour ?? null,
+            school: isSchoolBus(route?.shortName, route?.longName),
+            service_date: date,
+          };
+        })
+        .sort(byScheduledStart);
+    },
+    ["network-cancelled-trips", date],
+    date,
+    300,
+  );
+}
+
+/**
+ * Every trip cancelled on the network in a window, from the per-day lists.
+ * Days that have not started are skipped.
+ * @param range - The window (a service day, week or month).
+ * @returns The window's cancelled trips, earliest scheduled start first.
+ */
+export async function getNetworkCancelledTrips(range: DateRange): Promise<NetworkCancelledTrip[]> {
+  const now = new Date();
+  const dates = serviceDatesInRange(range).filter((d) => nzServiceDayRange(d).start <= now);
+  return (await Promise.all(dates.map(networkCancelledTripsOfDay))).flat();
 }
 
 /** One trip's cancellation flag, for the trip page. */
