@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.20.0] - 2026-09-14
+
+### Added
+
+- Routes page presets: "All routes", "Most off-schedule" and "Most reliable" chips set the sort and
+  the enough-data filter the boards use, and every other filter (mode, area, late or early,
+  cancellations, school buses) still applies on top. Sorted by a measure, each route shows its rank.
+  On-time % ties go to the route less off schedule, and a route with no absolute average ranks by
+  its signed one on off-by, as on the boards, so a board's top ten matches the page's.
+
+### Changed
+
+- The Most off-schedule and Most reliable boards on the home and rankings pages show their top ten
+  and a "See all N" link to the Routes page on that preset, carrying the day or week, mode, school
+  bus and late or early choices, instead of expanding in place. The separate "Every route" link
+  under the boards is gone.
+
 ## [1.19.1] - 2026-09-14
 
 ### Fixed

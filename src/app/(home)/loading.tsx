@@ -38,9 +38,6 @@ export default function Loading(): JSX.Element {
         <RankBoardSkeleton caption />
         <RankBoardSkeleton />
       </div>
-
-      {/* The Routes link: one text-sm line */}
-      <Bone className="h-5 w-72" />
     </main>
   );
 }

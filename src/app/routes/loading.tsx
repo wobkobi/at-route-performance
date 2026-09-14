@@ -32,7 +32,7 @@ function FilterRowSkeleton({ chips }: { chips: string[] }): JSX.Element {
 
 /**
  * Routes page loading skeleton: the title and Day/Week/Month controls, the KPI
- * strip, the filter panel (search box, four chip rows, the sort row) and the
+ * strip, the filter panel (search box, five chip rows, the sort row) and the
  * first route cards, each built to the real component's padding, gaps and line
  * heights.
  * @returns Skeleton markup.
@@ -58,6 +58,7 @@ export default function Loading(): JSX.Element {
         <div className="space-y-3 border border-at-border bg-at-surface p-4">
           {/* Search box: py-2 text-sm inside a 1px border, 38px */}
           <Bone className="h-9.5 rounded-none" />
+          <FilterRowSkeleton chips={["w-24", "w-36", "w-28"]} />
           <FilterRowSkeleton chips={["w-11", "w-12", "w-15", "w-15"]} />
           <FilterRowSkeleton
             chips={["w-11", "w-19", "w-26", "w-15", "w-15", "w-17", "w-44", "w-36"]}

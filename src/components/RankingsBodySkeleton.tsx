@@ -1,6 +1,6 @@
 // src/components/RankingsBodySkeleton.tsx
 // Pulse-placeholder skeleton for the rankings page body (KPI strip
-// to the Routes link), shared by the rankings loading page and the in-page Suspense
+// to the refresh note), shared by the rankings loading page and the in-page Suspense
 // fallback while the ranking batch streams.
 
 import {
@@ -14,7 +14,7 @@ import type { JSX } from "react";
 
 /**
  * Skeleton for everything below the rankings header: KPI strip, shame cards,
- * filters, rank boards, the refresh note and the Routes link.
+ * filters, rank boards and the refresh note.
  * @returns The body placeholder.
  */
 export function RankingsBodySkeleton(): JSX.Element {
@@ -35,9 +35,6 @@ export function RankingsBodySkeleton(): JSX.Element {
 
       {/* Refresh note: one text-xs line */}
       <Bone className="h-4 w-full max-w-md" />
-
-      {/* The Routes link: one text-sm line */}
-      <Bone className="h-5 w-80" />
     </>
   );
 }
