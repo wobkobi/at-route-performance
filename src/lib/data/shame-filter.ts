@@ -17,7 +17,7 @@ export interface ShameFilter {
 
 /**
  * Resolve the route ids whose events the worst-stop ranking should include,
- * mirroring the home/rankings mode + school filters. Returns null when no filter
+ * mirroring the home page's mode + school filters. Returns null when no filter
  * applies (every mode, school included), so the caller can skip the `$in` match.
  * @param mode - Restrict to this mode, or null for every mode.
  * @param includeSchool - Whether to include `S###` school services.

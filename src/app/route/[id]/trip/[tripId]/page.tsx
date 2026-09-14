@@ -22,6 +22,7 @@ import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
 import { nzClockTime, nzServiceDayRange, nzServiceDayString } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -189,7 +190,9 @@ export default async function TripPage({
   return (
     <main className={cn("space-y-6")}>
       <Link
-        href={`/route/${encodeURIComponent(slug)}`}
+        href={buildHref(`/route/${encodeURIComponent(slug)}`, {
+          day: day && !isLiveRun ? nzServiceDayString(day.start) : undefined,
+        })}
         className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
       >
         <ChevronLeft className="h-3.5 w-3.5" />

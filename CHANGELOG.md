@@ -4,6 +4,36 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.21.0] - 2026-09-14
+
+### Changed
+
+- The home page and the rankings page were the same dashboard split by window: Today held the day
+  and Rankings the week or month, so changing the window meant changing tabs. The home page now has
+  the Day / Week / Month controls the Routes and Cancellations pages use, with the week and month
+  views (rank movement, Shame of the week or month) that Rankings showed. `/rankings` redirects to
+  them with its window, period and filters. The top bar reads Overview, Routes, Cancellations.
+- Moving between sections keeps the period being looked at: each top-bar link carries the current
+  day, window, period, mode and school bus choice, so a past week on the Overview opens the same
+  week on Routes or Cancellations. The late or early filter stays behind, since `dir` means a sort
+  or travel direction elsewhere.
+- The top bar highlights Routes on route, trip and stop pages, and Overview on the Shame boards,
+  where before nothing was highlighted.
+- "Shame of the day" (and of the week or month) on the Overview links to its boards: the Shame
+  dashboard for a day, which nothing linked to, and the Trips board for a week or month, now with
+  the mode and school bus filters.
+
+### Fixed
+
+- On a route's week view, the direction chips dropped back to the day view. They now stay on the
+  week being shown.
+- A route's Day / Week toggle dropped the day, the week and the direction. Week on a past day opens
+  that day's calendar week, Day on a stepped-back week opens its Monday, and the week stepper keeps
+  the direction.
+- A trip page's "Back to" link opened the route on today, not the day the run was on.
+- The Shame boards' Week toggle opened the last 7 days whatever day was showing, and Day opened
+  today; they now keep the day's week, or the week's Monday.
+
 ## [1.20.1] - 2026-09-14
 
 ### Fixed

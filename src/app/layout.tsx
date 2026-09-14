@@ -101,7 +101,7 @@ export default function RootLayout({
               <ul className="space-y-2">
                 <li>
                   <Link href="/" className="text-white/90 hover:text-at-safety">
-                    Today
+                    Overview
                   </Link>
                 </li>
                 <li>
@@ -110,8 +110,8 @@ export default function RootLayout({
                   </Link>
                 </li>
                 <li>
-                  <Link href="/rankings" className="text-white/90 hover:text-at-safety">
-                    Rankings
+                  <Link href="/shame" className="text-white/90 hover:text-at-safety">
+                    Shame of the day
                   </Link>
                 </li>
                 <li>

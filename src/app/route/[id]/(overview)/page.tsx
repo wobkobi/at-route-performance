@@ -40,6 +40,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
+import { weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
@@ -176,21 +177,38 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes.
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
+ * side keeps the direction and stays on the period being looked at: a past day's
+ * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
+ * @param props.dayQuery - Query for the Day side.
+ * @param props.weekQuery - Query for the Week side.
  * @returns The toggle element.
  */
-function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean }): JSX.Element {
+function ViewToggle({
+  slug,
+  isWeekView,
+  dayQuery,
+  weekQuery,
+}: {
+  slug: string;
+  isWeekView: boolean;
+  dayQuery: Record<string, string | undefined>;
+  weekQuery: Record<string, string | undefined>;
+}): JSX.Element {
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <Link href={base} className={cn("chip", isWeekView ? "chip-off" : "chip-on")}>
+      <Link
+        href={buildHref(base, dayQuery)}
+        className={cn("chip", isWeekView ? "chip-off" : "chip-on")}
+      >
         Day
       </Link>
       <Link
-        href={`${base}?window=week`}
+        href={buildHref(base, { window: "week", ...weekQuery })}
         className={cn("chip", isWeekView ? "chip-on" : "chip-off")}
       >
         Week
@@ -371,7 +389,7 @@ export default async function RoutePage({
   let weekNextHref: string | null = null;
   if (isWeekView) {
     /**
-     * Build a week link for this route, preserving the week window.
+     * Build a week link for this route, preserving the week window and direction.
      * @param period - The week period, or null for the rolling current week.
      * @returns The route week href.
      */
@@ -379,6 +397,7 @@ export default async function RoutePage({
       buildHref(`/route/${encodeURIComponent(slug)}`, {
         window: "week",
         period: period ?? undefined,
+        dir: sp.dir != null && /^\d+$/.test(sp.dir) ? sp.dir : undefined,
       });
     ({ prevHref: weekPrevHref, nextHref: weekNextHref } = resolveWeekNav({
       periodParam,
@@ -446,7 +465,10 @@ export default async function RoutePage({
   };
 
   const dirBase = new URLSearchParams();
-  if (requestedDay) dirBase.set("day", requestedDay);
+  if (isWeekView) {
+    dirBase.set("window", "week");
+    if (periodParam) dirBase.set("period", periodParam);
+  } else if (requestedDay) dirBase.set("day", requestedDay);
   if (sp.thresholdSec) dirBase.set("thresholdSec", sp.thresholdSec);
   if (tripSort !== "off") dirBase.set("tsort", tripSort);
 
@@ -538,7 +560,18 @@ export default async function RoutePage({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <ViewToggle slug={slug} isWeekView={isWeekView} />
+            <ViewToggle
+              slug={slug}
+              isWeekView={isWeekView}
+              dayQuery={{
+                day: (isWeekView ? periodParam : requestedDay) ?? undefined,
+                dir: activeDir == null ? undefined : String(activeDir),
+              }}
+              weekQuery={{
+                period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
+                dir: activeDir == null ? undefined : String(activeDir),
+              }}
+            />
             {isWeekView ? (
               <RouteWeekNav
                 label={weekPeriodLabel}
