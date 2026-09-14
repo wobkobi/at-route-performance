@@ -188,7 +188,7 @@ interface TripStopRaw extends Omit<TripStop, "scheduled_at">, StationRow {
  * @param tripId - The trip to scope.
  * @returns The latest run's service-day window, or null when the trip has no events.
  */
-async function latestTripDay(tripId: string): Promise<DateRange | null> {
+export async function getLatestTripDay(tripId: string): Promise<DateRange | null> {
   // Cache the raw ISO string; reconstruct DateRange outside to avoid Date serialisation issues.
   const iso = await unstable_cache(
     async () => {
@@ -228,7 +228,7 @@ export async function getTripTimeline(
   routeId: string,
   range?: DateRange,
 ): Promise<TripTimeline> {
-  const day = range ?? (await latestTripDay(tripId));
+  const day = range ?? (await getLatestTripDay(tripId));
   return cachedForRange(
     async (classified) => {
       const routeIds = await routeIdsForSlug(routeId);

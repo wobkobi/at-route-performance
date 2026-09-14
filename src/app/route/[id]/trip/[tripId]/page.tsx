@@ -4,8 +4,12 @@
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
+import { TripCancellationNote } from "@/components/TripCancellationNote";
+import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import {
+  getLatestTripDay,
+  getTripCancellation,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -61,26 +65,47 @@ export default async function TripPage({
   const { d } = (await searchParams) ?? {};
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
   // do not interleave; falls back to the trip's latest day when `d` is absent
-  // or unparseable (an Invalid Date would throw inside nzServiceDayRange).
+  // or unparseable (an Invalid Date would throw inside nzServiceDayRange). The
+  // timeline and the cancellation flag must agree on that day, so it is resolved
+  // here rather than inside the timeline query.
   const dAt = d ? new Date(d) : null;
-  const day = dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : undefined;
+  const day =
+    dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
   // An AT outage costs this request its schedule and road path, not the day's cache entries.
-  const [timeline, scheduledStops, roadPath] = await Promise.all([
-    getTripTimeline(tripId, slug, day),
+  const [timeline, scheduledStops, roadPath, flag] = await Promise.all([
+    getTripTimeline(tripId, slug, day ?? undefined),
     getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
     getTripShape(tripId).catch((): Array<[number, number]> => []),
+    getTripCancellation(tripId, day),
   ]);
   const { route, vehicle_id } = timeline;
   // Nothing knows this run: no route row, no arrival on any day, no schedule.
   if (!route && timeline.stops.length === 0 && scheduledStops.length === 0) notFound();
   const routeMode = route?.mode ?? "BUS";
 
+  // Cancellation: the recorded arrivals against AT's flag tell a trip that never
+  // ran from one cut short or reinstated (see lib/cancellation.ts). A trip that
+  // stopped reporting at the flag can leave one predicted arrival past it that
+  // the vehicle never made, so for those stages it is not a served stop.
+  /**
+   * When the vehicle reached a recorded stop.
+   * @param s - A recorded stop.
+   * @returns The ISO arrival instant (schedule plus deviation).
+   */
+  const actualAt = (s: TripStop): string =>
+    new Date(Date.parse(s.scheduled_at) + s.deviation_sec * 1000).toISOString();
+  const stage = flag ? cancellationStage(flag.detected_at, timeline.stops.map(actualAt)) : null;
+  const recordedStops =
+    flag && stage !== "ran"
+      ? timeline.stops.filter((s) => arrivedBeforeFlag(flag.detected_at, actualAt(s)))
+      : timeline.stops;
+
   // Merge served stops (with actual deviation data) and unserved scheduled stops
   // (future stops for a live trip). Served stops are matched by station-canonical
   // stop_id so train-platform variants don't create duplicates.
   type MergedStop = ({ kind: "served" } & TripStop) | ({ kind: "future" } & ScheduledStop);
 
-  const servedById = new Map(timeline.stops.map((s) => [s.stop_id, s]));
+  const servedById = new Map(recordedStops.map((s) => [s.stop_id, s]));
   const seenInSchedule = new Set<string>();
 
   const mergedStops: MergedStop[] =
@@ -92,11 +117,11 @@ export default async function TripPage({
             return served ? { kind: "served", ...served } : { kind: "future", ...s };
           }),
           // Append any served stops absent from the schedule (diversions / id gaps).
-          ...timeline.stops
+          ...recordedStops
             .filter((s) => !seenInSchedule.has(s.stop_id))
             .map((s): MergedStop => ({ kind: "served", ...s })),
         ]
-      : timeline.stops.map((s): MergedStop => ({ kind: "served", ...s }));
+      : recordedStops.map((s): MergedStop => ({ kind: "served", ...s }));
 
   // Map shows all stops: served ones coloured by deviation, future ones neutral.
   const tripMapStops: MapStop[] = mergedStops.map((s) => ({
@@ -124,7 +149,22 @@ export default async function TripPage({
   const firstServed = mergedStops.find(
     (s): s is { kind: "served" } & TripStop => s.kind === "served",
   );
-  const departing = firstServed?.scheduled_at;
+  const departing = firstServed
+    ? nzClockTime(firstServed.scheduled_at)
+    : scheduledStops[0]?.departure_time
+      ? formatGtfsTime(scheduledStops[0].departure_time)
+      : null;
+
+  // The stops a cut-short trip never reached are the scheduled ones after its
+  // last recorded arrival; gaps before that are only polls that missed a stop.
+  const lastServed = recordedStops.reduce<TripStop | null>(
+    (last, s) => (last === null || actualAt(s) > actualAt(last) ? s : last),
+    null,
+  );
+  const scheduledPart = mergedStops.slice(0, scheduledStops.length);
+  const lastServedIndex = scheduledPart.findLastIndex((s) => s.kind === "served");
+  const notServedFrom =
+    stage === "before" ? 0 : stage === "mid-trip" ? lastServedIndex + 1 : scheduledStops.length;
 
   return (
     <main className={cn("space-y-6")}>
@@ -150,10 +190,21 @@ export default async function TripPage({
           {title}
         </h1>
         <p className="text-at-muted">
-          {departing ? `Trip departing ${nzClockTime(departing)}` : "Trip"}
+          {departing ? `Trip departing ${departing}` : "Trip"}
           {vehicle_id && ` · ${vehicle_id}`}
         </p>
       </header>
+
+      {flag && stage && (
+        <TripCancellationNote
+          stage={stage}
+          detectedAt={flag.detected_at}
+          lastStop={lastServed ? { name: lastServed.name, at: actualAt(lastServed) } : null}
+          notServed={
+            scheduledStops.length > 0 ? scheduledStops.length - Math.max(notServedFrom, 0) : null
+          }
+        />
+      )}
 
       {(tripMapStops.length > 0 || tripPath.length > 1 || fallbackLines.length > 0) && (
         <section className="border border-at-border bg-at-surface p-4">
@@ -191,6 +242,7 @@ export default async function TripPage({
           <ol className="space-y-0">
             {mergedStops.map((s, i) => {
               const isFuture = s.kind === "future";
+              const notServed = isFuture && i >= notServedFrom;
               const stopBand = isFuture ? "ontime" : delayBand(s.deviation_sec, routeMode);
               const band = isFuture
                 ? "text-at-muted"
@@ -214,7 +266,12 @@ export default async function TripPage({
                       className={cn("w-px flex-1", i > 0 ? "bg-at-border" : "")}
                       aria-hidden="true"
                     />
-                    <span className={cn("h-3 w-3 shrink-0 rounded-full", dotColour)} />
+                    <span
+                      className={cn(
+                        "h-3 w-3 shrink-0 rounded-full",
+                        notServed ? "border-2 border-at-late bg-at-surface" : dotColour,
+                      )}
+                    />
                     <span
                       className={cn(
                         "w-px flex-1",
@@ -225,7 +282,13 @@ export default async function TripPage({
                   </div>
                   <div className="flex flex-1 items-start justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      <p className={cn("truncate font-medium", isFuture && "text-at-muted")}>
+                      <p
+                        className={cn(
+                          "truncate font-medium",
+                          isFuture && "text-at-muted",
+                          notServed && "line-through",
+                        )}
+                      >
                         {s.name}
                       </p>
                       <p className="text-xs text-at-muted tabular-nums">
@@ -254,6 +317,11 @@ export default async function TripPage({
                     {!isFuture && (
                       <span className={cn("shrink-0 text-sm font-semibold tabular-nums", band)}>
                         {formatDelay(s.deviation_sec, { mode: routeMode })}
+                      </span>
+                    )}
+                    {notServed && (
+                      <span className="shrink-0 text-sm font-semibold text-at-late">
+                        Not served
                       </span>
                     )}
                   </div>

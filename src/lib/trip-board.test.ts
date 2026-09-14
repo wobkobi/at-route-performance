@@ -1,5 +1,6 @@
 // src/lib/trip-board.test.ts
 // Unit tests for placing cancelled trips on the route trip board.
+import type { CancellationStage } from "@/lib/cancellation";
 import type { CancelledTripRow } from "@/lib/data/cancelled";
 import {
   buildTripBoardRows,
@@ -33,10 +34,22 @@ function run(id: string, start: string, abs = 60): PerTripStat {
  * A cancelled trip starting at the given instant.
  * @param id - Trip id.
  * @param start - ISO scheduled start, or null when unknown.
+ * @param stage - How the cancellation played out (defaults to never ran).
  * @returns The cancellation row.
  */
-function cancel(id: string, start: string | null): CancelledTripRow {
-  return { trip_id: id, headsign: null, direction_id: null, scheduled_start: start };
+function cancel(
+  id: string,
+  start: string | null,
+  stage: CancellationStage = "before",
+): CancelledTripRow {
+  return {
+    trip_id: id,
+    headsign: null,
+    direction_id: null,
+    scheduled_start: start,
+    detected_at: start ?? "2026-09-13T18:00:00.000Z",
+    stage,
+  };
 }
 
 /**
@@ -111,6 +124,32 @@ describe("buildTripBoardRows", () => {
 
   it("lists cancellations alone when nothing ran", () => {
     expect(labels(buildTripBoardRows([], [cancel("c", T8)], "off", false))).toEqual(["xc"]);
+  });
+
+  it("folds a flagged trip that ran into its run instead of a second row", () => {
+    const rows = buildTripBoardRows(
+      [run("cut", T7), run("back", T8), run("fine", T9)],
+      [cancel("cut", T7, "mid-trip"), cancel("back", T8, "ran")],
+      "departure",
+      false,
+    );
+    expect(labels(rows)).toEqual(["cut", "back", "fine"]);
+    expect(rows.map((r) => (r.kind === "run" ? r.cancellation : "row"))).toEqual([
+      "mid-trip",
+      "ran",
+      null,
+    ]);
+  });
+
+  it("moves a run that never ran (only a leftover prediction) to the cancellations", () => {
+    const rows = buildTripBoardRows(
+      [run("ghostly", T7, 0), run("real", T9)],
+      [cancel("ghostly", T7, "before")],
+      "off",
+      false,
+    );
+    expect(labels(rows)).toEqual(["real", "xghostly"]);
+    expect(rows.map((r) => (r.kind === "run" ? r.rank : null))).toEqual([1, null]);
   });
 });
 

@@ -4,6 +4,23 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.15.0] - 2026-09-14
+
+### Added
+
+- Trip page: a trip AT flagged as cancelled now says so, and how it played out. "Cancelled" when it
+  recorded no arrivals; "Cancelled mid-trip" with its last recorded stop, when the flag landed, and
+  the scheduled stops after that marked "Not served"; "Cancelled, then reinstated" when it kept
+  recording arrivals after the flag. The feed sends one stop update per trip (the next stop), so a
+  trip that stops at the flag can leave one predicted arrival past it; three or more arrivals after
+  the flag count as the trip carrying on (`lib/cancellation.ts`). Over four days that split 248
+  flagged trips into 183 that never ran, 37 cut short and 28 reinstated.
+- Route trip board: a flagged trip that ran shows once, as its ranked run with a CANCELLED MID-TRIP
+  (CUT SHORT on a phone) or REINSTATED badge, instead of a run plus a separate struck-through
+  CANCELLED row. A run made only of a leftover first-stop prediction moves to the unranked
+  cancellations. Cancelled rows link to the trip page, which lists the stops the trip would have
+  served.
+
 ## [1.14.5] - 2026-09-14
 
 ### Fixed
