@@ -1,8 +1,8 @@
 // src/components/CancelledBoard.tsx
 // Board listing the routes that cancelled the most trips in a
-// window. Cancellations sit outside every other board on this site: a cancelled
-// trip records no arrival, so it cannot be ranked by lateness and it cannot drag
-// an on-time rate down - it silently improves one. This is where that shows.
+// window. A cancelled trip records no arrival, so the other boards only see it
+// as the wait for the next trip (lib/rider-wait.ts); this one counts the trips
+// themselves.
 
 import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";

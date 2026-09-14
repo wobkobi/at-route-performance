@@ -61,9 +61,14 @@ interface PageSpec {
  * Friendly names for auto-discovered static pages, keyed by URL path. Anything
  * not listed uses the auto-generated Title-Cased name.
  */
-const PAGE_OVERRIDES: Record<string, { name?: string; ignoreErrors?: string[] }> = {
+const PAGE_OVERRIDES: Record<
+  string,
+  Pick<PageSpec, "name" | "ignoreErrors" | "expectFinalPath">
+> = {
   "/": { name: "Home" },
-  "/rankings": { name: "Rankings" },
+  "/rankings": { name: "Rankings (redirects home)", expectFinalPath: "/?window=week" },
+  "/routes": { name: "Routes" },
+  "/cancellations": { name: "Cancellations" },
   "/shame": { name: "Shame of the Day" },
 };
 
@@ -77,7 +82,10 @@ const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/route/65", name: "Route 65" },
   { path: "/route/NX1?dir=0", name: "Route NX1 (one direction)" },
   { path: "/route/NX1?window=week", name: "Route NX1 (week)", mustContain: ["Last 7 days"] },
-  { path: "/rankings?window=month", name: "Rankings (month)" },
+  { path: "/?window=week", name: "Home (week)", mustContain: ["Last 7 days"] },
+  { path: "/?window=month", name: "Home (month)" },
+  { path: "/routes?window=week&area=north", name: "Routes (week, North Shore)" },
+  { path: "/cancellations?window=week", name: "Cancellations (week)" },
   { path: "/shame/trip?window=week", name: "Shame trips (week)" },
   { path: "/shame/stop?window=week", name: "Shame stops (week)" },
   {
@@ -127,7 +135,7 @@ const TTFB_WARN_MS = 5_000;
 
 /**
  * Fail when TTFB exceeds this - a true hang. Set well above the cold-cache render
- * time of the heaviest pages (the rankings page runs week/month aggregations the
+ * time of the heaviest pages (the home page's week and month views run aggregations the
  * first time it's hit), so slow-but-working pages warn rather than fail.
  */
 const TTFB_FAIL_MS = 45_000;
@@ -232,8 +240,8 @@ function warnMissingSample(what: string): void {
 
 /**
  * Title-cases the final segments of a route for the default display name.
- * @param route - Discovered URL path (e.g. "/rankings").
- * @returns Friendly name (e.g. "Rankings", or "Home" for "/").
+ * @param route - Discovered URL path (e.g. "/cancellations").
+ * @returns Friendly name (e.g. "Cancellations", or "Home" for "/").
  */
 function routeToName(route: string): string {
   if (route === "/") return "Home";
@@ -276,6 +284,7 @@ function discoverPages(): PageSpec[] {
             path: normalised,
             name: override.name ?? routeToName(normalised),
             ignoreErrors: override.ignoreErrors,
+            expectFinalPath: override.expectFinalPath,
           });
         }
       }

@@ -1,6 +1,5 @@
-"use client";
 // src/components/RankBoard.tsx
-// Ranked table of routes with position-movement badges and expandable delay detail.
+// Ranked list of routes with position-movement badges and a link to the full ranking.
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -11,7 +10,6 @@ import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
-import { useState } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
 
 /**
@@ -73,17 +71,18 @@ export interface RankBoardProps {
   /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
   cancelled?: Map<string, number>;
   /**
-   * When set and there are more rows than this, collapse to this many and turn
-   * the heading into a toggle that reveals the full list. Omit to always show
-   * every row.
+   * Link to the full ranking (the Routes page on the matching preset). When set,
+   * the heading carries "See all N" beside it.
    */
-  collapseAt?: number;
+  seeAllHref?: string;
+  /** How many routes the full ranking holds, for the "See all" link. */
+  total?: number;
 }
 
 /**
- * Render a ranked board of routes (earliest, latest, or most reliable). When
- * `collapseAt` is set and exceeded, the heading toggles between the top
- * `collapseAt` rows and the full list.
+ * Render a ranked board of routes (most off-schedule or most reliable) from the
+ * rows given; the home page passes the top ten and link the heading
+ * to the full ranking on the Routes page.
  * @param props - Board props.
  * @param props.title - Board heading.
  * @param props.accentClass - Tailwind text-colour class for the heading.
@@ -94,7 +93,8 @@ export interface RankBoardProps {
  * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
- * @param props.collapseAt - Collapse to this many rows behind a heading toggle (optional).
+ * @param props.seeAllHref - Link to the full ranking (optional).
+ * @param props.total - How many routes the full ranking holds (optional).
  * @returns The board element.
  */
 export function RankBoard({
@@ -107,30 +107,23 @@ export function RankBoard({
   routePeriod,
   deltas,
   cancelled,
-  collapseAt,
+  seeAllHref,
+  total,
 }: RankBoardProps): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const collapsible = collapseAt != null && rows.length > collapseAt;
-  const visibleRows = collapsible && !expanded ? rows.slice(0, collapseAt) : rows;
   return (
     <section className="border border-at-border bg-at-surface p-4">
       <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>
-        {collapsible ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((e) => !e)}
-            aria-expanded={expanded}
-            className="flex w-full items-center gap-1.5 text-left transition-opacity hover:opacity-80"
+        {seeAllHref ? (
+          <Link
+            href={seeAllHref}
+            className="flex w-full items-center gap-1.5 transition-opacity hover:opacity-80"
           >
             <span>{title}</span>
-            <ChevronRight
-              aria-hidden
-              className={cn("h-4 w-4 shrink-0 transition-transform", expanded && "rotate-90")}
-            />
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
             <span className="ml-auto text-sm font-normal text-at-muted">
-              {expanded ? "Show less" : `Show all ${rows.length}`}
+              See all{total !== undefined ? ` ${total}` : ""}
             </span>
-          </button>
+          </Link>
         ) : (
           title
         )}
@@ -142,7 +135,7 @@ export function RankBoard({
         <p className="text-base text-at-muted">Not enough data yet.</p>
       ) : (
         <ol>
-          {visibleRows.map((r, i) => {
+          {rows.map((r, i) => {
             // Ranked by abs deviation; display the same so the column numbers are
             // in descending order. When abs ≈ |signed| the route is consistently
             // late/early - show direction ("4m 8s late"). When they differ the

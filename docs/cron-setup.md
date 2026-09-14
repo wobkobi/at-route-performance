@@ -70,7 +70,10 @@ job if you prefer to schedule in NZ local time.
   nights; to close one at once, POST `?date=YYYY-MM-DD` per day or run
   `scripts/rebuild-daily-summaries.ts` (which skips the ghost pass).
 - The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
-  so run it weekly (the geometry rarely changes) and watch the function's memory headroom.
+  so run it weekly (the geometry rarely changes) and watch the function's memory headroom. It also
+  stores each trip's `shapeId`, which the realtime job measures vehicles against to spot detours;
+  until it has run, the realtime job matches a trip to its shape by id prefix instead, which is
+  close but can pick between up to three variants.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
 - `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for

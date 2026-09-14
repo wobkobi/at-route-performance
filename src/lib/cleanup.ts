@@ -26,6 +26,8 @@ export interface CleanupStore {
   deleteTrips(before: Date): Promise<number>;
   /** Delete daily summaries for service days before the instant; resolves to the count. */
   deleteSummaries(before: Date): Promise<number>;
+  /** Delete off-route sightings taken before the instant; resolves to the count. */
+  deleteSightings(before: Date): Promise<number>;
   /** On-disk size of data and indexes in MB, and the document count. */
   storage(): Promise<{ dataMB: number; indexMB: number; objects: number }>;
 }
@@ -76,6 +78,15 @@ async function deleteSummaries(before: Date): Promise<number> {
 }
 
 /**
+ * Delete off-route sightings taken before an instant.
+ * @param before - The cutoff.
+ * @returns The count deleted.
+ */
+async function deleteSightings(before: Date): Promise<number> {
+  return (await prisma.offRouteSighting.deleteMany({ where: { seenAt: { lt: before } } })).count;
+}
+
+/**
  * Real on-disk sizes from dbStats (compressed data plus indexes); a per-event
  * byte estimate overstated usage by about 2x.
  * @returns Data and index sizes in MB and the document count.
@@ -100,6 +111,7 @@ export const prismaCleanupStore: CleanupStore = {
   deleteEvents,
   deleteTrips,
   deleteSummaries,
+  deleteSightings,
   storage,
 };
 
@@ -171,9 +183,10 @@ export interface CleanupOutcome {
   deletedEvents: number;
   deletedTrips: number;
   deletedSummaries: number;
-  /** The first failure among the three deletes, or null when all succeeded. */
+  deletedSightings: number;
+  /** The first failure among the deletes, or null when all succeeded. */
   firstError: string | null;
-  errors: { events?: string; trips?: string; summaries?: string };
+  errors: { events?: string; trips?: string; summaries?: string; sightings?: string };
   /** Storage after the run, and whether it sits past 80% of the allowance. */
   storage: { usedMB: number; dataMB: number; indexMB: number; objects: number; limitMB: number };
   storageWarning: boolean;
@@ -205,7 +218,7 @@ async function attemptDelete(
  * error, so one failure never skips the others; the outcome carries every
  * error and the storage reading for the caller to log and record.
  * @param store - The storage port.
- * @param cutoff - Delete rows scheduled or stamped before this instant.
+ * @param cutoff - Delete rows scheduled, stamped or seen before this instant.
  * @param summaryDays - DailyRouteSummary retention in days, or null to skip.
  * @param limitMB - The storage allowance in MB.
  * @param now - The current instant, for the summary cutoff.
@@ -221,6 +234,9 @@ export async function runCleanup(
   const errors: CleanupOutcome["errors"] = {};
   const deletedEvents = await attemptDelete(errors, "events", () => store.deleteEvents(cutoff));
   const deletedTrips = await attemptDelete(errors, "trips", () => store.deleteTrips(cutoff));
+  const deletedSightings = await attemptDelete(errors, "sightings", () =>
+    store.deleteSightings(cutoff),
+  );
   const deletedSummaries =
     summaryDays === null
       ? 0
@@ -234,7 +250,8 @@ export async function runCleanup(
     deletedEvents,
     deletedTrips,
     deletedSummaries,
-    firstError: errors.events ?? errors.trips ?? errors.summaries ?? null,
+    deletedSightings,
+    firstError: errors.events ?? errors.trips ?? errors.summaries ?? errors.sightings ?? null,
     errors,
     storage: { usedMB, dataMB, indexMB, objects, limitMB },
     storageWarning: usedMB > limitMB * 0.8,

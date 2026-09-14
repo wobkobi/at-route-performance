@@ -301,7 +301,7 @@ function shamePipelineBase(
  * {@link getShameOfDay} but groups by service day instead of hour, bucketing
  * each run with {@link serviceDateExpr}. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
- * @param filter - Mode/school filters mirroring the rankings page.
+ * @param filter - Mode/school filters mirroring the home page.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
  * @param filter.includeSchool - Include school services (default false).
  * @param revalidate - Cache lifetime in seconds.

@@ -21,8 +21,10 @@ export interface RouteMapDiagramProps {
   stops: MapStopView[];
   /** Per-direction road path lines. */
   routeLines: Array<Array<[number, number]>>;
-  /** Route id, so the map polls and plots live vehicles. */
+  /** Route id, keying the saved viewport and the live-vehicle poll. */
   routeId: string;
+  /** Plot where the route's vehicles are now; off for a past day or week. */
+  live: boolean;
   /** Route mode (live-vehicle glyph + delay colour banding). */
   mode: string;
   /**
@@ -38,7 +40,8 @@ export interface RouteMapDiagramProps {
  * @param props - Component props.
  * @param props.stops - Stops to plot on the map.
  * @param props.routeLines - Per-direction road path lines.
- * @param props.routeId - Route id for live vehicles.
+ * @param props.routeId - Route id for the saved viewport and live vehicles.
+ * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
  * @returns The map section.
@@ -47,6 +50,7 @@ export function RouteMapDiagram({
   stops,
   routeLines,
   routeId,
+  live,
   mode,
   filterDirectionIds,
 }: RouteMapDiagramProps): JSX.Element {
@@ -80,6 +84,7 @@ export function RouteMapDiagram({
         stops={stops}
         routeLines={routeLines}
         routeId={routeId}
+        live={live}
         mode={mode as "BUS" | "TRAIN" | "FERRY"}
         filterDirectionIds={filterDirectionIds}
         className="h-125"

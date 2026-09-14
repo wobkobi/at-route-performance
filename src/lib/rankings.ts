@@ -1,5 +1,5 @@
 // src/lib/rankings.ts
-// Aggregate, sort and rank per-route rows for the rankings page.
+// Aggregate, sort and rank per-route rows for the home page boards and the Routes page.
 // Fleet totals are event-weighted so the KPI strip always reflects exactly the
 // rows on screen - turning school buses off or filtering by mode drops their
 // events too. Boards rank by signed delay (latest/earliest) or by average
@@ -8,7 +8,6 @@
 // applies for single-mode views so low-frequency services like ferries still
 // populate their boards.
 
-import type { RouteSort } from "@/components/RouteTable";
 import type { TopRouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
 
@@ -193,27 +192,4 @@ export function computeRankDelta(
     out.set(r.route_id, prev == null ? null : prev - (i + 1));
   });
   return out;
-}
-
-/**
- * Sort rows for the full table by the requested column (stable copy).
- * @param rows - Rows to sort.
- * @param sort - Column to sort by.
- * @returns A new sorted array.
- */
-export function sortRows(rows: TopRouteRow[], sort: RouteSort): TopRouteRow[] {
-  const copy = [...rows];
-  switch (sort) {
-    case "events":
-      return copy.sort((a, b) => b.events - a.events);
-    case "avg_delay":
-      return copy.sort((a, b) => (b.avg_delay_sec ?? 0) - (a.avg_delay_sec ?? 0));
-    case "on_time":
-      return copy.sort((a, b) => (b.on_time_pct ?? -1) - (a.on_time_pct ?? -1));
-    case "route":
-    default:
-      return copy.sort((a, b) =>
-        (a.short_name ?? a.route_id).localeCompare(b.short_name ?? b.route_id),
-      );
-  }
 }

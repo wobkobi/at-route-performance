@@ -21,14 +21,17 @@ import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import { cn } from "@/lib/cn";
 import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
   getCancelledTrips,
+  getDetouredTripIds,
   getEarliestDataDay,
   getRouteDailyStats,
   getRouteNames,
   getRouteStats,
+  getTripRiderWait,
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
@@ -37,7 +40,9 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
+import { weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView } from "@/lib/route-view";
 import {
@@ -48,7 +53,7 @@ import {
   weekRangeLabel,
   type DateRange,
 } from "@/lib/time";
-import { buildTripBoardRows } from "@/lib/trip-board";
+import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
@@ -172,20 +177,40 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes.
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
+ * side keeps the direction and stays on the period being looked at: a past day's
+ * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
+ * @param props.dayQuery - Query for the Day side.
+ * @param props.weekQuery - Query for the Week side.
  * @returns The toggle element.
  */
-function ViewToggle({ slug, isWeekView }: { slug: string; isWeekView: boolean }): JSX.Element {
+function ViewToggle({
+  slug,
+  isWeekView,
+  dayQuery,
+  weekQuery,
+}: {
+  slug: string;
+  isWeekView: boolean;
+  dayQuery: Record<string, string | undefined>;
+  weekQuery: Record<string, string | undefined>;
+}): JSX.Element {
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <Link href={base} className={`chip ${!isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link
+        href={buildHref(base, dayQuery)}
+        className={cn("chip", isWeekView ? "chip-off" : "chip-on")}
+      >
         Day
       </Link>
-      <Link href={`${base}?window=week`} className={`chip ${isWeekView ? "chip-on" : "chip-off"}`}>
+      <Link
+        href={buildHref(base, { window: "week", ...weekQuery })}
+        className={cn("chip", isWeekView ? "chip-on" : "chip-off")}
+      >
         Week
       </Link>
     </div>
@@ -322,38 +347,49 @@ export default async function RoutePage({
   // never waits on AT realtime/alert latency (the main page-load cost on a cold
   // cache and on every dev reload).
   const alertsPromise = getServiceAlerts();
-  const vehiclesPromise = isWeekView
-    ? Promise.resolve<LiveVehicle[]>([])
-    : getLiveVehicles().catch(() => []);
+  // Live positions belong only to a view that covers now: today's day view or the
+  // rolling week ending today. On a past day the map would show where vehicles
+  // are now, and since AT reuses trip ids every day, a past run would pick up
+  // today's LIVE badge.
+  const isLiveView = isWeekView ? periodParam === null : serviceDate === nzServiceDayString();
+  const vehiclesPromise =
+    isWeekView || !isLiveView
+      ? Promise.resolve<LiveVehicle[]>([])
+      : getLiveVehicles().catch(() => []);
 
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
-  const [trips, view, earliestDay, weekDays, cancelledTrips] = await Promise.all([
-    isWeekView
-      ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
-      : getWorstTripsOfDay({
-          routeId: slug,
-          range,
-          thresholdSec,
-          sort: tripSort,
-          limit: TRIPS_FETCH_CAP,
-        }),
-    buildRouteView(slug, byStop, routeMode),
-    getEarliestDataDay(1),
-    // Rolling default covers the last seven service days, today included;
-    // a fixed period uses its calendar week.
-    getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
-    isWeekView
-      ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
-      : getCancelledTrips(slug, range),
-  ]);
+  const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds, tripWaits] =
+    await Promise.all([
+      isWeekView
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
+        : getWorstTripsOfDay({
+            routeId: slug,
+            range,
+            thresholdSec,
+            sort: tripSort,
+            limit: TRIPS_FETCH_CAP,
+          }),
+      buildRouteView(slug, byStop, routeMode),
+      getEarliestDataDay(1),
+      // Rolling default covers the last seven service days, today included;
+      // a fixed period uses its calendar week.
+      getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
+      isWeekView
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
+        : getCancelledTrips(slug, range),
+      isWeekView ? Promise.resolve<string[]>([]) : getDetouredTripIds(slug, range),
+      isWeekView
+        ? Promise.resolve<Awaited<ReturnType<typeof getTripRiderWait>>>({})
+        : getTripRiderWait(range),
+    ]);
 
   // Week stepper navigation - computed after earliestDay is available.
   let weekPrevHref: string | null = null;
   let weekNextHref: string | null = null;
   if (isWeekView) {
     /**
-     * Build a week link for this route, preserving the week window.
+     * Build a week link for this route, preserving the week window and direction.
      * @param period - The week period, or null for the rolling current week.
      * @returns The route week href.
      */
@@ -361,6 +397,7 @@ export default async function RoutePage({
       buildHref(`/route/${encodeURIComponent(slug)}`, {
         window: "week",
         period: period ?? undefined,
+        dir: sp.dir != null && /^\d+$/.test(sp.dir) ? sp.dir : undefined,
       });
     ({ prevHref: weekPrevHref, nextHref: weekNextHref } = resolveWeekNav({
       periodParam,
@@ -401,7 +438,19 @@ export default async function RoutePage({
   const diagramDirections =
     activeEntry == null ? view.directions : { [activeEntry[0]]: activeEntry[1] };
 
-  const sortedTrips = isReversed ? [...trips].reverse() : trips;
+  // A cut-short run carries the wait for the stops it never reached (see
+  // lib/rider-wait.ts), which can move it on a delay sort, so those sorts are
+  // redone here rather than taken from the database.
+  const penalisedTrips = trips.map((t) => withTripPenalty(t, tripWaits[t.trip_id]));
+  const sortedTrips =
+    tripSort === "departure"
+      ? isReversed
+        ? [...penalisedTrips].reverse()
+        : penalisedTrips
+      : sortRuns(penalisedTrips, tripSort, isReversed);
+  const cancelledWaits = Object.fromEntries(
+    Object.entries(tripWaits).map(([tripId, p]) => [tripId, p.waitSec]),
+  );
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
   const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
@@ -416,7 +465,10 @@ export default async function RoutePage({
   };
 
   const dirBase = new URLSearchParams();
-  if (requestedDay) dirBase.set("day", requestedDay);
+  if (isWeekView) {
+    dirBase.set("window", "week");
+    if (periodParam) dirBase.set("period", periodParam);
+  } else if (requestedDay) dirBase.set("day", requestedDay);
   if (sp.thresholdSec) dirBase.set("thresholdSec", sp.thresholdSec);
   if (tripSort !== "off") dirBase.set("tsort", tripSort);
 
@@ -462,6 +514,7 @@ export default async function RoutePage({
     cancelledTrips.filter(inActiveDir),
     tripSort,
     isReversed,
+    cancelledWaits,
   );
 
   const totalTrips = dirTrips.length;
@@ -507,7 +560,18 @@ export default async function RoutePage({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <ViewToggle slug={slug} isWeekView={isWeekView} />
+            <ViewToggle
+              slug={slug}
+              isWeekView={isWeekView}
+              dayQuery={{
+                day: (isWeekView ? periodParam : requestedDay) ?? undefined,
+                dir: activeDir == null ? undefined : String(activeDir),
+              }}
+              weekQuery={{
+                period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
+                dir: activeDir == null ? undefined : String(activeDir),
+              }}
+            />
             {isWeekView ? (
               <RouteWeekNav
                 label={weekPeriodLabel}
@@ -588,6 +652,7 @@ export default async function RoutePage({
             stops={weekMapStops}
             routeLines={mapLines}
             routeId={slug}
+            live={isLiveView}
             mode={routeMode}
           />
           <Suspense fallback={<LineDiagramSkeleton />}>
@@ -651,6 +716,7 @@ export default async function RoutePage({
                 preservedParams={tripPreserved}
                 page={tripPage}
                 totalPages={totalPages}
+                detouredTripIds={new Set(detouredTripIds)}
               />
             </Suspense>
             {tripsCapped && (
@@ -662,6 +728,7 @@ export default async function RoutePage({
               stops={mapStops}
               routeLines={mapLines}
               routeId={slug}
+              live={isLiveView}
               mode={routeMode}
               filterDirectionIds={
                 activeDir == null

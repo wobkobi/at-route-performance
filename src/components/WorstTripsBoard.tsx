@@ -5,15 +5,23 @@
 // doesn't drop it. Both are client navigations that keep the scroll position,
 // so a sort or page change swaps the board in place instead of reloading the
 // document behind the route skeleton. Rows arrive already laid out (see
-// trip-board.ts): cancelled trips carry a CANCELLED badge and no rank, running
+/// trip-board.ts): cancelled trips carry a CANCELLED badge, and on the delay sorts
+// a rank and the wait a rider had for the next trip when that is known; a run AT
+// also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT SHORT on a
+// phone, or REINSTATED), a run whose vehicle left its route an OFF ROUTE badge, running
 // trips get a LIVE badge from the passed-in live id set, and ranks stay
 // continuous across pages. The section is `min-w-0` because it sits in a grid,
 // where it would otherwise grow to its truncating rows' full width on a phone.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import {
+  CANCELLATION_BADGE,
+  CANCELLATION_BADGE_SHORT,
+  type CancellationStage,
+} from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDelay } from "@/lib/format";
+import { formatDelay, formatDuration } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
@@ -43,6 +51,8 @@ export interface WorstTripsBoardProps {
   totalPages: number;
   /** Trip ids currently running live; those rows get a LIVE badge. */
   liveTripIds?: Set<string>;
+  /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
+  detouredTripIds?: ReadonlySet<string>;
 }
 
 /**
@@ -92,6 +102,13 @@ function pageHref(
   return qs ? `${basePath}?${qs}` : basePath;
 }
 
+/** Hover text for the cancellation badge on a run, spelling out what the stage means. */
+const STAGE_TITLE: Record<CancellationStage, string> = {
+  before: "AT cancelled this trip",
+  "mid-trip": "AT cancelled this trip after it set off",
+  ran: "AT flagged this trip cancelled, then it ran anyway",
+};
+
 const SORTS: { key: TripSort; label: string }[] = [
   { key: "off", label: "Most off" },
   { key: "late", label: "Latest" },
@@ -116,6 +133,7 @@ const SORTS: { key: TripSort; label: string }[] = [
  * @param props.page - The 1-based current page.
  * @param props.totalPages - Total number of pages.
  * @param props.liveTripIds - Trip ids currently broadcasting a live position (highlighted).
+ * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
  * @returns The board element.
  */
 export function WorstTripsBoard({
@@ -129,6 +147,7 @@ export function WorstTripsBoard({
   page,
   totalPages,
   liveTripIds,
+  detouredTripIds,
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
   return (
@@ -175,20 +194,35 @@ export function WorstTripsBoard({
               return (
                 <li
                   key={`cancelled-${c.trip_id}`}
-                  className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm first:border-0"
+                  className="-mx-4 flex items-center gap-3 border-t border-at-border px-4 py-2.5 text-sm transition-colors first:border-0 hover:bg-at-shore-pale"
                 >
-                  <span className="w-6 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-at-muted line-through">
+                  <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
+                    {row.rank}
+                  </span>
+                  {/* Links to the trip page, which lists the stops the trip would have served. */}
+                  <Link
+                    href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(c.trip_id)}${c.scheduled_start ? `?d=${encodeURIComponent(c.scheduled_start)}` : ""}`}
+                    className="min-w-0 flex-1 truncate text-at-muted line-through"
+                  >
                     {c.scheduled_start && (
                       <span className="font-semibold tabular-nums">
                         {nzClockTime(c.scheduled_start)}{" "}
                       </span>
                     )}
                     {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
-                  </span>
+                  </Link>
                   <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
-                    CANCELLED
+                    {CANCELLATION_BADGE.before}
                   </span>
+                  {row.waitSec !== undefined && (
+                    <span
+                      title="A rider waited this long for the next trip"
+                      className="shrink-0 font-semibold text-at-late tabular-nums"
+                    >
+                      {formatDuration(row.waitSec)} wait
+                    </span>
+                  )}
+                  <ChevronRight className="shrink-0 text-at-muted" />
                 </li>
               );
             }
@@ -219,6 +253,28 @@ export function WorstTripsBoard({
                     {t.stops} stops
                   </span>
                 </Link>
+                {detouredTripIds?.has(t.trip_id) && (
+                  <span
+                    title="GPS put this vehicle well off its route mid-run"
+                    className="shrink-0 rounded bg-at-commercial px-1.5 py-0.5 text-xs font-bold text-at-ink"
+                  >
+                    OFF ROUTE
+                  </span>
+                )}
+                {row.cancellation && (
+                  <span
+                    title={STAGE_TITLE[row.cancellation]}
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                      row.cancellation === "ran"
+                        ? "border border-at-border text-at-muted"
+                        : "bg-at-late text-white",
+                    )}
+                  >
+                    <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[row.cancellation]}</span>
+                    <span className="hidden sm:inline">{CANCELLATION_BADGE[row.cancellation]}</span>
+                  </span>
+                )}
                 {liveTripIds?.has(t.trip_id) && (
                   <span className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
                     LIVE

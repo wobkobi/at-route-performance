@@ -1,0 +1,86 @@
+// src/lib/range-page.test.ts
+// Unit tests for the Day / Week / Month window helpers.
+import {
+  dayRangeNav,
+  overviewHeading,
+  parseRangeWindow,
+  routeLinkQuery,
+  weekPeriodOf,
+} from "@/lib/range-page";
+import { nzServiceDayRange } from "@/lib/time";
+import { describe, expect, it } from "vitest";
+
+const TODAY = "2026-09-14";
+
+describe("parseRangeWindow", () => {
+  it("defaults anything but week or month to the day view", () => {
+    expect(parseRangeWindow(undefined)).toBe("day");
+    expect(parseRangeWindow("year")).toBe("day");
+    expect(parseRangeWindow("week")).toBe("week");
+    expect(parseRangeWindow("month")).toBe("month");
+  });
+});
+
+describe("dayRangeNav", () => {
+  const earliest = nzServiceDayRange("2026-09-01").start;
+
+  it("stops at today and at the earliest day with data", () => {
+    expect(dayRangeNav(TODAY, earliest, TODAY)).toMatchObject({ hasPrev: true, hasNext: false });
+    expect(dayRangeNav("2026-09-01", earliest, TODAY)).toMatchObject({
+      hasPrev: false,
+      hasNext: true,
+      nextIsToday: false,
+    });
+  });
+
+  it("marks yesterday's next link as today", () => {
+    expect(dayRangeNav("2026-09-13", earliest, TODAY)).toMatchObject({ nextIsToday: true });
+  });
+});
+
+describe("routeLinkQuery", () => {
+  it("pins only a past day", () => {
+    expect(routeLinkQuery("day", TODAY, null, TODAY)).toBe("");
+    expect(routeLinkQuery("day", "2026-09-10", null, TODAY)).toBe("?day=2026-09-10");
+  });
+
+  it("opens the week view, pinned to a stepped-back week", () => {
+    expect(routeLinkQuery("week", null, null, TODAY)).toBe("?window=week");
+    expect(routeLinkQuery("week", null, "2026-09-07", TODAY)).toBe(
+      "?window=week&period=2026-09-07",
+    );
+  });
+
+  it("sends a month to the route's default view, which has no month", () => {
+    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("");
+  });
+});
+
+describe("weekPeriodOf", () => {
+  it("keeps today on the rolling week", () => {
+    expect(weekPeriodOf(TODAY, TODAY)).toBeNull();
+  });
+
+  it("snaps a past day to its Monday", () => {
+    expect(weekPeriodOf("2026-09-13", TODAY)).toBe("2026-09-07");
+    expect(weekPeriodOf("2026-09-07", TODAY)).toBe("2026-09-07");
+    expect(weekPeriodOf("2026-09-01", TODAY)).toBe("2026-08-31");
+  });
+});
+
+describe("overviewHeading", () => {
+  const day = { window: "day", serviceDate: TODAY, hasPrev: true, nextIsToday: false } as const;
+  const week = { window: "week", label: "Last 7 days", prevHref: null, nextHref: null } as const;
+
+  it("names today, or another day, from the stepper", () => {
+    expect(overviewHeading({ ...day, hasNext: false }, null)).toBe("How bad was it today?");
+    expect(overviewHeading({ ...day, hasNext: true }, null)).toBe("How bad was it that day?");
+  });
+
+  it("tells the current week or month from a stepped-back one", () => {
+    expect(overviewHeading(week, null)).toBe("How bad was this week?");
+    expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
+      "How bad was that month?",
+    );
+  });
+});

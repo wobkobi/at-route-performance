@@ -10,8 +10,8 @@ import type { JSX } from "react";
 import { FaChartBar, FaExclamationTriangle, FaHome, FaMapMarkerAlt, FaRoute } from "react-icons/fa";
 
 const PAGES = [
-  { href: "/", icon: FaHome, label: "Today" },
-  { href: "/rankings", icon: FaChartBar, label: "Rankings" },
+  { href: "/", icon: FaHome, label: "Overview" },
+  { href: "/routes", icon: FaChartBar, label: "Routes" },
   { href: "/shame", icon: FaExclamationTriangle, label: "Shame of the day" },
   { href: "/shame/route", icon: FaRoute, label: "Worst routes" },
   { href: "/shame/stop", icon: FaMapMarkerAlt, label: "Worst stops" },

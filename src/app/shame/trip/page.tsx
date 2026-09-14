@@ -22,6 +22,7 @@ import {
   resolveRangeView,
   resolveRequestedDay,
 } from "@/lib/page-nav";
+import { weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import {
@@ -192,7 +193,12 @@ export default async function TripShamePage({
           nav={{
             kind: "week",
             unit: periodNoun,
-            dayToggleHref: buildShameHref(BASE, {}, filter),
+            // A stepped-back week's Day opens its Monday; a month opens today.
+            dayToggleHref: buildShameHref(
+              BASE,
+              { day: isMonth ? undefined : (periodParam ?? undefined) },
+              filter,
+            ),
             periodLabel,
             prevHref,
             nextHref,
@@ -333,7 +339,11 @@ export default async function TripShamePage({
         }}
         nav={{
           kind: "day",
-          weekToggleHref: buildShameHref(BASE, { window: "week" }, filter),
+          weekToggleHref: buildShameHref(
+            BASE,
+            { window: "week", period: weekPeriodOf(serviceDate) ?? undefined },
+            filter,
+          ),
           basePath: BASE,
           serviceDate,
           preserved,

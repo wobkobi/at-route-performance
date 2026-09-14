@@ -146,7 +146,7 @@ export async function syncShapes(): Promise<{ upserted: number }> {
 
 /**
  * Fetch GTFS trip metadata from AT's full feed and upsert it into the
- * `tripMeta` collection (headsign + direction keyed by trip_id).
+ * `tripMeta` collection (headsign, direction and shape keyed by trip_id).
  * @returns Count of trips upserted.
  */
 export async function syncTripMeta(): Promise<{ upserted: number }> {
@@ -158,6 +158,7 @@ export async function syncTripMeta(): Promise<{ upserted: number }> {
         routeId: t.routeId,
         headsign: t.headsign,
         directionId: t.directionId,
+        shapeId: t.shapeId,
       },
     },
   }));

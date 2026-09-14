@@ -11,6 +11,7 @@ interface Rows {
   events: Date[];
   trips: Date[];
   summaries: Date[];
+  sightings?: Date[];
 }
 
 /**
@@ -29,8 +30,9 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
   function remove(key: keyof Rows): (before: Date) => Promise<number> {
     return (before) => {
       if (failing.includes(key)) return Promise.reject(new Error(`${key} delete failed`));
-      const keep = rows[key].filter((d) => d >= before);
-      const removed = rows[key].length - keep.length;
+      const all = rows[key] ?? [];
+      const keep = all.filter((d) => d >= before);
+      const removed = all.length - keep.length;
       rows[key] = keep;
       return Promise.resolve(removed);
     };
@@ -41,7 +43,7 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
    * @returns The count, resolving to the rows before the instant.
    */
   function count(key: keyof Rows): (before: Date) => Promise<number> {
-    return (before) => Promise.resolve(rows[key].filter((d) => d < before).length);
+    return (before) => Promise.resolve((rows[key] ?? []).filter((d) => d < before).length);
   }
   /**
    * A fixed reading just past the warning threshold at the default allowance.
@@ -56,6 +58,7 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
     deleteEvents: remove("events"),
     deleteTrips: remove("trips"),
     deleteSummaries: remove("summaries"),
+    deleteSightings: remove("sightings"),
     storage,
   };
   return { store, rows };
@@ -137,11 +140,14 @@ describe("runCleanup", () => {
       events: [old, old, recent],
       trips: [old, recent],
       summaries: [old, recent],
+      sightings: [old, old, old, recent],
     });
     const outcome = await runCleanup(store, cutoff, 14, 512, new Date("2026-06-15T00:00:00Z"));
     expect(outcome.deletedEvents).toBe(2);
     expect(outcome.deletedTrips).toBe(1);
     expect(outcome.deletedSummaries).toBe(1);
+    expect(outcome.deletedSightings).toBe(3);
+    expect(rows.sightings).toEqual([recent]);
     expect(rows.events).toEqual([recent]);
     expect(outcome.firstError).toBeNull();
     expect(outcome.storageWarning).toBe(true);
