@@ -297,7 +297,7 @@ a point in time.
    push that hangs is a failed deploy.
 3. `npm run test:int` passes against the box (the ghost pass and service-date pipelines prove the
    5.2+ operators).
-4. Home page, a route page, rankings, and week view load on production.
+4. Home page (day, week and month), a route page, and its week view load on production.
 5. Two realtime ingest runs succeed (`IngestRun` rows, ~1.6k rows/run growth).
 6. A manual cleanup run returns 202 then records success, with the storage warning quiet.
 7. Vercel function durations stay sane: the week boards fan out per-day with `Promise.all`, so the

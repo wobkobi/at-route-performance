@@ -1,0 +1,161 @@
+"use client";
+// src/components/CancelledTripList.tsx
+// The Cancellations page's trip list: every flagged trip in the window with its
+// route, destination and stage, filterable by stage and linking to the trip
+// page. A week or month runs to thousands of trips, so the list shows a page at
+// a time behind a "Show more" button.
+
+import { ChevronRight } from "@/components/icons";
+import { ModeIcon } from "@/components/ModeIcon";
+import {
+  CANCELLATION_BADGE,
+  CANCELLATION_BADGE_SHORT,
+  type CancellationStage,
+} from "@/lib/cancellation";
+import { cn } from "@/lib/cn";
+import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
+import { nzClockTime, nzServiceDayRange, parseYmd, weekdayShort } from "@/lib/time";
+import Link from "next/link";
+import { useMemo, useState, type JSX } from "react";
+
+/** Trips shown before "Show more", and how many each press adds. */
+const PAGE_SIZE = 30;
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Props for {@link CancelledTripList}. */
+export interface CancelledTripListProps {
+  /** The window's flagged trips, already filtered by mode and school services. */
+  trips: NetworkCancelledTrip[];
+  /** Whether the window spans several days, so each row names its day. */
+  multiDay: boolean;
+}
+
+const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = [
+  { key: null, label: "All" },
+  { key: "before", label: "Never ran" },
+  { key: "mid-trip", label: "Cut short" },
+  { key: "ran", label: "Reinstated" },
+];
+
+/**
+ * A service date as `Sat 12 Sep`.
+ * @param ymd - The service date (`YYYY-MM-DD`).
+ * @returns The label.
+ */
+function dayLabel(ymd: string): string {
+  const { mo, d } = parseYmd(ymd);
+  return `${weekdayShort(ymd)} ${d} ${MONTHS[mo - 1] ?? ""}`;
+}
+
+/**
+ * List a window's flagged trips, filterable by stage. A single day reads in
+ * departure order; a week or month puts the most recent first.
+ * @param props - Component props.
+ * @param props.trips - The flagged trips.
+ * @param props.multiDay - Whether each row names its day.
+ * @returns The list section.
+ */
+export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): JSX.Element {
+  const [stage, setStage] = useState<CancellationStage | null>(null);
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const ordered = useMemo(() => (multiDay ? [...trips].reverse() : trips), [trips, multiDay]);
+  const visible = stage ? ordered.filter((t) => t.stage === stage) : ordered;
+  const counts = useMemo(() => {
+    const c: Record<CancellationStage, number> = { before: 0, "mid-trip": 0, ran: 0 };
+    for (const t of trips) c[t.stage]++;
+    return c;
+  }, [trips]);
+
+  return (
+    <section className="min-w-0 border border-at-border bg-at-surface p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-ultra tracking-zero text-at-ink">Cancelled trips</h2>
+        <div className="flex flex-wrap gap-1">
+          {STAGES.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              aria-pressed={stage === s.key}
+              onClick={() => {
+                setStage(s.key);
+                setShown(PAGE_SIZE);
+              }}
+              className={cn("chip text-xs", stage === s.key ? "chip-on" : "chip-off")}
+            >
+              {s.label}
+              <span className="ml-1 tabular-nums opacity-70">
+                {s.key ? counts[s.key] : trips.length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {visible.length === 0 ? (
+        <p className="text-sm text-at-muted">No cancelled trips here.</p>
+      ) : (
+        <ol>
+          {visible.slice(0, shown).map((t) => {
+            const at = t.scheduled_start ?? nzServiceDayRange(t.service_date).start.toISOString();
+            return (
+              <li
+                key={`${t.service_date}-${t.trip_id}`}
+                className="border-t border-at-border first:border-0"
+              >
+                <Link
+                  href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
+                  prefetch={false}
+                  className="-mx-4 flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-at-shore-pale"
+                >
+                  <span className="w-16 shrink-0 tabular-nums">
+                    {multiDay && (
+                      <span className="block text-xs text-at-muted">
+                        {dayLabel(t.service_date)}
+                      </span>
+                    )}
+                    <span className="font-semibold text-at-shore">
+                      {t.scheduled_start ? nzClockTime(t.scheduled_start) : "—"}
+                    </span>
+                  </span>
+                  <ModeIcon
+                    mode={t.mode}
+                    shortName={t.short_name}
+                    longName={t.long_name}
+                    colour={t.colour}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-semibold text-at-ink">{t.short_name ?? t.route_id}</span>
+                    <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                      t.stage === "ran"
+                        ? "border border-at-border text-at-muted"
+                        : "bg-at-late text-white",
+                    )}
+                  >
+                    <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
+                    <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                  </span>
+                  <ChevronRight className="shrink-0 text-at-muted" />
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {visible.length > shown && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + PAGE_SIZE)}
+            className="chip chip-off"
+          >
+            Show {Math.min(PAGE_SIZE, visible.length - shown)} more of {visible.length - shown}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}

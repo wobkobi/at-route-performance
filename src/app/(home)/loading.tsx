@@ -3,6 +3,7 @@
 
 import {
   BoardFiltersSkeleton,
+  ChipBone,
   DayNavSkeleton,
   FeatureCardPairSkeleton,
   KpiStripSkeleton,
@@ -14,7 +15,8 @@ import type { JSX } from "react";
 
 /**
  * Home page loading skeleton - shown by Next.js during navigation while the
- * async page.tsx resolves. Built from the box-for-box skeleton parts, so each
+ * async page.tsx resolves. Drawn for the day view, the default; the week and
+ * month views share its blocks. Built from the box-for-box skeleton parts, so each
  * block matches the page's own size and nothing shifts when it arrives.
  * @returns Skeleton markup.
  */
@@ -23,7 +25,14 @@ export default function Loading(): JSX.Element {
     <main className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <TitleBone className="w-80" />
-        <DayNavSkeleton />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
+            <ChipBone className="w-13" />
+            <ChipBone className="w-16" />
+            <ChipBone className="w-18" />
+          </div>
+          <DayNavSkeleton />
+        </div>
       </header>
 
       <KpiStripSkeleton />
@@ -37,11 +46,6 @@ export default function Loading(): JSX.Element {
       <div className="grid gap-4 md:grid-cols-2">
         <RankBoardSkeleton caption />
         <RankBoardSkeleton />
-      </div>
-
-      {/* Collapsed "All routes" details: px-4 py-3 around a 24px summary line */}
-      <div className="border border-at-border bg-at-surface px-4 py-3">
-        <Bone className="h-6 w-24" />
       </div>
     </main>
   );

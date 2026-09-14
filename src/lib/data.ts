@@ -7,11 +7,23 @@ export {
   getCancelledCount,
   getCancelledRoutes,
   getCancelledTrips,
+  getNetworkCancelledTrips,
+  getTripCancellation,
 } from "@/lib/data/cancelled";
-export type { CancelledRouteRow, CancelledTripRow } from "@/lib/data/cancelled";
+export type {
+  CancelledRouteRow,
+  CancelledTripRow,
+  NetworkCancelledTrip,
+  TripCancellation,
+} from "@/lib/data/cancelled";
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
+export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
+export type { TripDetour } from "@/lib/data/off-route";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
+export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
+export type { DayRiderWait } from "@/lib/data/rider-wait";
+export { getRouteAreas } from "@/lib/data/route-areas";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";
 export {
@@ -41,5 +53,11 @@ export {
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
 } from "@/lib/data/stops";
-export { getTripScheduledStops, getTripTimeline, getWorstTripsOfDay } from "@/lib/data/trips";
+export {
+  getLatestTripDay,
+  getTripScheduledStops,
+  getTripShape,
+  getTripTimeline,
+  getWorstTripsOfDay,
+} from "@/lib/data/trips";
 export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";

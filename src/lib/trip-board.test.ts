@@ -1,9 +1,11 @@
 // src/lib/trip-board.test.ts
 // Unit tests for placing cancelled trips on the route trip board.
+import type { CancellationStage } from "@/lib/cancellation";
 import type { CancelledTripRow } from "@/lib/data/cancelled";
 import {
   buildTripBoardRows,
   gtfsTimeSeconds,
+  sortRuns,
   tripIdStartSeconds,
   type TripBoardRow,
 } from "@/lib/trip-board";
@@ -33,10 +35,22 @@ function run(id: string, start: string, abs = 60): PerTripStat {
  * A cancelled trip starting at the given instant.
  * @param id - Trip id.
  * @param start - ISO scheduled start, or null when unknown.
+ * @param stage - How the cancellation played out (defaults to never ran).
  * @returns The cancellation row.
  */
-function cancel(id: string, start: string | null): CancelledTripRow {
-  return { trip_id: id, headsign: null, direction_id: null, scheduled_start: start };
+function cancel(
+  id: string,
+  start: string | null,
+  stage: CancellationStage = "before",
+): CancelledTripRow {
+  return {
+    trip_id: id,
+    headsign: null,
+    direction_id: null,
+    scheduled_start: start,
+    detected_at: start ?? "2026-09-13T18:00:00.000Z",
+    stage,
+  };
 }
 
 /**
@@ -112,6 +126,32 @@ describe("buildTripBoardRows", () => {
   it("lists cancellations alone when nothing ran", () => {
     expect(labels(buildTripBoardRows([], [cancel("c", T8)], "off", false))).toEqual(["xc"]);
   });
+
+  it("folds a flagged trip that ran into its run instead of a second row", () => {
+    const rows = buildTripBoardRows(
+      [run("cut", T7), run("back", T8), run("fine", T9)],
+      [cancel("cut", T7, "mid-trip"), cancel("back", T8, "ran")],
+      "departure",
+      false,
+    );
+    expect(labels(rows)).toEqual(["cut", "back", "fine"]);
+    expect(rows.map((r) => (r.kind === "run" ? r.cancellation : "row"))).toEqual([
+      "mid-trip",
+      "ran",
+      null,
+    ]);
+  });
+
+  it("moves a run that never ran (only a leftover prediction) to the cancellations", () => {
+    const rows = buildTripBoardRows(
+      [run("ghostly", T7, 0), run("real", T9)],
+      [cancel("ghostly", T7, "before")],
+      "off",
+      false,
+    );
+    expect(labels(rows)).toEqual(["real", "xghostly"]);
+    expect(rows.map((r) => (r.kind === "run" ? r.rank : null))).toEqual([1, null]);
+  });
 });
 
 describe("gtfsTimeSeconds", () => {
@@ -133,5 +173,54 @@ describe("tripIdStartSeconds", () => {
   it("returns null for another id shape", () => {
     expect(tripIdStartSeconds("abc")).toBeNull();
     expect(tripIdStartSeconds("1060-14804-x-2-efb6f52a")).toBeNull();
+  });
+});
+
+describe("buildTripBoardRows with rider waits", () => {
+  it("ranks a cancellation among the runs by its wait on the delay sorts", () => {
+    const runs = [run("a", T7, 900), run("b", T8, 300), run("c", T9, 60)];
+    const rows = buildTripBoardRows(runs, [cancel("x", T8)], "off", false, { x: 600 });
+    expect(labels(rows)).toEqual(["a", "xx", "b", "c"]);
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3, 4]);
+    expect(rows[1]).toMatchObject({ kind: "cancelled", waitSec: 600 });
+  });
+
+  it("follows a reversed sort and puts a wait past every run first", () => {
+    const runs = [run("c", T9, 60), run("b", T8, 300)];
+    expect(labels(buildTripBoardRows(runs, [cancel("x", T8)], "off", true, { x: 120 }))).toEqual([
+      "c",
+      "xx",
+      "b",
+    ]);
+    expect(
+      labels(
+        buildTripBoardRows([run("b", T8, 300)], [cancel("x", T8)], "late", false, { x: 3600 }),
+      ),
+    ).toEqual(["xx", "b"]);
+  });
+
+  it("leaves a cancellation with no known wait unranked below the runs", () => {
+    const rows = buildTripBoardRows(
+      [run("a", T7)],
+      [cancel("x", T8), cancel("y", T9)],
+      "off",
+      false,
+      { y: 30 },
+    );
+    expect(labels(rows)).toEqual(["a", "xy", "xx"]);
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, undefined]);
+  });
+});
+
+describe("sortRuns", () => {
+  it("puts the largest first on off and late, the smallest on early, nulls last", () => {
+    const runs = [
+      run("mid", T7, 120),
+      { ...run("none", T8), avg_abs_delay_sec: null, avg_delay_sec: null },
+      run("big", T9, 600),
+    ];
+    expect(sortRuns(runs, "off", false).map((r) => r.trip_id)).toEqual(["big", "mid", "none"]);
+    expect(sortRuns(runs, "early", false).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
+    expect(sortRuns(runs, "late", true).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
   });
 });

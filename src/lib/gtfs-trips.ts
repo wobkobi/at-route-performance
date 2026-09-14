@@ -1,8 +1,8 @@
 // src/lib/gtfs-trips.ts
-// Fetch and parse per-trip headsign and direction from the AT GTFS feed's `trips.txt`.
+// Fetch and parse per-trip headsign, direction and shape from the AT GTFS feed's `trips.txt`.
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
-/** AT's full GTFS feed (zip); `trips.txt` holds headsign + direction per trip_id. */
+/** AT's full GTFS feed (zip); `trips.txt` holds headsign, direction and shape per trip_id. */
 const GTFS_ZIP_URL = process.env.AT_GTFS_ZIP_URL ?? "https://gtfs.at.govt.nz/gtfs.zip";
 
 /** One parsed row from `trips.txt`. */
@@ -11,6 +11,7 @@ export interface TripRecord {
   routeId: string;
   headsign: string | null;
   directionId: number | null;
+  shapeId: string | null;
 }
 
 /**
@@ -25,6 +26,7 @@ function parseTrips(txt: string): TripRecord[] {
   const iRoute = header.indexOf("route_id");
   const iHeadsign = header.indexOf("trip_headsign");
   const iDir = header.indexOf("direction_id");
+  const iShape = header.indexOf("shape_id");
   if (iId < 0 || iRoute < 0) throw new Error("trips.txt is missing expected columns");
 
   const out: TripRecord[] = [];
@@ -38,7 +40,14 @@ function parseTrips(txt: string): TripRecord[] {
     const headsign = iHeadsign >= 0 ? c[iHeadsign]?.trim() || null : null;
     // A missing direction column parses to NaN, same as an empty cell.
     const dirRaw = iDir >= 0 ? parseInt(c[iDir] ?? "", 10) : NaN;
-    out.push({ id, routeId, headsign, directionId: Number.isFinite(dirRaw) ? dirRaw : null });
+    const shapeId = iShape >= 0 ? c[iShape]?.trim() || null : null;
+    out.push({
+      id,
+      routeId,
+      headsign,
+      directionId: Number.isFinite(dirRaw) ? dirRaw : null,
+      shapeId,
+    });
   }
   return out;
 }

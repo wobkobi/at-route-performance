@@ -3,40 +3,62 @@
 // Primary site navigation links, highlighting the current section.
 
 import { cn } from "@/lib/cn";
+import { isNavActive, NAV_SECTIONS, navHref } from "@/lib/site-nav";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { JSX } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, type JSX } from "react";
 
-const LINKS = [
-  { href: "/", label: "Today" },
-  { href: "/rankings", label: "Rankings" },
-] as const;
+/**
+ * The nav links. Each carries the current day, window and mode filter (see
+ * lib/site-nav.ts), so moving between sections keeps the period being looked at.
+ * @param props - Component props.
+ * @param props.params - The current query params, or empty before they are read.
+ * @returns The links.
+ */
+function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
+  const pathname = usePathname();
+  return (
+    <>
+      {NAV_SECTIONS.map((s) => {
+        const active = isNavActive(s, pathname);
+        return (
+          <Link
+            key={s.href}
+            href={navHref(s, params)}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1.5 text-sm font-semibold transition-colors sm:px-3",
+              active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
+            )}
+          >
+            {s.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Nav links reading the live query params.
+ * @returns The links.
+ */
+function NavLinksWithParams(): JSX.Element {
+  const searchParams = useSearchParams();
+  return <NavLinks params={new URLSearchParams(searchParams.toString())} />;
+}
 
 /**
  * Primary site navigation links, highlighting the current section.
  * @returns The nav element.
  */
 export function SiteNav(): JSX.Element {
-  const pathname = usePathname();
   return (
-    <nav className="flex items-center gap-1">
-      {LINKS.map((l) => {
-        // "/" only matches exactly; other links match their section prefix.
-        const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
-        return (
-          <Link
-            key={l.href}
-            href={l.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
-              active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
-            )}
-          >
-            {l.label}
-          </Link>
-        );
-      })}
+    <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto sm:gap-1">
+      {/* Reading the query suspends a statically rendered page; plain links stand in. */}
+      <Suspense fallback={<NavLinks params={new URLSearchParams()} />}>
+        <NavLinksWithParams />
+      </Suspense>
     </nav>
   );
 }

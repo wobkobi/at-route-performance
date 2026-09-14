@@ -2,6 +2,7 @@
 // Highlight card for the period's most off-schedule route, linking to its shame breakdown.
 
 import { ModeIcon } from "@/components/ModeIcon";
+import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
@@ -59,7 +60,14 @@ export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Elemen
           <>
             Ran{" "}
             <span
-              className={`font-semibold ${isOnTime(route.avg_delay_sec, route.mode) ? "text-at-ontime" : route.avg_delay_sec < 0 ? "text-at-early" : "text-at-late"}`}
+              className={cn(
+                "font-semibold",
+                isOnTime(route.avg_delay_sec, route.mode)
+                  ? "text-at-ontime"
+                  : route.avg_delay_sec < 0
+                    ? "text-at-early"
+                    : "text-at-late",
+              )}
             >
               {formatDelay(route.avg_delay_sec, { mode: route.mode })}
             </span>{" "}
@@ -69,7 +77,14 @@ export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Elemen
           <>
             Ran{" "}
             <span
-              className={`font-semibold ${isOnTime(route.avg_delay_sec, route.mode) ? "text-at-ontime" : route.avg_delay_sec < 0 ? "text-at-early" : "text-at-late"}`}
+              className={cn(
+                "font-semibold",
+                isOnTime(route.avg_delay_sec, route.mode)
+                  ? "text-at-ontime"
+                  : route.avg_delay_sec < 0
+                    ? "text-at-early"
+                    : "text-at-late",
+              )}
             >
               {formatDuration(route.avg_abs_delay_sec)}
             </span>{" "}

@@ -1,6 +1,7 @@
 // src/components/shame/ShameRowDelay.tsx
 // Delay summary line for a shame board row, wording the average deviation by mode.
 
+import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import type { JSX } from "react";
@@ -36,15 +37,16 @@ export function ShameRowDelay({
   return (
     <span className="shrink-0 pt-px text-right">
       <span
-        className={`block font-semibold tabular-nums ${
+        className={cn(
+          "block font-semibold tabular-nums",
           !oneDirectional
             ? "cursor-help text-at-ink"
             : isOnTime(signed, mode)
               ? "text-at-ontime"
               : signed < 0
                 ? "text-at-early"
-                : "text-at-late"
-        }`}
+                : "text-at-late",
+        )}
         title={
           !oneDirectional
             ? "Some services ran early, some ran late — shows absolute average deviation from schedule"

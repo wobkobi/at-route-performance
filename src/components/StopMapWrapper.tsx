@@ -2,6 +2,7 @@
 // src/components/StopMapWrapper.tsx
 // Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
+import type { OffRoutePoint } from "@/components/StopMap";
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
@@ -35,8 +36,10 @@ interface StopMapWrapperProps {
   }>;
   /** Per-variant stop-coordinate sequences drawn as the route path. */
   routeLines?: Array<Array<[number, number]>>;
-  /** When set, the map polls and plots live vehicles for this route. */
+  /** Route id, keying the saved viewport and the live-vehicle poll. */
   routeId?: string;
+  /** Poll and plot the route's live vehicles; set only when the view covers now. */
+  live?: boolean;
   /** Route transport mode, selecting the live-vehicle glyph. */
   mode?: "BUS" | "TRAIN" | "FERRY";
   /** When set, the map centres on this stop and opens its popup. */
@@ -48,6 +51,8 @@ interface StopMapWrapperProps {
    * Pass all raw GTFS direction ids that alias to the active direction.
    */
   filterDirectionIds?: number[];
+  /** Readings of the vehicle off its road path, in time order (trip map). */
+  offRoute?: OffRoutePoint[];
   className?: string;
 }
 

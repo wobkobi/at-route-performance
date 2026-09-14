@@ -113,7 +113,7 @@ export function FeatureCardSkeleton({
 }
 
 /**
- * Mirrors the home and rankings pair of highlight cards.
+ * Mirrors the home page's pair of highlight cards.
  * @returns The two-card grid placeholder.
  */
 export function FeatureCardPairSkeleton(): JSX.Element {
@@ -132,7 +132,7 @@ export function FeatureCardPairSkeleton(): JSX.Element {
  * 1px rules.
  * @param root0 - Props.
  * @param root0.caption - Whether the board carries the on-time caption.
- * @param root0.rows - How many rows to draw (the home and rankings boards show ten).
+ * @param root0.rows - How many rows to draw (the home boards show ten).
  * @returns The board placeholder.
  */
 export function RankBoardSkeleton({
@@ -171,13 +171,14 @@ export function RankBoardSkeleton({
 }
 
 /**
- * Mirrors the filter rows above the boards: the mode chips with the school-bus
- * toggle, then the right-aligned All/Late/Early delay chips.
- * @returns The two filter rows.
+ * Mirrors the filter row above the boards: the mode chips with the school-bus
+ * toggle on the left, the All/Late/Early delay chips at the right (wrapping under
+ * them on a phone).
+ * @returns The filter row.
  */
 export function BoardFiltersSkeleton(): JSX.Element {
   return (
-    <>
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap gap-2">
           <ChipBone className="w-11" />
@@ -186,14 +187,12 @@ export function BoardFiltersSkeleton(): JSX.Element {
         </div>
         <ChipBone className="w-27" />
       </div>
-      <div className="flex justify-end">
-        <div className="flex flex-wrap gap-2">
-          <ChipBone className="w-11" />
-          <ChipBone className="w-14" />
-          <ChipBone className="w-16" />
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <ChipBone className="w-11" />
+        <ChipBone className="w-14" />
+        <ChipBone className="w-16" />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -235,9 +234,11 @@ export function ShameHeaderSkeleton({
 /**
  * Mirrors CancelledBoard: a `px-4 py-3` header over its bottom rule, then `py-3`
  * rows of a 24px line split by 1px rules.
+ * @param root0 - Props.
+ * @param root0.rows - How many rows to draw (the Shame dashboard shows ten).
  * @returns The board placeholder.
  */
-export function CancelledBoardSkeleton(): JSX.Element {
+export function CancelledBoardSkeleton({ rows = 10 }: { rows?: number }): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface">
       <div className="flex items-center justify-between gap-3 border-b border-at-border px-4 py-3">
@@ -245,7 +246,7 @@ export function CancelledBoardSkeleton(): JSX.Element {
         <Bone className="h-5 w-16" />
       </div>
       <div className="divide-y divide-at-border">
-        {Array.from({ length: 10 }).map((_, i) => (
+        {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Bone className="h-4 w-5" />
             <Bone className="h-5 w-5 rounded-full" />

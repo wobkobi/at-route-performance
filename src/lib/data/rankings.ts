@@ -1,6 +1,13 @@
 // src/lib/data/rankings.ts
 // Per-route rankings over a window: summaries for rolled-up days, live scans for the rest.
-import { cachedForDay, rangeIsFinal, scheduledAtWindow, toIso } from "@/lib/data/cache";
+import {
+  cachedForDay,
+  cachedForRange,
+  rangeIsFinal,
+  scheduledAtWindow,
+  toIso,
+} from "@/lib/data/cache";
+import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -11,6 +18,7 @@ import {
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
+import { applyRoutePenalties } from "@/lib/rider-wait";
 import { foldLineageRows } from "@/lib/route-lineage";
 import {
   type DateRange,
@@ -337,7 +345,9 @@ function cachedLiveRankingsOfDay(date: string): Promise<TopRouteRow[]> {
  * earlier day whose aggregate has not run), merged by event weight and folded
  * to one row per line (see {@link foldLineageRows}). A window that is entirely
  * summarised costs one query; a window reaching into today costs one more,
- * cached per day. Days that have not started are skipped.
+ * cached per day. Days that have not started are skipped. Each route's
+ * cancellations then join its figures as the wait for the next trip (see
+ * lib/rider-wait.ts), so a route cannot improve its numbers by cancelling runs.
  * @param range - UTC half-open window.
  * @returns Per-route rows.
  */
@@ -347,18 +357,20 @@ async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
   const liveDates = serviceDatesInRange(range).filter(
     (date) => !summarised.has(date) && nzServiceDayRange(date).start <= now,
   );
-  const [summaryRows, ...liveSets] = await Promise.all([
+  const [penalties, summaryRows, ...liveSets] = await Promise.all([
+    getRouteRiderWait(range),
     summarised.size > 0 ? querySummaryRankings(range) : Promise.resolve<TopRouteRow[]>([]),
     ...liveDates.map(cachedLiveRankingsOfDay),
   ]);
-  return foldLineageRows([...summaryRows, ...liveSets.flat()]);
+  return applyRoutePenalties(foldLineageRows([...summaryRows, ...liveSets.flat()]), penalties);
 }
 
 /**
- * Cached per-route rows for a window.
+ * Cached per-route rows for a window, keyed by the window's state so a live
+ * window is never served more than one TTL behind (see cachedForRange).
  * @param range - UTC half-open window.
  * @param thresholdSec - On-time threshold in seconds.
- * @param revalidate - Cache TTL in seconds.
+ * @param revalidate - Cache TTL in seconds while the window can still change.
  * @returns Per-route rows.
  */
 export async function getRankings(
@@ -366,9 +378,10 @@ export async function getRankings(
   thresholdSec: number,
   revalidate: number,
 ): Promise<TopRouteRow[]> {
-  return unstable_cache(
+  return cachedForRange(
     () => queryRankings(range),
-    ["rankings", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
-    { revalidate },
-  )();
+    ["rankings-v2", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    range,
+    revalidate,
+  );
 }

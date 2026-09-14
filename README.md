@@ -6,16 +6,29 @@ feeds.
 The site polls AT's GTFS-RT trip updates every couple of minutes, stores one row per observed stop
 arrival with its signed deviation from schedule, and rolls each completed service day into per-route
 summaries that are kept indefinitely. Everything on the front end - the daily boards, the rankings,
-the per-route and per-stop pages - is built from those two collections.
+the Routes list, the per-route and per-stop pages - is built from those two collections.
 
 ## What it measures
 
 - **On time** means 1 minute early to 5 minutes late for buses and trains, 5 minutes either side for
   ferries. That window is a project choice, not AT's.
 - **Arrivals** counts stop visits, not trips: one run of a 30-stop route contributes 30.
-- **Cancellations** are counted separately. A cancelled trip records no arrival, so it can never
-  appear as "late" - without a separate count, cancelling a service silently improves a route's
-  on-time rate.
+- **Cancellations** count as the wait a rider had. A cancelled trip records no arrival, so on
+  arrivals alone cancelling a service would improve a route's figures. Instead every stop it failed
+  to serve counts as late by the gap to the next trip that ran in the same direction, capped at an
+  hour: all its stops for a trip that never ran, the stops after the cut for one cut short, none for
+  one AT reinstated (see [`src/lib/rider-wait.ts`](src/lib/rider-wait.ts)). This flows into the
+  route rows behind the boards, the Routes page and the route pages; the Shame boards and stop pages
+  stay on measured arrivals. Cancellations are also counted as trips, on the Cancellations page.
+- **Areas** on the Routes page (Central, North Shore, West, East, South, Hibiscus Coast & Rodney,
+  Waiheke & islands) come from where each route stopped over the last week, placed against
+  approximate boundaries in [`src/lib/areas.ts`](src/lib/areas.ts). AT publishes no fare zone for a
+  stop.
+- **Detours** come from GPS, not alerts. Each ingest poll measures every bus and train part-way
+  through a trip against that trip's road shape, and a trip counts as having left its route when two
+  readings more than 200 m off it fall between arrivals it recorded before and after (see
+  [`src/lib/off-route.ts`](src/lib/off-route.ts)). AT's detour alert is shown alongside when one was
+  active. Ferries are left out, since a sailing's shape is a rough line between wharves.
 - **Ghost readings** are excluded. AT reuses a `trip_id` against a later vehicle block, so one run
   can report a near-constant hour-off offset at every stop. A nightly pass classifies those by shape
   rather than by size, so genuinely catastrophic delays survive into the stats (see

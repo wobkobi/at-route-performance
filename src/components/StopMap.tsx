@@ -5,6 +5,7 @@
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
+import { cartoTileUrl } from "@/lib/map-tiles";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
@@ -25,6 +26,17 @@ interface StopPoint {
 /** A route variant's path: stop coordinates in schedule order. */
 type RouteLine = Array<[number, number]>;
 
+/** A vehicle reading off its trip's road path, drawn on the trip map. */
+export interface OffRoutePoint {
+  lat: number;
+  lon: number;
+  /** Tooltip text, e.g. "8:14 am, 420 m off route". */
+  label: string;
+}
+
+/** Stable empty default for `offRoute`, so the redraw effect does not rerun on every render. */
+const NO_OFF_ROUTE: OffRoutePoint[] = [];
+
 /** Vehicles beyond this many seconds off schedule are coloured late/early. */
 const VEHICLE_THRESHOLD = 120;
 
@@ -39,18 +51,6 @@ const POLL_MS = 120_000;
  * context rather than street-level zoom.
  */
 const STOP_FOCUS_ZOOM = 14;
-
-/**
- * CARTO Positron raster tiles. CARTO stamps "API KEY REQUIRED" across every tile
- * requested without `?key=`, so the key (free, from carto.com/basemaps/apikey) is
- * appended when set. It ships to the browser in each tile URL, so it is public by
- * design; restrict the production key to the site's host in the CARTO dashboard.
- */
-const TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" +
-  (process.env.NEXT_PUBLIC_CARTO_API_KEY
-    ? `?key=${encodeURIComponent(process.env.NEXT_PUBLIC_CARTO_API_KEY)}`
-    : "");
 
 /**
  * Haversine distance in kilometres between two WGS-84 coordinates.
@@ -208,6 +208,8 @@ interface MapColours {
   shore: string;
   border: string;
   surface: string;
+  /** Off-route readings (AT Commercial orange). */
+  offRoute: string;
 }
 
 /**
@@ -223,6 +225,7 @@ function readColours(): MapColours {
     shore: cssVar("--color-at-shore") || "#0073bd",
     border: cssVar("--color-at-border") || "#c7ced6",
     surface: cssVar("--color-at-surface") || "#ffffff",
+    offRoute: cssVar("--color-at-commercial") || "#f7941f",
   };
 }
 
@@ -232,6 +235,7 @@ interface MapState {
   map: Leaflet.Map;
   colours: MapColours;
   routeLayer: Leaflet.LayerGroup;
+  offRouteLayer: Leaflet.LayerGroup;
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
   markerById: Map<string, Leaflet.CircleMarker>;
@@ -281,6 +285,34 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoi
         keyboard: false,
       }).addTo(routeLayer);
     }
+  }
+}
+
+/**
+ * Redraw the off-route readings: a dashed orange line through them in time
+ * order, and a dot with its time and distance at each.
+ * @param state - Live map state.
+ * @param points - The readings, in time order.
+ */
+function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
+  const { L, offRouteLayer, colours } = state;
+  offRouteLayer.clearLayers();
+  if (points.length > 1) {
+    L.polyline(
+      points.map((p) => [p.lat, p.lon] as [number, number]),
+      { color: colours.offRoute, weight: 3, dashArray: "6 6", opacity: 0.9 },
+    ).addTo(offRouteLayer);
+  }
+  for (const p of points) {
+    L.circleMarker([p.lat, p.lon], {
+      radius: 6,
+      color: colours.ink,
+      fillColor: colours.offRoute,
+      fillOpacity: 1,
+      weight: 1.5,
+    })
+      .bindTooltip(esc(p.label))
+      .addTo(offRouteLayer);
   }
 }
 
@@ -377,11 +409,13 @@ function setInitialViewport(
  * @param root0 - Props object.
  * @param root0.stops - Stops to plot.
  * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
- * @param root0.routeId - When set, poll and plot live vehicles for this route.
+ * @param root0.routeId - Route id, keying the saved viewport and the live-vehicle poll.
+ * @param root0.live - Poll and plot live vehicles; only for a view that covers now.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
+ * @param root0.offRoute - Readings of the vehicle off its road path, in time order (trip map).
  * @param root0.className - Optional extra classes for the container div.
  * @returns Map container element.
  */
@@ -389,19 +423,23 @@ export default function StopMap({
   stops,
   routeLines = [],
   routeId,
+  live = false,
   mode = "BUS",
   selectedStopId,
   filterTripId,
   filterDirectionIds,
+  offRoute = NO_OFF_ROUTE,
   className,
 }: {
   stops: StopPoint[];
   routeLines?: RouteLine[];
   routeId?: string;
+  live?: boolean;
   mode?: RouteMode;
   selectedStopId?: string;
   filterTripId?: string;
   filterDirectionIds?: number[];
+  offRoute?: OffRoutePoint[];
   className?: string;
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
@@ -412,9 +450,27 @@ export default function StopMap({
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
-  const latestRef = useRef({ stops, routeLines, routeId, mode, filterTripId, filterDirectionIds });
+  const latestRef = useRef({
+    stops,
+    routeLines,
+    routeId,
+    live,
+    mode,
+    filterTripId,
+    filterDirectionIds,
+    offRoute,
+  });
   useLayoutEffect(() => {
-    latestRef.current = { stops, routeLines, routeId, mode, filterTripId, filterDirectionIds };
+    latestRef.current = {
+      stops,
+      routeLines,
+      routeId,
+      live,
+      mode,
+      filterTripId,
+      filterDirectionIds,
+      offRoute,
+    };
   });
 
   // --- Effect 1: initialise map once -------------------------------------------
@@ -431,7 +487,13 @@ export default function StopMap({
 
       const colours = readColours();
       const map = L.map(divRef.current);
-      L.tileLayer(TILE_URL, {
+      // The key goes out only where CARTO accepts it (see cartoTileUrl).
+      const tiles = cartoTileUrl(
+        window.location.host,
+        process.env.NEXT_PUBLIC_CARTO_API_KEY,
+        process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
+      );
+      L.tileLayer(tiles, {
         maxZoom: 19,
         subdomains: "abcd",
         attribution: "© OpenStreetMap contributors © CARTO",
@@ -446,6 +508,7 @@ export default function StopMap({
         map,
         colours,
         routeLayer: L.layerGroup().addTo(map),
+        offRouteLayer: L.layerGroup().addTo(map),
         stopLayer: L.layerGroup().addTo(map),
         vehicleLayer: L.layerGroup().addTo(map),
         markerById: new Map(),
@@ -455,6 +518,7 @@ export default function StopMap({
       // Draw initial content from the current prop values.
       const { stops: s0, routeLines: rl0, routeId: rId, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
+      drawOffRouteLayer(state, latestRef.current.offRoute);
       drawStopLayer(state, s0, m0);
 
       const storageKey = rId ? `map-viewport:${rId}` : null;
@@ -480,7 +544,9 @@ export default function StopMap({
         }
       }
 
-      if (!rId) return;
+      // A past day's map shows where vehicles are right now, not where they were, so
+      // only a view that covers now polls.
+      if (!rId || !latestRef.current.live) return;
 
       /** Fetch and redraw live vehicles, reading always-current values from latestRef. */
       const pollVehicles = async (): Promise<void> => {
@@ -572,8 +638,9 @@ export default function StopMap({
     const state = stateRef.current;
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);
+    drawOffRouteLayer(state, offRoute);
     drawStopLayer(state, stops, mode);
-  }, [stops, routeLines, mode]);
+  }, [stops, routeLines, mode, offRoute]);
 
   // --- Effect 3: smooth-pan to the selected stop (no map rebuild) ---------------
   // A flyTo with a short duration keeps the context visible while centering.

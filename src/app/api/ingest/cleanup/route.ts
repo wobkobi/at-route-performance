@@ -1,5 +1,5 @@
 // src/app/api/ingest/cleanup/route.ts
-// Cron-only POST that permanently deletes ArrivalEvents and TripDelays older
+// Cron-only POST that permanently deletes ArrivalEvents, TripDelays and off-route sightings older
 // than the retention window (default 14 days) to stay under the storage
 // allowance (see lib/cleanup.ts). Must run after the daily aggregation, since
 // deletion is irreversible. Responds 202 before the deletes run: a full day's
@@ -50,6 +50,7 @@ async function runAndRecord(
       deletedEvents: outcome.deletedEvents,
       deletedTrips: outcome.deletedTrips,
       deletedSummaries: outcome.deletedSummaries,
+      deletedSightings: outcome.deletedSightings,
       olderThan: cutoffDate.toISOString(),
       retentionDays,
       duration_ms: Date.now() - startTime,
@@ -71,7 +72,11 @@ async function runAndRecord(
       endpoint: "cleanup",
       startedAt: new Date(startTime),
       success: outcome.firstError === null,
-      count: outcome.deletedEvents + outcome.deletedTrips + outcome.deletedSummaries,
+      count:
+        outcome.deletedEvents +
+        outcome.deletedTrips +
+        outcome.deletedSummaries +
+        outcome.deletedSightings,
       ...(outcome.firstError ? { error: outcome.firstError } : {}),
     });
   } catch (error) {

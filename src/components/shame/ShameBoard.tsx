@@ -2,7 +2,6 @@
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
 import { cn } from "@/lib/cn";
-import { ITEMS_PER_COL } from "@/lib/shame-page";
 import type { JSX } from "react";
 
 /** Anchor classes for a single-column row (mobile day list + week list). */
@@ -102,8 +101,11 @@ export function ShameBoard<T>({
         */}
         <ul className="hidden md:grid md:grid-cols-2">
           {items.map((item, i) => {
-            const isRight = i >= ITEMS_PER_COL;
-            const rowIdx = isRight ? i - ITEMS_PER_COL : i;
+            // Half the rows down each column (the extra one on the left), so a
+            // full day reads 12 and 12 rather than leaving a gap under one side.
+            const perCol = Math.ceil(items.length / 2);
+            const isRight = i >= perCol;
+            const rowIdx = isRight ? i - perCol : i;
             return (
               <li
                 key={keyOf(item, i)}

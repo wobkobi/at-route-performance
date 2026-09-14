@@ -4,6 +4,202 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.21.0] - 2026-09-14
+
+### Changed
+
+- The home page and the rankings page were the same dashboard split by window: Today held the day
+  and Rankings the week or month, so changing the window meant changing tabs. The home page now has
+  the Day / Week / Month controls the Routes and Cancellations pages use, with the week and month
+  views (rank movement, Shame of the week or month) that Rankings showed. `/rankings` redirects to
+  them with its window, period and filters. The top bar reads Overview, Routes, Cancellations.
+- Moving between sections keeps the period being looked at: each top-bar link carries the current
+  day, window, period, mode and school bus choice, so a past week on the Overview opens the same
+  week on Routes or Cancellations. The late or early filter stays behind, since `dir` means a sort
+  or travel direction elsewhere.
+- The top bar highlights Routes on route, trip and stop pages, and Overview on the Shame boards,
+  where before nothing was highlighted.
+- "Shame of the day" (and of the week or month) on the Overview links to its boards: the Shame
+  dashboard for a day, which nothing linked to, and the Trips board for a week or month, now with
+  the mode and school bus filters.
+
+### Fixed
+
+- On a route's week view, the direction chips dropped back to the day view. They now stay on the
+  week being shown.
+- A route's Day / Week toggle dropped the day, the week and the direction. Week on a past day opens
+  that day's calendar week, Day on a stepped-back week opens its Monday, and the week stepper keeps
+  the direction.
+- A trip page's "Back to" link opened the route on today, not the day the run was on.
+- The Shame boards' Week toggle opened the last 7 days whatever day was showing, and Day opened
+  today; they now keep the day's week, or the week's Monday.
+
+## [1.20.1] - 2026-09-14
+
+### Fixed
+
+- Shame of the Day boards showed the wrong hours. The Data Cache answers an expired entry with its
+  stale value and refreshes it in the background, and the cache key only told a summarised window
+  from an unsummarised one. So at 9:14pm on production the Trips tab stopped at 7pm, Routes at 8pm
+  and Stops at 9pm (each as old as its last visit), and a finished day could open cut off at the
+  hour it was last viewed while live (Sunday 13 September loaded to 4pm on its first visit the next
+  evening). The key now carries three states: `final` (summarised), `ended` (over but not yet
+  summarised, so nothing computed while the day ran is reused) and `live-<n>`, which moves to a new
+  key every TTL so a live day is never more than one TTL behind (`cacheState` in
+  `lib/data/cache.ts`). Every date-scoped aggregation goes through it, and the ranking rows and the
+  cancellation counts behind the home, rankings, Routes and Shame pages now do too.
+- The Shame day boards put ten hours in the left column and the rest in the right, so a full day ran
+  5am to 2pm beside 3pm to 4am with a gap under the left. The rows now split evenly (12 and 12 for a
+  full day).
+
+## [1.20.0] - 2026-09-14
+
+### Added
+
+- Routes page presets: "All routes", "Most off-schedule" and "Most reliable" chips set the sort and
+  the enough-data filter the boards use, and every other filter (mode, area, late or early,
+  cancellations, school buses) still applies on top. Sorted by a measure, each route shows its rank.
+  On-time % ties go to the route less off schedule, and a route with no absolute average ranks by
+  its signed one on off-by, as on the boards, so a board's top ten matches the page's.
+
+### Changed
+
+- The Most off-schedule and Most reliable boards on the home and rankings pages show their top ten
+  and a "See all N" link to the Routes page on that preset, carrying the day or week, mode, school
+  bus and late or early choices, instead of expanding in place. The separate "Every route" link
+  under the boards is gone.
+
+## [1.19.1] - 2026-09-14
+
+### Fixed
+
+- Post-deploy smoke on production failed every page with a map: the CARTO key is restricted to the
+  site's host, and the smoke visits the deployment's own URL, where every keyed tile answered 403
+  and the map stayed blank. The key now goes out only from the project's production domain
+  (`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`); any other Vercel URL loads the watermarked keyless
+  tiles, as previews already did. Off Vercel the key always goes out (`lib/map-tiles.ts`).
+
+## [1.19.0] - 2026-09-14
+
+### Changed
+
+- Cancellations count against a route's punctuality as the wait a rider had. On arrivals alone a
+  cancelled trip can never be late, so cancelling runs improved a route's figures. Every stop a
+  flagged trip failed to serve now counts as late by the gap to the next trip that ran on the same
+  route and direction, capped at an hour: all the usual stops (the median of that day's runs) for a
+  trip that never ran, the stops after the cut for one cut short, nothing for one reinstated
+  (`lib/rider-wait.ts`). Applied at read time, per service day, so it reaches the Most off-schedule
+  and Most reliable boards, the KPI strips, the Routes page, and the route page's summary and week
+  table; the Shame boards and stop pages stay on measured arrivals, and the cancellation counts are
+  unchanged. Only routes with a flagged trip are rescanned, and each day is cached.
+- Route trip board: on Most off, Latest and Earliest a cancellation ranks among the runs by its wait
+  ("10m wait"), and a run cut short averages its unserved stops in at the wait, so it can move up. A
+  cancellation whose wait cannot be told stays unranked below the runs.
+
+## [1.18.0] - 2026-09-14
+
+### Added
+
+- Detours: the realtime ingest measures every bus and train part-way through a trip against that
+  trip's GTFS road shape and stores each reading more than 200 m off it (`OffRouteSighting`, pruned
+  with the arrival events). Most such readings are not detours - AT keeps a vehicle signed onto the
+  trip it finished while it drives to its next run or parks at a depot (9% of in-progress vehicles
+  read over 150 m off at one midday snapshot) - so a trip counts as off its route only when two
+  readings fall between arrivals it recorded before and after. Ferries are left out.
+- Trip page: a "Went off its route" note with how far, when, the stop nearest the furthest reading,
+  and AT's detour alert when one was active on the route; the readings are drawn on the trip map as
+  orange dots on a dashed line.
+- Route trip board: an OFF ROUTE badge on runs that left their route.
+- The GTFS shapes sync stores each trip's `shape_id`. Until it has run, a trip is matched to its
+  shape by the `{block}-{service}` prefix its id shares with the shape's (12 of 12 sampled).
+
+### Changed
+
+- The realtime ingest reads the vehicle-locations feed once for both the vehicle names on arrival
+  rows and the off-route check; the check is best-effort and never fails a poll.
+
+## [1.17.0] - 2026-09-14
+
+### Added
+
+- Cancellations page (`/cancellations`, in the top bar) for a day, week or month: a KPI strip of
+  every trip AT flagged, split into never ran, cut short and reinstated, and how many routes had
+  one; the Most cancelled board (top 15, linking to the rest on the Routes page); and every flagged
+  trip with its route, destination and stage badge, filterable by stage and linking to its trip
+  page. The mode and school-bus chips filter all three alike, and the Day/Week/Month controls keep
+  them. The trips are read a service day at a time and cached under the day, so a week or month
+  reuses each day.
+
+## [1.16.0] - 2026-09-14
+
+### Added
+
+- Routes page (`/routes`, in the top bar): every route for a day, week or month, with a KPI strip
+  over exactly the routes that pass the filters and a "More details" link to each route's page
+  (opening on the same day or week). Filters: search, mode, area, running late or early, enough data
+  to rank, had cancellations, and school buses. Sorts: route number, on-time %, average off by,
+  average delay, late %, early %, arrivals and cancellations, either direction. Filtering runs in
+  the browser and is written to the URL, so a filtered view reloads and shares as it is, and the
+  Day/Week/Month controls carry the filters along.
+- Areas (Central, North Shore, West, East, South, Hibiscus Coast & Rodney, Waiheke & islands). AT's
+  feed gives stops no zone, so each stop is placed by its coordinates against approximate boundaries
+  (`lib/areas.ts`), checked against stop names across 80 suburbs. A route belongs to every area
+  holding at least two of the stops it served over the last seven completed days, or a quarter of
+  them.
+- Routes with cancellations but no recorded arrivals (Te Huia, the Pine Harbour ferry) are listed
+  without punctuality figures, so the page's cancellation total matches the rankings page.
+
+### Changed
+
+- The All routes table left the home and rankings pages for the Routes page; both link to it with
+  their filters. The mode, school-bus and late/early chips share one row above the boards.
+- On a phone the header drops the "Transport Tracker" wordmark beside the logo so the nav fits.
+
+## [1.15.1] - 2026-09-14
+
+### Fixed
+
+- Maps on past days showed where the route's vehicles are right now. The route map polls live
+  vehicles only on today's day view or the rolling week ending today, not on a past day or a
+  stepped-back week, and a trip page only for a run on today's service day. The route trip board
+  only looks up LIVE badges for today: AT reuses trip ids every day, so a past day's run could be
+  marked LIVE because the same trip id was running now.
+
+## [1.15.0] - 2026-09-14
+
+### Added
+
+- Trip page: a trip AT flagged as cancelled now says so, and how it played out. "Cancelled" when it
+  recorded no arrivals; "Cancelled mid-trip" with its last recorded stop, when the flag landed, and
+  the scheduled stops after that marked "Not served"; "Cancelled, then reinstated" when it kept
+  recording arrivals after the flag. The feed sends one stop update per trip (the next stop), so a
+  trip that stops at the flag can leave one predicted arrival past it; three or more arrivals after
+  the flag count as the trip carrying on (`lib/cancellation.ts`). Over four days that split 248
+  flagged trips into 183 that never ran, 37 cut short and 28 reinstated.
+- Route trip board: a flagged trip that ran shows once, as its ranked run with a CANCELLED MID-TRIP
+  (CUT SHORT on a phone) or REINSTATED badge, instead of a run plus a separate struck-through
+  CANCELLED row. A run made only of a leftover first-stop prediction moves to the unranked
+  cancellations. Cancelled rows link to the trip page, which lists the stops the trip would have
+  served.
+
+## [1.14.5] - 2026-09-14
+
+### Fixed
+
+- Trip page map: the line joined the trip's stops with straight segments, cutting across blocks and
+  the harbour instead of following the road. It now draws the trip's own GTFS shape (the `shape_id`
+  on AT's trip record, from the stored shapes), and only joins the stops for a trip AT no longer
+  publishes or a shape not yet ingested.
+
+## [1.14.4] - 2026-09-14
+
+### Fixed
+
+- The skeleton `Bone` joined its classes with a template string, so a caller's `rounded-full` or
+  `rounded-none` sat beside the default `rounded` and CSS order decided the shape. It merges through
+  `cn()` now, as do the route page's Day/Week toggle and the delay spans in the highlight cards and
+  Shame rows, which were the last class names built by string concatenation.
+
 ## [1.14.3] - 2026-09-14
 
 ### Fixed
