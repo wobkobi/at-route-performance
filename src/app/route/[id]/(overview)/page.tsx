@@ -326,9 +326,15 @@ export default async function RoutePage({
   // never waits on AT realtime/alert latency (the main page-load cost on a cold
   // cache and on every dev reload).
   const alertsPromise = getServiceAlerts();
-  const vehiclesPromise = isWeekView
-    ? Promise.resolve<LiveVehicle[]>([])
-    : getLiveVehicles().catch(() => []);
+  // Live positions belong only to a view that covers now: today's day view or the
+  // rolling week ending today. On a past day the map would show where vehicles
+  // are now, and since AT reuses trip ids every day, a past run would pick up
+  // today's LIVE badge.
+  const isLiveView = isWeekView ? periodParam === null : serviceDate === nzServiceDayString();
+  const vehiclesPromise =
+    isWeekView || !isLiveView
+      ? Promise.resolve<LiveVehicle[]>([])
+      : getLiveVehicles().catch(() => []);
 
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
@@ -592,6 +598,7 @@ export default async function RoutePage({
             stops={weekMapStops}
             routeLines={mapLines}
             routeId={slug}
+            live={isLiveView}
             mode={routeMode}
           />
           <Suspense fallback={<LineDiagramSkeleton />}>
@@ -666,6 +673,7 @@ export default async function RoutePage({
               stops={mapStops}
               routeLines={mapLines}
               routeId={slug}
+              live={isLiveView}
               mode={routeMode}
               filterDirectionIds={
                 activeDir == null

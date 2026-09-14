@@ -19,7 +19,7 @@ import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
-import { nzClockTime, nzServiceDayRange } from "@/lib/time";
+import { nzClockTime, nzServiceDayRange, nzServiceDayString } from "@/lib/time";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -145,6 +145,10 @@ export default async function TripPage({
     fallbackLines = fallback.routeLines.map((l) => l.points);
   }
 
+  // Only a run on today's service day can have a vehicle out now; a trip id
+  // repeats every day, so an older run would otherwise show today's vehicle.
+  const isLiveRun = day !== null && nzServiceDayString(day.start) === nzServiceDayString();
+
   const title = route?.shortName ?? slug;
   const firstServed = mergedStops.find(
     (s): s is { kind: "served" } & TripStop => s.kind === "served",
@@ -226,6 +230,7 @@ export default async function TripPage({
             stops={tripMapStops}
             routeLines={tripPath.length > 1 ? [tripPath] : fallbackLines}
             routeId={slug}
+            live={isLiveRun}
             filterTripId={tripId}
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
             className="h-100"

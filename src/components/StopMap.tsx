@@ -377,7 +377,8 @@ function setInitialViewport(
  * @param root0 - Props object.
  * @param root0.stops - Stops to plot.
  * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
- * @param root0.routeId - When set, poll and plot live vehicles for this route.
+ * @param root0.routeId - Route id, keying the saved viewport and the live-vehicle poll.
+ * @param root0.live - Poll and plot live vehicles; only for a view that covers now.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
@@ -389,6 +390,7 @@ export default function StopMap({
   stops,
   routeLines = [],
   routeId,
+  live = false,
   mode = "BUS",
   selectedStopId,
   filterTripId,
@@ -398,6 +400,7 @@ export default function StopMap({
   stops: StopPoint[];
   routeLines?: RouteLine[];
   routeId?: string;
+  live?: boolean;
   mode?: RouteMode;
   selectedStopId?: string;
   filterTripId?: string;
@@ -412,9 +415,25 @@ export default function StopMap({
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
-  const latestRef = useRef({ stops, routeLines, routeId, mode, filterTripId, filterDirectionIds });
+  const latestRef = useRef({
+    stops,
+    routeLines,
+    routeId,
+    live,
+    mode,
+    filterTripId,
+    filterDirectionIds,
+  });
   useLayoutEffect(() => {
-    latestRef.current = { stops, routeLines, routeId, mode, filterTripId, filterDirectionIds };
+    latestRef.current = {
+      stops,
+      routeLines,
+      routeId,
+      live,
+      mode,
+      filterTripId,
+      filterDirectionIds,
+    };
   });
 
   // --- Effect 1: initialise map once -------------------------------------------
@@ -480,7 +499,9 @@ export default function StopMap({
         }
       }
 
-      if (!rId) return;
+      // A past day's map shows where vehicles are right now, not where they were, so
+      // only a view that covers now polls.
+      if (!rId || !latestRef.current.live) return;
 
       /** Fetch and redraw live vehicles, reading always-current values from latestRef. */
       const pollVehicles = async (): Promise<void> => {
