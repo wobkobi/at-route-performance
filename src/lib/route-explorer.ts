@@ -176,7 +176,8 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
     case "on_time":
       return r.on_time_pct;
     case "off_by":
-      return r.avg_abs_delay_sec;
+      // As the Most off-schedule board: the signed average stands in when a row has no absolute one.
+      return r.avg_abs_delay_sec ?? (r.avg_delay_sec === null ? null : Math.abs(r.avg_delay_sec));
     case "delay":
       return r.avg_delay_sec;
     case "late":
@@ -204,7 +205,8 @@ function byName(a: ExplorerRoute, b: ExplorerRoute): number {
 
 /**
  * Sort routes by a measure. Routes with no value for it go last whichever way
- * the sort runs, and ties fall back to route number.
+ * the sort runs. Ties on on-time % go to the route less off schedule, as on the
+ * Most reliable board; every other tie falls back to route number.
  * @param rows - The routes.
  * @param sort - The measure.
  * @param dir - The direction.
@@ -221,6 +223,63 @@ export function sortRoutes(
     const va = sortValue(a, sort);
     const vb = sortValue(b, sort);
     if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
-    return sign * (va - vb) || byName(a, b);
+    const tie =
+      sort === "on_time" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
+    return sign * (va - vb) || tie || byName(a, b);
   });
+}
+
+/** A preset of the Routes page: the whole list, or one of the home page's boards in full. */
+export type ExplorerView = "all" | "off" | "reliable";
+
+/**
+ * The presets and the filters each sets. The two boards rank only routes with
+ * enough data, as they do on the home page.
+ */
+export const EXPLORER_VIEWS: ReadonlyArray<{
+  key: ExplorerView;
+  label: string;
+  filters: Pick<ExplorerFilters, "sort" | "dir" | "enoughData">;
+}> = [
+  { key: "all", label: "All routes", filters: { sort: "route", dir: "asc", enoughData: false } },
+  {
+    key: "off",
+    label: "Most off-schedule",
+    filters: { sort: "off_by", dir: "desc", enoughData: true },
+  },
+  {
+    key: "reliable",
+    label: "Most reliable",
+    filters: { sort: "on_time", dir: "desc", enoughData: true },
+  },
+];
+
+/**
+ * The preset a filter state matches, if any.
+ * @param f - The filters.
+ * @returns The matching preset, or null for a custom sort.
+ */
+export function activeView(f: ExplorerFilters): ExplorerView | null {
+  return (
+    EXPLORER_VIEWS.find(
+      (v) =>
+        v.filters.sort === f.sort &&
+        v.filters.dir === f.dir &&
+        v.filters.enoughData === f.enoughData,
+    )?.key ?? null
+  );
+}
+
+/**
+ * The Routes page query for a preset, keeping the given filters.
+ * @param view - The preset.
+ * @param keep - Filters to carry (mode, school services, lean).
+ * @returns Param name to value.
+ */
+export function viewQuery(
+  view: ExplorerView,
+  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "lean">> = {},
+): Record<string, string> {
+  const preset = EXPLORER_VIEWS.find((v) => v.key === view)?.filters ?? {};
+  return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...preset });
 }

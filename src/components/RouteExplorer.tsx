@@ -1,8 +1,9 @@
 "use client";
 // src/components/RouteExplorer.tsx
-// The Routes page body: filter and sort controls, the KPI strip for exactly the
-// routes that pass the filters, and the route list with a "More details" link
-// per route. Filtering runs on the client (a few hundred rows), so a change is
+// The Routes page body: filter and sort controls (with presets for the home
+// page's Most off-schedule and Most reliable boards in full), the KPI strip for
+// exactly the routes that pass the filters, and the route list with a "More
+// details" link per route, ranked when sorted by a measure. Filtering runs on the client (a few hundred rows), so a change is
 // instant; the state is written back to the query string with replaceState, so
 // the view survives a reload and can be shared without a navigation.
 
@@ -16,10 +17,12 @@ import { lineName } from "@/lib/line-name";
 import { delayBand } from "@/lib/on-time";
 import { summariseRows } from "@/lib/rankings";
 import {
+  activeView,
   DEFAULT_FILTERS,
   defaultDir,
   EXPLORER_PARAMS,
   EXPLORER_SORTS,
+  EXPLORER_VIEWS,
   explorerQuery,
   filterRoutes,
   sortRoutes,
@@ -182,6 +185,9 @@ export function RouteExplorer({
   };
 
   const isDefault = Object.keys(explorerQuery(filters)).length === 0;
+  const view = activeView(filters);
+  // Sorted by a measure, the list is a ranking, so each route shows its place.
+  const ranked = filters.sort !== "route";
   // The count is out of the routes the school-bus choice leaves, so the default
   // view (school services hidden) reads as every route rather than a filtered few.
   const baseCount = useMemo(
@@ -205,6 +211,13 @@ export function RouteExplorer({
           aria-label="Search routes"
           className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore focus:outline-none"
         />
+        <FilterRow label="Show">
+          {EXPLORER_VIEWS.map((v) => (
+            <Chip key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
+              {v.label}
+            </Chip>
+          ))}
+        </FilterRow>
         <FilterRow label="Mode">
           {(
             [
@@ -315,7 +328,7 @@ export function RouteExplorer({
         </p>
       ) : (
         <ol className="space-y-2">
-          {sorted.slice(0, shown).map((r) => {
+          {sorted.slice(0, shown).map((r, i) => {
             const label = r.short_name || r.long_name || r.slug;
             const subtitle =
               lineName(r.mode, r.short_name) ?? (r.long_name !== label ? r.long_name : null);
@@ -326,6 +339,11 @@ export function RouteExplorer({
                 className="flex flex-col gap-3 border border-at-border bg-at-surface p-4 md:flex-row md:items-center md:gap-6"
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
+                  {ranked && (
+                    <span className="mt-0.5 w-8 shrink-0 text-right text-lg leading-tight font-ultra tracking-zero text-at-muted tabular-nums">
+                      {i + 1}
+                    </span>
+                  )}
                   <ModeIcon
                     mode={r.mode}
                     shortName={r.short_name}

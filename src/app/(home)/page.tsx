@@ -13,7 +13,6 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
-import { ChevronRight } from "@/components/icons";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
@@ -41,6 +40,7 @@ import {
   summariseRows,
   type DelayDirection,
 } from "@/lib/rankings";
+import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
@@ -50,6 +50,8 @@ import { Suspense, type JSX } from "react";
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const TODAY_REVALIDATE = 300; // 5 minutes
+/** Routes each board shows; the full ranking is on the Routes page. */
+const BOARD_SIZE = 10;
 
 /** Query params for the home page. */
 interface HomeSearchParams {
@@ -124,7 +126,8 @@ export default async function Home({
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
   const availableModes = new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode));
-  // Full ranked lists: the boards show the top 10 and expand to the rest in place.
+  // Full ranked lists, for the counts: the boards show the top 10 and link to
+  // the rest on the Routes page.
   const boards = deriveBoards(visible, { minEvents: boardMin, size: Infinity });
   const offSchedule = deriveOffSchedule(visible, {
     minEvents: boardMin,
@@ -227,34 +230,29 @@ export default async function Home({
         <RankBoard
           title="Most off-schedule"
           accentClass="text-at-ink"
-          rows={offSchedule}
+          rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
           cancelled={cancelledByRoute}
           routeDay={linkDay}
-          collapseAt={10}
+          total={offSchedule.length}
+          seeAllHref={buildHref("/routes", {
+            day: linkDay,
+            ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
+          })}
         />
         <RankBoard
           title="Most reliable"
           accentClass="text-at-ontime"
-          rows={boards.reliable}
+          rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
           routeDay={linkDay}
-          collapseAt={10}
+          total={boards.reliable.length}
+          seeAllHref={buildHref("/routes", {
+            day: linkDay,
+            ...viewQuery("reliable", { mode, school: includeSchool }),
+          })}
         />
       </div>
-
-      <Link
-        href={buildHref("/routes", {
-          day: linkDay,
-          mode: mode ?? undefined,
-          school: includeSchool ? "1" : undefined,
-          lean: dir ?? undefined,
-        })}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
-      >
-        Every route, with filters by area and more
-        <ChevronRight className="h-4 w-4" />
-      </Link>
     </main>
   );
 }

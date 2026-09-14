@@ -2,11 +2,13 @@
 // Unit tests for the Routes page filters and sorts.
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
+  activeView,
   DEFAULT_FILTERS,
   explorerQuery,
   filterRoutes,
   parseExplorerFilters,
   sortRoutes,
+  viewQuery,
   type ExplorerFilters,
   type ExplorerRoute,
 } from "@/lib/route-explorer";
@@ -119,5 +121,42 @@ describe("query round trip", () => {
     expect(parseExplorerFilters({ area: "mars,west", sort: "vibes", mode: "BOAT" })).toEqual(
       filters({ areas: ["west"] }),
     );
+  });
+});
+
+describe("board presets", () => {
+  it("recognise the Most off-schedule and Most reliable boards", () => {
+    expect(activeView(DEFAULT_FILTERS)).toBe("all");
+    expect(activeView(filters({ sort: "off_by", dir: "desc", enoughData: true }))).toBe("off");
+    expect(activeView(filters({ sort: "on_time", dir: "desc", enoughData: true }))).toBe(
+      "reliable",
+    );
+    expect(activeView(filters({ sort: "on_time", dir: "desc" }))).toBeNull();
+  });
+
+  it("link to a board with the filters carried", () => {
+    expect(viewQuery("reliable", { mode: "BUS", lean: "late" })).toEqual({
+      mode: "BUS",
+      lean: "late",
+      data: "1",
+      sort: "on_time",
+    });
+    expect(viewQuery("all")).toEqual({});
+  });
+
+  it("break an on-time tie towards the route less off schedule, as the board does", () => {
+    const rows = [
+      route("wobbly", { on_time_pct: 90, avg_abs_delay_sec: 200 }),
+      route("steady", { on_time_pct: 90, avg_abs_delay_sec: 50 }),
+    ];
+    expect(slugs(sortRoutes(rows, "on_time", "desc"))).toEqual(["steady", "wobbly"]);
+  });
+
+  it("rank a route with no absolute average by its signed one on off-by", () => {
+    const rows = [
+      route("abs", { avg_abs_delay_sec: 100 }),
+      route("signed", { avg_abs_delay_sec: null, avg_delay_sec: -300 }),
+    ];
+    expect(slugs(sortRoutes(rows, "off_by", "desc"))).toEqual(["signed", "abs"]);
   });
 });

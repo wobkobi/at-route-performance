@@ -3,7 +3,6 @@
 
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
-import { ChevronRight } from "@/components/icons";
 import { ModeFilter } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
@@ -40,15 +39,17 @@ import {
   type RankMode,
   type RankWindow,
 } from "@/lib/rankings-page";
+import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const REVALIDATE = 3600; // 1 hour
+/** Routes each board shows; the full ranking is on the Routes page. */
+const BOARD_SIZE = 10;
 
 /**
  * Rankings body: runs the four-query ranking batch and derives the KPI strip,
@@ -103,8 +104,8 @@ async function RankingsBody({
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the period.
   const availableModes = new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode));
-  // Full ranked lists: the boards show the top 10 and expand to the rest in
-  // place, so deltas are computed across the whole list (current and previous).
+  // Full ranked lists: the boards show the top 10 and link to the rest on the
+  // Routes page, and deltas are computed across the whole list (current and previous).
   const boards = deriveBoards(visible, { minEvents: boardMin, size: Infinity });
   const offSchedule = deriveOffSchedule(visible, {
     minEvents: boardMin,
@@ -195,23 +196,33 @@ async function RankingsBody({
         <RankBoard
           title="Most off-schedule"
           accentClass="text-at-ink"
-          rows={offSchedule}
+          rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
           cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
           routeWindow={window}
           routePeriod={period}
-          collapseAt={10}
+          total={offSchedule.length}
+          seeAllHref={buildHref("/routes", {
+            window,
+            period,
+            ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
+          })}
         />
         <RankBoard
           title="Most reliable"
           accentClass="text-at-ontime"
-          rows={boards.reliable}
+          rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
           deltas={reliableDeltas}
           routeWindow={window}
           routePeriod={period}
-          collapseAt={10}
+          total={boards.reliable.length}
+          seeAllHref={buildHref("/routes", {
+            window,
+            period,
+            ...viewQuery("reliable", { mode, school: includeSchool }),
+          })}
         />
       </div>
 
@@ -221,20 +232,6 @@ async function RankingsBody({
         {(offScheduleDeltas || reliableDeltas) &&
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>
-
-      <Link
-        href={buildHref("/routes", {
-          window,
-          period,
-          mode: mode ?? undefined,
-          school: includeSchool ? "1" : undefined,
-          lean: dir ?? undefined,
-        })}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
-      >
-        Every route this {window}, with filters by area and more
-        <ChevronRight className="h-4 w-4" />
-      </Link>
     </>
   );
 }
