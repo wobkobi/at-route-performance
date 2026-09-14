@@ -234,9 +234,11 @@ export function ShameHeaderSkeleton({
 /**
  * Mirrors CancelledBoard: a `px-4 py-3` header over its bottom rule, then `py-3`
  * rows of a 24px line split by 1px rules.
+ * @param root0 - Props.
+ * @param root0.rows - How many rows to draw (the Shame dashboard shows ten).
  * @returns The board placeholder.
  */
-export function CancelledBoardSkeleton(): JSX.Element {
+export function CancelledBoardSkeleton({ rows = 10 }: { rows?: number }): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface">
       <div className="flex items-center justify-between gap-3 border-b border-at-border px-4 py-3">
@@ -244,7 +246,7 @@ export function CancelledBoardSkeleton(): JSX.Element {
         <Bone className="h-5 w-16" />
       </div>
       <div className="divide-y divide-at-border">
-        {Array.from({ length: 10 }).map((_, i) => (
+        {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Bone className="h-4 w-5" />
             <Bone className="h-5 w-5 rounded-full" />

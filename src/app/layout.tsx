@@ -114,6 +114,11 @@ export default function RootLayout({
                     Rankings
                   </Link>
                 </li>
+                <li>
+                  <Link href="/cancellations" className="text-white/90 hover:text-at-safety">
+                    Cancellations
+                  </Link>
+                </li>
               </ul>
             </nav>
             <div className="space-y-3 text-sm">
