@@ -5,6 +5,7 @@
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
+import { cartoTileUrl } from "@/lib/map-tiles";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
@@ -50,18 +51,6 @@ const POLL_MS = 120_000;
  * context rather than street-level zoom.
  */
 const STOP_FOCUS_ZOOM = 14;
-
-/**
- * CARTO Positron raster tiles. CARTO stamps "API KEY REQUIRED" across every tile
- * requested without `?key=`, so the key (free, from carto.com/basemaps/apikey) is
- * appended when set. It ships to the browser in each tile URL, so it is public by
- * design; restrict the production key to the site's host in the CARTO dashboard.
- */
-const TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" +
-  (process.env.NEXT_PUBLIC_CARTO_API_KEY
-    ? `?key=${encodeURIComponent(process.env.NEXT_PUBLIC_CARTO_API_KEY)}`
-    : "");
 
 /**
  * Haversine distance in kilometres between two WGS-84 coordinates.
@@ -498,7 +487,13 @@ export default function StopMap({
 
       const colours = readColours();
       const map = L.map(divRef.current);
-      L.tileLayer(TILE_URL, {
+      // The key goes out only where CARTO accepts it (see cartoTileUrl).
+      const tiles = cartoTileUrl(
+        window.location.host,
+        process.env.NEXT_PUBLIC_CARTO_API_KEY,
+        process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
+      );
+      L.tileLayer(tiles, {
         maxZoom: 19,
         subdomains: "abcd",
         attribution: "© OpenStreetMap contributors © CARTO",

@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.19.1] - 2026-09-14
+
+### Fixed
+
+- Post-deploy smoke on production failed every page with a map: the CARTO key is restricted to the
+  site's host, and the smoke visits the deployment's own URL, where every keyed tile answered 403
+  and the map stayed blank. The key now goes out only from the project's production domain
+  (`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`); any other Vercel URL loads the watermarked keyless
+  tiles, as previews already did. Off Vercel the key always goes out (`lib/map-tiles.ts`).
+
 ## [1.19.0] - 2026-09-14
 
 ### Changed
