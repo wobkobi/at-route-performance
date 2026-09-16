@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.22.2] - 2026-09-16
+
+### Changed
+
+- Cleaned up .gitignore: dropped Yarn/PnP/pnpm, Turborepo and SQLite-era rules this repo never
+  produces, collapsed the env rules onto the wider .env* glob the Vercel CLI needs, and added
+  coverage/ and scripts/route-shots/.
+
 ## [1.22.1] - 2026-09-16
 
 ### Changed
