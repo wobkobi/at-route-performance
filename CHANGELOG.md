@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.25.2] - 2026-09-16
+
+### Fixed
+
+- Summary lookups match the stored service-day stamp by range instead of by an exact instant, so a
+  past day still reads as summarised and final if the service-day boundary hour moves.
+
 ## [1.25.1] - 2026-09-16
 
 ### Changed
