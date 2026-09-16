@@ -5,6 +5,7 @@
 // side of the move; the boundary cases themselves live with the flip.
 import type { Trip } from "@/lib/at";
 import {
+  cancelledServiceDate,
   foldRunDates,
   parseStartDate,
   runServiceDate,
@@ -122,5 +123,86 @@ describe("foldRunDates", () => {
       row("b2", "2026-09-11T16:05:00Z", "2026-09-12", "B"),
     ]);
     expect([...out]).toEqual([["b2", "2026-09-11"]]);
+  });
+});
+
+describe("cancelledServiceDate", () => {
+  it("collapses one physical run's two stamps onto one date", () => {
+    // 1061-04203-17100-2-8bc39bce, start 04:45, flagged twice ten minutes apart
+    // either side of the old 05:00 rollover. One run, one day: the 04:45
+    // departure on the morning of 16 September.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1061-04203-17100-2-8bc39bce",
+          startTime: "04:45:00",
+          detectedAt: new Date("2026-09-15T16:50:26.768Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-16");
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1061-04203-17100-2-8bc39bce",
+          startTime: "04:45:00",
+          detectedAt: new Date("2026-09-15T17:00:54.206Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-16");
+  });
+
+  it("falls back to the trip id's start seconds when no start time was captured", () => {
+    // Segment 82800 is 23:00; flagged at 23:10 on 14 September.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1060-14804-82800-2-efb6f52a",
+          startTime: null,
+          detectedAt: new Date("2026-09-14T11:10:00Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-14");
+  });
+
+  it("takes AT's own start_date over everything else", () => {
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1060-14804-82800-2-efb6f52a",
+          startTime: "23:00:00",
+          startDate: "20260912",
+          detectedAt: new Date("2026-09-14T11:10:00Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-12");
+  });
+
+  it("takes the detection day when nothing places the run", () => {
+    expect(
+      cancelledServiceDate(
+        { tripId: "manual-flag", startTime: null, detectedAt: new Date("2026-09-15T16:50:26Z") },
+        4,
+      ),
+    ).toBe("2026-09-16");
+  });
+
+  it("steps a flag raised on the far side of the boundary from its departure", () => {
+    // Flagged 03:50 on 16 Sep, which is still service day 15 Sep; the run leaves
+    // at 06:00, more than twelve hours after that day's 06:00, so it is the
+    // next service day's run.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1108-15203-21600-2-58ac9d51",
+          startTime: "06:00:00",
+          detectedAt: new Date("2026-09-15T15:50:00Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-16");
   });
 });

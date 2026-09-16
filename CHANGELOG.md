@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.26.1] - 2026-09-17
+
+### Added
+
+- The one-off service-day restamp migration is in the repo, ready to run after the 4am boundary
+  change deploys. It moves stored summary stamps onto the new boundary instant, rewrites
+  cancelled-trip service dates to the run's own day, and clears the unused off-route stamp.
+
 ## [1.26.0] - 2026-09-16
 
 ### Added

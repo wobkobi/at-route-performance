@@ -3,8 +3,15 @@
 // day, even when the run crosses the boundary hour, so the day is derived once
 // per run at ingest and stamped on every row. Pure: no database, no clock.
 import type { Trip } from "@/lib/at";
-import { nzServiceDayString, parseYmd, RUN_TAIL_HOURS, shiftWeek } from "@/lib/time";
-import { tripIdStartSeconds } from "@/lib/trip-id";
+import {
+  nzServiceDayRange,
+  nzServiceDayString,
+  parseYmd,
+  RUN_TAIL_HOURS,
+  SERVICE_START_HOUR,
+  shiftWeek,
+} from "@/lib/time";
+import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-id";
 
 /** AT's GTFS `start_date`, `YYYYMMDD`. */
 const START_DATE_RE = /^(\d{4})(\d{2})(\d{2})$/;
@@ -104,4 +111,70 @@ export function foldRunDates(
     }
   }
   return out;
+}
+
+/** Half a day in milliseconds: the widest gap allowed between a flag and its run. */
+const HALF_DAY_MS = 12 * HOUR_MS;
+
+/** A cancelled run, as ingest sees it live and as the restamp reads it back. */
+export interface CancelledRun {
+  tripId: string;
+  /** GTFS-RT `start_time` (`HH:MM:SS`), null when ingest captured none. */
+  startTime: string | null;
+  /** GTFS-RT `start_date` (`YYYYMMDD`), when the feed sends one. */
+  startDate?: string | undefined;
+  /** When ingest first saw the flag. */
+  detectedAt: Date;
+}
+
+/**
+ * The instant a GTFS start time falls at within a service day, resolved against
+ * an explicit boundary hour. `serviceDayClockInstant` reads the live
+ * `SERVICE_START_HOUR`; this needs whichever hour the caller is working in,
+ * including a migration rolling back to 5.
+ * @param dayStart - The service day's start instant under `startHour`.
+ * @param seconds - Seconds since the GTFS reference.
+ * @param startHour - The boundary hour `dayStart` was built with.
+ * @returns The UTC instant of that schedule time.
+ */
+function clockInstant(dayStart: Date, seconds: number, startHour: number): Date {
+  const startSec = startHour * 3600;
+  const offset = seconds < startSec ? seconds + 86_400 : seconds;
+  return new Date(dayStart.getTime() + (offset - startSec) * 1000);
+}
+
+/**
+ * The service date a cancelled run belongs to. A cancellation carries no stop
+ * times, so there are no rows to take a run start from: the anchor is when the
+ * flag was seen. AT raises a flag during the run or shortly before it, so the
+ * service day in progress at detection is the run's day, and the captured start
+ * time (or the start seconds in the trip id) then corrects the one case that
+ * rule gets wrong - a flag raised on the far side of the boundary from its own
+ * departure, which is exactly the 04:45 run stored twice today.
+ *
+ * Deliberately blind to any service date already stored against the run: that
+ * stamp is the boundary-hour label of `detectedAt` and so says nothing new,
+ * while reading it would make a second pass of the restamp disagree with the
+ * first.
+ * @param flag - The cancelled run.
+ * @param startHour - The boundary hour the answer is expressed in.
+ * @returns The service date as `YYYY-MM-DD`.
+ */
+export function cancelledServiceDate(
+  flag: CancelledRun,
+  startHour: number = SERVICE_START_HOUR,
+): string {
+  const declared = parseStartDate(flag.startDate);
+  if (declared !== null) return declared;
+  const day = nzServiceDayString(flag.detectedAt, startHour);
+  const sec = gtfsTimeSeconds(flag.startTime) ?? tripIdStartSeconds(flag.tripId);
+  if (sec === null) return day;
+  const departure = clockInstant(nzServiceDayRange(day, startHour).start, sec, startHour);
+  const ahead = departure.getTime() - flag.detectedAt.getTime();
+  // More than half a day apart means the run sits on the other side of the
+  // boundary from the detection: a departure long past is the next day's run,
+  // one long ahead is the previous day's.
+  if (ahead < -HALF_DAY_MS) return shiftWeek(day, 1);
+  if (ahead > HALF_DAY_MS) return shiftWeek(day, -1);
+  return day;
 }
