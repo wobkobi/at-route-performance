@@ -15,7 +15,7 @@ import {
   getShameRouteOfWeek,
   getShameRouteStreaksBatch,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import {
   filterLiveHours,
   maybeFallbackDay,
@@ -156,6 +156,7 @@ export default async function RoutesShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
   const { filter, view, preserved, subtitle } = parseShameParams(sp);
 

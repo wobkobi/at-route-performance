@@ -7,7 +7,7 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { getEarliestDataDay, getWorstStopsOfDay, getWorstStopsOfWeek } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import {
   filterLiveHours,
@@ -140,6 +140,7 @@ export default async function StopShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
   const { filter, view, preserved } = parseShameParams(sp);
 

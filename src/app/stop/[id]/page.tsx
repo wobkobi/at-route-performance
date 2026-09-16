@@ -17,7 +17,7 @@ import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { getStopTrips } from "@/lib/at-stop-trips";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
@@ -103,6 +103,7 @@ export default async function StopPage({
     redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
   }
 
+  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp);
   dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
 
   const requestedDay = resolveRequestedDay(sp.day);

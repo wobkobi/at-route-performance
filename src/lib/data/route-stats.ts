@@ -1,5 +1,6 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
+import { clampRangeToDataStart } from "@/lib/data-start";
 import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
@@ -214,7 +215,8 @@ async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promis
  * @returns Summary and top stops.
  */
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
-  const range: DateRange = p.from && p.to ? { start: p.from, end: p.to } : nzLast7DaysRange();
+  const range: DateRange =
+    p.from && p.to ? { start: p.from, end: p.to } : clampRangeToDataStart(nzLast7DaysRange());
   const [stats, penalties] = await Promise.all([measuredRouteStats(p), getRouteRiderWait(range)]);
   const penalty = penaltyForRoute(penalties, p.routeId);
   return stats.summary && penalty
@@ -339,7 +341,8 @@ export async function getRouteDailyStats(
   from?: Date,
   to?: Date,
 ): Promise<RouteDay[]> {
-  const range: DateRange = from && to ? { start: from, end: to } : nzLast7DaysRange();
+  const range: DateRange =
+    from && to ? { start: from, end: to } : clampRangeToDataStart(nzLast7DaysRange());
   const days = await cachedForRange(
     async () => {
       // DailyRouteSummary stores versioned route IDs (e.g. "209-217"), not slugs.

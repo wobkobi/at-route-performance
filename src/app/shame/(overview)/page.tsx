@@ -14,7 +14,7 @@ import {
   getShameRouteOfDay,
   getWorstStops,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -40,6 +40,7 @@ export default async function ShameDashboard({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  clampDayParam("/shame", sp);
   dropTodayParam("/shame", sp);
 
   const requestedDay = resolveRequestedDay(sp.day);

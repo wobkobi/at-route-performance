@@ -5,6 +5,7 @@
 // days; an explicit `period` is a calendar week reached by stepping back. A
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
+import { clampRangeToDataStart } from "@/lib/data-start";
 import { type DelayDirection } from "@/lib/rankings";
 import {
   monthRangeLabel,
@@ -58,7 +59,10 @@ export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsPar
  * Resolve the active range + label, anchored to the latest day with data so a
  * quiet "today" still shows a populated period. The week view opens on the
  * rolling last 7 days; an explicit `period` is a calendar week (reached by
- * stepping back). Month defaults to the anchor's calendar month.
+ * stepping back). Month defaults to the anchor's calendar month. The range is
+ * raised to the archive floor while the label keeps naming the calendar period,
+ * so a partial first week still reads as that week; `WeekNav.partial` is what
+ * says the coverage is short.
  * @param window - "week" or "month".
  * @param period - Explicit period (`YYYY-MM-DD` Monday or `YYYY-MM`), optional.
  * @param anchor - The latest day with data (or now).
@@ -71,22 +75,24 @@ export function resolveRange(
 ): { range: DateRange; label: string } {
   if (window === "month") {
     const range = nzMonthRange(period ?? nzMonthKey(anchor));
-    return { range, label: monthRangeLabel(range) };
+    return { range: clampRangeToDataStart(range), label: monthRangeLabel(range) };
   }
   if (period) {
     const range = nzWeekRange(period);
-    return { range, label: weekRangeLabel(range) };
+    return { range: clampRangeToDataStart(range), label: weekRangeLabel(range) };
   }
-  return { range: nzLast7DaysRange(anchor), label: "Last 7 days" };
+  return { range: clampRangeToDataStart(nzLast7DaysRange(anchor)), label: "Last 7 days" };
 }
 
 /**
  * Range for the period immediately before the given window/period, used for
- * rank-movement comparison.
+ * rank-movement comparison. Clamped to the archive floor, so the period before
+ * the first one comes back as an empty window; the caller checks it with
+ * `rangeIsEmpty` and skips the comparison rather than ranking every route as new.
  * @param window - "week" or "month".
  * @param period - Explicit period key, or undefined for the rolling default.
  * @param anchor - Latest day with data.
- * @returns The previous period's half-open date range.
+ * @returns The previous period's half-open date range, possibly empty.
  */
 export function resolvePrevRange(
   window: RankWindow,
@@ -94,11 +100,11 @@ export function resolvePrevRange(
   anchor: Date,
 ): DateRange {
   if (window === "month") {
-    return nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1));
+    return clampRangeToDataStart(nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1)));
   }
-  if (period) return nzWeekRange(shiftWeek(period, -7));
+  if (period) return clampRangeToDataStart(nzWeekRange(shiftWeek(period, -7)));
   // Step by service date rather than a fixed 7 * 24 h of milliseconds, which
   // lands an hour off the 5am boundary when the two windows straddle a DST switch.
   const prevDay = shiftWeek(nzServiceDayString(anchor), -7);
-  return nzLast7DaysRange(nzServiceDayRange(prevDay).start);
+  return clampRangeToDataStart(nzLast7DaysRange(nzServiceDayRange(prevDay).start));
 }

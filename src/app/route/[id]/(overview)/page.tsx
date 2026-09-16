@@ -35,7 +35,7 @@ import {
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -288,6 +288,7 @@ export default async function RoutePage({
     redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
+  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp);
   dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp);
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;

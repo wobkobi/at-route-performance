@@ -89,6 +89,11 @@ const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/shame/trip?window=week", name: "Shame trips (week)" },
   { path: "/shame/stop?window=week", name: "Shame stops (week)" },
   {
+    path: "/shame/stop?day=2026-09-01",
+    name: "Shame stops (day before the archive)",
+    expectFinalPath: "/shame/stop?day=2026-09-11",
+  },
+  {
     path: "/nonexistent",
     name: "404 page",
     expectStatus: 404,

@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.24.0] - 2026-09-16
+
+### Added
+
+- A ?day outside the archive now redirects onto the nearest real day instead of rendering an empty
+  board, the week and month windows clamp to the archive floor and mark a short first period as
+  partial, and the rank-movement query is skipped when the previous window is empty.
+
 ## [1.23.0] - 2026-09-16
 
 ### Added
