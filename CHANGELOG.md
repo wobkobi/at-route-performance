@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.25.1] - 2026-09-16
+
+### Changed
+
+- The ingest peek endpoint now echoes each sampled trip's trip_id, start_date and start_time, so
+  whether the feed populates a run's own service date can be settled before it is relied on.
+
 ## [1.25.0] - 2026-09-16
 
 ### Added

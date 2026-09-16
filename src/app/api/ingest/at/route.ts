@@ -96,6 +96,8 @@ interface DebugStats {
   withDelay: number;
   withTripDelay: number;
   loose: boolean;
+  /** Sampled trips carrying a non-empty `start_date`. Peek only. */
+  withStartDate?: number;
 }
 
 /**
@@ -140,9 +142,23 @@ export async function POST(req: Request): Promise<NextResponse> {
     const feed = await fetchATTripUpdates();
 
     if (wantPeek) {
-      const tu = feed.entity.find((e) => e.trip_update)?.trip_update ?? null;
+      const withTrip = (feed.entity ?? []).filter((e) => e.trip_update).slice(0, 5);
+      const tu = withTrip[0]?.trip_update ?? null;
       const stuCount = toStuArray(tu?.stop_time_update as unknown[] | undefined).length;
       const hasTripDelay = typeof (tu as { delay?: unknown })?.delay === "number";
+      // The trip descriptor is echoed so the per-run service date can be settled
+      // before it is relied on: a run's own `start_date` beats deriving the day
+      // from schedule times, and whether AT populates the field is unverified.
+      // The cast goes once `start_date` is typed on `Trip`.
+      const trips = withTrip.map((e) => ({
+        trip_id: e.trip_update?.trip.trip_id ?? null,
+        start_date:
+          (e.trip_update?.trip as { start_date?: unknown } | undefined)?.start_date ?? null,
+        start_time: e.trip_update?.trip.start_time ?? null,
+      }));
+      const withStartDate = trips.filter(
+        (t) => typeof t.start_date === "string" && t.start_date !== "",
+      ).length;
       return NextResponse.json({
         inserted: 0,
         tried: 0,
@@ -156,7 +172,9 @@ export async function POST(req: Request): Promise<NextResponse> {
           withDelay: Number(hasTripDelay),
           withTripDelay: Number(hasTripDelay),
           loose,
+          withStartDate,
         },
+        trips,
         sample: null,
       });
     }
