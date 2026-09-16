@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.22.0] - 2026-09-16
+
+### Added
+
+- GET /api/health now reports the retention window the last cleanup run actually used, including
+  whether it was refused or a dry run, so production's retention is readable without a mongosh
+  session. An integration test fails if a recorded window ever drops below the safe floor.
+
 ## [1.21.4] - 2026-09-16
 
 ### Fixed

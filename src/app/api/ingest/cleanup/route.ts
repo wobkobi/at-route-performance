@@ -22,6 +22,7 @@ import {
   recentCleanupRuns,
   runCleanup,
   type CleanupParams,
+  type CleanupRunDetail,
 } from "@/lib/cleanup";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { after, NextResponse } from "next/server";
@@ -67,10 +68,12 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
       share: Number(plan.share.toFixed(6)),
       lastAppliedCutoff: lastCutoff?.toISOString() ?? null,
       forced: params.force,
-    };
+      dryRun: params.dryRun,
+      applied: false,
+      refused: null,
+    } satisfies CleanupRunDetail;
     console.log("[CLEANUP] plan", {
       ...record,
-      dryRun: params.dryRun,
       verdict: verdict.ok ? "ok" : verdict.reason,
     });
 
@@ -82,7 +85,7 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
         success: false,
         count: 0,
         error: verdict.message,
-        detail: { ...record, applied: false, verdict: "refused", refusal: verdict.reason },
+        detail: { ...record, refused: verdict.message },
       });
       return;
     }
@@ -94,7 +97,7 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
         startedAt,
         success: true,
         count: 0,
-        detail: { ...record, applied: false, verdict: "dryRun" },
+        detail: { ...record },
       });
       return;
     }
@@ -140,7 +143,6 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
         // nothing for a decade, and a cutoff no run ever claims is a baseline
         // the advance guard can never measure against.
         applied: true,
-        verdict: "applied",
         deleted,
         storage: {
           usedMB: Number(outcome.storage.usedMB.toFixed(1)),

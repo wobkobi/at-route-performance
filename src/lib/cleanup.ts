@@ -350,19 +350,56 @@ export function pickLastAppliedCutoff(runs: { detail: unknown }[]): Date | null 
   return null;
 }
 
+/** What a cleanup run records on `IngestRun.detail`, whatever it decided. */
+export interface CleanupRunDetail {
+  retentionDays: number;
+  /** DailyRouteSummary retention in days, or null when the summaries were left alone. */
+  summaryDays: number | null;
+  /** ISO cutoff the run planned against. */
+  cutoff: string;
+  doomedEvents: number;
+  doomedTrips: number;
+  totalEvents: number;
+  share: number;
+  /** ISO cutoff of the last applied run the guard measured against, or null. */
+  lastAppliedCutoff: string | null;
+  forced: boolean;
+  /** Whether the deletes actually ran: not a dry run, not refused. */
+  applied: boolean;
+  dryRun: boolean;
+  /** Why a guard refused, or null. */
+  refused: string | null;
+  deleted?: { events: number; trips: number; summaries: number; sightings: number };
+  storage?: { usedMB: number; limitMB: number };
+}
+
+/** A recorded cleanup run, as the health probe and the advance guard read it. */
+export interface RecordedCleanupRun {
+  completedAt: Date;
+  success: boolean;
+  detail: CleanupRunDetail | null;
+}
+
 /**
  * The most recent cleanup runs and what each recorded, newest first. Rides the
  * existing `[endpoint, completedAt]` index.
  * @param take - How many runs to read.
  * @returns The runs, newest first.
  */
-export function recentCleanupRuns(take: number): Promise<{ detail: unknown }[]> {
-  return prisma.ingestRun.findMany({
+export async function recentCleanupRuns(take = 10): Promise<RecordedCleanupRun[]> {
+  const runs = await prisma.ingestRun.findMany({
     where: { endpoint: "cleanup" },
     orderBy: { completedAt: "desc" },
-    select: { detail: true },
+    select: { completedAt: true, success: true, detail: true },
     take,
   });
+  return runs.map((run) => ({
+    completedAt: run.completedAt,
+    success: run.success,
+    // Prisma types the column as JsonValue. The only writer is this module's own
+    // route, so the shape is ours to assert rather than to parse back.
+    detail: run.detail ? (run.detail as unknown as CleanupRunDetail) : null,
+  }));
 }
 
 /** What a cleanup run did. */

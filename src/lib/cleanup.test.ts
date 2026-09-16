@@ -145,7 +145,9 @@ describe("parseCleanupParams", () => {
 
   it("refuses retention below the floor even with ?force=1", () => {
     // The 26 September regression: RETENTION_DAYS lost its value, the code read
-    // 14, and a ten-year archive was one cron run from gone.
+    // 14, and a ten-year archive was one cron run from gone. Preview and
+    // production share one database, so a preview deploy was a second door into
+    // the same archive.
     for (const qs of ["?retentionDays=14", "?retentionDays=14&force=1"]) {
       const refused = parseCleanupParams(url(qs), "3652");
       expect(refused.ok).toBe(false);
@@ -296,9 +298,10 @@ describe("checkCleanupPlan", () => {
   });
 
   it("refuses the 26 September run against a real archive", () => {
-    // 14 days against 3.35M rows. parseCleanupParams already refuses this on the
-    // retention floor; the share ceiling refuses it a second time, so losing
-    // either guard still leaves the archive standing.
+    // A worked scenario, not today's numbers: a 14-day window against an archive
+    // whose oldest days sit outside it. parseCleanupParams already refuses this
+    // on the retention floor; the share ceiling refuses it a second time, so
+    // losing either guard still leaves the archive standing.
     const plan = buildCleanupPlan(
       params({ retentionDays: 14 }),
       { doomedEvents: 240_337, totalEvents: 3_350_000 },
@@ -321,8 +324,8 @@ describe("pickLastAppliedCutoff", () => {
   it("skips dry runs and refusals, so neither becomes the next night's baseline", () => {
     expect(
       pickLastAppliedCutoff([
-        { detail: { applied: false, verdict: "dryRun", cutoff: "2026-09-16T16:00:00.000Z" } },
-        { detail: { applied: false, verdict: "refused", cutoff: "2026-09-15T16:00:00.000Z" } },
+        { detail: { applied: false, dryRun: true, cutoff: "2026-09-16T16:00:00.000Z" } },
+        { detail: { applied: false, refused: "over the ceiling", cutoff: "2026-09-15T16:00:00Z" } },
         { detail: applied },
       ]),
     ).toEqual(new Date(applied.cutoff));
