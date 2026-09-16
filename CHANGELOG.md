@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.21.3] - 2026-09-16
+
+### Fixed
+
+- The lint script is read-only again and fails on warnings; lint:fix is back for the rewriting
+  variant. Folding --fix into lint made the pre-push hook edit files after the commit was made, and
+  let eslint insert empty JSDoc stubs mid-check.
+
 ## [1.21.2] - 2026-09-16
 
 ### Changed
