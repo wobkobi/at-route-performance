@@ -40,7 +40,7 @@ import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
-import { weekPeriodOf } from "@/lib/range-page";
+import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
@@ -406,7 +406,7 @@ export default async function RoutePage({
     }));
   }
 
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const nextDayHref =
     hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
       ? `/route/${encodeURIComponent(slug)}`

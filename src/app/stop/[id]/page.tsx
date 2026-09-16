@@ -21,6 +21,7 @@ import { dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
 import type { Metadata } from "next";
@@ -132,7 +133,7 @@ export default async function StopPage({
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const nextDayHref =
     hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
       ? `/stop/${encodeURIComponent(id)}`

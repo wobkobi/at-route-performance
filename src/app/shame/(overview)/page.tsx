@@ -16,6 +16,7 @@ import {
 } from "@/lib/data";
 import { dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { buildShameHref, TODAY_REVALIDATE } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
@@ -72,7 +73,7 @@ export default async function ShameDashboard({
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
   const nextDayHref =
     hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/shame" : undefined;

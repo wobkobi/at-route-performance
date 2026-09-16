@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.23.0] - 2026-09-16
+
+### Added
+
+- Added DATA_START_DAY (2026-09-11) as a hard archive floor: the day stepper, the data-day walk and
+  the range clamps all stop there, and serviceDayNoon now reads the wall clock instead of adding a
+  fixed seven hours to the service day's start.
+
 ## [1.22.2] - 2026-09-16
 
 ### Changed

@@ -241,6 +241,19 @@ export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_ST
 }
 
 /**
+ * Local noon inside a service day, as a marker instant for a day the boards
+ * step through. Resolved from the wall clock rather than by adding hours to the
+ * day's start, so it stays noon whatever {@link SERVICE_START_HOUR} becomes and
+ * whichever side of a daylight-saving switch the day falls.
+ * @param day - Service date, `YYYY-MM-DD`.
+ * @returns The instant of 12:00 Auckland local on that date.
+ */
+export function serviceDayNoon(day: string): Date {
+  const { y, mo, d } = parseYmd(day);
+  return nzLocalToUtcAtHour(y, mo, d, 12);
+}
+
+/**
  * The Monday that starts the Auckland-local week containing an instant.
  * Weeks reset on Monday (ISO).
  * @param at - The instant to label.

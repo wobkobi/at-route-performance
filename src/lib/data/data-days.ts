@@ -1,8 +1,9 @@
 // src/lib/data/data-days.ts
 // The edges of the archive: the earliest and latest days with enough data to show.
+import { DATA_START_DAY } from "@/lib/data-start";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, serviceDayNoon, shiftWeek } from "@/lib/time";
 
 /**
  * The scheduled time of the event at one end of the collection, read via the
@@ -39,10 +40,12 @@ const DATA_DAY_WALK_LIMIT = 21;
 
 /**
  * The service day nearest one end of the collection with at least `minEvents`
- * events: starts at the end event's own service day and steps inward one day at
- * a time, checking each with an indexed range count. The end event's day always
- * holds at least one event, so `minEvents <= 1` resolves with no counting and a
- * higher threshold typically counts a single day.
+ * events, never earlier than the archive floor: the forward walk starts at the
+ * later of the end event's day and {@link DATA_START_DAY}, and the backward walk
+ * gives up at the floor rather than burning all 21 steps on days that cannot
+ * exist. The indexed probe stays rather than collapsing `minEvents <= 1` to the
+ * constant: that shortcut is free for ten years and then pins the stepper at
+ * 2026-09-11 while the cleanup deletes 2026-09-11, 09-12, 09-13 in turn.
  * @param direction - 1 to search from the earliest event forward, -1 from the latest back.
  * @param minEvents - Minimum events a service day needs to qualify.
  * @returns The qualifying service date (`YYYY-MM-DD`), or null when none is found.
@@ -51,7 +54,9 @@ async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Prom
   const endpoint = await endpointEventTime(direction);
   if (!endpoint) return null;
   let day = nzServiceDayString(endpoint);
+  if (day < DATA_START_DAY) day = DATA_START_DAY;
   for (let i = 0; i < DATA_DAY_WALK_LIMIT; i++) {
+    if (day < DATA_START_DAY) return null;
     if (i === 0 && minEvents <= 1) return day;
     const range = nzServiceDayRange(day);
     const n = await prisma.arrivalEvent.count({
@@ -62,17 +67,6 @@ async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Prom
     day = shiftWeek(day, direction);
   }
   return null;
-}
-
-/**
- * A Date at local noon within a service day, so `nzServiceDayRange` anchors on
- * the right day regardless of DST offset.
- * @param day - Service date as `YYYY-MM-DD`.
- * @returns Noon (Auckland-local) within that service day.
- */
-function dataDayNoon(day: string): Date {
-  // The range starts at SERVICE_START_HOUR (5am local); +7h lands at local noon.
-  return new Date(nzServiceDayRange(day).start.getTime() + 7 * 60 * 60 * 1000);
 }
 
 /**
@@ -105,7 +99,7 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
     ["most-recent-data-day", String(minEvents)],
     { revalidate: 600 },
   )();
-  return day ? dataDayNoon(day) : null;
+  return day ? serviceDayNoon(day) : null;
 }
 
 /**
@@ -125,5 +119,5 @@ export async function getEarliestDataDay(minEvents: number): Promise<Date | null
     // that was just deleted for hours.
     { revalidate: 600 },
   )();
-  return day ? dataDayNoon(day) : null;
+  return day ? serviceDayNoon(day) : null;
 }

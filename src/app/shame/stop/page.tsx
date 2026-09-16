@@ -15,7 +15,7 @@ import {
   resolveRangeView,
   resolveRequestedDay,
 } from "@/lib/page-nav";
-import { weekPeriodOf } from "@/lib/range-page";
+import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
   buildShameHref,
@@ -219,7 +219,7 @@ export default async function StopShamePage({
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const stopHourCounts = countById(visibleHours, (h) => h.stop_id);

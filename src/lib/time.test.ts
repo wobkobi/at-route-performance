@@ -2,15 +2,19 @@
 // Unit tests for the Auckland-timezone day, week and month range helpers in time.ts.
 import {
   monthRangeLabel,
+  NZ_TZ,
   nzDayRange,
   nzLast7DaysRange,
   nzMonthKey,
   nzMonthRange,
   nzServiceDayRange,
+  nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
+  SERVICE_START_HOUR,
   serviceDatesInRange,
   serviceDayClockInstant,
+  serviceDayNoon,
   shiftMonth,
   weekdayShort,
 } from "@/lib/time";
@@ -213,5 +217,55 @@ describe("nzLast7DaysRange", () => {
     expect(dates).toHaveLength(7);
     expect(dates[0]).toBe("2026-04-01");
     expect(dates[6]).toBe("2026-04-07");
+  });
+});
+
+describe("serviceDayNoon", () => {
+  /**
+   * The Auckland-local wall-clock hour of an instant.
+   * @param at - The instant.
+   * @returns The local hour, 0-23.
+   */
+  function nzHour(at: Date): number {
+    return Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: NZ_TZ,
+        hour: "2-digit",
+        hour12: false,
+      }).format(at),
+    );
+  }
+
+  it("is exactly noon on both sides of the April switch", () => {
+    // NZDT ends 5 April 2026 at 03:00 > 02:00. Noon is after the switch on the
+    // day itself, so 5 and 6 April read UTC+12 while 3 and 4 April read UTC+13.
+    expect(serviceDayNoon("2026-04-03").toISOString()).toBe("2026-04-02T23:00:00.000Z");
+    expect(serviceDayNoon("2026-04-04").toISOString()).toBe("2026-04-03T23:00:00.000Z");
+    expect(serviceDayNoon("2026-04-05").toISOString()).toBe("2026-04-05T00:00:00.000Z");
+    expect(serviceDayNoon("2026-04-06").toISOString()).toBe("2026-04-06T00:00:00.000Z");
+  });
+
+  it("is exactly noon on both sides of the September switch", () => {
+    // NZDT starts 27 September 2026 at 02:00 > 03:00; noon on the 27th is after it.
+    expect(serviceDayNoon("2026-09-25").toISOString()).toBe("2026-09-25T00:00:00.000Z");
+    expect(serviceDayNoon("2026-09-26").toISOString()).toBe("2026-09-26T00:00:00.000Z");
+    expect(serviceDayNoon("2026-09-27").toISOString()).toBe("2026-09-26T23:00:00.000Z");
+    expect(serviceDayNoon("2026-09-28").toISOString()).toBe("2026-09-27T23:00:00.000Z");
+  });
+
+  it("reads noon on the wall clock, not a fixed offset from the day's start", () => {
+    for (const day of ["2026-04-05", "2026-06-15", "2026-09-27", "2026-12-25"]) {
+      expect(nzHour(serviceDayNoon(day))).toBe(12);
+    }
+  });
+
+  it("lands inside the service day whatever the start hour", () => {
+    // The marker must not depend on SERVICE_START_HOUR: it is noon, so it sits
+    // inside the day for every plausible boundary, before and after the move to 4.
+    for (const startHour of [1, 2, 3, 4, 5, 6]) {
+      expect(nzServiceDayString(serviceDayNoon("2026-09-27"), startHour)).toBe("2026-09-27");
+      expect(nzServiceDayString(serviceDayNoon("2026-04-05"), startHour)).toBe("2026-04-05");
+    }
+    expect(nzServiceDayString(serviceDayNoon("2026-09-11"), SERVICE_START_HOUR)).toBe("2026-09-11");
   });
 });
