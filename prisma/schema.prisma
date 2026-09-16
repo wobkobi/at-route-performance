@@ -146,6 +146,7 @@ model IngestRun {
   success     Boolean
   count       Int? // rows inserted/processed (endpoint-specific)
   error       String? // message when success = false
+  detail      Json? // endpoint-specific record of what the run decided and did
 
   @@index([endpoint, completedAt])
 }

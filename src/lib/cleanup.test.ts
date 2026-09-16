@@ -1,7 +1,19 @@
 // src/lib/cleanup.test.ts
 // Unit tests for the retention cutoff, the request rules and the delete run,
 // driven through an in-memory store.
-import { cleanupCutoff, parseCleanupParams, runCleanup, type CleanupStore } from "@/lib/cleanup";
+import {
+  buildCleanupPlan,
+  checkCleanupPlan,
+  cleanupCutoff,
+  MAX_CUTOFF_ADVANCE_DAYS,
+  MAX_DELETE_SHARE,
+  MIN_SAFE_RETENTION_DAYS,
+  parseCleanupParams,
+  pickLastAppliedCutoff,
+  runCleanup,
+  type CleanupParams,
+  type CleanupStore,
+} from "@/lib/cleanup";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ prisma: {} }));
@@ -46,6 +58,13 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
     return (before) => Promise.resolve((rows[key] ?? []).filter((d) => d < before).length);
   }
   /**
+   * Every event held, for the share guard's denominator.
+   * @returns The count.
+   */
+  function countAll(): Promise<number> {
+    return Promise.resolve(rows.events.length);
+  }
+  /**
    * A fixed reading just past the warning threshold at the default allowance.
    * @returns The reading.
    */
@@ -54,6 +73,7 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
   }
   const store: CleanupStore = {
     countEvents: count("events"),
+    countAllEvents: countAll,
     countTrips: count("trips"),
     deleteEvents: remove("events"),
     deleteTrips: remove("trips"),
@@ -102,31 +122,63 @@ function url(qs: string): URL {
 }
 
 describe("parseCleanupParams", () => {
-  it("defaults to the environment, then to 14 days", () => {
-    expect(parseCleanupParams(url(""), "21")).toEqual({
+  it("refuses when RETENTION_DAYS is unset or empty", () => {
+    // The whole point of the task: a missing variable must refuse, not mean 14
+    // days. There is deliberately no DEFAULT_RETENTION_DAYS to fall back to.
+    for (const env of [undefined, "", "   "]) {
+      const refused = parseCleanupParams(url(""), env);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.refusal.error).toContain("RETENTION_DAYS");
+    }
+  });
+
+  it("takes the environment, and lets the query parameter override it", () => {
+    expect(parseCleanupParams(url(""), "3652")).toEqual({
       ok: true,
-      params: { retentionDays: 21, summaryDays: null },
+      params: { retentionDays: 3652, summaryDays: null, force: false, dryRun: false },
     });
-    expect(parseCleanupParams(url(""), undefined)).toEqual({
+    expect(parseCleanupParams(url("?retentionDays=400"), "3652")).toEqual({
       ok: true,
-      params: { retentionDays: 14, summaryDays: null },
+      params: { retentionDays: 400, summaryDays: null, force: false, dryRun: false },
     });
   });
 
-  it("refuses retention under 7 days without ?force=1", () => {
-    const refused = parseCleanupParams(url("?retentionDays=3"), undefined);
+  it("refuses retention below the floor even with ?force=1", () => {
+    // The 26 September regression: RETENTION_DAYS lost its value, the code read
+    // 14, and a ten-year archive was one cron run from gone.
+    for (const qs of ["?retentionDays=14", "?retentionDays=14&force=1"]) {
+      const refused = parseCleanupParams(url(qs), "3652");
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.refusal.error).toContain(String(MIN_SAFE_RETENTION_DAYS));
+    }
+    expect(parseCleanupParams(url(`?retentionDays=${MIN_SAFE_RETENTION_DAYS}`), "3652").ok).toBe(
+      true,
+    );
+  });
+
+  it("refuses a short summary retention without ?force=1", () => {
+    // Summaries are derived and rebuildable, so they get the lighter guard
+    // rather than the archive floor.
+    const refused = parseCleanupParams(url("?summaryDays=3"), "3652");
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.refusal.error).toContain("requires ?force=1");
-    expect(parseCleanupParams(url("?retentionDays=3&force=1"), undefined)).toEqual({
+    expect(parseCleanupParams(url("?summaryDays=3&force=1"), "3652")).toEqual({
       ok: true,
-      params: { retentionDays: 3, summaryDays: null },
+      params: { retentionDays: 3652, summaryDays: 3, force: true, dryRun: false },
     });
+  });
+
+  it("reads ?dryRun=1", () => {
+    const parsed = parseCleanupParams(url("?dryRun=1"), "3652");
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.params.dryRun).toBe(true);
   });
 
   it("refuses nonsense values", () => {
-    expect(parseCleanupParams(url("?retentionDays=abc"), undefined).ok).toBe(false);
-    expect(parseCleanupParams(url("?retentionDays=0"), undefined).ok).toBe(false);
-    expect(parseCleanupParams(url("?summaryDays=-1"), undefined).ok).toBe(false);
+    expect(parseCleanupParams(url("?retentionDays=abc"), "3652").ok).toBe(false);
+    expect(parseCleanupParams(url("?retentionDays=0"), "3652").ok).toBe(false);
+    expect(parseCleanupParams(url("?summaryDays=-1"), "3652").ok).toBe(false);
+    expect(parseCleanupParams(url(""), "abc").ok).toBe(false);
   });
 });
 
@@ -170,5 +222,116 @@ describe("runCleanup", () => {
     expect(rows.trips).toEqual([old]);
     expect(outcome.errors).toEqual({ trips: "trips delete failed" });
     expect(outcome.firstError).toBe("trips delete failed");
+  });
+});
+
+/**
+ * Validated params for a plan under test, defaulting to the live ten-year window.
+ * @param over - Fields to override.
+ * @returns The params.
+ */
+function params(over: Partial<CleanupParams> = {}): CleanupParams {
+  return { retentionDays: 3652, summaryDays: null, force: false, dryRun: false, ...over };
+}
+
+describe("buildCleanupPlan", () => {
+  const now = new Date("2026-09-16T00:00:00Z");
+
+  it("reports the share of the archive the run would delete", () => {
+    const plan = buildCleanupPlan(params(), { doomedEvents: 240_337, totalEvents: 3_350_000 }, now);
+    expect(plan.share).toBeCloseTo(0.0717, 4);
+    expect(plan.cutoff).toEqual(cleanupCutoff(3652, now));
+  });
+
+  it("reports no share at all on an empty collection", () => {
+    expect(buildCleanupPlan(params(), { doomedEvents: 0, totalEvents: 0 }, now).share).toBe(0);
+  });
+});
+
+describe("checkCleanupPlan", () => {
+  const now = new Date("2026-09-16T00:00:00Z");
+
+  /**
+   * A plan deleting a share of a million-row archive.
+   * @param share - Share of the archive the run would delete.
+   * @param retentionDays - Retention window.
+   * @returns The plan.
+   */
+  function planFor(share: number, retentionDays = 3652): ReturnType<typeof buildCleanupPlan> {
+    return buildCleanupPlan(
+      params({ retentionDays }),
+      { doomedEvents: Math.round(1_000_000 * share), totalEvents: 1_000_000 },
+      now,
+    );
+  }
+
+  it("passes a run that deletes a sliver", () => {
+    expect(checkCleanupPlan(planFor(MAX_DELETE_SHARE / 2), null, false)).toEqual({ ok: true });
+  });
+
+  it("refuses a run over the share ceiling, unless forced", () => {
+    const plan = planFor(MAX_DELETE_SHARE * 4);
+    const verdict = checkCleanupPlan(plan, null, false);
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.reason).toBe("share");
+    expect(checkCleanupPlan(plan, null, true)).toEqual({ ok: true });
+  });
+
+  it("refuses a cutoff that jumps past the last applied one, unless forced", () => {
+    const plan = planFor(0);
+    const lastCutoff = new Date(plan.cutoff.getTime() - 10 * 86_400_000);
+    const verdict = checkCleanupPlan(plan, lastCutoff, false);
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.reason).toBe("cutoffAdvance");
+    expect(checkCleanupPlan(plan, lastCutoff, true)).toEqual({ ok: true });
+  });
+
+  it("passes the nightly advance, right up to the ceiling", () => {
+    const plan = planFor(0);
+    expect(checkCleanupPlan(plan, new Date(plan.cutoff.getTime() - 86_400_000), false)).toEqual({
+      ok: true,
+    });
+    const atLimit = new Date(plan.cutoff.getTime() - MAX_CUTOFF_ADVANCE_DAYS * 86_400_000);
+    expect(checkCleanupPlan(plan, atLimit, false)).toEqual({ ok: true });
+  });
+
+  it("refuses the 26 September run against a real archive", () => {
+    // 14 days against 3.35M rows. parseCleanupParams already refuses this on the
+    // retention floor; the share ceiling refuses it a second time, so losing
+    // either guard still leaves the archive standing.
+    const plan = buildCleanupPlan(
+      params({ retentionDays: 14 }),
+      { doomedEvents: 240_337, totalEvents: 3_350_000 },
+      now,
+    );
+    expect(checkCleanupPlan(plan, null, false).ok).toBe(false);
+  });
+});
+
+describe("pickLastAppliedCutoff", () => {
+  const applied = { applied: true, cutoff: "2026-09-10T16:00:00.000Z" };
+  const older = { applied: true, cutoff: "2026-09-09T16:00:00.000Z" };
+
+  it("takes the newest run that actually deleted", () => {
+    expect(pickLastAppliedCutoff([{ detail: applied }, { detail: older }])).toEqual(
+      new Date(applied.cutoff),
+    );
+  });
+
+  it("skips dry runs and refusals, so neither becomes the next night's baseline", () => {
+    expect(
+      pickLastAppliedCutoff([
+        { detail: { applied: false, verdict: "dryRun", cutoff: "2026-09-16T16:00:00.000Z" } },
+        { detail: { applied: false, verdict: "refused", cutoff: "2026-09-15T16:00:00.000Z" } },
+        { detail: applied },
+      ]),
+    ).toEqual(new Date(applied.cutoff));
+  });
+
+  it("answers null when nothing usable is on record", () => {
+    expect(pickLastAppliedCutoff([])).toBeNull();
+    expect(pickLastAppliedCutoff([{ detail: null }, { detail: "nonsense" }])).toBeNull();
+    expect(pickLastAppliedCutoff([{ detail: { applied: true } }])).toBeNull();
+    expect(pickLastAppliedCutoff([{ detail: { applied: true, cutoff: "not a date" } }])).toBeNull();
   });
 });

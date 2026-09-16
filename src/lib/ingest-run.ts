@@ -9,6 +9,7 @@
 import { getLatestEventDate } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { memCache } from "@/lib/mem-cache";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Realtime ingest cadence in seconds (cron-job.org posts to /api/ingest/at every
@@ -31,6 +32,12 @@ export interface IngestRunInput {
   count?: number;
   /** Error message when `success` is false. */
   error?: string;
+  /**
+   * Endpoint-specific record of what the run decided and did, for questions the
+   * other columns cannot answer - the retention a cleanup applied, say, which
+   * `count` alone cannot distinguish from a run that deleted nothing.
+   */
+  detail?: Prisma.InputJsonValue;
 }
 
 /**
@@ -48,6 +55,7 @@ export async function recordIngestRun(run: IngestRunInput): Promise<void> {
         success: run.success,
         count: run.count,
         error: run.error?.slice(0, MAX_ERROR_LEN),
+        detail: run.detail,
       },
     });
   } catch (err) {

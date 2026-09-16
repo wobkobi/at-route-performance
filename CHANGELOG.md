@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.21.4] - 2026-09-16
+
+### Fixed
+
+- The retention cleanup now refuses when RETENTION_DAYS is unset instead of falling back to 14 days,
+  refuses a retention under a year, refuses a run that would delete more than 2% of the archive or
+  jump its cutoff more than two days, and records what every run decided on IngestRun.detail. Adds
+  ?dryRun=1.
+
 ## [1.21.3] - 2026-09-16
 
 ### Fixed
