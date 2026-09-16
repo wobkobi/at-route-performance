@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.22.1] - 2026-09-16
+
+### Changed
+
+- The cron schedule is documented in NZ local time, since the jobs are scheduled there and the UTC
+  hour moves with daylight saving; the old table read as an hour of drift for half the year. Adds a
+  runbook for each way the cleanup can refuse.
+
 ## [1.22.0] - 2026-09-16
 
 ### Added

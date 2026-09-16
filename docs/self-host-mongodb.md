@@ -270,10 +270,38 @@ next startup, which is normal cleanup rather than a further fault.
 
 ## Retention at ten years
 
-The target retention is `RETENTION_DAYS=3650` with `STORAGE_LIMIT_MB=262144` (256 GB allowance,
-warns at 80% = ~205 GB). Raise `RETENTION_DAYS` in the Vercel env as soon as the decision is made -
-the nightly cleanup permanently deletes the oldest day, so every day it runs at 14 keeps the archive
-at two weeks. The archive accumulates forward from the raise; nothing older can be recovered.
+Retention is `RETENTION_DAYS=3652` with `STORAGE_LIMIT_MB=262144` (256 GB allowance, warns at 80% =
+~205 GB), set on Production **and** Preview. 3652 rather than 3650 because ten years spans two leap
+days. The nightly cleanup permanently deletes the oldest day once the archive is older than the
+window; nothing it deletes can be recovered.
+
+There is no default retention. The cleanup endpoint refuses a run when `RETENTION_DAYS` is unset or
+unparseable rather than falling back to a fortnight, and refuses any retention under a year -
+`?force=1` does not lift that floor. Two further guards refuse after the request is acknowledged,
+recording the refusal on `IngestRun` rather than in the response: a run that would delete more than
+2% of `ArrivalEvent`, and a cutoff that leaps more than two days past the last run that actually
+deleted. Both of those stand down under `?force=1`.
+
+### When a cleanup refuses
+
+`GET /api/health` reports the newest run's window - `retentionDays`, `cutoff`, `applied`, `dryRun`
+and `refused` - so start there rather than in the logs. Then:
+
+1. **`RETENTION_DAYS is not set`** (a 400, nothing recorded). The variable is missing from that
+   environment. Set it and re-run; do not pass `?retentionDays=` to paper over it, because the next
+   nightly run refuses again.
+2. **`below the 365-day floor`** (a 400, nothing recorded). Someone set a short window. Correct the
+   variable. If the archive really is meant to shrink, move `MIN_SAFE_RETENTION_DAYS` in
+   `src/lib/cleanup.ts` deliberately, in its own commit.
+3. **`over the 2% ceiling`** (recorded, `success: false`). The window moved, or a large backfill
+   landed outside it. Check the `[CLEANUP] plan` log line for `doomedEvents` against `totalEvents`.
+   Re-run with `?dryRun=1` first; only pass `?force=1` once the count is one you meant.
+4. **`days past the last applied run`** (recorded, `success: false`). The cron has not applied for a
+   while, so the cutoff jumped. Confirm the gap is real and expected, then `?force=1` once. The next
+   night returns to normal on its own.
+
+`?dryRun=1` plans the run, records it and deletes nothing. A dry run never becomes the baseline the
+advance guard measures against, so it is safe to use freely.
 
 Sizing, extrapolated from measured per-document costs (~108 B data + ~162 B index on disk at
 lz4/WiredTiger compression, ~235k events/day): ~86M events/year > ~9 GB data + ~14 GB indexes, so

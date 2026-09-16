@@ -42,19 +42,26 @@ post-deploy smoke workflow reach a protected deployment.
 
 All endpoints are **POST**. Create one cron-job.org job per row.
 
-| Job              | URL path                  | Method | Schedule         | Purpose                         |
-| ---------------- | ------------------------- | ------ | ---------------- | ------------------------------- |
-| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes  | Capture GTFS-RT arrival events  |
-| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 13:00 UTC  | Refresh routes + stops          |
-| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 13:10 UTC | Refresh route geometry (shapes) |
-| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 13:30 UTC  | Roll up DailyRouteSummary       |
-| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 14:00 UTC  | Apply retention                 |
-| Cache pre-warm   | `/api/warm`               | POST   | daily 14:15 UTC  | Pre-compute yesterday's boards  |
+| Job              | URL path                  | Method | Schedule (NZ local) | Purpose                         |
+| ---------------- | ------------------------- | ------ | ------------------- | ------------------------------- |
+| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes     | Capture GTFS-RT arrival events  |
+| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 02:00         | Refresh routes + stops          |
+| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 02:10        | Refresh route geometry (shapes) |
+| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary       |
+| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                 |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute yesterday's boards  |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
-13:00 UTC is 01:00 NZST (winter) / 02:00 NZDT (summer). cron-job.org lets you pick a timezone per
-job if you prefer to schedule in NZ local time.
+The jobs are scheduled in **NZ local time**, so the UTC hour they fire at moves with daylight
+saving: 02:00 NZ is 14:00 UTC in winter (NZST, UTC+12) and 13:00 UTC in summer (NZDT, UTC+13).
+Recorded `IngestRun` rows for 11-15 September 2026 agree - sync at 14:00, shapes at 14:10, aggregate
+at 14:30 and cleanup at 15:00 UTC, every one of them NZST. An earlier version of this table gave the
+summer UTC hours as if they were fixed, which read as an hour of drift for half the year. Document
+the local time, which does not move.
+
+What matters is the order, not the hour: cleanup must run after the aggregate, because deletion is
+irreversible and the rollup reads the events the cleanup then removes.
 
 ## Notes
 

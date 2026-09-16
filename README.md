@@ -48,8 +48,8 @@ Environment (`.env.local`):
 | `DATABASE_URL`              | MongoDB connection string (see `docs/self-host-mongodb.md`)                                                            |
 | `AT_API_KEY`                | Auckland Transport API subscription key                                                                                |
 | `CRON_SECRET`               | Bearer token the ingest endpoints require                                                                              |
-| `RETENTION_DAYS`            | How long raw arrival events are kept                                                                                   |
-| `STORAGE_LIMIT_MB`          | Storage budget the cleanup job works against                                                                           |
+| `RETENTION_DAYS`            | How long raw arrival events are kept, in days. No default - the cleanup refuses a run without it. Production: `3652`   |
+| `STORAGE_LIMIT_MB`          | Storage budget the cleanup job works against. Production: `262144` (256 GB)                                            |
 | `NEXT_PUBLIC_CARTO_API_KEY` | CARTO basemap key ([free](https://carto.com/basemaps/apikey)); tiles are watermarked without it. Inlined at build time |
 
 ```bash
