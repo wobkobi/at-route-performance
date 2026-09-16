@@ -1,7 +1,9 @@
 // src/lib/range-page.test.ts
 // Unit tests for the Day / Week / Month window helpers.
+import { DATA_START_DAY } from "@/lib/data-start";
 import {
   dayRangeNav,
+  hasEarlierDay,
   overviewHeading,
   parseRangeWindow,
   routeLinkQuery,
@@ -22,11 +24,13 @@ describe("parseRangeWindow", () => {
 });
 
 describe("dayRangeNav", () => {
-  const earliest = nzServiceDayRange("2026-09-01").start;
+  // After the archive floor, so the live earliest day is what bounds the
+  // stepper here rather than DATA_START_DAY standing in for it.
+  const earliest = nzServiceDayRange("2026-09-12").start;
 
   it("stops at today and at the earliest day with data", () => {
     expect(dayRangeNav(TODAY, earliest, TODAY)).toMatchObject({ hasPrev: true, hasNext: false });
-    expect(dayRangeNav("2026-09-01", earliest, TODAY)).toMatchObject({
+    expect(dayRangeNav("2026-09-12", earliest, TODAY)).toMatchObject({
       hasPrev: false,
       hasNext: true,
       nextIsToday: false,
@@ -35,6 +39,11 @@ describe("dayRangeNav", () => {
 
   it("marks yesterday's next link as today", () => {
     expect(dayRangeNav("2026-09-13", earliest, TODAY)).toMatchObject({ nextIsToday: true });
+  });
+
+  it("falls back to the archive floor when the earliest day is unknown", () => {
+    expect(dayRangeNav(DATA_START_DAY, null, TODAY).hasPrev).toBe(false);
+    expect(dayRangeNav("2026-09-12", null, TODAY).hasPrev).toBe(true);
   });
 });
 
@@ -69,8 +78,20 @@ describe("weekPeriodOf", () => {
 });
 
 describe("overviewHeading", () => {
-  const day = { window: "day", serviceDate: TODAY, hasPrev: true, nextIsToday: false } as const;
-  const week = { window: "week", label: "Last 7 days", prevHref: null, nextHref: null } as const;
+  const day = {
+    window: "day",
+    serviceDate: TODAY,
+    hasPrev: true,
+    nextIsToday: false,
+    atFloor: false,
+  } as const;
+  const week = {
+    window: "week",
+    label: "Last 7 days",
+    prevHref: null,
+    nextHref: null,
+    partial: false,
+  } as const;
 
   it("names today, or another day, from the stepper", () => {
     expect(overviewHeading({ ...day, hasNext: false }, null)).toBe("How bad was it today?");
@@ -82,5 +103,20 @@ describe("overviewHeading", () => {
     expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
       "How bad was that month?",
     );
+  });
+});
+
+describe("hasEarlierDay", () => {
+  it("stops at the constant when no live floor is known", () => {
+    expect(hasEarlierDay(DATA_START_DAY, null)).toBe(false);
+    expect(hasEarlierDay("2026-09-12", null)).toBe(true);
+  });
+  it("lets the live floor win once it passes the constant", () => {
+    expect(hasEarlierDay("2026-09-12", nzServiceDayRange("2026-09-20").start)).toBe(false);
+    expect(hasEarlierDay("2026-09-21", nzServiceDayRange("2026-09-20").start)).toBe(true);
+  });
+  it("ignores a live floor that sits before the constant", () => {
+    // The 10 September remnant must never re-open the stepper.
+    expect(hasEarlierDay(DATA_START_DAY, nzServiceDayRange("2026-09-10").start)).toBe(false);
   });
 });

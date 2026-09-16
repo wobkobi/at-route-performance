@@ -15,14 +15,15 @@ import {
   getShameRouteOfWeek,
   getShameRouteStreaksBatch,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { DATA_START_DAY } from "@/lib/data-start";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import {
   filterLiveHours,
   maybeFallbackDay,
   resolveRangeView,
   resolveRequestedDay,
 } from "@/lib/page-nav";
-import { weekPeriodOf } from "@/lib/range-page";
+import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import {
@@ -156,6 +157,7 @@ export default async function RoutesShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
   const { filter, view, preserved, subtitle } = parseShameParams(sp);
 
@@ -233,7 +235,7 @@ export default async function RoutesShamePage({
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const routeHourCounts = countById(visibleHours, (h) => h.route_id);
@@ -346,6 +348,7 @@ export default async function RoutesShamePage({
           serviceDate,
           preserved,
           hasPrev: hasPrevDay,
+          atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,
           nextHref: nextDayHref,
         }}

@@ -4,6 +4,114 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.26.1] - 2026-09-17
+
+### Added
+
+- The one-off service-day restamp migration is in the repo, ready to run after the 4am boundary
+  change deploys. It moves stored summary stamps onto the new boundary instant, rewrites
+  cancelled-trip service dates to the run's own day, and clears the unused off-route stamp.
+
+## [1.26.0] - 2026-09-16
+
+### Added
+
+- Every arrival now records the service date of the run it belongs to, derived once per run at
+  ingest, so a run crossing the service-day boundary is no longer split across two days.
+
+## [1.25.3] - 2026-09-16
+
+### Changed
+
+- AGENTS.md and CLAUDE.md are now tracked. Next.js regenerates both on every dev-server start, so
+  leaving them untracked left the working tree permanently dirty.
+
+## [1.25.2] - 2026-09-16
+
+### Fixed
+
+- Summary lookups match the stored service-day stamp by range instead of by an exact instant, so a
+  past day still reads as summarised and final if the service-day boundary hour moves.
+
+## [1.25.1] - 2026-09-16
+
+### Changed
+
+- The ingest peek endpoint now echoes each sampled trip's trip_id, start_date and start_time, so
+  whether the feed populates a run's own service date can be settled before it is relied on.
+
+## [1.25.0] - 2026-09-16
+
+### Added
+
+- Four surfaces now say when the archive starts: a footer line, a 'first day' hint on the day
+  stepper at 11 September 2026, a '(from 11 Sep)' suffix on a period that starts before the archive,
+  and a line under the home heading on the first day.
+
+## [1.24.0] - 2026-09-16
+
+### Added
+
+- A ?day outside the archive now redirects onto the nearest real day instead of rendering an empty
+  board, the week and month windows clamp to the archive floor and mark a short first period as
+  partial, and the rank-movement query is skipped when the previous window is empty.
+
+## [1.23.0] - 2026-09-16
+
+### Added
+
+- Added DATA_START_DAY (2026-09-11) as a hard archive floor: the day stepper, the data-day walk and
+  the range clamps all stop there, and serviceDayNoon now reads the wall clock instead of adding a
+  fixed seven hours to the service day's start.
+
+## [1.22.2] - 2026-09-16
+
+### Changed
+
+- Cleaned up .gitignore: dropped Yarn/PnP/pnpm, Turborepo and SQLite-era rules this repo never
+  produces, collapsed the env rules onto the wider .env* glob the Vercel CLI needs, and added
+  coverage/ and scripts/route-shots/.
+
+## [1.22.1] - 2026-09-16
+
+### Changed
+
+- The cron schedule is documented in NZ local time, since the jobs are scheduled there and the UTC
+  hour moves with daylight saving; the old table read as an hour of drift for half the year. Adds a
+  runbook for each way the cleanup can refuse.
+
+## [1.22.0] - 2026-09-16
+
+### Added
+
+- GET /api/health now reports the retention window the last cleanup run actually used, including
+  whether it was refused or a dry run, so production's retention is readable without a mongosh
+  session. An integration test fails if a recorded window ever drops below the safe floor.
+
+## [1.21.4] - 2026-09-16
+
+### Fixed
+
+- The retention cleanup now refuses when RETENTION_DAYS is unset instead of falling back to 14 days,
+  refuses a retention under a year, refuses a run that would delete more than 2% of the archive or
+  jump its cutoff more than two days, and records what every run decided on IngestRun.detail. Adds
+  ?dryRun=1.
+
+## [1.21.3] - 2026-09-16
+
+### Fixed
+
+- The lint script is read-only again and fails on warnings; lint:fix is back for the rewriting
+  variant. Folding --fix into lint made the pre-push hook edit files after the commit was made, and
+  let eslint insert empty JSDoc stubs mid-check.
+
+## [1.21.2] - 2026-09-16
+
+### Changed
+
+- Updated eslint-plugin-jsdoc and vitest, pinned prisma to an exact 6.19.3 so a stray range bump
+  cannot reach Prisma 7, and folded lint:fix into lint.
+
 ## [1.21.0] - 2026-09-14
 
 ### Changed

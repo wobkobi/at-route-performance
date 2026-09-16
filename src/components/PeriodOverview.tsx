@@ -18,6 +18,7 @@ import {
   getShameOfWeek,
   getWorstStops,
 } from "@/lib/data";
+import { rangeIsEmpty } from "@/lib/data-start";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
   computeRankDelta,
@@ -34,6 +35,7 @@ import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref } from "@/lib/shame-page";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import type { TopRouteRow } from "@/types/api";
 import type { JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -72,10 +74,15 @@ export async function PeriodOverview({
   range: DateRange;
   anchor: Date;
 }): Promise<JSX.Element> {
+  // The first week and the first month have no real previous window: resolvePrevRange
+  // clamps it away to nothing, and querying that would rank every route as a new entry.
+  const prevRange = resolvePrevRange(window, period, anchor);
   const [rows, worstStops, prevRows, shame, cancelled, cancelledByRoute] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
     getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
-    getRankings(resolvePrevRange(window, period, anchor), THRESHOLD_SEC, REVALIDATE),
+    rangeIsEmpty(prevRange)
+      ? Promise.resolve<TopRouteRow[]>([])
+      : getRankings(prevRange, THRESHOLD_SEC, REVALIDATE),
     getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
     getCancelledCount(range, { mode, includeSchool }, REVALIDATE),
     getCancelledByRoute(range, { mode, includeSchool }, REVALIDATE),

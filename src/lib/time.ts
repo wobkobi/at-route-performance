@@ -133,6 +133,19 @@ export function nzDayRange(at: Date = new Date()): DateRange {
 export const SERVICE_START_HOUR = 5;
 
 /**
+ * How far past a service day's end the last reading of its last run can fall.
+ * A run starting just before the boundary keeps reporting into the next day, so
+ * anything that groups a run's readings has to reach this far. Over all 15,364
+ * runs on 15 September 2026 the longest ran 104 minutes, the 99.9th percentile
+ * 94 minutes, and none reached two hours; three hours is 1.73x the observed
+ * maximum, which is the margin a bound only ever exercised by the outlier
+ * wants. The failure modes are asymmetric: too small and a run's tail is
+ * silently dropped from its own day, which is a wrong number on a board; too
+ * large and some extra rows are scanned and then discarded.
+ */
+export const RUN_TAIL_HOURS = 3;
+
+/**
  * Convert an Auckland-local wall-clock date + hour to the UTC instant.
  *
  * The offset depends on the instant and the instant on the offset, so it is
@@ -238,6 +251,19 @@ export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_ST
     month: "2-digit",
     day: "2-digit",
   }).format(start);
+}
+
+/**
+ * Local noon inside a service day, as a marker instant for a day the boards
+ * step through. Resolved from the wall clock rather than by adding hours to the
+ * day's start, so it stays noon whatever {@link SERVICE_START_HOUR} becomes and
+ * whichever side of a daylight-saving switch the day falls.
+ * @param day - Service date, `YYYY-MM-DD`.
+ * @returns The instant of 12:00 Auckland local on that date.
+ */
+export function serviceDayNoon(day: string): Date {
+  const { y, mo, d } = parseYmd(day);
+  return nzLocalToUtcAtHour(y, mo, d, 12);
 }
 
 /**

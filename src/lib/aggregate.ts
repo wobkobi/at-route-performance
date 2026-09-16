@@ -174,13 +174,19 @@ export function catchUpDates(
 }
 
 /**
- * Whether a service date already has at least one summary row.
+ * Whether a service date already has at least one summary row. A range match,
+ * as every other summary read is: the stored `date` is a service-day start
+ * instant, and an equality match breaks the moment the boundary hour moves
+ * while stored stamps still carry the old one. Each stored day lands in exactly
+ * one window under both a 5am and a 4am rule, so this read is indifferent to
+ * which hour wrote the stamp.
  * @param date - Service date (`YYYY-MM-DD`).
  * @returns True when the day was rolled up before.
  */
 export async function daySummarised(date: string): Promise<boolean> {
+  const { start, end } = nzServiceDayRange(date);
   const row = await prisma.dailyRouteSummary.findFirst({
-    where: { date: nzServiceDayRange(date).start },
+    where: { date: { gte: start, lt: end } },
     select: { id: true },
   });
   return row !== null;

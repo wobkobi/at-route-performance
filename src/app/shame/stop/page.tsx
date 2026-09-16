@@ -7,7 +7,8 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { getEarliestDataDay, getWorstStopsOfDay, getWorstStopsOfWeek } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { DATA_START_DAY } from "@/lib/data-start";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import {
   filterLiveHours,
@@ -15,7 +16,7 @@ import {
   resolveRangeView,
   resolveRequestedDay,
 } from "@/lib/page-nav";
-import { weekPeriodOf } from "@/lib/range-page";
+import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
   buildShameHref,
@@ -140,6 +141,7 @@ export default async function StopShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
   const { filter, view, preserved } = parseShameParams(sp);
 
@@ -219,7 +221,7 @@ export default async function StopShamePage({
   }
 
   const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false;
+  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
@@ -294,6 +296,7 @@ export default async function StopShamePage({
           serviceDate,
           preserved,
           hasPrev: hasPrevDay,
+          atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,
           nextHref: nextDayHref,
         }}

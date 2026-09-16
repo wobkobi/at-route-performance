@@ -1,14 +1,23 @@
 // src/lib/page-nav.test.ts
 // Unit tests for the page-nav helpers resolveRequestedDay, resolveWeekNav and filterLiveHours in page-nav.ts.
 
+import { getMostRecentDataDay } from "@/lib/data";
+import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/data-start";
 import {
   filterLiveHours,
+  maybeFallbackDay,
+  resolveActiveWeekRange,
   resolveMonthNav,
+  resolveRangeView,
   resolveRequestedDay,
   resolveRequestedMonth,
   resolveWeekNav,
 } from "@/lib/page-nav";
-import { describe, expect, it } from "vitest";
+import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { nzServiceDayRange } from "@/lib/time";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/data", () => ({ getMostRecentDataDay: vi.fn(() => Promise.resolve(null)) }));
 
 /**
  * Test stub for `resolveWeekNav`'s `makeHref`: encode a week period as a
@@ -137,5 +146,75 @@ describe("resolveWeekNav", () => {
       now,
     });
     expect(nav.prevHref).toBeNull();
+  });
+});
+
+describe("partial periods at the archive floor", () => {
+  const now = new Date("2026-09-16T00:00:00Z");
+  /**
+   * Test stub encoding a month period as a recognisable href.
+   * @param period - The month period, or null for the current month.
+   * @returns A stub href like "month:2026-09" or "month:current".
+   */
+  const monthHref = (period: string | null): string => `month:${period ?? "current"}`;
+
+  it("marks the first week partial and refuses to step before it", () => {
+    const nav = resolveWeekNav({
+      periodParam: "2026-09-07",
+      earliestDay: dataStartDate(),
+      makeHref,
+      now,
+    });
+    expect(nav.prevHref).toBeNull();
+    expect(nav.partial).toBe(true);
+  });
+
+  it("marks the second week whole and offers a step back", () => {
+    const nav = resolveWeekNav({
+      periodParam: "2026-09-14",
+      earliestDay: dataStartDate(),
+      makeHref,
+      now,
+    });
+    expect(nav.prevHref).toBe("week:2026-09-07");
+    expect(nav.partial).toBe(false);
+  });
+
+  it("marks the first month partial with no chevron in either direction", () => {
+    const nav = resolveMonthNav({
+      periodParam: "2026-09",
+      earliestDay: dataStartDate(),
+      makeHref: monthHref,
+      now,
+    });
+    expect(nav).toMatchObject({ prevHref: null, nextHref: null, partial: true });
+  });
+
+  it("raises the first week's query window to the floor", () => {
+    const { activeWeekRange } = resolveActiveWeekRange("2026-09-07", now);
+    expect(activeWeekRange.start.toISOString()).toBe(
+      nzServiceDayRange(DATA_START_DAY).start.toISOString(),
+    );
+    expect(rangeIsEmpty(activeWeekRange)).toBe(false);
+  });
+
+  it("raises a month board's window to the floor too", () => {
+    const view = resolveRangeView("month", "2026-09", dataStartDate(), monthHref);
+    expect(view.activeRange.start.toISOString()).toBe(
+      nzServiceDayRange(DATA_START_DAY).start.toISOString(),
+    );
+    expect(view.partial).toBe(true);
+  });
+});
+
+describe("maybeFallbackDay", () => {
+  it("never falls back from a requested day, so a clamped redirect stays put", async () => {
+    await expect(maybeFallbackDay(DATA_START_DAY, true, MIN_BOARD_EVENTS)).resolves.toBeNull();
+    expect(getMostRecentDataDay).not.toHaveBeenCalled();
+  });
+
+  it("still falls back on a sparse today, where the forward clamp dropped ?day", async () => {
+    await maybeFallbackDay(null, true, MIN_BOARD_EVENTS);
+    expect(getMostRecentDataDay).toHaveBeenCalledWith(MIN_BOARD_EVENTS);
   });
 });

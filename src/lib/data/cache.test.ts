@@ -1,9 +1,25 @@
 // src/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheState } from "@/lib/data/cache";
-import { describe, expect, it, vi } from "vitest";
+import { cacheState, rangeIsFinal } from "@/lib/data/cache";
+import { nzServiceDayRange } from "@/lib/time";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
+
+vi.mock("@/lib/db", () => ({ prisma: { dailyRouteSummary: { findFirst } } }));
+vi.mock("@/lib/mem-cache", () => ({
+  /**
+   * Passthrough stand-in for Next's file-backed Data Cache, which has no server
+   * to talk to under vitest's node environment. Leaves the read itself
+   * assertable without changing what `summaryExistsFor` does.
+   * @param fn - The read to run.
+   * @returns A thunk running the read uncached.
+   */
+  unstable_cache:
+    <T>(fn: () => Promise<T>) =>
+    (): Promise<T> =>
+      fn(),
+}));
 
 const START = Date.parse("2026-09-13T17:00:00Z");
 const END = Date.parse("2026-09-14T17:00:00Z");
@@ -27,5 +43,26 @@ describe("cacheState", () => {
     expect(b).toBe(a);
     expect(c).not.toBe(a);
     expect(cacheState(false, null, 300, START)).toMatch(/^live-/);
+  });
+});
+
+describe("rangeIsFinal", () => {
+  beforeEach(() => {
+    findFirst.mockReset();
+  });
+
+  it("matches the stored stamp by service-day range, not by equality", async () => {
+    findFirst.mockResolvedValue({ id: "sum1" });
+    const day = nzServiceDayRange("2026-09-11");
+    await expect(rangeIsFinal(day)).resolves.toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { date: { gte: day.start, lt: day.end } },
+      select: { id: true },
+    });
+  });
+
+  it("is false while any day in the window has no summary row", async () => {
+    findFirst.mockResolvedValue(null);
+    await expect(rangeIsFinal(nzServiceDayRange("2026-09-11"))).resolves.toBe(false);
   });
 });

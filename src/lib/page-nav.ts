@@ -7,12 +7,14 @@
 // started yet are dropped so AT's predicted-future slots don't show as phantom
 // on-time entries; and the empty-day fallback lazily imports the data layer so
 // these helpers stay pure and unit-testable.
+import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/data-start";
 import {
   monthRangeLabel,
   NZ_TZ,
   nzLast7DaysRange,
   nzMonthKey,
   nzMonthRange,
+  nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
@@ -100,7 +102,10 @@ export function resolveActiveWeekRange(
   now: Date = new Date(),
 ): { fixedWeekRange: DateRange | null; activeWeekRange: DateRange } {
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  return { fixedWeekRange, activeWeekRange: fixedWeekRange ?? nzLast7DaysRange(now) };
+  return {
+    fixedWeekRange,
+    activeWeekRange: clampRangeToDataStart(fixedWeekRange ?? nzLast7DaysRange(now)),
+  };
 }
 
 /** The prev/next week-stepper links and the period label for a week view. */
@@ -111,6 +116,11 @@ export interface WeekNav {
   prevHref: string | null;
   /** Next-week link, or null when already at the present week. */
   nextHref: string | null;
+  /**
+   * Whether the period starts before the archive floor, so the label can say it
+   * covers only part of the period it names.
+   */
+  partial: boolean;
 }
 
 /**
@@ -137,6 +147,10 @@ export function resolveWeekNav({
 }): WeekNav {
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
   const periodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
+  // Partial is about coverage, not reachability: the bounds below still come
+  // from earliestDay, so a caller with an earliest day of its own keeps it.
+  const partial =
+    (fixedWeekRange ?? nzLast7DaysRange(now)).start < nzServiceDayRange(DATA_START_DAY).start;
   const thisWeekStart = nzWeekStart(now);
   const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
   const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
@@ -146,7 +160,7 @@ export function resolveWeekNav({
     const nextWeek = shiftWeek(periodParam, 7);
     nextHref = nextWeek >= thisWeekStart ? makeHref(null) : makeHref(nextWeek);
   }
-  return { periodLabel, prevHref, nextHref };
+  return { periodLabel, prevHref, nextHref, partial };
 }
 
 /**
@@ -174,6 +188,7 @@ export function resolveMonthNav({
   const currentKey = nzMonthKey(now);
   const activeKey = periodParam ?? currentKey;
   const periodLabel = monthRangeLabel(nzMonthRange(activeKey));
+  const partial = nzMonthRange(activeKey).start < nzServiceDayRange(DATA_START_DAY).start;
   const prevMonth = shiftMonth(activeKey, -1);
   const earliestKey = earliestDay ? nzMonthKey(earliestDay) : null;
   const prevHref = !earliestKey || prevMonth >= earliestKey ? makeHref(prevMonth) : null;
@@ -182,7 +197,7 @@ export function resolveMonthNav({
     const nextMonth = shiftMonth(periodParam, 1);
     nextHref = nextMonth >= currentKey ? makeHref(null) : makeHref(nextMonth);
   }
-  return { periodLabel, prevHref, nextHref };
+  return { periodLabel, prevHref, nextHref, partial };
 }
 
 /** Resolved state for a week or month board view: range, label and stepper. */
@@ -216,7 +231,7 @@ export function resolveRangeView(
   const isMonth = view === "month";
   const periodParam = isMonth ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
   const activeRange = isMonth
-    ? nzMonthRange(periodParam ?? undefined)
+    ? clampRangeToDataStart(nzMonthRange(periodParam ?? undefined))
     : resolveActiveWeekRange(periodParam).activeWeekRange;
   const nav = isMonth
     ? resolveMonthNav({ periodParam, earliestDay, makeHref })

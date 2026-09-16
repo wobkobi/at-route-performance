@@ -4,6 +4,7 @@
 import { FooterFreshness } from "@/components/FooterFreshness";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
+import { DATA_START_LABEL } from "@/lib/data-start";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -126,6 +127,7 @@ export default function RootLayout({
               <p className="max-w-xs text-white/70">
                 An independent project, not affiliated with Auckland Transport.
               </p>
+              <p className="text-xs text-white/50">Records start {DATA_START_LABEL}.</p>
               <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
                 <FooterFreshness />
               </Suspense>

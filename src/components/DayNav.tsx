@@ -25,6 +25,8 @@ export interface DayNavProps {
    * day is today so the server's `dropTodayParam` redirect is never triggered.
    */
   nextHref?: string;
+  /** Whether the shown day is the archive's first, so the absent chevron reads as a fact. */
+  atFloor?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * @param props.hasPrev - Whether to offer a previous-day link.
  * @param props.hasNext - Whether to offer a next-day link.
  * @param props.nextHref - Override href for the next-day link; pass the clean base URL when the next day is today to skip the server redirect.
+ * @param props.atFloor - Whether the shown day is the archive's first, so the missing previous chevron gets a reason.
  * @returns The day navigation element.
  */
 export function DayNav({
@@ -68,10 +71,12 @@ export function DayNav({
   hasPrev,
   hasNext,
   nextHref,
+  atFloor = false,
 }: DayNavProps): JSX.Element {
   return (
     <div className="flex items-center gap-1">
-      {/* Step links are omitted (not disabled) at the edges of the data range. */}
+      {/* Step links are omitted (not disabled) at the edges of the data range;
+          on the archive's first day the gap gets a reason instead. */}
       {hasPrev && (
         <Link
           href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
@@ -81,6 +86,7 @@ export function DayNav({
           <ChevronLeft />
         </Link>
       )}
+      {!hasPrev && atFloor && <span className="px-1 text-xs text-at-muted">first day</span>}
       <span className="px-2 text-sm font-semibold tabular-nums">{dateLabel(serviceDate)}</span>
       {hasNext && (
         <Link

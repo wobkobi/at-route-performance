@@ -24,17 +24,21 @@ const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
 /**
  * Whether the nightly aggregate has written a `DailyRouteSummary` for a
  * service date. The aggregate classifies the day's ghost readings before it
- * writes the summaries, so a summary means the day's boards are final. One
- * indexed point read, cached for five minutes so a day's caches move to the
- * long TTL within that of the summary landing.
+ * writes the summaries, so a summary means the day's boards are final. A range
+ * match rather than an equality on the day's start instant: the stored stamp is
+ * itself a service-day start, and an equality breaks the moment the boundary
+ * hour moves while stored stamps still carry the old one. One indexed read,
+ * cached for five minutes so a day's caches move to the long TTL within that of
+ * the summary landing.
  * @param date - Service date (`YYYY-MM-DD`).
  * @returns True once the day has a summary.
  */
 async function summaryExistsFor(date: string): Promise<boolean> {
   return unstable_cache(
     async () => {
+      const { start, end } = nzServiceDayRange(date);
       const row = await prisma.dailyRouteSummary.findFirst({
-        where: { date: nzServiceDayRange(date).start },
+        where: { date: { gte: start, lt: end } },
         select: { id: true },
       });
       return row !== null;

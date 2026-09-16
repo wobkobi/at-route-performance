@@ -5,15 +5,19 @@ import {
   CATCH_UP_EXTRA_DAYS,
   catchUpDates,
   dailySummaryPipeline,
+  daySummarised,
   summaryUpsertOps,
   type DailyStats,
 } from "@/lib/aggregate";
 import { NO_DELAY_SOURCE, UNCLASSIFIED_LIMIT_SEC } from "@/lib/deviation";
 import { nzServiceDayRange } from "@/lib/time";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The module imports the Prisma client and the ghost pass; the pure parts never touch them.
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
+
+// The module imports the Prisma client and the ghost pass; the pure parts never
+// touch them, and daySummarised needs only this one point read.
+vi.mock("@/lib/db", () => ({ prisma: { dailyRouteSummary: { findFirst } } }));
 
 const range = nzServiceDayRange("2026-09-11");
 
@@ -138,5 +142,38 @@ describe("catchUpDates", () => {
         () => true,
       ),
     ).toEqual(["2026-09-26", "2026-09-27", "2026-09-28"]);
+  });
+});
+
+describe("daySummarised", () => {
+  beforeEach(() => {
+    findFirst.mockReset();
+  });
+
+  it("matches the stored stamp by service-day range, not by equality", async () => {
+    findFirst.mockResolvedValue({ id: "sum1" });
+    const day = nzServiceDayRange("2026-09-11");
+    await expect(daySummarised("2026-09-11")).resolves.toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { date: { gte: day.start, lt: day.end } },
+      select: { id: true },
+    });
+  });
+
+  it("finds a summary stamped at the old boundary hour from the new window", () => {
+    // Arithmetic in both directions, so this case holds before and after the
+    // flip. Under 5am, 2026-09-11's window is [10 Sep 17:00Z, 11 Sep 17:00Z) and
+    // holds that day's 17:00Z stamp; under 4am it is [10 Sep 16:00Z, 11 Sep
+    // 16:00Z) and still holds the same stamp, and no neighbouring day's.
+    const { start, end } = nzServiceDayRange("2026-09-11");
+    const stamped = new Date("2026-09-10T17:00:00Z");
+    expect(stamped >= start).toBe(true);
+    expect(stamped < end).toBe(true);
+    expect(new Date("2026-09-11T17:00:00Z") < end).toBe(false);
+  });
+
+  it("reports a day with no summary row as false", async () => {
+    findFirst.mockResolvedValue(null);
+    await expect(daySummarised("2026-09-11")).resolves.toBe(false);
   });
 });

@@ -34,7 +34,8 @@ import {
   getShameRouteStreak,
   getWorstStops,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { dayRangeNav, overviewHeading, parseRangeWindow, periodRangeNav } from "@/lib/range-page";
@@ -130,6 +131,7 @@ export default async function Home({
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   if (window !== "day") return <PeriodHome window={window} sp={sp} />;
+  clampDayParam("/", sp);
   dropTodayParam("/", sp);
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
@@ -224,6 +226,12 @@ export default async function Home({
         </h1>
         <RangeControls basePath="/" nav={nav} />
       </header>
+
+      {serviceDate === DATA_START_DAY && (
+        <p className="text-sm text-at-muted">
+          This is the first day on record. Nothing before {DATA_START_LABEL} was captured.
+        </p>
+      )}
 
       <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />
 

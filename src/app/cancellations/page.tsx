@@ -21,7 +21,7 @@ import {
   type CancelledRouteRow,
   type NetworkCancelledTrip,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -62,7 +62,10 @@ export default async function CancellationsPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  if (window === "day") dropTodayParam("/cancellations", sp);
+  if (window === "day") {
+    clampDayParam("/cancellations", sp);
+    dropTodayParam("/cancellations", sp);
+  }
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;

@@ -22,6 +22,8 @@ export type ShameNav =
       hasPrev: boolean;
       hasNext: boolean;
       nextHref?: string;
+      /** Whether the shown day is the archive's first, so the absent chevron reads as a fact. */
+      atFloor?: boolean;
     }
   | {
       kind: "week";
@@ -109,6 +111,7 @@ export function ShameHeader({
               hasPrev={nav.hasPrev}
               hasNext={nav.hasNext}
               nextHref={nav.nextHref}
+              atFloor={nav.atFloor}
             />
           </>
         ) : (

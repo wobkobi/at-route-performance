@@ -15,7 +15,7 @@ import {
   getRankings,
   getRouteAreas,
 } from "@/lib/data";
-import { dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
@@ -61,7 +61,10 @@ export default async function RoutesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  if (window === "day") dropTodayParam("/routes", sp);
+  if (window === "day") {
+    clampDayParam("/routes", sp);
+    dropTodayParam("/routes", sp);
+  }
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;

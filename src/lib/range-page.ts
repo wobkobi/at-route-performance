@@ -3,6 +3,7 @@
 // pages: parse `?window`, resolve the range and its stepper, and the query a route
 // link carries so the route opens on the same window. Week and month anchor to the
 // latest day with data (see rankings-page.ts).
+import { DATA_START_DAY } from "@/lib/data-start";
 import {
   resolveMonthNav,
   resolveRequestedDay,
@@ -28,6 +29,8 @@ export type RangeNav =
       hasNext: boolean;
       /** Whether the next day is today, so its link drops `?day`. */
       nextIsToday: boolean;
+      /** Whether the shown day is the archive's first. */
+      atFloor: boolean;
     }
   | {
       window: "week" | "month";
@@ -37,6 +40,8 @@ export type RangeNav =
       prevHref: string | null;
       /** Next-period link, or null at the present. */
       nextHref: string | null;
+      /** Whether the period starts before the archive floor, so the label says so. */
+      partial: boolean;
     };
 
 /**
@@ -46,6 +51,21 @@ export type RangeNav =
  */
 export function parseRangeWindow(raw: string | undefined): RangeWindow {
   return raw === "week" || raw === "month" ? raw : "day";
+}
+
+/**
+ * Whether an earlier day is reachable: past the archive floor and past the live
+ * earliest day. The `earliestDay` parameter stays because it is what keeps the
+ * helper honest after 2036, when retention starts pruning the floor forward. A
+ * null earliest day falls back to the floor rather than hiding the chevron, so
+ * a failed lookup costs one dead link instead of the whole stepper.
+ * @param serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param earliestDay - The earliest service day with data, or null when unknown.
+ * @returns True when a previous-day link should be offered.
+ */
+export function hasEarlierDay(serviceDate: string, earliestDay: Date | null): boolean {
+  const live = earliestDay ? nzServiceDayString(earliestDay) : DATA_START_DAY;
+  return serviceDate > (live > DATA_START_DAY ? live : DATA_START_DAY);
 }
 
 /**
@@ -60,13 +80,14 @@ export function dayRangeNav(
   serviceDate: string,
   earliestDay: Date | null,
   today: string = nzServiceDayString(),
-): RangeNav {
+): Extract<RangeNav, { window: "day" }> {
   return {
     window: "day",
     serviceDate,
-    hasPrev: earliestDay ? serviceDate > nzServiceDayString(earliestDay) : false,
+    hasPrev: hasEarlierDay(serviceDate, earliestDay),
     hasNext: serviceDate < today,
     nextIsToday: shiftWeek(serviceDate, 1) === today,
+    atFloor: serviceDate === DATA_START_DAY,
   };
 }
 
@@ -97,11 +118,11 @@ export function periodRangeNav(
    */
   const makeHref = (p: string | null): string =>
     buildHref(basePath, { window, period: p ?? undefined });
-  const { prevHref, nextHref } =
+  const { prevHref, nextHref, partial } =
     window === "week"
       ? resolveWeekNav({ periodParam: period, earliestDay, makeHref, now: anchor })
       : resolveMonthNav({ periodParam: period, earliestDay, makeHref, now: anchor });
-  return { range, period, nav: { window, label, prevHref, nextHref } };
+  return { range, period, nav: { window, label, prevHref, nextHref, partial } };
 }
 
 /**

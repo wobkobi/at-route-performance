@@ -89,6 +89,25 @@ const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/shame/trip?window=week", name: "Shame trips (week)" },
   { path: "/shame/stop?window=week", name: "Shame stops (week)" },
   {
+    path: "/shame/stop?day=2026-09-01",
+    name: "Shame stops (day before the archive)",
+    expectFinalPath: "/shame/stop?day=2026-09-11",
+  },
+  {
+    path: "/?day=2026-09-11",
+    name: "Home (first day on record)",
+    mustContain: [
+      "Records start 11 September 2026",
+      "first day",
+      "This is the first day on record",
+    ],
+  },
+  {
+    path: "/?window=month&period=2026-09",
+    name: "Home (first month, partial)",
+    mustContain: ["September 2026 (from 11 Sep)"],
+  },
+  {
     path: "/nonexistent",
     name: "404 page",
     expectStatus: 404,

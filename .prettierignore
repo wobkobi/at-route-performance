@@ -1,3 +1,9 @@
+# Written by `next dev` on every start (generate-agent-files.js). Prettier rewraps
+# them, the generator unwraps them back, and the tree is dirty either way; leaving
+# the generator's own formatting alone is what keeps it clean.
+AGENTS.md
+CLAUDE.md
+
 .eslintignore
 .gitignore
 LICENSE
