@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.26.0] - 2026-09-16
+
+### Added
+
+- Every arrival now records the service date of the run it belongs to, derived once per run at
+  ingest, so a run crossing the service-day boundary is no longer split across two days.
+
 ## [1.25.3] - 2026-09-16
 
 ### Changed

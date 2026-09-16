@@ -14,7 +14,7 @@ import {
   serviceDatesInRange,
   serviceDayClockInstant,
 } from "@/lib/time";
-import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-board";
+import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-id";
 
 /** A trip cancelled on a route for a service day, for the trip board. */
 export interface CancelledTripRow {

@@ -25,6 +25,8 @@ export interface Trip {
   route_id: string;
   /** Scheduled start "HH:MM:SS"; hours may exceed 23 for post-midnight trips. */
   start_time?: string;
+  /** GTFS service date the run belongs to, `YYYYMMDD`. The run's own day, not the poll's. */
+  start_date?: string;
   /** GTFS-RT schedule relationship: 0=SCHEDULED, 1=ADDED, 2=UNSCHEDULED, 3=CANCELED. */
   schedule_relationship?: number;
 }

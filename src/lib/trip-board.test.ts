@@ -2,13 +2,7 @@
 // Unit tests for placing cancelled trips on the route trip board.
 import type { CancellationStage } from "@/lib/cancellation";
 import type { CancelledTripRow } from "@/lib/data/cancelled";
-import {
-  buildTripBoardRows,
-  gtfsTimeSeconds,
-  sortRuns,
-  tripIdStartSeconds,
-  type TripBoardRow,
-} from "@/lib/trip-board";
+import { buildTripBoardRows, sortRuns, type TripBoardRow } from "@/lib/trip-board";
 import type { PerTripStat } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
@@ -151,28 +145,6 @@ describe("buildTripBoardRows", () => {
     );
     expect(labels(rows)).toEqual(["real", "xghostly"]);
     expect(rows.map((r) => (r.kind === "run" ? r.rank : null))).toEqual([1, null]);
-  });
-});
-
-describe("gtfsTimeSeconds", () => {
-  it("parses ordinary and extended times", () => {
-    expect(gtfsTimeSeconds("07:30:15")).toBe(7 * 3600 + 30 * 60 + 15);
-    expect(gtfsTimeSeconds("24:15:00")).toBe(24 * 3600 + 15 * 60);
-  });
-  it("rejects missing and malformed values", () => {
-    expect(gtfsTimeSeconds(null)).toBeNull();
-    expect(gtfsTimeSeconds("7:3")).toBeNull();
-    expect(gtfsTimeSeconds("07:61:00")).toBeNull();
-  });
-});
-
-describe("tripIdStartSeconds", () => {
-  it("reads the start seconds segment of an AT trip id", () => {
-    expect(tripIdStartSeconds("1060-14804-82800-2-efb6f52a")).toBe(82800);
-  });
-  it("returns null for another id shape", () => {
-    expect(tripIdStartSeconds("abc")).toBeNull();
-    expect(tripIdStartSeconds("1060-14804-x-2-efb6f52a")).toBeNull();
   });
 });
 

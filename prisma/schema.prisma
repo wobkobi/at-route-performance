@@ -92,6 +92,13 @@ model ArrivalEvent {
   deviationSec Int
   vehicleId    String?
   source       String?
+  /// The run's own NZ service date (`YYYY-MM-DD`), set at ingest from the trip
+  /// descriptor, so every reading of one run carries one day even when the run
+  /// crosses the boundary. A string rather than a day-start instant: an instant
+  /// is derived and silently changes meaning when the boundary hour moves.
+  /// Nullable permanently - a row written before the backfill, or one whose
+  /// descriptor cannot be resolved, must stay readable, and null is truthful.
+  serviceDate  String?
   // Set by the nightly pass on readings that sit a vehicle cycle off their own
   // run - AT's trip_id block reuse, not a real delay (see lib/deviation.ts).
   // Absent until that day is classified; rows are flagged, never deleted.

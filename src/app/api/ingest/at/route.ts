@@ -17,6 +17,7 @@ import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db"
 import { NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
+import { runServiceDate } from "@/lib/run-day";
 import { nzServiceDayRange } from "@/lib/time";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
@@ -149,11 +150,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       // The trip descriptor is echoed so the per-run service date can be settled
       // before it is relied on: a run's own `start_date` beats deriving the day
       // from schedule times, and whether AT populates the field is unverified.
-      // The cast goes once `start_date` is typed on `Trip`.
       const trips = withTrip.map((e) => ({
         trip_id: e.trip_update?.trip.trip_id ?? null,
-        start_date:
-          (e.trip_update?.trip as { start_date?: unknown } | undefined)?.start_date ?? null,
+        start_date: e.trip_update?.trip.start_date ?? null,
         start_time: e.trip_update?.trip.start_time ?? null,
       }));
       const withStartDate = trips.filter(
@@ -281,6 +280,22 @@ export async function POST(req: Request): Promise<NextResponse> {
           });
         }
       }
+
+      // C) Stamp this trip's rows with the run's own service date: AT's
+      // `start_date` when the feed sends one, else the service day of the run's
+      // earliest scheduled stop. One day per run, so a run crossing the
+      // boundary hour is not split across two days.
+      const runRows = stopRows.slice(rowsBefore);
+      const firstRow = runRows[0];
+      if (firstRow !== undefined) {
+        let runStart = new Date(firstRow.scheduledAt);
+        for (const r of runRows) {
+          const at = new Date(r.scheduledAt);
+          if (at < runStart) runStart = at;
+        }
+        const runDate = runServiceDate(tu.trip, runStart);
+        for (const r of runRows) r.serviceDate = runDate;
+      }
     }
 
     // Upsert per stop visit so a revised prediction replaces the earlier row
@@ -295,6 +310,10 @@ export async function POST(req: Request): Promise<NextResponse> {
         deviationSec: r.deviationSec,
         ...(r.source ? { source: r.source } : {}),
         ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
+        // Inside the blanket `$set`, so a re-poll of a run stored before this
+        // commit corrects its stamp for free. Spread conditionally like the two
+        // above, because the Prisma input type keeps the field optional.
+        ...(r.serviceDate ? { serviceDate: r.serviceDate } : {}),
       })),
     );
     const tripCount = await bulkInsert(
