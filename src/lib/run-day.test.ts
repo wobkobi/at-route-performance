@@ -55,6 +55,14 @@ describe("runServiceDate", () => {
     expect(runServiceDate(trip(), new Date("2026-09-14T15:55:00Z"))).toBe("2026-09-14");
   });
 
+  it("moves the 04:00-04:59 hour onto the day it now belongs to", () => {
+    // 04:30 on 15 Sep: the first departure of the network's day. Under the old
+    // 5am rule this filed under 14 September.
+    expect(runServiceDate(trip(), new Date("2026-09-14T16:30:00Z"))).toBe("2026-09-15");
+    // 03:59 on 15 Sep: still the 14 September service day.
+    expect(runServiceDate(trip(), new Date("2026-09-14T15:59:00Z"))).toBe("2026-09-14");
+  });
+
   it("falls through on every shape that is not eight real digits", () => {
     const runStart = new Date("2026-09-14T18:30:00Z");
     for (const start_date of ["2026-09-13", "20260931", "", "2026091", "abcdefgh"]) {

@@ -198,7 +198,7 @@ export async function getShameOfDay(
         worst_delay_sec: t.worst_delay_sec,
         headsign: t.headsign ?? null,
       }));
-      // Service-day order: 5am is first, post-midnight runs (12am-4am) are last.
+      // Service-day order: 4am is first, post-midnight runs (12am-3am) are last.
       hours.sort(
         (a, b) =>
           ((a.hour + 24 - SERVICE_START_HOUR) % 24) - ((b.hour + 24 - SERVICE_START_HOUR) % 24),

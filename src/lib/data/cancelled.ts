@@ -34,7 +34,8 @@ export interface CancelledTripRow {
 /** A stored cancellation flag: the trip, its service day and when the flag was first seen. */
 interface FlagKey {
   tripId: string;
-  serviceDate: Date;
+  /** The run's own service date (`YYYY-MM-DD`). */
+  serviceDate: string;
   detectedAt: Date;
 }
 
@@ -43,7 +44,7 @@ interface FlagKey {
  * the flag's own service day. One indexed read for the whole set: the trip ids
  * lead the ArrivalEvent unique key, and the window spans the flags' days.
  * @param flags - The cancellation flags to classify.
- * @returns Stage per flag, keyed by `tripId|serviceDate ISO`.
+ * @returns Stage per flag, keyed by `tripId|serviceDate`.
  */
 async function flagStages(flags: readonly FlagKey[]): Promise<Map<string, CancellationStage>> {
   const out = new Map<string, CancellationStage>();
@@ -71,7 +72,7 @@ async function flagStages(flags: readonly FlagKey[]): Promise<Map<string, Cancel
       .filter((e) => day !== undefined && e.scheduledAt >= day.start && e.scheduledAt < day.end)
       .map((e) => e.actualAt.toISOString());
     out.set(
-      `${f.tripId}|${f.serviceDate.toISOString()}`,
+      `${f.tripId}|${f.serviceDate}`,
       cancellationStage(f.detectedAt.toISOString(), arrivals),
     );
   });
@@ -97,9 +98,9 @@ export async function getCancelledTrips(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
       const rows = await prisma.cancelledTrip.findMany({
-        // Range match, as the other cancellation reads do, so the helper serves
-        // any window rather than only a day whose start equals a stored stamp.
-        where: { routeId: { in: routeIds }, serviceDate: { gte: range.start, lt: range.end } },
+        // The window's service dates, not a range over an instant: the stored
+        // date is now the run's own day as a string.
+        where: { routeId: { in: routeIds }, serviceDate: { in: serviceDatesInRange(range) } },
         select: { tripId: true, serviceDate: true, startTime: true, detectedAt: true },
       });
       // One row per trip: the unique key is (trip, day), and a wider window than
@@ -142,9 +143,11 @@ async function describeFlags(flags: readonly StoredFlag[]): Promise<CancelledTri
       headsign: metaById.get(f.tripId)?.headsign ?? null,
       direction_id: metaById.get(f.tripId)?.directionId ?? null,
       scheduled_start:
-        sec === null ? null : serviceDayClockInstant(f.serviceDate, sec).toISOString(),
+        sec === null
+          ? null
+          : serviceDayClockInstant(nzServiceDayRange(f.serviceDate).start, sec).toISOString(),
       detected_at: f.detectedAt.toISOString(),
-      stage: stages.get(`${f.tripId}|${f.serviceDate.toISOString()}`) ?? "before",
+      stage: stages.get(`${f.tripId}|${f.serviceDate}`) ?? "before",
     };
   });
 }
@@ -186,9 +189,8 @@ export interface NetworkCancelledTrip extends CancelledTripRow {
 function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[]> {
   return cachedForDay(
     async () => {
-      const range = nzServiceDayRange(date);
       const flags = await prisma.cancelledTrip.findMany({
-        where: { serviceDate: { gte: range.start, lt: range.end } },
+        where: { serviceDate: date },
         select: {
           tripId: true,
           routeId: true,
@@ -245,7 +247,7 @@ export async function getNetworkCancelledTrips(range: DateRange): Promise<Networ
 export interface TripCancellation {
   /** ISO instant ingest first saw the cancellation. */
   detected_at: string;
-  /** ISO start of the service day the flag belongs to. */
+  /** The service date the flag belongs to (`YYYY-MM-DD`). */
   service_date: string;
 }
 
@@ -268,13 +270,15 @@ export async function getTripCancellation(
       const row = await prisma.cancelledTrip.findFirst({
         where: {
           tripId,
-          ...(range ? { serviceDate: { gte: range.start, lt: range.end } } : {}),
+          ...(range ? { serviceDate: { in: serviceDatesInRange(range) } } : {}),
         },
+        // `YYYY-MM-DD` sorts lexicographically in date order, so newest-first
+        // still means the most recent service day.
         orderBy: { serviceDate: "desc" },
         select: { detectedAt: true, serviceDate: true },
       });
       return row
-        ? { detected_at: row.detectedAt.toISOString(), service_date: row.serviceDate.toISOString() }
+        ? { detected_at: row.detectedAt.toISOString(), service_date: row.serviceDate }
         : null;
     },
     ["trip-cancellation", tripId, range?.start.toISOString() ?? "latest"],
@@ -305,9 +309,9 @@ export async function getCancelledCount(
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       return prisma.cancelledTrip.count({
         where: {
-          // Range match, not equality: the same helper serves a single service
-          // day and its week and month windows.
-          serviceDate: { gte: range.start, lt: range.end },
+          // The window's service dates: the stored date is the run's own day as
+          // a string, so the same helper still serves a day, a week and a month.
+          serviceDate: { in: serviceDatesInRange(range) },
           ...(routeIds ? { routeId: { in: routeIds } } : {}),
         },
       });
@@ -379,9 +383,9 @@ export async function getCancelledRoutes(
       const grouped = await prisma.cancelledTrip.groupBy({
         by: ["routeId"],
         where: {
-          // Range match, not equality: the same helper serves a single service
-          // day and its week and month windows.
-          serviceDate: { gte: range.start, lt: range.end },
+          // The window's service dates: the stored date is the run's own day as
+          // a string, so the same helper still serves a day, a week and a month.
+          serviceDate: { in: serviceDatesInRange(range) },
           ...(routeIds ? { routeId: { in: routeIds } } : {}),
         },
         _count: { _all: true },

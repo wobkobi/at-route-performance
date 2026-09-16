@@ -172,21 +172,19 @@ model Setting {
 // trips while still signed onto the last one. The unique key drops a position the
 // vehicle feed repeats across polls. Pruned on the ArrivalEvent retention window.
 model OffRouteSighting {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  tripId      String
-  routeId     String
-  serviceDate DateTime // NZ service-day start (5am Auckland, stored as UTC)
-  seenAt      DateTime // The vehicle position's own timestamp
-  lat         Float
-  lon         Float
-  distanceM   Int
-  vehicleId   String?
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId     String
+  routeId    String
+  seenAt     DateTime // The vehicle position's own timestamp
+  lat        Float
+  lon        Float
+  distanceM  Int
+  vehicleId  String?
   // Header of an active detour-type alert on the route when the reading was taken.
-  alert       String?
+  alert      String?
 
   @@unique([tripId, seenAt])
-  @@index([routeId, serviceDate])
-  // Supports the retention delete.
+  // Supports the retention delete and both readers, which all filter seenAt.
   @@index([seenAt])
 }
 
@@ -198,7 +196,7 @@ model OffRouteSighting {
 model DailyRouteSummary {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId        String
-  date           DateTime // NZ service-day start (5am Auckland, stored as UTC)
+  date           DateTime // NZ service-day start (4am Auckland, stored as UTC)
   events         Int
   avgDelaySec    Float?
   avgAbsDelaySec Float?
@@ -226,7 +224,11 @@ model CancelledTrip {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   tripId      String
   routeId     String
-  serviceDate DateTime // NZ service-day start (5am Auckland, stored as UTC)
+  /// The run's own NZ service date (`YYYY-MM-DD`), from the same rule the
+  /// arrivals use. A string, not a day-start instant: an instant is derived and
+  /// changes meaning when the boundary hour moves, which filed one physical
+  /// 04:45 run under two days either side of the old 5am rollover.
+  serviceDate String
   startTime   String? // GTFS-RT trip start_time "HH:MM:SS", absent on rows ingested before capture
   detectedAt  DateTime @default(now())
 

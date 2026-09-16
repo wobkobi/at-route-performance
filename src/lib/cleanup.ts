@@ -158,8 +158,8 @@ export const prismaCleanupStore: CleanupStore = {
 
 /**
  * The instant rows older than a retention window are deleted before: the NZ
- * service-day start (5am Auckland) of the day that many days ago. Snapping to
- * the service day keeps a late-night run (11pm to 5am) with the day it belongs
+ * service-day start (4am Auckland) of the day that many days ago. Snapping to
+ * the service day keeps a late-night run (11pm to 4am) with the day it belongs
  * to; a UTC-midnight cutoff would drop the tail of the day before the cutoff.
  * @param days - Retention in days.
  * @param now - The current instant.

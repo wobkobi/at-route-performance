@@ -62,7 +62,7 @@ function parseArgs(): { from?: string; to?: string; days?: number; baseUrl: stri
 /**
  * Iterate over each date in the range and POST to the aggregate endpoint.
  * Dates are NZ service-day labels (the calendar date when the service day starts
- * at 5am). The API endpoint interprets them the same way.
+ * at 4am). The API endpoint interprets them the same way.
  * @returns Resolves once all days are processed.
  */
 async function main(): Promise<void> {

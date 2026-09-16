@@ -25,8 +25,8 @@ describe("ghostPassPipeline", () => {
     expect(pipeline[0]).toEqual({
       $match: {
         scheduledAt: {
-          $gte: { $date: "2026-09-10T17:00:00.000Z" },
-          $lt: { $date: "2026-09-11T17:00:00.000Z" },
+          $gte: { $date: "2026-09-10T16:00:00.000Z" },
+          $lt: { $date: "2026-09-11T16:00:00.000Z" },
         },
       },
     });

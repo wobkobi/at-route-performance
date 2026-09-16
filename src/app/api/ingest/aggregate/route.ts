@@ -5,7 +5,7 @@
 // night the cron missed, or a day whose ghost pass failed, is caught up by the
 // next run rather than lost. Each day is its own unit: it succeeds or fails on
 // its own, records its own IngestRun row, and a failure does not stop the
-// others. The window matches the live dashboard (5am Auckland, half-open).
+// others. The window matches the live dashboard (4am Auckland, half-open).
 import {
   aggregateDay,
   CATCH_UP_EXTRA_DAYS,

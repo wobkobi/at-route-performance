@@ -319,7 +319,7 @@ export async function getShameRouteStreaksBatch(
     let prevHours = 0;
     let prevWorstOfDayDays = 0;
     // Step by date string, not fixed 24h of milliseconds: a millisecond step
-    // drifts an hour off the 5am boundary across a DST change and skips a day.
+    // drifts an hour off the 4am boundary across a DST change and skips a day.
     let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
     for (let d = 0; d < 14; d++) {
       const daySet = shameDays.get(dayKey);
@@ -520,7 +520,7 @@ export async function getShameRouteOfDay(
         avg_abs_delay_sec: r.avg_abs_delay_sec,
         avg_delay_sec: r.avg_delay_sec,
       }));
-      // Service-day order: 5am is first, post-midnight runs (12am-4am) are last.
+      // Service-day order: 4am is first, post-midnight runs (12am-3am) are last.
       hours.sort(
         (a, b) =>
           ((a.hour + 24 - SERVICE_START_HOUR) % 24) - ((b.hour + 24 - SERVICE_START_HOUR) % 24),
