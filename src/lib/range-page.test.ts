@@ -78,8 +78,20 @@ describe("weekPeriodOf", () => {
 });
 
 describe("overviewHeading", () => {
-  const day = { window: "day", serviceDate: TODAY, hasPrev: true, nextIsToday: false } as const;
-  const week = { window: "week", label: "Last 7 days", prevHref: null, nextHref: null } as const;
+  const day = {
+    window: "day",
+    serviceDate: TODAY,
+    hasPrev: true,
+    nextIsToday: false,
+    atFloor: false,
+  } as const;
+  const week = {
+    window: "week",
+    label: "Last 7 days",
+    prevHref: null,
+    nextHref: null,
+    partial: false,
+  } as const;
 
   it("names today, or another day, from the stepper", () => {
     expect(overviewHeading({ ...day, hasNext: false }, null)).toBe("How bad was it today?");

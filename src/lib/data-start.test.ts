@@ -6,6 +6,7 @@ import {
   clampServiceDate,
   DATA_START_DAY,
   DATA_START_LABEL,
+  DATA_START_SHORT,
   dataStartDate,
   isBeforeDataStart,
   rangeIsEmpty,
@@ -78,5 +79,9 @@ describe("DATA_START_LABEL", () => {
   it("names the same day as DATA_START_DAY", () => {
     const { y, mo, d } = parseYmd(DATA_START_DAY);
     expect(DATA_START_LABEL).toBe(`${d} ${MONTH_NAMES[mo - 1]} ${y}`);
+  });
+  it("has a short form that names the same day", () => {
+    const { mo, d } = parseYmd(DATA_START_DAY);
+    expect(DATA_START_SHORT).toBe(`${d} ${MONTH_NAMES[mo - 1]?.slice(0, 3)}`);
   });
 });

@@ -35,6 +35,7 @@ import {
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
+import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
@@ -588,6 +589,7 @@ export default async function RoutePage({
                   ...(tripSort !== "off" ? { tsort: tripSort } : {}),
                 }}
                 hasPrev={hasPrevDay}
+                atFloor={serviceDate === DATA_START_DAY}
                 hasNext={hasNextDay}
                 nextHref={nextDayHref}
               />

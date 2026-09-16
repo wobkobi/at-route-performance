@@ -8,7 +8,9 @@
 // two. Deliberately free of `@/lib/db` so page nav stays pure and unit-testable.
 //
 // 2036 checklist, everything that has to change when the floor starts moving:
-// DATA_START_DAY and DATA_START_LABEL below.
+// DATA_START_DAY, DATA_START_LABEL and DATA_START_SHORT below; the footer's
+// About line in src/app/layout.tsx; DayNav's "first day" hint; the "(from ...)"
+// suffix on RangeControls' period label; and the home page's first-day line.
 import { type DateRange, nzServiceDayRange, nzServiceDayString, serviceDayNoon } from "@/lib/time";
 
 /** First service date with a full day of data. Readings before it do not exist. */
@@ -16,6 +18,14 @@ export const DATA_START_DAY = "2026-09-11";
 
 /** Human form for page copy, kept beside the constant so the two never drift. */
 export const DATA_START_LABEL = "11 September 2026";
+
+/**
+ * Short form for tight controls, e.g. the period label's "(from 11 Sep)" hint.
+ * Written out rather than formatted from {@link DATA_START_DAY}: `en-NZ` renders
+ * September as "Sept" under newer ICU data, so an `Intl` derivation is not
+ * stable across Node versions. The unit test holds the three constants together.
+ */
+export const DATA_START_SHORT = "11 Sep";
 
 /**
  * Whether a service date sits before the archive starts.

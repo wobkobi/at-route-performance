@@ -14,6 +14,7 @@ import {
   getShameRouteOfDay,
   getWorstStops,
 } from "@/lib/data";
+import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
@@ -105,6 +106,7 @@ export default async function ShameDashboard({
           serviceDate,
           preserved: {},
           hasPrev: hasPrevDay,
+          atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,
           nextHref: nextDayHref,
         }}

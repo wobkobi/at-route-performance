@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.25.0] - 2026-09-16
+
+### Added
+
+- Four surfaces now say when the archive starts: a footer line, a 'first day' hint on the day
+  stepper at 11 September 2026, a '(from 11 Sep)' suffix on a period that starts before the archive,
+  and a line under the home heading on the first day.
+
 ## [1.24.0] - 2026-09-16
 
 ### Added

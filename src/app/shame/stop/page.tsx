@@ -7,6 +7,7 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { getEarliestDataDay, getWorstStopsOfDay, getWorstStopsOfWeek } from "@/lib/data";
+import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import {
@@ -295,6 +296,7 @@ export default async function StopShamePage({
           serviceDate,
           preserved,
           hasPrev: hasPrevDay,
+          atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,
           nextHref: nextDayHref,
         }}

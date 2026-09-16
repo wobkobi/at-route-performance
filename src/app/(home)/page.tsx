@@ -34,6 +34,7 @@ import {
   getShameRouteStreak,
   getWorstStops,
 } from "@/lib/data";
+import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
@@ -225,6 +226,12 @@ export default async function Home({
         </h1>
         <RangeControls basePath="/" nav={nav} />
       </header>
+
+      {serviceDate === DATA_START_DAY && (
+        <p className="text-sm text-at-muted">
+          This is the first day on record. Nothing before {DATA_START_LABEL} was captured.
+        </p>
+      )}
 
       <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />
 

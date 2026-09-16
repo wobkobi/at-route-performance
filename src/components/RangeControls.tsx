@@ -8,6 +8,7 @@
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { DATA_START_SHORT } from "@/lib/data-start";
 import type { RangeNav, RangeWindow } from "@/lib/range-page";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -79,6 +80,7 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
           hasPrev={nav.hasPrev}
           hasNext={nav.hasNext}
           nextHref={nav.nextIsToday ? buildHref(basePath, carried) : undefined}
+          atFloor={nav.atFloor}
         />
       ) : (
         <div className="flex items-center gap-1">
@@ -92,7 +94,10 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
               <ChevronLeft />
             </Link>
           )}
-          <span className="px-1 text-sm font-semibold tabular-nums">{nav.label}</span>
+          <span className="px-1 text-sm font-semibold tabular-nums">
+            {nav.label}
+            {nav.partial ? ` (from ${DATA_START_SHORT})` : ""}
+          </span>
           {nav.nextHref && (
             <Link
               href={withCarried(nav.nextHref, carried)}

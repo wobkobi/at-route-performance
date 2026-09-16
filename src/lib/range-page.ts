@@ -29,6 +29,8 @@ export type RangeNav =
       hasNext: boolean;
       /** Whether the next day is today, so its link drops `?day`. */
       nextIsToday: boolean;
+      /** Whether the shown day is the archive's first. */
+      atFloor: boolean;
     }
   | {
       window: "week" | "month";
@@ -38,6 +40,8 @@ export type RangeNav =
       prevHref: string | null;
       /** Next-period link, or null at the present. */
       nextHref: string | null;
+      /** Whether the period starts before the archive floor, so the label says so. */
+      partial: boolean;
     };
 
 /**
@@ -83,6 +87,7 @@ export function dayRangeNav(
     hasPrev: hasEarlierDay(serviceDate, earliestDay),
     hasNext: serviceDate < today,
     nextIsToday: shiftWeek(serviceDate, 1) === today,
+    atFloor: serviceDate === DATA_START_DAY,
   };
 }
 
@@ -113,11 +118,11 @@ export function periodRangeNav(
    */
   const makeHref = (p: string | null): string =>
     buildHref(basePath, { window, period: p ?? undefined });
-  const { prevHref, nextHref } =
+  const { prevHref, nextHref, partial } =
     window === "week"
       ? resolveWeekNav({ periodParam: period, earliestDay, makeHref, now: anchor })
       : resolveMonthNav({ periodParam: period, earliestDay, makeHref, now: anchor });
-  return { range, period, nav: { window, label, prevHref, nextHref } };
+  return { range, period, nav: { window, label, prevHref, nextHref, partial } };
 }
 
 /**

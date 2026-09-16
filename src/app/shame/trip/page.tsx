@@ -15,6 +15,7 @@ import {
   getShameOfWeek,
   getShameRouteStreaksBatch,
 } from "@/lib/data";
+import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import {
   filterLiveHours,
@@ -349,6 +350,7 @@ export default async function TripShamePage({
           serviceDate,
           preserved,
           hasPrev: hasPrevDay,
+          atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,
           nextHref: nextDayHref,
         }}

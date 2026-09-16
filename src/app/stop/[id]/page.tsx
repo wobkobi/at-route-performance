@@ -17,6 +17,7 @@ import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { getStopTrips } from "@/lib/at-stop-trips";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
+import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -165,6 +166,7 @@ export default async function StopPage({
           serviceDate={serviceDate}
           preservedParams={{}}
           hasPrev={hasPrevDay}
+          atFloor={serviceDate === DATA_START_DAY}
           hasNext={hasNextDay}
           nextHref={nextDayHref}
         />
