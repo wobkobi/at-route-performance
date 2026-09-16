@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.25.3] - 2026-09-16
+
+### Changed
+
+- AGENTS.md and CLAUDE.md are now tracked. Next.js regenerates both on every dev-server start, so
+  leaving them untracked left the working tree permanently dirty.
+
 ## [1.25.2] - 2026-09-16
 
 ### Fixed
