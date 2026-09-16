@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.21.2] - 2026-09-16
+
+### Changed
+
+- Updated eslint-plugin-jsdoc and vitest, pinned prisma to an exact 6.19.3 so a stray range bump
+  cannot reach Prisma 7, and folded lint:fix into lint.
+
 ## [1.21.0] - 2026-09-14
 
 ### Changed
