@@ -54,10 +54,10 @@ scripts/route-shots/
 # One-off exploratory research scripts (kept local, not production code)
 scripts/spike-*.ts
 
-# Row dumps the service-day restamp writes before its one destructive delete.
-# A local recovery copy of rows that no longer exist anywhere else, so it must
+# Row dumps the service-day restamp writes before each of its two deletes. A
+# local recovery copy of rows that no longer exist anywhere else, so it must
 # not be committed, and the tree must not go dirty when the migration runs.
-restamp-summary-drop-*.json
+restamp-*-drop-*.json
 
 # Local-only AT brand asset dump (large PDFs/EPS; not for redistribution or deploy)
 public/everything/

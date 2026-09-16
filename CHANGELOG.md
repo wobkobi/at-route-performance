@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.27.1] - 2026-09-17
+
+### Fixed
+
+- A cancellation flagged more than twelve hours before its run no longer lands on the previous
+  service day, which had put two real cancelled runs in the restamp's delete list.
+
 ## [1.27.0] - 2026-09-17
 
 ### Changed

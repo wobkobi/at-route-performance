@@ -199,9 +199,9 @@ describe("cancelledServiceDate", () => {
   });
 
   it("steps a flag raised on the far side of the boundary from its departure", () => {
-    // Flagged 03:50 on 16 Sep, which is still service day 15 Sep; the run leaves
-    // at 06:00, more than twelve hours after that day's 06:00, so it is the
-    // next service day's run.
+    // Flagged 03:50 on 16 Sep, which is still service day 15 Sep. That day's
+    // 06:00 departure was nearly 22 hours earlier, far past the lag allowance,
+    // so the flag belongs to the run on the service day about to start.
     expect(
       cancelledServiceDate(
         {
@@ -212,5 +212,67 @@ describe("cancelledServiceDate", () => {
         4,
       ),
     ).toBe("2026-09-16");
+  });
+
+  it("keeps a run flagged at the early sweep on its own evening", () => {
+    // 255-800006-63600, start 17:40 off the trip id, flagged 05:00 the same
+    // morning. A lead of 12h39m is the longest AT gives, and it is still that
+    // evening's run: the neighbouring day's 17:40 is eleven hours further off.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "255-800006-63600-1-1099-3e24b49c",
+          startTime: null,
+          detectedAt: new Date("2026-09-11T17:00:53.753Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-12");
+  });
+
+  it("keeps a run on its own day when the lead passes half a day", () => {
+    // 258-880019-70080, start 19:28, flagged 07:12 that morning: 12h16m ahead.
+    // Two rows exist for this trip, one per evening, so pulling this one back a
+    // day would collide them and cost a real run.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "258-880019-70080-2-W448681-b3ca574b",
+          startTime: "19:28:00",
+          detectedAt: new Date("2026-09-15T19:12:17.006Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-16");
+  });
+
+  it("steps an evening flag onto the morning run it is warning about", () => {
+    // 521-93021-23400, start 06:30, flagged 21:08 the night before. That day's
+    // 06:30 left 14h38m earlier, so the flag is for the morning still to come.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "521-93021-23400-1-9bc9d477",
+          startTime: "06:30:00",
+          detectedAt: new Date("2026-09-14T09:08:15.193Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-15");
+  });
+
+  it("keeps a late-night run flagged after midnight on its own day", () => {
+    // 1060-14804-82800, start 23:00, flagged 03:34 the next morning, which is
+    // before the 4am boundary and so still service day 12 September.
+    expect(
+      cancelledServiceDate(
+        {
+          tripId: "1060-14804-82800-2-efb6f52a",
+          startTime: "23:00:00",
+          detectedAt: new Date("2026-09-12T15:34:13Z"),
+        },
+        4,
+      ),
+    ).toBe("2026-09-12");
   });
 });

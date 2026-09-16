@@ -113,8 +113,22 @@ export function foldRunDates(
   return out;
 }
 
-/** Half a day in milliseconds: the widest gap allowed between a flag and its run. */
-const HALF_DAY_MS = 12 * HOUR_MS;
+/**
+ * How long after its own departure a cancellation flag can still be raised
+ * against that run. The two directions need different tolerances, because AT
+ * flags a run well before it leaves and sometimes hours after it should have:
+ * across the stored flags a genuine late flag trails its departure by at most
+ * 6h45m, the longest lead on a run later the same day is 12h40m, and the
+ * earliest flags for the next day's run trail by 12h50m. Ten hours separates
+ * those two populations with over an hour of clear air on either side. A
+ * symmetric half-day window does not separate them at all: the leads run
+ * unbroken from 11h to 12h40m, so a twelve-hour cut falls inside a cluster and
+ * files every run above it a day early.
+ */
+const MAX_FLAG_LAG_MS = 10 * HOUR_MS;
+
+/** A whole day: the width of the window {@link MAX_FLAG_LAG_MS} anchors. */
+const DAY_MS = 24 * HOUR_MS;
 
 /** A cancelled run, as ingest sees it live and as the restamp reads it back. */
 export interface CancelledRun {
@@ -146,11 +160,11 @@ function clockInstant(dayStart: Date, seconds: number, startHour: number): Date 
 /**
  * The service date a cancelled run belongs to. A cancellation carries no stop
  * times, so there are no rows to take a run start from: the anchor is when the
- * flag was seen. AT raises a flag during the run or shortly before it, so the
- * service day in progress at detection is the run's day, and the captured start
- * time (or the start seconds in the trip id) then corrects the one case that
- * rule gets wrong - a flag raised on the far side of the boundary from its own
- * departure, which is exactly the 04:45 run stored twice today.
+ * flag was seen. AT raises a flag anywhere from half a day before a run to
+ * several hours after it should have left, so the service day in progress at
+ * detection is only the first guess; the captured start time (or the start
+ * seconds in the trip id) then moves the run to the neighbouring day whenever
+ * the gap to that day's departure places it there.
  *
  * Deliberately blind to any service date already stored against the run: that
  * stamp is the boundary-hour label of `detectedAt` and so says nothing new,
@@ -171,10 +185,10 @@ export function cancelledServiceDate(
   if (sec === null) return day;
   const departure = clockInstant(nzServiceDayRange(day, startHour).start, sec, startHour);
   const ahead = departure.getTime() - flag.detectedAt.getTime();
-  // More than half a day apart means the run sits on the other side of the
-  // boundary from the detection: a departure long past is the next day's run,
-  // one long ahead is the previous day's.
-  if (ahead < -HALF_DAY_MS) return shiftWeek(day, 1);
-  if (ahead > HALF_DAY_MS) return shiftWeek(day, -1);
+  // The two edges sit a day apart, so exactly one service day can hold the run:
+  // a departure further past than the lag allowance is the next day's run, and
+  // one beyond the lead that allowance leaves over is the previous day's.
+  if (ahead < -MAX_FLAG_LAG_MS) return shiftWeek(day, 1);
+  if (ahead >= DAY_MS - MAX_FLAG_LAG_MS) return shiftWeek(day, -1);
   return day;
 }
