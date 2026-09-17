@@ -99,6 +99,10 @@ model ArrivalEvent {
   /// Nullable permanently - a row written before the backfill, or one whose
   /// descriptor cannot be resolved, must stay readable, and null is truthful.
   serviceDate  String?
+  // Set at ingest on a visit a second vehicle claimed a cycle away: AT's
+  // trip_id block reuse. No index; it is read inside scans the nightly pass
+  // already performs.
+  blockReuse   Boolean?
   // Set by the nightly pass on readings that sit a vehicle cycle off their own
   // run - AT's trip_id block reuse, not a real delay (see lib/deviation.ts).
   // Absent until that day is classified; rows are flagged, never deleted.

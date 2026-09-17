@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.27.3] - 2026-09-18
+
+### Fixed
+
+- A second vehicle reporting a stop visit on a reused trip id can no longer overwrite the real
+  arrival: the nearer reading to the stop's own schedule stays, and the visit is marked.
+
 ## [1.27.2] - 2026-09-18
 
 ### Added

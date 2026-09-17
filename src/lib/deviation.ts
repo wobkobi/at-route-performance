@@ -25,6 +25,83 @@ import type { Prisma } from "@prisma/client";
  */
 export const GHOST_GAP_SEC = 45 * 60;
 
+/** One arrival reading as ingest writes it, with instants as epoch millis. */
+export interface ArrivalWrite {
+  routeId: string;
+  actualAtMs: number;
+  deviationSec: number;
+  vehicleId?: string | undefined;
+  source?: string | undefined;
+  /** The run's own NZ service date (`YYYY-MM-DD`). */
+  serviceDate?: string | undefined;
+}
+
+/**
+ * Update stages for one stop visit. A second vehicle claiming the visit a
+ * vehicle cycle away is AT's block reuse, not a revision, so the reading nearer
+ * the stop's own schedule stays and the visit is marked. Every other case is the
+ * ordinary GTFS-RT revision, where the newest reading wins.
+ *
+ * Same vehicle always wins, whatever the size of the jump: a bus predicted on
+ * time at 10:00 that arrives 40 minutes late keeps one key throughout, and a
+ * "smaller deviation wins" rule would pin the prediction and lose the real
+ * arrival. Only a DIFFERENT vehicle more than {@link GHOST_GAP_SEC} away is
+ * refused.
+ *
+ * Absent keys stay absent-safe, and empty counts as absent. A blanket `$set`
+ * left `source`, `vehicleId` and `serviceDate` alone when a poll omitted them,
+ * and these keep that: a `$$REMOVE` branch would erase a vehicle id the
+ * locations-feed join had already supplied. An empty vehicle id is held to the
+ * same rule for a second reason - taken as a name it would read as a different
+ * vehicle, and refuse a perfectly ordinary revision as block reuse.
+ *
+ * No extended JSON inside an expression: every `{ $date }` in this codebase sits
+ * in a query, never in a `$cond` branch, so `actualAtMs` arrives as epoch millis
+ * and is rebuilt with `$toDate`, which needs no conversion.
+ * @param doc - The incoming arrival values, with `actualAtMs` as epoch millis.
+ * @returns The pipeline for the update entry's `u`.
+ */
+export function arrivalWriteStages(doc: ArrivalWrite): Prisma.InputJsonObject[] {
+  const vehicle = doc.vehicleId || null;
+  const dev = doc.deviationSec;
+  return [
+    {
+      $set: {
+        _reuse: {
+          $and: [
+            { $ne: [{ $type: "$vehicleId" }, "missing"] },
+            { $ne: [vehicle, null] },
+            { $ne: ["$vehicleId", vehicle] },
+            { $gt: [{ $abs: { $subtract: ["$deviationSec", dev] } }, GHOST_GAP_SEC] },
+          ],
+        },
+      },
+    },
+    {
+      $set: {
+        _take: { $cond: ["$_reuse", { $lt: [Math.abs(dev), { $abs: "$deviationSec" }] }, true] },
+      },
+    },
+    {
+      $set: {
+        routeId: { $cond: ["$_take", doc.routeId, "$routeId"] },
+        actualAt: { $cond: ["$_take", { $toDate: doc.actualAtMs }, "$actualAt"] },
+        deviationSec: { $cond: ["$_take", dev, "$deviationSec"] },
+        // A poll that omits source or vehicleId must not erase what is stored:
+        // the blanket `$set` left an absent key alone, and these keep that.
+        source: { $cond: ["$_take", doc.source || "$source", "$source"] },
+        vehicleId: { $cond: ["$_take", vehicle ?? "$vehicleId", "$vehicleId"] },
+        // The run's own day, on the take side only: a refused reading belongs to
+        // a different run, so taking its date would file the stored row under
+        // the wrong day.
+        serviceDate: { $cond: ["$_take", doc.serviceDate || "$serviceDate", "$serviceDate"] },
+        blockReuse: { $cond: ["$_reuse", true, "$blockReuse"] },
+      },
+    },
+    { $unset: ["_reuse", "_take"] },
+  ];
+}
+
 /**
  * Widest deviation accepted from rows the nightly ghost pass has not classified
  * yet: the service day in progress, and a completed day whose aggregate has not
