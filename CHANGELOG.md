@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.29.1] - 2026-09-18
+
+### Changed
+
+- The nightly pre-warm now renders every day page (home, the four shame boards, rankings and
+  cancellations) for each of the last seven completed days, so the first reader to step onto a past
+  day no longer waits while it is computed.
+
 ## [1.29.0] - 2026-09-18
 
 ### Added

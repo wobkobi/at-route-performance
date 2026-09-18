@@ -42,14 +42,14 @@ post-deploy smoke workflow reach a protected deployment.
 
 All endpoints are **POST**. Create one cron-job.org job per row.
 
-| Job              | URL path                  | Method | Schedule (NZ local) | Purpose                         |
-| ---------------- | ------------------------- | ------ | ------------------- | ------------------------------- |
-| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes     | Capture GTFS-RT arrival events  |
-| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 02:00         | Refresh routes + stops          |
-| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 02:10        | Refresh route geometry (shapes) |
-| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary       |
-| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                 |
-| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute yesterday's boards  |
+| Job              | URL path                  | Method | Schedule (NZ local) | Purpose                          |
+| ---------------- | ------------------------- | ------ | ------------------- | -------------------------------- |
+| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes     | Capture GTFS-RT arrival events   |
+| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 02:00         | Refresh routes + stops           |
+| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 02:10        | Refresh route geometry (shapes)  |
+| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary        |
+| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                  |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute the last week's days |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
@@ -77,6 +77,12 @@ irreversible and the rollup reads the events the cleanup then removes.
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
+- The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders
+  every day page (home, the four shame boards, rankings and cancellations) for each of the last
+  seven completed days after the response, three at a time. It records no IngestRun; its outcome is
+  the `[WARM] Pages warmed` or `[WARM] Pages failed` line in the Vercel function logs. A day already
+  cached renders in well under a second, so after the first night only yesterday's pages cost
+  anything.
 - The aggregate job catches up on its own: without `?date=` it rolls up yesterday plus any of the
   two days before it that have events but no summary yet (a night the cron missed, or a day whose
   ghost pass failed). Each day records its own IngestRun row. A longer gap closes over successive
