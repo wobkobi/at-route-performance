@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.29.2] - 2026-09-18
+
+### Fixed
+
+- A single-trip cancellation alert now sits on its route's page, headed with the route's short name
+  ("Route 195", not "Route 195-203") and linking to the route, instead of on the home page's
+  network-wide banner.
+
 ## [1.29.1] - 2026-09-18
 
 ### Changed
