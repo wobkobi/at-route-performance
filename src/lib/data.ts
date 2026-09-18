@@ -2,6 +2,7 @@
 // Barrel over src/lib/data/*.ts: the server-side data-access layer, split by
 // concern. Import sites use this path; each module below owns one concern.
 
+export { TODAY_REVALIDATE } from "@/lib/data/cache";
 export {
   getCancelledByRoute,
   getCancelledCount,

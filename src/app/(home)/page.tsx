@@ -33,6 +33,7 @@ import {
   getShameOfDay,
   getShameRouteStreak,
   getWorstStops,
+  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
@@ -58,7 +59,6 @@ import { Suspense, type JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
-const TODAY_REVALIDATE = 300; // 5 minutes
 /** Routes each board shows; the full ranking is on the Routes page. */
 const BOARD_SIZE = 10;
 

@@ -1,9 +1,12 @@
 "use client";
 // src/components/DataFreshness.tsx
-// Live relative label showing when data was last refreshed and when the next refresh is due.
+// Live relative label showing when data was last refreshed and when the next refresh is due,
+// and the trigger that re-renders a live page once a newer ingest run lands.
 
-import { NZ_TZ } from "@/lib/time";
-import { useEffect, useState, useSyncExternalStore, type JSX } from "react";
+import { viewIncludesToday } from "@/lib/live-view";
+import { NZ_TZ, nzServiceDayString } from "@/lib/time";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 
 /** Props for {@link DataFreshness}. */
 export interface DataFreshnessProps {
@@ -25,8 +28,8 @@ export interface DataFreshnessProps {
 const TICK_MS = 15_000;
 
 /**
- * How often an open tab re-polls `/api/freshness`. The server caches the lookup
- * for 60s, so polling faster only returns the same value.
+ * How often an open tab re-polls `/api/freshness`. Half the two-minute ingest
+ * cadence, so a new run is noticed within a minute of landing.
  */
 const REFRESH_MS = 60_000;
 
@@ -112,6 +115,12 @@ function formatRelative(fromMs: number, nowMs: number): string {
  * wins between the props and the poll, so a client-side navigation with a
  * fresher server render is never downgraded.
  *
+ * The same poll keeps the page's own figures live. When it reports a run newer
+ * than any this tab has rendered, and the page's window still includes the live
+ * day ({@link viewIncludesToday}), it asks the router to re-render the route in
+ * place: the numbers update with no reload, and scroll and open panels survive.
+ * A past day is left alone, since nothing behind it can move.
+ *
  * The relative label and the due-now state depend on the client clock (supplied
  * via {@link useSyncExternalStore}), so they stay absent on the server and first
  * paint and fill in after mount - avoiding any hydration mismatch.
@@ -130,6 +139,14 @@ export function DataFreshness({
 }: DataFreshnessProps): JSX.Element {
   const nowMs = useSyncExternalStore(subscribeToClock, getClockSnapshot, getServerClockSnapshot);
   const [polled, setPolled] = useState<FreshnessTimes | null>(null);
+  const router = useRouter();
+  // The newest run this tab has rendered or already asked for. A ref, since
+  // advancing it must not re-render the footer.
+  const seenRunRef = useRef(lastUpdatedIso);
+
+  useEffect(() => {
+    if (lastUpdatedIso > seenRunRef.current) seenRunRef.current = lastUpdatedIso;
+  }, [lastUpdatedIso]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +164,14 @@ export function DataFreshness({
             nextUpdate: data.nextUpdate,
             source: data.source === "event" ? "event" : "run",
           });
+          if (data.lastUpdated > seenRunRef.current) {
+            seenRunRef.current = data.lastUpdated;
+            // Read the URL now rather than at render: the Routes page rewrites
+            // its params on the client without a navigation.
+            const params = new URLSearchParams(window.location.search);
+            const view = { day: params.get("day"), period: params.get("period") };
+            if (viewIncludesToday(view, nzServiceDayString())) router.refresh();
+          }
         }
       } catch {
         // Keep showing the last known instants; the next tick retries.
@@ -163,7 +188,7 @@ export function DataFreshness({
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [router]);
 
   // Newest instant wins (ISO UTC strings compare lexicographically).
   const shown =

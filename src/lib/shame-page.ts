@@ -8,8 +8,6 @@
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { buildHref } from "@/lib/utils";
 
-/** Cache TTL for the live day boards (seconds). */
-export const TODAY_REVALIDATE = 300;
 /** Cache TTL for the week boards (seconds). */
 export const WEEK_REVALIDATE = 3600;
 /**

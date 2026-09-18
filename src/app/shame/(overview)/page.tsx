@@ -13,13 +13,14 @@ import {
   getShameOfDay,
   getShameRouteOfDay,
   getWorstStops,
+  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { buildShameHref, TODAY_REVALIDATE } from "@/lib/shame-page";
+import { buildShameHref } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { JSX } from "react";
 

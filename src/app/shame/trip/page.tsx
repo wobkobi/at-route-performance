@@ -14,6 +14,7 @@ import {
   getShameOfDay,
   getShameOfWeek,
   getShameRouteStreaksBatch,
+  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
@@ -32,7 +33,6 @@ import {
   isCrownable,
   parseShameParams,
   pickWorst,
-  TODAY_REVALIDATE,
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,

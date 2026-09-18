@@ -44,6 +44,28 @@ describe("cacheState", () => {
     expect(c).not.toBe(a);
     expect(cacheState(false, null, 300, START)).toMatch(/^live-/);
   });
+
+  it("keys a live window by the ingest run behind it once one is logged", () => {
+    const run = START + 30_000;
+    expect(cacheState(false, RANGE, 120, START + 60_000, run)).toBe(`run-${run}`);
+    expect(cacheState(false, null, 120, START + 60_000, run)).toBe(`run-${run}`);
+  });
+
+  it("turns a live entry over when a run lands, not when a clock bucket rolls", () => {
+    const run = START + 30_000;
+    // Either side of a two-minute bucket boundary, but behind the same run: one entry.
+    const before = cacheState(false, RANGE, 120, START + 119_000, run);
+    const after = cacheState(false, RANGE, 120, START + 121_000, run);
+    expect(after).toBe(before);
+    // Inside one bucket, but a new run has landed: a new entry.
+    const next = cacheState(false, RANGE, 120, START + 60_000, run + 120_000);
+    expect(next).not.toBe(cacheState(false, RANGE, 120, START + 60_000, run));
+  });
+
+  it("lets a finished window's state win over the run behind it", () => {
+    expect(cacheState(true, RANGE, 120, END + 1, END)).toBe("final");
+    expect(cacheState(false, RANGE, 120, END, END - 1)).toBe("ended");
+  });
 });
 
 describe("rangeIsFinal", () => {

@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.28.0] - 2026-09-18
+
+### Added
+
+- Live pages now update their figures in place when a new ingest run lands, with no reload. The live
+  day's cache turns over with each run instead of on a five-minute clock, and a page showing a past
+  day is left alone.
+
 ## [1.27.3] - 2026-09-18
 
 ### Fixed
