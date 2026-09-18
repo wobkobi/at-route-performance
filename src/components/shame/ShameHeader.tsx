@@ -3,6 +3,7 @@
 
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { StepPending } from "@/components/StepPending";
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -119,24 +120,31 @@ export function ShameHeader({
             <Link href={nav.dayToggleHref} className="chip chip-off text-sm">
               Day
             </Link>
+            {/* Period steps prefetch in full for the reason DayNav's do. */}
             <div className="flex items-center gap-1">
               {nav.prevHref ? (
                 <Link
                   href={nav.prevHref}
+                  prefetch
                   aria-label={`Previous ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
-                  <ChevronLeft className="block h-4 w-4" />
+                  <StepPending>
+                    <ChevronLeft className="block h-4 w-4" />
+                  </StepPending>
                 </Link>
               ) : null}
               <span className="px-1 text-sm font-semibold tabular-nums">{nav.periodLabel}</span>
               {nav.nextHref ? (
                 <Link
                   href={nav.nextHref}
+                  prefetch
                   aria-label={`Next ${nav.unit ?? "week"}`}
                   className="chip chip-off flex items-center"
                 >
-                  <ChevronRight className="block h-4 w-4" />
+                  <StepPending>
+                    <ChevronRight className="block h-4 w-4" />
+                  </StepPending>
                 </Link>
               ) : null}
             </div>

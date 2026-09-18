@@ -91,6 +91,14 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+
+  experimental: {
+    // Hold a visited page in the client for one ingest cycle, so stepping back to
+    // a day just seen needs no server round trip. Every page is dynamic, and the
+    // default of 0 refetched each one on every visit. A live page cannot sit on
+    // stale figures for long: the footer's refresh on a new run clears this cache.
+    staleTimes: { dynamic: 120 },
+  },
 } satisfies NextConfig;
 
 const withBundleAnalyzer = bundleAnalyzer({

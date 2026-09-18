@@ -19,6 +19,7 @@ import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
+import { StepPending } from "@/components/StepPending";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { cn } from "@/lib/cn";
@@ -157,20 +158,31 @@ function RouteWeekNav({
   nextHref: string | null;
 }): JSX.Element {
   return (
+    // Week steps prefetch in full for the reason DayNav's do.
     <div className="flex items-center gap-1">
       {prevHref ? (
         <Link
           href={prevHref}
+          prefetch
           aria-label="Previous week"
           className="chip chip-off flex items-center"
         >
-          <ChevronLeft className="block h-4 w-4" />
+          <StepPending>
+            <ChevronLeft className="block h-4 w-4" />
+          </StepPending>
         </Link>
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <Link href={nextHref} aria-label="Next week" className="chip chip-off flex items-center">
-          <ChevronRight className="block h-4 w-4" />
+        <Link
+          href={nextHref}
+          prefetch
+          aria-label="Next week"
+          className="chip chip-off flex items-center"
+        >
+          <StepPending>
+            <ChevronRight className="block h-4 w-4" />
+          </StepPending>
         </Link>
       ) : null}
     </div>

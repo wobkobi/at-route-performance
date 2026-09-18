@@ -7,6 +7,7 @@
 
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { StepPending } from "@/components/StepPending";
 import { cn } from "@/lib/cn";
 import { DATA_START_SHORT } from "@/lib/data-start";
 import type { RangeNav, RangeWindow } from "@/lib/range-page";
@@ -84,14 +85,18 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
         />
       ) : (
         <div className="flex items-center gap-1">
-          {/* Step links are omitted (not disabled) at the edges of the data range. */}
+          {/* Step links are omitted (not disabled) at the edges of the data range,
+              and prefetch in full for the reason DayNav's do. */}
           {nav.prevHref && (
             <Link
               href={withCarried(nav.prevHref, carried)}
+              prefetch
               className="chip chip-off"
               aria-label={`Previous ${nav.window}`}
             >
-              <ChevronLeft />
+              <StepPending>
+                <ChevronLeft />
+              </StepPending>
             </Link>
           )}
           <span className="px-1 text-sm font-semibold tabular-nums">
@@ -101,10 +106,13 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
           {nav.nextHref && (
             <Link
               href={withCarried(nav.nextHref, carried)}
+              prefetch
               className="chip chip-off"
               aria-label={`Next ${nav.window}`}
             >
-              <ChevronRight />
+              <StepPending>
+                <ChevronRight />
+              </StepPending>
             </Link>
           )}
         </div>

@@ -1,6 +1,7 @@
 // src/components/DayNav.tsx
 // Date label with previous/next day stepper links for the shame views.
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { StepPending } from "@/components/StepPending";
 import { parseYmd, shiftWeek, weekdayShort } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -54,6 +55,15 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * Service-day stepper: prev / current date / next, as `?day=` links. The prev
  * link is omitted on the earliest service day with data and the next link on the
  * latest, so you cannot page past where data exists in either direction.
+ *
+ * Both links prefetch in full. A dynamic page otherwise prefetches only down to
+ * its loading skeleton, which leaves a step to start its data fetch on the click
+ * and show the skeleton for as long as the day takes to compute. A neighbouring
+ * day is the one navigation that can be predicted, and a past one is held in the
+ * Data Cache for a week once summarised, so fetching it while the reader looks at
+ * this day is cheap and makes the step itself immediate. A click that lands
+ * before that fetch has finished pulses its chevron ({@link StepPending}) until
+ * the day arrives.
  * @param props - Component props.
  * @param props.basePath - Page path the day links point at.
  * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
@@ -80,10 +90,13 @@ export function DayNav({
       {hasPrev && (
         <Link
           href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
+          prefetch
           className="chip chip-off"
           aria-label="Previous day"
         >
-          <ChevronLeft />
+          <StepPending>
+            <ChevronLeft />
+          </StepPending>
         </Link>
       )}
       {!hasPrev && atFloor && <span className="px-1 text-xs text-at-muted">first day</span>}
@@ -91,10 +104,13 @@ export function DayNav({
       {hasNext && (
         <Link
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
+          prefetch
           className="chip chip-off"
           aria-label="Next day"
         >
-          <ChevronRight />
+          <StepPending>
+            <ChevronRight />
+          </StepPending>
         </Link>
       )}
     </div>

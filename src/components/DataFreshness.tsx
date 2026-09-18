@@ -140,7 +140,10 @@ export function DataFreshness({
   const nowMs = useSyncExternalStore(subscribeToClock, getClockSnapshot, getServerClockSnapshot);
   const [polled, setPolled] = useState<FreshnessTimes | null>(null);
   const router = useRouter();
-  // The newest run this tab has rendered or already asked for. A ref, since
+  // The newest run a live view in this tab has been rendered from. Advanced only
+  // when a live view refreshes, so a run first seen on a past day's page still
+  // refreshes today's once the reader steps onto it: that page may be a
+  // prefetched or client-cached render from before the run. A ref, since
   // advancing it must not re-render the footer.
   const seenRunRef = useRef(lastUpdatedIso);
 
@@ -164,13 +167,16 @@ export function DataFreshness({
             nextUpdate: data.nextUpdate,
             source: data.source === "event" ? "event" : "run",
           });
-          if (data.lastUpdated > seenRunRef.current) {
+          // Read the URL now rather than at render: the Routes page rewrites its
+          // params on the client without a navigation.
+          const params = new URLSearchParams(window.location.search);
+          const view = { day: params.get("day"), period: params.get("period") };
+          if (
+            data.lastUpdated > seenRunRef.current &&
+            viewIncludesToday(view, nzServiceDayString())
+          ) {
             seenRunRef.current = data.lastUpdated;
-            // Read the URL now rather than at render: the Routes page rewrites
-            // its params on the client without a navigation.
-            const params = new URLSearchParams(window.location.search);
-            const view = { day: params.get("day"), period: params.get("period") };
-            if (viewIncludesToday(view, nzServiceDayString())) router.refresh();
+            router.refresh();
           }
         }
       } catch {

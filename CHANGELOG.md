@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.29.0] - 2026-09-18
+
+### Added
+
+- Stepping to the previous or next day, week or month is now instant: the neighbouring pages load in
+  the background while you read, and a page seen in the last two minutes is shown again without a
+  round trip. A step that still has to wait pulses its arrow until the new page arrives, instead of
+  looking like a click that did nothing.
+
 ## [1.28.0] - 2026-09-18
 
 ### Added

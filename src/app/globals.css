@@ -103,6 +103,23 @@
   @apply border border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore;
 }
 
+/*
+  Stepper chevron while its click waits on the server (StepPending). The pulse
+  holds off for 100ms, so a step onto a prefetched day never flashes it.
+*/
+.step-pending {
+  animation: step-pending 1s ease-in-out 100ms infinite;
+}
+@keyframes step-pending {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 /* AT button: pill-shaped, flat. The CTA variant is Safety yellow on Ocean text -
    the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
    pairing from the brand guide). */
@@ -155,10 +172,18 @@
   line-height: 0;
 }
 
-/* Reduced motion: the pill and button hover transitions become instant. */
+/*
+  Reduced motion: the pill and button hover transitions become instant, and the
+  stepper pulse becomes a still dim, since a waiting click still needs
+  acknowledging.
+*/
 @media (prefers-reduced-motion: reduce) {
   .chip,
   .at-btn {
     transition: none;
+  }
+  .step-pending {
+    animation: none;
+    opacity: 0.4;
   }
 }
