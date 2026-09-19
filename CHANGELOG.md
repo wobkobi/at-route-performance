@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.2] - 2026-09-20
+
+### Changed
+
+- Dropped four dev dependencies other packages already install: @typescript-eslint/eslint-plugin and
+  @typescript-eslint/parser (via typescript-eslint), sharp (via Next) and postcss. The postcss and
+  sharp overrides go too: Next now pins a postcss past the XSS fix the override was added for. A
+  stray install-script entry for canvas, which is not installed, is removed.
+
 ## [1.30.1] - 2026-09-19
 
 ### Changed
