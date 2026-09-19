@@ -36,3 +36,31 @@ export function tripIdStartSeconds(tripId: string): number | null {
   const sec = Number(seg);
   return sec < MAX_GTFS_SEC ? sec : null;
 }
+
+/**
+ * The block-and-service prefix of an AT trip id, with its trailing separator, so
+ * an id range from the prefix to the prefix plus `￿` bounds every trip of
+ * one block on one service pattern. Every other slot of the run's own block
+ * shares it.
+ * @param tripId - AT GTFS trip id.
+ * @returns The prefix, or null when the id carries fewer than two segments.
+ */
+export function tripIdPrefix(tripId: string): string | null {
+  const parts = tripId.split("-");
+  if (parts.length < 2 || !parts[0] || !parts[1]) return null;
+  return `${parts[0]}-${parts[1]}-`;
+}
+
+/**
+ * The variant hash of an AT trip id: its last segment, on both the usual
+ * five-segment form and the six-segment train form. Two slots sharing a prefix
+ * and a start second can still be different timetable patterns, and only the
+ * hash tells them apart - four ids share start 81900 under prefix `1108-15203`,
+ * and only one of them belongs to the pattern that ran on 14 September 2026.
+ * @param tripId - AT GTFS trip id.
+ * @returns The hash, or null when the id carries no separator.
+ */
+export function tripIdVariantHash(tripId: string): string | null {
+  const parts = tripId.split("-");
+  return parts.length < 2 ? null : (parts.at(-1) ?? null);
+}

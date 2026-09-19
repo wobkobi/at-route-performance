@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.0] - 2026-09-19
+
+### Added
+
+- The nightly pass now hides a run whose every reading was reported under another run's trip, a
+  whole vehicle cycle off its own schedule, and records why it hid each one.
+
 ## [1.29.2] - 2026-09-18
 
 ### Fixed

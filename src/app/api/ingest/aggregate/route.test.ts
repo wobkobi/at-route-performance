@@ -49,7 +49,10 @@ describe("POST /api/ingest/aggregate", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    mockedAggregateDay.mockResolvedValue({ aggregated: 3, ghosts: { trips: 10, flagged: 2 } });
+    mockedAggregateDay.mockResolvedValue({
+      aggregated: 3,
+      ghosts: { trips: 10, flagged: 2, hidden: 0 },
+    });
     mockedSummarised.mockResolvedValue(true);
     mockedHasEvents.mockResolvedValue(true);
   });
@@ -102,7 +105,7 @@ describe("POST /api/ingest/aggregate", () => {
     mockedSummarised.mockResolvedValue(false);
     mockedAggregateDay
       .mockRejectedValueOnce(new Error("ghost pass: 1 entry failed"))
-      .mockResolvedValue({ aggregated: 5, ghosts: { trips: 1, flagged: 0 } });
+      .mockResolvedValue({ aggregated: 5, ghosts: { trips: 1, flagged: 0, hidden: 0 } });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-12T12:00:00Z"));
     const res = await POST(post());

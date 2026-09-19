@@ -43,6 +43,7 @@ async function runAggregate(startTime: number, dates: readonly string[]): Promis
         aggregated,
         ghost_trips: ghosts.trips,
         ghost_rows: ghosts.flagged,
+        ghost_runs: ghosts.hidden,
         duration_ms: Date.now() - dayStart,
       });
       await recordIngestRun({
