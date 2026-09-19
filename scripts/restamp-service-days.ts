@@ -7,12 +7,16 @@
  *    new one, and deletes the rows whose service date falls before the archive
  *    floor (the 10 rows stamped 2026-09-09T17:00Z, service day 2026-09-10, the
  *    purge remnant that has no events behind it). Those rows are dumped to a
- *    JSON file first: this is the one destructive action in the migration, and
- *    DailyRouteSummary is the only lasting record once ArrivalEvent is pruned.
+ *    JSON file first: DailyRouteSummary is the only lasting record once
+ *    ArrivalEvent is pruned.
  *  - CancelledTrip: rewrites `serviceDate` from a day-start instant to the
  *    `YYYY-MM-DD` string of the run's own day, and deletes the rows the string
- *    key collapses (the 2026-09-14T17:00Z duplicate of
- *    1061-04203-17100-2-8bc39bce), keeping the earliest detection of each.
+ *    key collapses, keeping the earliest detection of each. These are the rows
+ *    the old poll-day stamp filed twice, once either side of the 5am rollover.
+ *    They are dumped too, with the id of the row kept in each case.
+ *
+ * Those two deletes are the only destructive actions in the migration, and each
+ * dumps its rows before running, because a deleted row exists nowhere else.
  *  - OffRouteSighting: unsets `serviceDate` on every row that still carries it.
  *    The index is left alone - the schema change drops it, and dropping it here
  *    only means the next `prisma db push` recreates it.
@@ -188,8 +192,8 @@ const flags = (
   })) as unknown as { cursor: { firstBatch: FlagRow[] } }
 ).cursor.firstBatch;
 
-const kept = new Map<string, { id: string; at: number; date: string }>();
-const flagDrops: string[] = [];
+const kept = new Map<string, { row: FlagRow; at: number; date: string }>();
+const flagDrops: { row: FlagRow; date: string; keptId: string }[] = [];
 for (const row of flags) {
   const detectedAt = new Date(row.detectedAt.$date);
   const date = cancelledServiceDate(
@@ -199,34 +203,43 @@ for (const row of flags) {
   const key = `${row.tripId}|${date}`;
   const held = kept.get(key);
   if (!held) {
-    kept.set(key, { id: row._id.$oid, at: detectedAt.getTime(), date });
+    kept.set(key, { row, at: detectedAt.getTime(), date });
   } else if (detectedAt.getTime() < held.at) {
     // `detectedAt` means when ingest FIRST saw the flag, so the earlier row wins.
-    flagDrops.push(held.id);
-    kept.set(key, { id: row._id.$oid, at: detectedAt.getTime(), date });
+    flagDrops.push({ row: held.row, date, keptId: row._id.$oid });
+    kept.set(key, { row, at: detectedAt.getTime(), date });
   } else {
-    flagDrops.push(row._id.$oid);
+    flagDrops.push({ row, date, keptId: held.row._id.$oid });
   }
 }
 
 const flagMoves = [...kept.values()].map((k) => ({
-  q: { _id: { $oid: k.id } },
+  q: { _id: { $oid: k.row._id.$oid } },
   u: { $set: { serviceDate: k.date } },
   multi: false,
 }));
+
+const flagDumpPath = `restamp-flag-drop-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+fs.writeFileSync(flagDumpPath, JSON.stringify(flagDrops, null, 2));
 console.log(
   `${tag}CancelledTrip: ${flags.length} still stamped as a date; ` +
-    `${flagMoves.length} to rewrite, ${flagDrops.length} duplicate(s) to delete.`,
+    `${flagMoves.length} to rewrite, ${flagDrops.length} duplicate(s) to delete ` +
+    `(dumped to ${flagDumpPath}).`,
 );
-for (const id of flagDrops) {
-  const row = flags.find((f) => f._id.$oid === id);
-  console.log(`${tag}  duplicate ${row?.tripId ?? id} detected ${row?.detectedAt.$date ?? "?"}`);
+for (const d of flagDrops) {
+  console.log(
+    `${tag}  duplicate ${d.row.tripId} on ${d.date}, detected ${d.row.detectedAt.$date}, ` +
+      `keeping ${d.keptId}`,
+  );
 }
 
 let flagsMoved = 0;
 let flagsDeleted = 0;
 if (!dryRun) {
-  flagsDeleted = await deleteByIds("CancelledTrip", flagDrops);
+  flagsDeleted = await deleteByIds(
+    "CancelledTrip",
+    flagDrops.map((d) => d.row._id.$oid),
+  );
   flagsMoved = await applyUpdates("CancelledTrip", flagMoves);
 }
 

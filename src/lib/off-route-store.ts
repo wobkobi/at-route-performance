@@ -73,13 +73,11 @@ function rerouteAlertFor(alerts: readonly ServiceAlert[], routeId: string): stri
  * Alerts are only fetched when there is something to store.
  * @param readings - Vehicle positions on trips, from the vehicle feed.
  * @param feed - This poll's trip updates, to tell which trips are under way.
- * @param serviceDate - Start of the service day the poll belongs to.
  * @returns How many new readings were stored.
  */
 export async function recordOffRouteSightings(
   readings: readonly VehicleReading[],
   feed: AtTripUpdates,
-  serviceDate: Date,
 ): Promise<number> {
   const [modes, shapes] = await Promise.all([getRouteModeMap(), shapeIndex()]);
   const candidates = readings.filter((r) => modes.get(r.routeId) !== "FERRY");
@@ -120,7 +118,6 @@ export async function recordOffRouteSightings(
         return {
           tripId: r.tripId,
           routeId: r.routeId,
-          serviceDate: { $date: serviceDate.toISOString() },
           seenAt: { $date: new Date(r.timestamp * 1000).toISOString() },
           lat: r.lat,
           lon: r.lon,

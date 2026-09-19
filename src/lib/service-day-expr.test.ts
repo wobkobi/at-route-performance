@@ -7,14 +7,14 @@ import { NZ_TZ } from "@/lib/time";
 import { describe, expect, it } from "vitest";
 
 describe("serviceDateExpr", () => {
-  it("decides the day from the Auckland hour and steps back a local day before 5am", () => {
+  it("decides the day from the Auckland hour and steps back a local day before 4am", () => {
     expect(serviceDateExpr("$scheduledAt")).toEqual({
       $dateToString: {
         format: "%Y-%m-%d",
         timezone: NZ_TZ,
         date: {
           $cond: [
-            { $lt: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, 5] },
+            { $lt: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, 4] },
             {
               $dateSubtract: {
                 startDate: "$scheduledAt",

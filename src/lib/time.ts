@@ -3,7 +3,7 @@
 // for calendar days, service days, weeks and months. Offsets are derived per
 // instant via Intl so NZST/NZDT transitions are handled correctly rather than
 // with a fixed offset. The key domain concept is the service day: a transit day
-// runs from 5am to 5am, so a post-midnight run counts under the day it started,
+// runs from 4am to 4am, so a post-midnight run counts under the day it started,
 // and a `YYYY-MM-DD` string is treated as a service date directly (for `?day=`).
 // Rolling windows quantise to service-day boundaries so they cache by day rather
 // than by the instant.
@@ -130,7 +130,7 @@ export function nzDayRange(at: Date = new Date()): DateRange {
 }
 
 /** Hour the transit service day starts (Auckland local). */
-export const SERVICE_START_HOUR = 5;
+export const SERVICE_START_HOUR = 4;
 
 /**
  * How far past a service day's end the last reading of its last run can fall.
@@ -171,7 +171,7 @@ function nzLocalToUtcAtHour(y: number, mo: number, d: number, hour: number): Dat
 
 /**
  * The Auckland-local **service day** window containing an instant: a transit day
- * runs from `startHour` (default 5am) to the same hour next day, so a post-
+ * runs from `startHour` (default 4am) to the same hour next day, so a post-
  * midnight run counts under the day it started. Accepts a `YYYY-MM-DD` string,
  * which is treated as the service date directly (for a `?day=` param).
  * @param at - An instant within the target service day, or its `YYYY-MM-DD` date.
@@ -222,12 +222,12 @@ export function nzServiceDayRange(
 /**
  * The instant a GTFS schedule time falls at within a service day. GTFS measures
  * times from "noon minus 12h" of the service date, which is local midnight
- * except on a DST-switch day; the service day's 5am start minus five real hours
- * is that same instant, because the 02:00/03:00 switch sits before both 5am and
+ * except on a DST-switch day; the service day's 4am start minus four real hours
+ * is that same instant, because the 02:00/03:00 switch sits before both 4am and
  * noon. A time earlier than the start hour is a post-midnight run filed under
  * this service day but written against the next calendar date ("00:30:00"
  * rather than "24:30:00"), so it moves forward a day.
- * @param serviceDayStart - The service day's start instant (its 5am, as stored).
+ * @param serviceDayStart - The service day's start instant (its 4am, as stored).
  * @param seconds - Seconds since the GTFS reference; may exceed 24h for post-midnight runs.
  * @returns The UTC instant of that schedule time.
  */
@@ -372,7 +372,7 @@ export function monthRangeLabel(range: DateRange): string {
 export function nzLast7DaysRange(at: Date = new Date()): DateRange {
   const day = nzServiceDayRange(at);
   // Step back six service days by date string rather than subtracting a fixed
-  // 7 * 24h of milliseconds, which lands an hour off the 5am boundary when the
+  // 7 * 24h of milliseconds, which lands an hour off the 4am boundary when the
   // window straddles a DST transition.
   const start = nzServiceDayRange(shiftWeek(nzServiceDayString(at), -6)).start;
   return { start, end: day.end };
@@ -381,16 +381,16 @@ export function nzLast7DaysRange(at: Date = new Date()): DateRange {
 /**
  * The Auckland service dates (`YYYY-MM-DD`) whose service days start inside a
  * half-open window, earliest first. Handles both midnight-aligned calendar
- * ranges ({@link nzWeekRange}, {@link nzMonthRange}) and 5am service-day-aligned
+ * ranges ({@link nzWeekRange}, {@link nzMonthRange}) and 4am service-day-aligned
  * ranges ({@link nzLast7DaysRange}): a service day is included only when its
- * 5am start lies inside `[start, end)`, so a midnight week start no longer
+ * 4am start lies inside `[start, end)`, so a midnight week start no longer
  * drags in the previous service day. Lets the week boards resolve one day at
  * a time.
  * @param range - A half-open UTC window.
  * @returns The service dates in the window, earliest first.
  */
 export function serviceDatesInRange(range: DateRange): string[] {
-  // The service day containing range.start; when its 5am start precedes the
+  // The service day containing range.start; when its 4am start precedes the
   // window (a midnight-aligned range), it belongs to the previous window > skip.
   let date = nzServiceDayString(range.start);
   if (nzServiceDayRange(date).start < range.start) date = shiftWeek(date, 1);

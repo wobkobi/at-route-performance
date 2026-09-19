@@ -85,29 +85,29 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
 }
 
 describe("cleanupCutoff", () => {
-  it("snaps to the 5am service-day start, not UTC midnight", () => {
+  it("snaps to the 4am service-day start, not UTC midnight", () => {
     // 15 Jun 2026 12:00 NZST, retention 14 days > service day 1 Jun, which starts
-    // at 05:00 NZST = 31 May 17:00 UTC.
+    // at 04:00 NZST = 31 May 16:00 UTC.
     expect(cleanupCutoff(14, new Date("2026-06-15T00:00:00Z")).toISOString()).toBe(
-      "2026-05-31T17:00:00.000Z",
+      "2026-05-31T16:00:00.000Z",
     );
   });
 
   it("uses the offset in force on the cutoff day across the NZDT start", () => {
-    // 5 Oct 2026 (NZDT) minus 14 days lands on 21 Sep (NZST): 05:00 NZST = 16:00 UTC.
+    // 5 Oct 2026 (NZDT) minus 14 days lands on 21 Sep (NZST): 04:00 NZST = 16:00 UTC.
     expect(cleanupCutoff(14, new Date("2026-10-04T23:00:00Z")).toISOString()).toBe(
-      "2026-09-20T17:00:00.000Z",
+      "2026-09-20T16:00:00.000Z",
     );
-    // 13 Apr 2026 (NZST) minus 14 days lands on 30 Mar (NZDT): 05:00 NZDT = 16:00 UTC.
+    // 13 Apr 2026 (NZST) minus 14 days lands on 30 Mar (NZDT): 04:00 NZDT = 15:00 UTC.
     expect(cleanupCutoff(14, new Date("2026-04-13T00:00:00Z")).toISOString()).toBe(
-      "2026-03-29T16:00:00.000Z",
+      "2026-03-29T15:00:00.000Z",
     );
   });
 
-  it("rolls a pre-5am instant back to the previous service day", () => {
-    // 15 Jun 03:00 NZST is still service day 14 Jun; 7 days back is 7 Jun 05:00 NZST.
+  it("rolls a pre-4am instant back to the previous service day", () => {
+    // 15 Jun 03:00 NZST is still service day 14 Jun; 7 days back is 7 Jun 04:00 NZST.
     expect(cleanupCutoff(7, new Date("2026-06-14T15:00:00Z")).toISOString()).toBe(
-      "2026-06-06T17:00:00.000Z",
+      "2026-06-06T16:00:00.000Z",
     );
   });
 });

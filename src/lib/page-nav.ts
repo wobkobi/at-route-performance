@@ -18,6 +18,7 @@ import {
   nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
+  SERVICE_START_HOUR,
   shiftMonth,
   shiftWeek,
   weekRangeLabel,
@@ -62,10 +63,10 @@ export function resolveRequestedDay(value: string | undefined): string | null {
 /**
  * Drop hours that have not started yet on a live (today) day, so AT realtime
  * predicted-future slots don't show as phantom on-time entries. A no-op for any
- * past day. The service day runs 5am > 5am, so its post-midnight hours (0-4)
- * come chronologically LAST: pre-5am the daytime hours 5-23 have all happened
- * (the previous calendar evening) plus the post-midnight hours up to now, while
- * from 5am onward only hours 5..now have.
+ * past day. The service day runs 4am > 4am, so its post-midnight hours (0-3)
+ * come chronologically LAST: before the boundary the daytime hours have all
+ * happened (the previous calendar evening) plus the post-midnight hours up to
+ * now, while from the boundary onward only the hours up to now have.
  * @param hours - The day's hourly rows (each carrying its `hour` of day, 0-23).
  * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
  * @param now - The current instant (injectable for tests).
@@ -85,8 +86,11 @@ export function filterLiveHours<H extends { hour: number }>(
     }).format(now),
     10,
   );
+  // The constant, not a literal 4, so the next move needs no second sweep.
   return hours.filter((h) =>
-    nowHourNZ < 5 ? h.hour >= 5 || h.hour <= nowHourNZ : h.hour >= 5 && h.hour <= nowHourNZ,
+    nowHourNZ < SERVICE_START_HOUR
+      ? h.hour >= SERVICE_START_HOUR || h.hour <= nowHourNZ
+      : h.hour >= SERVICE_START_HOUR && h.hour <= nowHourNZ,
   );
 }
 

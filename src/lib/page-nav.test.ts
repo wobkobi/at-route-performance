@@ -54,13 +54,13 @@ describe("filterLiveHours", () => {
   const now = new Date("2026-06-15T22:30:00Z");
   const hours = [{ hour: 0 }, { hour: 6 }, { hour: 10 }, { hour: 11 }];
 
-  it("on the live day, keeps only hours up to the current hour (and drops pre-5am)", () => {
+  it("on the live day, keeps only hours up to the current hour (and drops pre-4am)", () => {
     expect(filterLiveHours(hours, "2026-06-16", now)).toEqual([{ hour: 6 }, { hour: 10 }]);
   });
   it("returns every hour unchanged for a past day", () => {
     expect(filterLiveHours(hours, "2026-06-10", now)).toBe(hours);
   });
-  it("pre-5am keeps the whole daytime plus elapsed post-midnight hours", () => {
+  it("pre-4am keeps the whole daytime plus elapsed post-midnight hours", () => {
     // 2026-06-15T14:30Z == 2026-06-16 02:30 NZST: still service day 2026-06-15, hour 2.
     const overnight = new Date("2026-06-15T14:30:00Z");
     const fullDay = [{ hour: 0 }, { hour: 2 }, { hour: 3 }, { hour: 6 }, { hour: 18 }];
@@ -69,6 +69,37 @@ describe("filterLiveHours", () => {
       { hour: 2 },
       { hour: 6 },
       { hour: 18 },
+    ]);
+  });
+
+  it("at 03:30 keeps the whole daytime plus every elapsed post-midnight hour", () => {
+    // 2026-06-15T15:30Z == 2026-06-16 03:30 NZST: still service day 2026-06-15.
+    const at0330 = new Date("2026-06-15T15:30:00Z");
+    const fullDay = [{ hour: 0 }, { hour: 3 }, { hour: 4 }, { hour: 5 }, { hour: 20 }];
+    expect(filterLiveHours(fullDay, "2026-06-15", at0330)).toEqual([
+      { hour: 0 },
+      { hour: 3 },
+      { hour: 4 },
+      { hour: 5 },
+      { hour: 20 },
+    ]);
+  });
+
+  it("at 04:30 keeps only the 4am row - the case that is empty today", () => {
+    // 2026-06-15T16:30Z == 2026-06-16 04:30 NZST: the new day's first hour.
+    const at0430 = new Date("2026-06-15T16:30:00Z");
+    const fullDay = [{ hour: 0 }, { hour: 3 }, { hour: 4 }, { hour: 5 }, { hour: 20 }];
+    expect(filterLiveHours(fullDay, "2026-06-16", at0430)).toEqual([{ hour: 4 }]);
+  });
+
+  it("at 06:30 keeps hours 4, 5 and 6", () => {
+    // 2026-06-15T18:30Z == 2026-06-16 06:30 NZST.
+    const at0630 = new Date("2026-06-15T18:30:00Z");
+    const fullDay = [{ hour: 3 }, { hour: 4 }, { hour: 5 }, { hour: 6 }, { hour: 7 }];
+    expect(filterLiveHours(fullDay, "2026-06-16", at0630)).toEqual([
+      { hour: 4 },
+      { hour: 5 },
+      { hour: 6 },
     ]);
   });
 });

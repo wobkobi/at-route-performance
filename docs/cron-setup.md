@@ -60,6 +60,12 @@ at 14:30 and cleanup at 15:00 UTC, every one of them NZST. An earlier version of
 summer UTC hours as if they were fixed, which read as an hour of drift for half the year. Document
 the local time, which does not move.
 
+The service day starts at **4am Auckland**, so the three jobs scheduled between 02:00 and 03:15 all
+fire while the previous service day is still running. That is deliberate and the 4am move does not
+change it: 02:30 is before both the old 5am boundary and the new 4am one, so the daily aggregate
+still rolls up the last _completed_ service day rather than the one in progress. The cleanup at
+03:00 snaps its cutoff to a service-day start for the same reason.
+
 What matters is the order, not the hour: cleanup must run after the aggregate, because deletion is
 irreversible and the rollup reads the events the cleanup then removes.
 
