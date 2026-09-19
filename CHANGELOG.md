@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.1] - 2026-09-19
+
+### Changed
+
+- Each server function leaves out Prisma's unused runtimes, which cuts its traced size from about 95
+  MB to 39 MB.
+
 ## [1.30.0] - 2026-09-19
 
 ### Added

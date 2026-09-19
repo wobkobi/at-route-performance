@@ -39,6 +39,33 @@ const nextConfig: NextConfig = {
   output: "standalone",
   typescript: { ignoreBuildErrors: false },
 
+  /**
+   * Keep Prisma's unused runtimes out of every function bundle. The trace takes
+   * `@prisma/client/runtime` whole, so each function carried the wasm, edge,
+   * browser, binary and react-native engines beside the Node library engine it
+   * loads: about 56 MB of a 95 MB trace. Vercel counts every retained
+   * deployment's functions against the plan's function storage, so the saving
+   * repeats per function per deployment.
+   *
+   * The key is `"*"`, not the docs' `"/*"`: the shared `next-server` trace is
+   * matched against the bare name `next-server`, which `"/*"` misses.
+   */
+  outputFileTracingExcludes: {
+    "*": [
+      "node_modules/@prisma/client/runtime/query_engine_bg.*",
+      "node_modules/@prisma/client/runtime/query_compiler_bg.*",
+      "node_modules/@prisma/client/runtime/wasm-*",
+      "node_modules/@prisma/client/runtime/edge*",
+      "node_modules/@prisma/client/runtime/binary.*",
+      "node_modules/@prisma/client/runtime/react-native.*",
+      "node_modules/@prisma/client/runtime/index-browser.*",
+      "node_modules/@prisma/client/runtime/*.d.mts",
+      "node_modules/.prisma/client/edge.js",
+      "node_modules/.prisma/client/wasm*",
+      "node_modules/.prisma/client/index-browser.js",
+    ],
+  },
+
   // Silence "inferred workspace root" warning + skip Next.js polyfills for modern browsers
   turbopack: {
     root: path.resolve(__dirname),
