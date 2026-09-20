@@ -2,6 +2,7 @@
 // Root layout - AT-branded masthead, page container, and footer wrapping every route.
 
 import { FooterFreshness } from "@/components/FooterFreshness";
+import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
 import { DATA_START_LABEL } from "@/lib/data-start";
@@ -99,28 +100,7 @@ export default function RootLayout({
               <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">
                 Explore
               </h2>
-              <ul className="space-y-2">
-                <li>
-                  <Link href="/" className="text-white/90 hover:text-at-safety">
-                    Overview
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/routes" className="text-white/90 hover:text-at-safety">
-                    Routes
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/shame" className="text-white/90 hover:text-at-safety">
-                    Shame of the day
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/cancellations" className="text-white/90 hover:text-at-safety">
-                    Cancellations
-                  </Link>
-                </li>
-              </ul>
+              <FooterNav />
             </nav>
             <div className="space-y-3 text-sm">
               <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">About</h2>

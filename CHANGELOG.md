@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.6] - 2026-09-20
+
+### Fixed
+
+- The nav tab for the page you are already on no longer wipes that page's own filters, and nav and
+  footer links from a trip page now keep the run's day instead of jumping to today.
+
 ## [1.30.5] - 2026-09-20
 
 ### Fixed

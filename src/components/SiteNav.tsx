@@ -21,15 +21,25 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
     <>
       {NAV_SECTIONS.map((s) => {
         const active = isNavActive(s, pathname);
-        return (
+        // The tab for the page you are already on is not a link: following it
+        // would rebuild the URL from the carried params alone and drop the
+        // page's own state, which on Routes is the whole explorer (search,
+        // area, sort, lean). A section tab from one of its sub-pages stays a
+        // link, since /route/20 > /routes is a real navigation.
+        const className = cn(
+          "shrink-0 rounded-full px-2.5 py-1.5 text-sm font-semibold transition-colors sm:px-3",
+          active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
+        );
+        return pathname === s.href ? (
+          <span key={s.href} aria-current="page" className={className}>
+            {s.label}
+          </span>
+        ) : (
           <Link
             key={s.href}
             href={navHref(s, params)}
             aria-current={active ? "page" : undefined}
-            className={cn(
-              "shrink-0 rounded-full px-2.5 py-1.5 text-sm font-semibold transition-colors sm:px-3",
-              active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
-            )}
+            className={className}
           >
             {s.label}
           </Link>
