@@ -17,7 +17,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -164,8 +164,8 @@ export default async function RoutesPage({
       <p className="text-xs text-at-muted">
         Areas come from the stops each route served over the last seven days, placed against
         approximate boundaries; a route is listed under every area it serves. Routes with
-        cancellations but no recorded arrivals are listed without punctuality figures. A cancelled
-        trip counts as late at every stop it missed, by the wait for the next trip.
+        cancellations but no recorded arrivals are listed without punctuality figures.{" "}
+        {CANCELLED_SPLIT_COPY}
       </p>
     </main>
   );

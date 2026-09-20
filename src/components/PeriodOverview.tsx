@@ -19,7 +19,7 @@ import {
   getWorstStops,
 } from "@/lib/data";
 import { rangeIsEmpty } from "@/lib/data-start";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeLinkQuery } from "@/lib/range-page";
 import {
   computeRankDelta,
@@ -221,8 +221,7 @@ export async function PeriodOverview({
       </div>
 
       <p className="text-xs text-at-muted">
-        Rankings are built from real-time stop events and refresh hourly. A cancelled trip counts as
-        late at every stop it missed, by the wait for the next trip.
+        Rankings are built from real-time stop events and refresh hourly. {CANCELLED_SPLIT_COPY}
         {(offScheduleDeltas || reliableDeltas) &&
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>

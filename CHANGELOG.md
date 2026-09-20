@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.11] - 2026-09-21
+
+### Fixed
+
+- The on-time split now says the same true thing everywhere: a cancelled trip's missed stops count
+  by the wait for the next trip, on time under five minutes and late beyond it.
+
 ## [1.30.10] - 2026-09-20
 
 ### Fixed

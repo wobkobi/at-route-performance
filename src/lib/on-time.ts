@@ -13,6 +13,23 @@
 export const ON_TIME_LATE_SEC = 5 * 60;
 
 /**
+ * How a cancelled trip enters the on-time split, in one sentence, for every
+ * surface that shows the split or a ranking built from it. Cancellations are
+ * inside the split, not beside it: `applyPenalty` in `rider-wait.ts` turns each
+ * missed stop into a visit carrying the wait for the next trip, then files it
+ * late only when that wait passes {@link ON_TIME_LATE_SEC}, so a short wait
+ * lands on the on-time side. A penalty visit is never early.
+ *
+ * One definition because three surfaces had drifted into three different
+ * claims, two of which said cancellations counted late at every missed stop and
+ * one of which said they were excluded altogether.
+ */
+export const CANCELLED_SPLIT_COPY =
+  `A cancelled trip records no arrival, so each stop it missed is counted by the wait for the ` +
+  `next trip on that route: on time when that wait is ${ON_TIME_LATE_SEC / 60} minutes or less, ` +
+  `late when it is longer.`;
+
+/**
  * Early tolerance in seconds, by mode. Buses/trains hold at timepoints (1 min);
  * ferries get the full 5 minutes. Unknown modes fall back to the bus rule.
  */
