@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.20] - 2026-09-21
+
+### Fixed
+
+- The Routes list keeps how many rows it was showing in the URL, so Back returns to the same list
+  rather than the first page.
+
 ## [1.30.19] - 2026-09-21
 
 ### Fixed

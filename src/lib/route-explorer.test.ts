@@ -6,7 +6,9 @@ import {
   DEFAULT_FILTERS,
   explorerQuery,
   filterRoutes,
+  PAGE_SIZE,
   parseExplorerFilters,
+  parseShown,
   sortRoutes,
   viewQuery,
   type ExplorerFilters,
@@ -150,6 +152,17 @@ describe("board presets", () => {
       route("steady", { on_time_pct: 90, avg_abs_delay_sec: 50 }),
     ];
     expect(slugs(sortRoutes(rows, "on_time", "desc"))).toEqual(["steady", "wobbly"]);
+  });
+
+  it("read the row count back as a whole number of pages", () => {
+    expect(parseShown(undefined)).toBe(PAGE_SIZE);
+    expect(parseShown("")).toBe(PAGE_SIZE);
+    expect(parseShown("nope")).toBe(PAGE_SIZE);
+    expect(parseShown("-40")).toBe(PAGE_SIZE);
+    expect(parseShown(String(PAGE_SIZE))).toBe(PAGE_SIZE);
+    expect(parseShown(String(PAGE_SIZE * 3))).toBe(PAGE_SIZE * 3);
+    // A hand-edited count lands on one the pager itself could have reached.
+    expect(parseShown(String(PAGE_SIZE + 1))).toBe(PAGE_SIZE * 2);
   });
 
   it("rank a route with no absolute average by its signed one on off-by", () => {

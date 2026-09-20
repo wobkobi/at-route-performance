@@ -27,7 +27,7 @@ import {
   type RangeNav,
 } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { parseExplorerFilters, type ExplorerRoute } from "@/lib/route-explorer";
+import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route-explorer";
 import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
@@ -158,6 +158,7 @@ export default async function RoutesPage({
       <RouteExplorer
         rows={explorerRows}
         initialFilters={parseExplorerFilters(sp)}
+        initialShown={parseShown(sp.show)}
         routeQuery={routeLinkQuery(window, serviceDate, period)}
       />
 
