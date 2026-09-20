@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.3] - 2026-09-20
+
+### Fixed
+
+- The Day, Week and Month tabs now carry the date being read across, so switching window stays on
+  that day, week or month instead of resetting to the present.
+
 ## [1.30.2] - 2026-09-20
 
 ### Changed
