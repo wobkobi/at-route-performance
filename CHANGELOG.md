@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.9] - 2026-09-20
+
+### Changed
+
+- Corrected the cron doc: the GTFS shapes sync runs daily, not weekly, with the IngestRun evidence
+  for why, plus where its memory figure can and cannot be read.
+
 ## [1.30.8] - 2026-09-20
 
 ### Fixed
