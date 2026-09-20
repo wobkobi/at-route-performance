@@ -237,7 +237,10 @@ export default async function Home({
         </p>
       )}
 
-      <AlertBanner alerts={networkWideAlerts(await alertsPromise)} />
+      <AlertBanner
+        alerts={networkWideAlerts(await alertsPromise)}
+        pastWindow={linkDay !== undefined}
+      />
 
       <FleetSummary data={heroData} />
 

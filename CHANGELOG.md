@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.13] - 2026-09-21
+
+### Fixed
+
+- Service alerts come from a live feed with no history, so on a past day or week they describe right
+  now. The banner now says so and dates every active period instead of leaving a bare time that
+  reads as the day being shown, and the route diagram no longer rings stops or dashes the line from
+  an alert that has nothing to do with the archived day.
+
 ## [1.30.12] - 2026-09-21
 
 ### Fixed
