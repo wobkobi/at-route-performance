@@ -252,8 +252,11 @@ export default async function TripShamePage({
     filter,
   );
   const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
+  // Only drop `?day` onto today when today is the day that was asked for: after
+  // a fallback the bare link falls back to this same day again, so the arrow
+  // would do nothing. An explicit `?day` is never fallen back from.
   const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
       ? buildShameHref(BASE, {}, filter)
       : undefined;
 

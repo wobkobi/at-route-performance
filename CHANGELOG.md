@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.5] - 2026-09-20
+
+### Fixed
+
+- The day stepper and direction chips now keep the delay threshold and trip sort, the step onto
+  today keeps the filters instead of dropping the whole query, and the next-day arrow after an
+  empty-day fallback goes to a real day instead of back to the same one.
+
 ## [1.30.4] - 2026-09-20
 
 ### Fixed

@@ -426,10 +426,6 @@ export default async function RoutePage({
   }
 
   const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
-  const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? `/route/${encodeURIComponent(slug)}`
-      : undefined;
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
   const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
   const nameByStop = Object.fromEntries(view.nameByStop);
@@ -447,6 +443,24 @@ export default async function RoutePage({
     requestedDir == null ? null : (dirEntries.find(([d]) => d === requestedDir) ?? null);
   const activeDir = activeEntry?.[0] ?? null;
   const activeVariants = activeEntry?.[1].variants ?? null;
+
+  // How this page is being read: the direction, threshold and trip sort. The day
+  // stepper keeps the whole set; the direction chips and the trips board each
+  // drop the one param they set themselves, so the three cannot drift apart.
+  const viewParams: Record<string, string> = {
+    ...(activeDir != null ? { dir: String(activeDir) } : {}),
+    ...(sp.thresholdSec ? { thresholdSec: sp.thresholdSec } : {}),
+    ...(tripSort !== "off" ? { tsort: tripSort } : {}),
+    ...(isReversed ? { trev: "1" } : {}),
+  };
+  // Stepping onto today drops `?day` so the URL stays canonical - but that link
+  // must still carry the filters, and it is only safe when today is the day that
+  // was asked for: after a fallback it re-enters the same empty today and falls
+  // back again, leaving an arrow that does nothing.
+  const nextDayHref =
+    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
+      : undefined;
   const mapLines = (
     activeDir == null ? view.routeLines : view.routeLines.filter((l) => l.directionId === activeDir)
   ).map((l) => l.points);
@@ -483,13 +497,13 @@ export default async function RoutePage({
     mode: routeMode,
   };
 
+  // The chips set `dir` themselves, so everything else about the view carries.
   const dirBase = new URLSearchParams();
   if (isWeekView) {
     dirBase.set("window", "week");
     if (periodParam) dirBase.set("period", periodParam);
   } else if (requestedDay) dirBase.set("day", requestedDay);
-  if (sp.thresholdSec) dirBase.set("thresholdSec", sp.thresholdSec);
-  if (tripSort !== "off") dirBase.set("tsort", tripSort);
+  for (const [k, v] of Object.entries(viewParams)) if (k !== "dir") dirBase.set(k, v);
 
   const dirHeadsigns =
     activeVariants == null
@@ -546,11 +560,11 @@ export default async function RoutePage({
   );
   const pageRows = boardRows.slice((tripPage - 1) * PAGE_SIZE, tripPage * PAGE_SIZE);
 
-  const tripPreserved: Record<string, string> = {};
-  if (requestedDay) tripPreserved.day = requestedDay;
-  if (sp.thresholdSec) tripPreserved.thresholdSec = sp.thresholdSec;
-  if (activeDir != null) tripPreserved.dir = String(activeDir);
-  if (isReversed) tripPreserved.trev = "1";
+  // The board sets `tsort` itself, so everything else about the view carries.
+  const tripPreserved: Record<string, string> = {
+    ...(requestedDay ? { day: requestedDay } : {}),
+  };
+  for (const [k, v] of Object.entries(viewParams)) if (k !== "tsort") tripPreserved[k] = v;
 
   const title = route?.shortName ?? slug;
   // AT sets every train route's long name to its bare code ("STH", "S-C"), so
@@ -601,10 +615,7 @@ export default async function RoutePage({
               <DayNav
                 basePath={`/route/${encodeURIComponent(slug)}`}
                 serviceDate={serviceDate}
-                preservedParams={{
-                  ...(activeDir != null ? { dir: String(activeDir) } : {}),
-                  ...(tripSort !== "off" ? { tsort: tripSort } : {}),
-                }}
+                preservedParams={viewParams}
                 hasPrev={hasPrevDay}
                 atFloor={serviceDate === DATA_START_DAY}
                 hasNext={hasNextDay}

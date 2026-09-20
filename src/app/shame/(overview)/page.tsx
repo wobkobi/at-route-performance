@@ -78,8 +78,14 @@ export default async function ShameDashboard({
   const hasNextDay = serviceDate < nzServiceDayString();
   const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
+  // Stepping onto today drops `?day` so the URL stays canonical, but only when
+  // the shown day was the one asked for. After a fallback a bare link re-enters
+  // the same empty today and falls back again, leaving an arrow that does
+  // nothing; an explicit `?day` is never fallen back from.
   const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/shame" : undefined;
+    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? "/shame"
+      : undefined;
 
   // Cancellations are resolved after any day fallback, so the board matches the
   // day the rest of the dashboard settled on.
