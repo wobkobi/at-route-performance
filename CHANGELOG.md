@@ -4,6 +4,28 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.27.2] - 2026-09-18
+
+### Added
+
+- A one-off backfill that stamps every archived arrival with the service date of the run it belongs
+  to, folding the readings of a run that crossed the boundary hour back onto the day it departed.
+
+## [1.27.1] - 2026-09-17
+
+### Fixed
+
+- A cancellation flagged more than twelve hours before its run no longer lands on the previous
+  service day, which had put two real cancelled runs in the restamp's delete list.
+
+## [1.27.0] - 2026-09-17
+
+### Changed
+
+- The transit service day now runs 4am to 4am instead of 5am to 5am, so a run that crosses the
+  boundary is no longer split across two days, and the 4am hour is no longer hidden from the live
+  day's hourly rows. Cancelled trips now record the run's own service date.
+
 ## [1.26.1] - 2026-09-17
 
 ### Added

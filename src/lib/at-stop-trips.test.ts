@@ -19,7 +19,7 @@ describe("stopTripsTtl", () => {
   });
 
   it("judges today by the NZ service date, not the UTC calendar date", () => {
-    // 13 Sep 03:00 NZST is still service date 2026-09-12 (the day starts at 5am)
+    // 13 Sep 03:00 NZST is still service date 2026-09-12 (the day starts at 4am)
     // and UTC date 2026-09-12: the day in progress stays on the short TTL.
     const preDawn = new Date("2026-09-12T15:00:00Z");
     expect(stopTripsTtl("2026-09-12", preDawn)).toBe(300);

@@ -68,7 +68,7 @@ async function queryStopTrips(stopId: string, date: string): Promise<ScheduledDe
  * Cache TTL for a stop's departures on a service date: five minutes while the
  * date is today or later (AT can still revise the schedule), an hour once it
  * is past. "Today" is the NZ service date, not the UTC calendar date: from
- * midnight UTC to 5am NZ the two differ, and comparing to the UTC date treated
+ * midnight UTC to 4am NZ the two differ, and comparing to the UTC date treated
  * every NZ morning's lookups as past days, refreshing an hour later than
  * intended and, for the day just ended, twelve times as often as needed.
  * @param date - Service date as `YYYY-MM-DD`.

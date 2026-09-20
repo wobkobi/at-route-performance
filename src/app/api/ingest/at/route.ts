@@ -17,8 +17,7 @@ import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db"
 import { NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
-import { runServiceDate } from "@/lib/run-day";
-import { nzServiceDayRange } from "@/lib/time";
+import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -196,9 +195,15 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const stopRows: StopRow[] = [];
     const tripRows: TripRow[] = [];
-    const cancelledRows: { tripId: string; routeId: string; startTime?: string }[] = [];
-    // Service day a cancellation belongs to (the one in progress when ingest runs).
-    const serviceDate = nzServiceDayRange(new Date()).start;
+    const cancelledRows: {
+      tripId: string;
+      routeId: string;
+      serviceDate: string;
+      startTime?: string;
+    }[] = [];
+    // The instant this poll ran, which is what dates a cancellation: a cancelled
+    // trip carries no stop times, so there are no rows to take a run start from.
+    const pollAt = new Date();
 
     for (const e of feed.entity ?? []) {
       seen++;
@@ -213,6 +218,12 @@ export async function POST(req: Request): Promise<NextResponse> {
           cancelledRows.push({
             tripId: tu.trip.trip_id,
             routeId: tu.trip.route_id,
+            serviceDate: cancelledServiceDate({
+              tripId: tu.trip.trip_id,
+              startTime: tu.trip.start_time ?? null,
+              startDate: tu.trip.start_date,
+              detectedAt: pollAt,
+            }),
             ...(typeof tu.trip.start_time === "string" ? { startTime: tu.trip.start_time } : {}),
           });
         }
@@ -329,13 +340,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
 
     // Idempotent: the @@unique([tripId, serviceDate]) index drops repeat polls of
-    // the same cancellation (ordered: false), so this stays one row per trip per day.
+    // the same cancellation (ordered: false), so this stays one row per trip per
+    // run - including the 04:45 run that used to land on two days, because the
+    // date now comes from the run rather than from when the poll happened to fire.
     const cancelledCount = await bulkInsert(
       "CancelledTrip",
       cancelledRows.map((r) => ({
         tripId: r.tripId,
         routeId: r.routeId,
-        serviceDate: { $date: serviceDate.toISOString() },
+        serviceDate: r.serviceDate,
         ...(r.startTime ? { startTime: r.startTime } : {}),
         detectedAt: { $date: new Date().toISOString() },
       })),
@@ -343,7 +356,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // Off-route readings never fail the poll: the arrival events above are the
     // point of the run, and a missed reading only shortens a detour by one poll.
-    const offRouteCount = await recordOffRouteSightings(vehicles.readings, feed, serviceDate).catch(
+    const offRouteCount = await recordOffRouteSightings(vehicles.readings, feed).catch(
       (err: unknown) => {
         console.warn("[INGEST] Off-route check failed", {
           error: err instanceof Error ? err.message : String(err),

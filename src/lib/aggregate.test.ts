@@ -27,8 +27,8 @@ describe("dailySummaryPipeline", () => {
     expect(match).toEqual({
       $match: {
         scheduledAt: {
-          $gte: { $date: "2026-09-10T17:00:00.000Z" },
-          $lt: { $date: "2026-09-11T17:00:00.000Z" },
+          $gte: { $date: "2026-09-10T16:00:00.000Z" },
+          $lt: { $date: "2026-09-11T16:00:00.000Z" },
         },
         source: { $ne: NO_DELAY_SOURCE },
       },
@@ -66,11 +66,11 @@ describe("summaryUpsertOps", () => {
     ];
     expect(summaryUpsertOps(stats, range.start, 300)).toEqual([
       {
-        q: { routeId: "NX1-201", date: { $date: "2026-09-10T17:00:00.000Z" } },
+        q: { routeId: "NX1-201", date: { $date: "2026-09-10T16:00:00.000Z" } },
         u: {
           $set: {
             routeId: "NX1-201",
-            date: { $date: "2026-09-10T17:00:00.000Z" },
+            date: { $date: "2026-09-10T16:00:00.000Z" },
             events: 120,
             avgDelaySec: 42.5,
             avgAbsDelaySec: 60.1,
