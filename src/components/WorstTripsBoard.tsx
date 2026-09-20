@@ -9,7 +9,8 @@
 // a rank and the wait a rider had for the next trip when that is known; a run AT
 // also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT SHORT on a
 // phone, or REINSTATED), a run whose vehicle left its route an OFF ROUTE badge, running
-// trips get a LIVE badge from the passed-in live id set, and ranks stay
+// trips get a LIVE badge, streamed in per row so AT's realtime call never holds
+// up the chips or the pager, and ranks stay
 // continuous across pages. The section is `min-w-0` because it sits in a grid,
 // where it would otherwise grow to its truncating rows' full width on a phone.
 
@@ -27,7 +28,36 @@ import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
 import type { TripBoardRow } from "@/lib/trip-board";
 import Link from "next/link";
-import type { JSX } from "react";
+import { type JSX, Suspense } from "react";
+
+/**
+ * LIVE badge for one row, resolved from the shared live-vehicle set.
+ *
+ * The set is passed in unresolved and awaited here, one small boundary per row,
+ * so the board itself renders from rows that are already in hand. Awaited a
+ * level up it would put the sort chips and the pager behind AT's realtime call:
+ * every sort or page click is a server navigation, so the controls that
+ * triggered it would vanish into a skeleton until AT answered.
+ * @param props - Component props.
+ * @param props.tripId - The row's trip id.
+ * @param props.liveTripIds - Trip ids currently broadcasting a position.
+ * @returns The badge, or null when this run is not live.
+ */
+async function LiveBadge({
+  tripId,
+  liveTripIds,
+}: {
+  tripId: string;
+  liveTripIds: Promise<ReadonlySet<string>>;
+}): Promise<JSX.Element | null> {
+  const ids = await liveTripIds;
+  if (!ids.has(tripId)) return null;
+  return (
+    <span className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
+      LIVE
+    </span>
+  );
+}
 
 /** Props for {@link WorstTripsBoard}. */
 export interface WorstTripsBoardProps {
@@ -51,8 +81,12 @@ export interface WorstTripsBoardProps {
   page: number;
   /** Total number of pages. */
   totalPages: number;
-  /** Trip ids currently running live; those rows get a LIVE badge. */
-  liveTripIds?: Set<string>;
+  /**
+   * Trip ids currently running live; those rows get a LIVE badge. Passed
+   * unresolved so the board does not wait on AT's realtime call - see
+   * {@link LiveBadge}.
+   */
+  liveTripIds?: Promise<ReadonlySet<string>>;
   /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
   detouredTripIds?: ReadonlySet<string>;
 }
@@ -135,7 +169,7 @@ const SORTS: { key: TripSort; label: string }[] = [
  * @param props.preservedParams - Query params to keep when changing sort/page.
  * @param props.page - The 1-based current page.
  * @param props.totalPages - Total number of pages.
- * @param props.liveTripIds - Trip ids currently broadcasting a live position (highlighted).
+ * @param props.liveTripIds - Unresolved set of trip ids currently broadcasting a position.
  * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
  * @returns The board element.
  */
@@ -282,10 +316,10 @@ export function WorstTripsBoard({
                     <span className="hidden sm:inline">{CANCELLATION_BADGE[row.cancellation]}</span>
                   </span>
                 )}
-                {liveTripIds?.has(t.trip_id) && (
-                  <span className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
-                    LIVE
-                  </span>
+                {liveTripIds && (
+                  <Suspense fallback={null}>
+                    <LiveBadge tripId={t.trip_id} liveTripIds={liveTripIds} />
+                  </Suspense>
                 )}
                 <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
                   {t.avg_delay_sec == null ? "—" : formatDelay(avg, { mode: mode ?? "BUS" })}

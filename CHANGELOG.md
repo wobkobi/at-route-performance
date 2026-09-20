@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.18] - 2026-09-21
+
+### Fixed
+
+- The route page's worst-trips board waited behind AT's live-vehicle call, so every sort or page
+  click - both server navigations - replaced the chips and pager that triggered it with a skeleton
+  until AT answered. The board now renders from rows that are already in hand and only the LIVE
+  badges stream in.
+
 ## [1.30.17] - 2026-09-21
 
 ### Fixed
