@@ -217,7 +217,7 @@ export function RouteExplorer({
           onChange={(e) => update({ q: e.target.value })}
           placeholder="Search by route number or name"
           aria-label="Search routes"
-          className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore focus:outline-none"
+          className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore"
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
@@ -294,7 +294,7 @@ export function RouteExplorer({
                 const sort = e.target.value as ExplorerSort;
                 update({ sort, dir: defaultDir(sort) });
               }}
-              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore focus:outline-none"
+              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
             >
               {EXPLORER_SORTS.map((s) => (
                 <option key={s.key} value={s.key}>

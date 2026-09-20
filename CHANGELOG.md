@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.0] - 2026-09-21
+
+### Added
+
+- Every control, link and diagram stop draws a focus ring when reached by keyboard; the footer uses
+  the brand yellow, which reads on its dark band.
+
 ## [1.30.21] - 2026-09-21
 
 ### Fixed
