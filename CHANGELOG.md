@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.16] - 2026-09-21
+
+### Changed
+
+- One word for a stop visit across the site. The route, stop and shame boards said "Events" or
+  "events" for the same thing the home strip and the cards already called Arrivals; all of them now
+  read Arrivals. The underlying data field keeps its name.
+
 ## [1.30.15] - 2026-09-21
 
 ### Fixed

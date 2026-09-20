@@ -57,7 +57,7 @@ export function RouteWeekSummary({
           <thead>
             <tr className="bg-at-bg text-left text-xs tracking-zero text-at-muted uppercase">
               <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2 text-right">Events</th>
+              <th className="px-4 py-2 text-right">Arrivals</th>
               <th className="px-4 py-2 text-right">Avg delay</th>
               <th className="px-4 py-2 text-right">On time</th>
             </tr>

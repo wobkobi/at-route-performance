@@ -122,7 +122,7 @@ async function RouteRangeBoard({
               />
             )}
           </span>
-          <span className="block text-xs text-at-muted tabular-nums">{r.events} events</span>
+          <span className="block text-xs text-at-muted tabular-nums">{r.events} arrivals</span>
         </span>
         <ShameRowDelay
           avgDelaySec={r.avg_delay_sec}
@@ -315,7 +315,7 @@ export default async function RoutesShamePage({
               />
             ) : null}
           </span>
-          <span className="block text-xs text-at-muted tabular-nums">{r.events} events</span>
+          <span className="block text-xs text-at-muted tabular-nums">{r.events} arrivals</span>
         </span>
         <ShameRowDelay
           avgDelaySec={r.avg_delay_sec}

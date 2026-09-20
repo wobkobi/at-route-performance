@@ -181,7 +181,7 @@ export default async function StopPage({
       <section className="border border-at-border bg-at-surface">
         <div className="grid grid-cols-2 sm:grid-cols-4">
           <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+            <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
             <p className="text-2xl font-ultra tracking-zero tabular-nums">{summary?.events ?? 0}</p>
           </div>
           <div className="p-4">

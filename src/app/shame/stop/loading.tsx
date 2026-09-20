@@ -7,7 +7,7 @@ import type { JSX } from "react";
 
 /**
  * Shame stop page loading skeleton: the ShameHeader with its Day/Week toggle and
- * the hourly board. Stop rows have no mode icon, and under the events line they
+ * the hourly board. Stop rows have no mode icon, and under the arrivals line they
  * commonly carry "was bad N times today".
  * @returns Skeleton layout matching the shame stop page structure.
  */

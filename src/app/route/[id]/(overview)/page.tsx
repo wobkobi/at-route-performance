@@ -649,7 +649,7 @@ export default async function RoutePage({
           <section className="border border-at-border bg-at-surface">
             <div className="grid grid-cols-2 sm:grid-cols-3">
               <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
                   {weekSummary?.events ?? 0}
                 </p>
@@ -705,7 +705,7 @@ export default async function RoutePage({
           <section className="border border-at-border bg-at-surface">
             <div className="grid grid-cols-2 sm:grid-cols-4">
               <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
                   {summary?.events ?? 0}
                 </p>
@@ -804,7 +804,7 @@ export default async function RoutePage({
                   <thead className="bg-at-bg text-at-muted">
                     <tr>
                       <th className="px-3 py-2 text-left">Stop</th>
-                      <th className="px-3 py-2 text-right">Events</th>
+                      <th className="px-3 py-2 text-right">Arrivals</th>
                       <th className="px-3 py-2 text-right">Avg delay</th>
                     </tr>
                   </thead>

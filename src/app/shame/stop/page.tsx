@@ -103,7 +103,7 @@ async function StopRangeBoard({
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted">{s.events} events</span>
+          <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {weekCount > 1 && (
             <span className="block text-xs text-at-muted">
               {s.name} was bad {badTimes(weekCount)} this {periodNoun}
@@ -261,7 +261,7 @@ export default async function StopShamePage({
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted">{s.events} events</span>
+          <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {hourCount > 1 && (
             <span className="block text-xs text-at-muted">
               {s.name} was bad {badTimes(hourCount)} today
