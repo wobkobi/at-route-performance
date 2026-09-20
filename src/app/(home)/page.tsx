@@ -16,7 +16,7 @@ import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { PeriodOverview } from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
-import { RankBoard } from "@/components/RankBoard";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
@@ -281,6 +281,7 @@ export default async function Home({
           accentClass="text-at-ink"
           rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
+          caption={ON_TIME_CAPTION}
           cancelled={cancelledByRoute}
           routeQuery={routeLinkQuery("day", linkDay, null)}
           total={offSchedule.length}
@@ -294,6 +295,7 @@ export default async function Home({
           accentClass="text-at-ontime"
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
+          caption={ON_TIME_SHARE_CAPTION}
           routeQuery={routeLinkQuery("day", linkDay, null)}
           total={boards.reliable.length}
           seeAllHref={buildHref("/routes", {

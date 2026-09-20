@@ -6,7 +6,7 @@
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
-import { RankBoard } from "@/components/RankBoard";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
@@ -194,6 +194,7 @@ export async function PeriodOverview({
           accentClass="text-at-ink"
           rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
+          caption={ON_TIME_CAPTION}
           cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
@@ -209,6 +210,7 @@ export async function PeriodOverview({
           accentClass="text-at-ontime"
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
+          caption={ON_TIME_SHARE_CAPTION}
           deltas={reliableDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
           total={boards.reliable.length}

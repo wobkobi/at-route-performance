@@ -28,7 +28,7 @@ export function RankingsBodySkeleton(): JSX.Element {
       <BoardFiltersSkeleton />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <RankBoardSkeleton caption />
+        <RankBoardSkeleton colourKey />
         <RankBoardSkeleton />
       </div>
 

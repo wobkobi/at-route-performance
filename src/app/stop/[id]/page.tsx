@@ -10,7 +10,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RankBoard } from "@/components/RankBoard";
+import { ON_TIME_CAPTION, RankBoard } from "@/components/RankBoard";
 import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
@@ -231,6 +231,7 @@ export default async function StopPage({
         accentClass="text-at-ink"
         rows={routes}
         metric="delay"
+        caption={ON_TIME_CAPTION}
         routeQuery={routeLinkQuery("day", linkDay, null)}
       />
 

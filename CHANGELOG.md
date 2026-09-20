@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.17] - 2026-09-21
+
+### Fixed
+
+- The on-time window was explained under the off-schedule board and nowhere under the reliable
+  board, whose column is that share. Both boards now carry a caption, so their rows start level, and
+  the off-schedule board gains a key for its value colours - ten green rows under a heading reading
+  "Most off-schedule" otherwise look like good news.
+
 ## [1.30.16] - 2026-09-21
 
 ### Changed
