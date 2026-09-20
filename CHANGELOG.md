@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.10] - 2026-09-20
+
+### Fixed
+
+- The basemap key is no longer sent from loopback hosts, where CARTO always rejects it; a local
+  production run now draws watermarked tiles instead of eight blank maps.
+
 ## [1.30.9] - 2026-09-20
 
 ### Changed
