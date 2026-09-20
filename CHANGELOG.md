@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.12] - 2026-09-21
+
+### Fixed
+
+- The worst-trip card no longer shows a green "No shame today" when the day recorded no runs at all;
+  a day with nothing to rank now gets the same quiet card the worst-route and worst-stop cards
+  beside it already use.
+
 ## [1.30.11] - 2026-09-21
 
 ### Fixed
