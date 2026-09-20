@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.14] - 2026-09-21
+
+### Fixed
+
+- The worst-route card's figures are one hour's, not the whole day's - the row is the max over
+  per-hour rows. The card now names that hour and says how many arrivals fell in it, so it no longer
+  looks like it disagrees with the whole-day averages on the home boards.
+
 ## [1.30.13] - 2026-09-21
 
 ### Fixed

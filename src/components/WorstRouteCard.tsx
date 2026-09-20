@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
+import { nzHourLabel, weekdayShort } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -25,6 +26,12 @@ export interface WorstRouteCardProps {
  * linking to that route. Sits beside the worst-trip and worst-stop cards. When
  * no route qualifies it keeps its slot with a quiet state, so the card grid
  * never shows a hole.
+ *
+ * Every figure on it is **one hour's**, not the period's. The row is the max
+ * over per-hour `(route, hour)` rows, so the winner is a route at its worst
+ * hour; the eyebrow names that hour, because the same route's whole-day average
+ * appears on the home boards and the two would otherwise look like they
+ * disagreed.
  * @param props - Component props.
  * @param props.route - The worst route row (or null).
  * @param props.day - Service day to pin on the link (optional).
@@ -43,6 +50,10 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
   }
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
   const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
+  // Week-view rows carry a service date and no meaningful hour; day rows are the
+  // other way round.
+  const bucket = route.date ? weekdayShort(route.date) : nzHourLabel(route.hour);
+  const bucketWord = route.date ? "day" : "hour";
   const href =
     hrefProp ??
     `/route/${encodeURIComponent(routeSlug(route.route_id))}${day ? `?day=${day}` : ""}`;
@@ -51,7 +62,9 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
-      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst route</p>
+      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">
+        Worst route - {bucket}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={route.mode}
@@ -99,7 +112,9 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
           </>
         )}
       </p>
-      <p className="text-xs text-at-muted tabular-nums">{route.events} events</p>
+      <p className="text-xs text-at-muted tabular-nums">
+        {route.events} arrivals in that {bucketWord}
+      </p>
     </Link>
   );
 }
