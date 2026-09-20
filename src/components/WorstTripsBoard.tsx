@@ -14,9 +14,12 @@
 // continuous across pages. The section is `min-w-0` because it sits in a grid,
 // where it would otherwise grow to its truncating rows' full width on a phone.
 
+import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import {
   CANCELLATION_BADGE,
+  CANCELLATION_BADGE_CLASS,
+  CANCELLATION_BADGE_MEANING,
   CANCELLATION_BADGE_SHORT,
   type CancellationStage,
 } from "@/lib/cancellation";
@@ -138,12 +141,43 @@ function pageHref(
   return qs ? `${basePath}?${qs}` : basePath;
 }
 
-/** Hover text for the cancellation badge on a run, spelling out what the stage means. */
-const STAGE_TITLE: Record<CancellationStage, string> = {
-  before: "AT cancelled this trip",
-  "mid-trip": "AT cancelled this trip after it set off",
-  ran: "AT flagged this trip cancelled, then it ran anyway",
-};
+/**
+ * The badges this page of rows actually carries, for the key under the board.
+ * Built from the rows rather than from the props, so the key never names a badge
+ * that is not on the page in front of the reader.
+ * @param rows - The current page of rows.
+ * @param detouredTripIds - Trip ids whose vehicle left its route.
+ * @returns The key entries, in the order the rows put them.
+ */
+function badgeKey(
+  rows: TripBoardRow[],
+  detouredTripIds: ReadonlySet<string> | undefined,
+): BadgeKeyItem[] {
+  const items: BadgeKeyItem[] = [];
+  if (rows.some((r) => r.kind === "run" && detouredTripIds?.has(r.trip.trip_id))) {
+    items.push({
+      label: "OFF ROUTE",
+      className: "bg-at-commercial text-at-ink",
+      meaning: "GPS put this vehicle well off its route mid-run",
+    });
+  }
+  const stages = new Set<CancellationStage>(
+    rows.flatMap((r) => (r.kind === "cancelled" ? ["before" as const] : (r.cancellation ?? []))),
+  );
+  for (const stage of ["before", "mid-trip", "ran"] as const) {
+    if (!stages.has(stage)) continue;
+    items.push({
+      label: CANCELLATION_BADGE[stage],
+      shortLabel: CANCELLATION_BADGE_SHORT[stage],
+      className: CANCELLATION_BADGE_CLASS[stage],
+      meaning: CANCELLATION_BADGE_MEANING[stage],
+    });
+  }
+  if (rows.some((r) => r.kind === "cancelled" && r.waitSec !== undefined)) {
+    items.push({ label: "wait", meaning: "How long a rider waited for the next trip" });
+  }
+  return items;
+}
 
 const SORTS: { key: TripSort; label: string }[] = [
   { key: "off", label: "Most off" },
@@ -252,7 +286,13 @@ export function WorstTripsBoard({
                     )}
                     {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
                   </Link>
-                  <span className="shrink-0 rounded bg-at-late px-1.5 py-0.5 text-xs font-bold text-white">
+                  <span
+                    title={CANCELLATION_BADGE_MEANING.before}
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                      CANCELLATION_BADGE_CLASS.before,
+                    )}
+                  >
                     {CANCELLATION_BADGE.before}
                   </span>
                   {row.waitSec !== undefined && (
@@ -304,12 +344,10 @@ export function WorstTripsBoard({
                 )}
                 {row.cancellation && (
                   <span
-                    title={STAGE_TITLE[row.cancellation]}
+                    title={CANCELLATION_BADGE_MEANING[row.cancellation]}
                     className={cn(
                       "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                      row.cancellation === "ran"
-                        ? "border border-at-border text-at-muted"
-                        : "bg-at-late text-white",
+                      CANCELLATION_BADGE_CLASS[row.cancellation],
                     )}
                   >
                     <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[row.cancellation]}</span>
@@ -330,6 +368,7 @@ export function WorstTripsBoard({
           })}
         </ol>
       )}
+      <BadgeKey items={badgeKey(rows, detouredTripIds)} />
       {totalPages > 1 && (
         <nav
           className="mt-3 flex flex-wrap items-center justify-center gap-1"

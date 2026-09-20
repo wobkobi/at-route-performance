@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.1] - 2026-09-21
+
+### Fixed
+
+- The trips board and the cancellations list carry a key naming each badge they show and what it
+  means, instead of hiding it in a hover a phone cannot reach.
+
 ## [1.31.0] - 2026-09-21
 
 ### Added
