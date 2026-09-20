@@ -57,7 +57,6 @@ import {
 import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
-import { buildShameHref } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -222,7 +221,6 @@ export default async function Home({
   }
 
   const nav = dayRangeNav(serviceDate, earliestDay);
-  const shameHref = buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool });
 
   return (
     <main className="space-y-6">
@@ -245,13 +243,7 @@ export default async function Home({
 
       <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
       <Suspense fallback={<FeatureCardPairSkeleton />}>
-        <HomeShameCards
-          range={range}
-          mode={mode}
-          includeSchool={includeSchool}
-          shameHref={shameHref}
-          linkDay={linkDay}
-        />
+        <HomeShameCards range={range} mode={mode} includeSchool={includeSchool} linkDay={linkDay} />
       </Suspense>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -319,7 +311,6 @@ export default async function Home({
  * @param root0.range - The resolved service-day window.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.includeSchool - Whether school services are included.
- * @param root0.shameHref - Link to the full shame board for the day.
  * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
  * @returns The two-card grid.
  */
@@ -327,13 +318,11 @@ async function HomeShameCards({
   range,
   mode,
   includeSchool,
-  shameHref,
   linkDay,
 }: {
   range: DateRange;
   mode: ModeFilterValue;
   includeSchool: boolean;
-  shameHref: string;
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
   const [shame, worstStops] = await Promise.all([
@@ -346,12 +335,8 @@ async function HomeShameCards({
     : 0;
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <ShameOfDay
-        trip={shame.worst}
-        href={shameHref}
-        hours={shame.hours}
-        routeStreakDays={routeStreakDays}
-      />
+      {/* Both cards open what they name; the section heading owns the board link. */}
+      <ShameOfDay trip={shame.worst} hours={shame.hours} routeStreakDays={routeStreakDays} />
       <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
     </div>
   );

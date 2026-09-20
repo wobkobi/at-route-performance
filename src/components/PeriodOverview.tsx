@@ -159,7 +159,9 @@ export async function PeriodOverview({
 
       <SectionLink title={`Shame of the ${window}`} href={shameTripHref} />
       <div className="grid gap-4 md:grid-cols-2">
-        <ShameOfDay trip={shame.worst} period={window} href={shameTripHref} />
+        {/* The run card opens that run; the stop card stays on the shame board,
+            because /stop reads `?day` only and cannot show a week or a month. */}
+        <ShameOfDay trip={shame.worst} period={window} />
         <WorstStopCard
           stop={worstStops[0] ?? null}
           href={buildShameHref("/shame/stop", shameNav, shameFilter)}

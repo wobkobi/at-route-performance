@@ -120,9 +120,11 @@ export default async function ShameDashboard({
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ShameOfDay trip={tripShame.worst} href={tripHref} hours={tripShame.hours} />
-        <WorstRouteCard route={routeShame.worst} href={routeHref} />
-        <WorstStopCard stop={stops[0] ?? null} href={stopHref} />
+        {/* Each card names one run, route or stop and opens it. The boards those
+            three come from are the header's tabs, right above. */}
+        <ShameOfDay trip={tripShame.worst} hours={tripShame.hours} />
+        <WorstRouteCard route={routeShame.worst} day={linkDay} />
+        <WorstStopCard stop={stops[0] ?? null} day={linkDay} />
       </div>
 
       <CancelledBoard rows={cancelledRoutes} total={cancelledTotal} routeDay={linkDay} />

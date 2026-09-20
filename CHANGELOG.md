@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.8] - 2026-09-20
+
+### Fixed
+
+- The worst-trip, worst-route and worst-stop cards now open that run, route or stop. The board each
+  one came from is on the section heading above them, so a card and its heading no longer lead to
+  different places.
+
 ## [1.30.7] - 2026-09-20
 
 ### Fixed

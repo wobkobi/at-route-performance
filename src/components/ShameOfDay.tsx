@@ -15,8 +15,8 @@ import type { JSX } from "react";
 export interface ShameOfDayProps {
   /** The day's most off-schedule run, or null when the day has no qualifying runs. */
   trip: ShameTrip | null;
-  /** Detail-page link (carries the day and active filters). */
-  href: string;
+  /** Override the card's link target; defaults to the run's own page. */
+  href?: string;
   /**
    * The time period being shown - controls empty-state copy. Defaults to `"day"`.
    * Use `"week"` or `"month"` on the home page's week or month view.
@@ -29,11 +29,11 @@ export interface ShameOfDayProps {
 }
 
 /**
- * Home banner naming the day's most off-schedule run, linking to the per-hour
- * breakdown. Shows a "no shame" positive state when every run was on time.
+ * Home banner naming the day's most off-schedule run, linking to that run.
+ * Shows a "no shame" positive state when every run was on time.
  * @param props - Component props.
  * @param props.trip - The day's worst run (or null).
- * @param props.href - Detail-page link (day + active filters).
+ * @param props.href - Override link target (optional).
  * @param props.period - Time period for empty-state copy (`"day"` by default).
  * @param props.hours - All hourly entries for the day, used to count this route's appearances.
  * @param props.routeStreakDays - Consecutive days this route has been the worst shame trip.
@@ -41,7 +41,7 @@ export interface ShameOfDayProps {
  */
 export function ShameOfDay({
   trip,
-  href,
+  href: hrefProp,
   period = "day",
   hours,
   routeStreakDays = 0,
@@ -70,6 +70,12 @@ export function ShameOfDay({
 
   const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
   const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
+  // The card names one run, so it opens that run. `?d` is the run's own instant,
+  // which is how the trip page tells this day's run from the same trip id on
+  // another day. The board link belongs on the section heading above.
+  const href =
+    hrefProp ??
+    `/route/${encodeURIComponent(routeSlug(trip.route_id))}/trip/${encodeURIComponent(trip.trip_id)}?d=${encodeURIComponent(trip.scheduled_start)}`;
   return (
     <Link
       href={href}
