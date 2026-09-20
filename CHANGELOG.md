@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.7] - 2026-09-20
+
+### Fixed
+
+- A cancelled run whose scheduled start was never captured now opens on the day whose board it was
+  clicked from, instead of the run's most recent day.
+
 ## [1.30.6] - 2026-09-20
 
 ### Fixed

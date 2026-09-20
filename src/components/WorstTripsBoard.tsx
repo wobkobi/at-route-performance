@@ -33,6 +33,8 @@ import type { JSX } from "react";
 export interface WorstTripsBoardProps {
   /** Route the trips belong to (for the per-trip links). */
   routeId: string;
+  /** Service day the rows are from, as `YYYY-MM-DD`. Opens the run on that day. */
+  serviceDate: string;
   /** The current page of rows (running and cancelled trips), in display order. */
   rows: TripBoardRow[];
   /** Active ordering. */
@@ -124,6 +126,7 @@ const SORTS: { key: TripSort; label: string }[] = [
  * and destination struck through.
  * @param props - Board props.
  * @param props.routeId - Route the trips belong to.
+ * @param props.serviceDate - Service day the rows are from, as `YYYY-MM-DD`.
  * @param props.rows - The current page of rows, in display order.
  * @param props.sort - The active ordering.
  * @param props.isReversed - Whether the active sort direction is reversed from its default.
@@ -138,6 +141,7 @@ const SORTS: { key: TripSort; label: string }[] = [
  */
 export function WorstTripsBoard({
   routeId,
+  serviceDate,
   rows,
   sort,
   isReversed = false,
@@ -199,9 +203,12 @@ export function WorstTripsBoard({
                   <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
                     {row.rank}
                   </span>
-                  {/* Links to the trip page, which lists the stops the trip would have served. */}
+                  {/* Links to the trip page, which lists the stops the trip would have served.
+                      A cancellation AT flagged before the timetable loaded has no scheduled
+                      start, so the board's own day stands in; without it the trip page falls
+                      back to the run's latest day and opens a different day's run. */}
                   <Link
-                    href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(c.trip_id)}${c.scheduled_start ? `?d=${encodeURIComponent(c.scheduled_start)}` : ""}`}
+                    href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(c.trip_id)}?d=${encodeURIComponent(c.scheduled_start ?? serviceDate)}`}
                     className="min-w-0 flex-1 truncate text-at-muted line-through"
                   >
                     {c.scheduled_start && (

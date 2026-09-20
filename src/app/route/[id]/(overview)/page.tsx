@@ -739,6 +739,7 @@ export default async function RoutePage({
               <RouteTripBoardSection
                 vehiclesPromise={vehiclesPromise}
                 routeId={slug}
+                serviceDate={serviceDate}
                 rows={pageRows}
                 sort={tripSort}
                 isReversed={isReversed}
