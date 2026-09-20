@@ -175,6 +175,12 @@ export default async function StopShamePage({
             route: buildShameHref("/shame/route", rangeNav, filter),
             stop: buildShameHref(BASE, rangeNav, filter),
           }}
+          filter={{
+            basePath: BASE,
+            mode: filter.mode,
+            includeSchool: filter.includeSchool,
+            nav: rangeNav,
+          }}
           nav={{
             kind: "week",
             unit: periodNoun,
@@ -288,6 +294,12 @@ export default async function StopShamePage({
           trip: buildShameHref("/shame/trip", { day: linkDay }, filter),
           route: buildShameHref("/shame/route", { day: linkDay }, filter),
           stop: buildShameHref(BASE, { day: linkDay }, filter),
+        }}
+        filter={{
+          basePath: BASE,
+          mode: filter.mode,
+          includeSchool: filter.includeSchool,
+          nav: { day: linkDay },
         }}
         nav={{
           kind: "day",

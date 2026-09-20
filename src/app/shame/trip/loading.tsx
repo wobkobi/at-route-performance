@@ -14,7 +14,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton toggle twoLineSubtitle />
+      <ShameHeaderSkeleton toggle twoLineSubtitle filters />
       <ShameBoardSkeleton layout="day" shape={{ icon: true, mobileLines: 4, gridLines: 2 }} />
     </main>
   );

@@ -14,7 +14,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton toggle />
+      <ShameHeaderSkeleton toggle filters />
       <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
     </main>
   );

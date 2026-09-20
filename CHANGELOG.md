@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.19] - 2026-09-21
+
+### Fixed
+
+- Shame pages carry mode and school chips, and /shame honours the filter its links were already
+  carrying.
+
 ## [1.30.18] - 2026-09-21
 
 ### Fixed
