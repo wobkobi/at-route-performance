@@ -61,10 +61,14 @@ export function FleetSummary({ data }: FleetSummaryProps): JSX.Element {
           breakdown={breakdown}
         />
         <div className="p-3">
-          <div className={labelClass}>Cancelled</div>
+          {/* One name with /cancellations, which counts the same flagged trips.
+              The count is of AT's flags, not of trips that failed to run, so the
+              note is part of the figure rather than a footnote to it. */}
+          <div className={labelClass}>Flagged cancelled</div>
           <div className={cn(valueClass, data.cancelled ? "text-at-late" : undefined)}>
             {data.cancelled === null ? "—" : data.cancelled.toLocaleString()}
           </div>
+          <div className="text-xs text-at-muted">Reinstated trips included</div>
         </div>
         <div className="p-3">
           <div className={labelClass}>Routes</div>

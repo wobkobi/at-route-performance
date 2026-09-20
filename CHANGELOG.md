@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.15] - 2026-09-21
+
+### Fixed
+
+- The home strip called it "Cancelled" and the cancellations page called the same figure "Flagged
+  cancelled". Both now use the second name and both say that reinstated trips are counted in it,
+  since the number is of AT's flags rather than of trips that failed to run.
+
 ## [1.30.14] - 2026-09-21
 
 ### Fixed

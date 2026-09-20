@@ -56,10 +56,15 @@ export function DayNavSkeleton(): JSX.Element {
 
 /**
  * Mirrors FleetSummary: one bordered strip of `p-3` cells, each an uppercase
- * `text-xs` label (16px) over a `text-xl` value (28px).
+ * `text-xs` label (16px) over a `text-xl` value (28px). One cell carries a
+ * third `text-xs` line ("Reinstated trips included"), which sets the whole row's
+ * height, so the placeholder has to draw it or the strip jumps on hydration.
+ * @param root0 - Props.
+ * @param root0.noteCell - Index of the cell carrying the note line. Defaults to
+ * FleetSummary's flagged-cancelled cell; the cancellations strip puts it first.
  * @returns The KPI strip placeholder.
  */
-export function KpiStripSkeleton(): JSX.Element {
+export function KpiStripSkeleton({ noteCell = 3 }: { noteCell?: number } = {}): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -67,6 +72,7 @@ export function KpiStripSkeleton(): JSX.Element {
           <div key={i} className="p-3">
             <Bone className="h-4 w-16" />
             <Bone className="h-7 w-20" />
+            {i === noteCell && <Bone className="h-4 w-24" />}
           </div>
         ))}
       </div>
