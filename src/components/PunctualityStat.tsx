@@ -167,12 +167,20 @@ export function PunctualityStat({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={close} aria-hidden />
+          {/* `pointerdown`, not `click`: a tap on a plain div does not reliably
+              raise a click on iOS Safari, which left the popover with no way to
+              dismiss it on the device it most crowds. Sits under the popover
+              and over the sticky header, which is `z-40`. */}
+          <div className="fixed inset-0 z-40" onPointerDown={close} aria-hidden />
           <div
             id={popoverId}
             role="group"
             aria-label={`${label} breakdown`}
-            className="absolute top-full left-0 z-20 mt-1 w-64 rounded-md border border-at-border bg-at-surface p-3 shadow-lg"
+            /* A phone gets a sheet across the bottom of the viewport rather than
+               a 256px panel anchored to the card: anchored, a right-hand KPI
+               pushes most of it off screen, and there is nowhere on a 390px
+               viewport for it to flip to. From `sm` up it is the anchored panel. */
+            className="fixed inset-x-3 bottom-3 z-50 rounded-md border border-at-border bg-at-surface p-3 shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1 sm:w-64"
           >
             {variant === "split" ? (
               <>
