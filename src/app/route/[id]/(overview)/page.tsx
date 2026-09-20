@@ -275,7 +275,12 @@ export default async function RoutePage({
 }): Promise<JSX.Element> {
   const { id } = await params;
   const sp = (await searchParams) ?? {};
-  const isWeekView = sp.window === "week";
+  // Any window but the day means the week view: this page has no month, so a
+  // `window=month` link kept from before routeLinkQuery mapped it - or typed by
+  // hand - lands on a period view that names its own range rather than silently
+  // showing today. Its `?period` is a month key, which the week parse rejects,
+  // so it falls back to the rolling last 7 days.
+  const isWeekView = sp.window !== undefined && sp.window !== "day";
 
   // URLs use the version-stripped slug ("501", not "501-217"); redirect old links.
   const slug = routeSlug(id);

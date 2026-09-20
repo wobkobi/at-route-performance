@@ -20,6 +20,7 @@ import {
 } from "@/lib/data";
 import { rangeIsEmpty } from "@/lib/data-start";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { routeLinkQuery } from "@/lib/range-page";
 import {
   computeRankDelta,
   deriveBoards,
@@ -193,8 +194,7 @@ export async function PeriodOverview({
           metric="delay"
           cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
-          routeWindow={window}
-          routePeriod={period}
+          routeQuery={routeLinkQuery(window, null, period)}
           total={offSchedule.length}
           seeAllHref={buildHref("/routes", {
             window,
@@ -208,8 +208,7 @@ export async function PeriodOverview({
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
           deltas={reliableDeltas}
-          routeWindow={window}
-          routePeriod={period}
+          routeQuery={routeLinkQuery(window, null, period)}
           total={boards.reliable.length}
           seeAllHref={buildHref("/routes", {
             window,

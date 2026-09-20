@@ -39,7 +39,13 @@ import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
-import { dayRangeNav, overviewHeading, parseRangeWindow, periodRangeNav } from "@/lib/range-page";
+import {
+  dayRangeNav,
+  overviewHeading,
+  parseRangeWindow,
+  periodRangeNav,
+  routeLinkQuery,
+} from "@/lib/range-page";
 import {
   deriveBoards,
   deriveOffSchedule,
@@ -281,7 +287,7 @@ export default async function Home({
           rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
           cancelled={cancelledByRoute}
-          routeDay={linkDay}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
           total={offSchedule.length}
           seeAllHref={buildHref("/routes", {
             day: linkDay,
@@ -293,7 +299,7 @@ export default async function Home({
           accentClass="text-at-ontime"
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
-          routeDay={linkDay}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
           total={boards.reliable.length}
           seeAllHref={buildHref("/routes", {
             day: linkDay,

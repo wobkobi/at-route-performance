@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.4] - 2026-09-20
+
+### Fixed
+
+- Route links from a month view now open the week that month hands off to, instead of silently
+  showing today. Every board and the Routes list build that link from one helper.
+
 ## [1.30.3] - 2026-09-20
 
 ### Fixed

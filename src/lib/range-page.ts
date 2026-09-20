@@ -244,21 +244,28 @@ export function overviewHeading(nav: RangeNav, period: string | null): string {
 }
 
 /**
- * The query a route link carries so the route page opens on the same window. The
- * route page has a day view and a week view, so a month links to its default.
+ * The query a route link carries so the route page opens on the window being
+ * viewed. The route page has only a day view and a week view, so a month hands
+ * off to the week holding its last day - the same week {@link rangeTabPeriods}
+ * gives the Month > Week tab, so every surface answers a month the same way.
+ * This is the single definition of the shape: the Routes explorer and the rank
+ * boards both take their route query from here.
  * @param window - The window being shown.
  * @param serviceDate - The shown service date, for the day view.
- * @param period - The shown week's period, or null for the rolling week.
+ * @param period - The shown week's or month's period, or null for the rolling default.
  * @param today - Today's service date (injectable for tests).
  * @returns The query string with its `?`, or an empty string.
  */
 export function routeLinkQuery(
   window: RangeWindow,
-  serviceDate: string | null,
-  period: string | null,
+  serviceDate: string | null | undefined,
+  period: string | null | undefined,
   today: string = nzServiceDayString(),
 ): string {
   if (window === "day") return serviceDate && serviceDate !== today ? `?day=${serviceDate}` : "";
-  if (window === "week") return `?window=week${period ? `&period=${period}` : ""}`;
-  return "";
+  const weekPeriod =
+    window === "week"
+      ? period
+      : weekPeriodOf(periodAnchorDay("month", period ?? null, today), today);
+  return `?window=week${weekPeriod ? `&period=${weekPeriod}` : ""}`;
 }

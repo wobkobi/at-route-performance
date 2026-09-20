@@ -63,8 +63,14 @@ describe("routeLinkQuery", () => {
     );
   });
 
-  it("sends a month to the route's default view, which has no month", () => {
-    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("");
+  it("hands a month off to the week its last day falls in, since routes have no month view", () => {
+    expect(routeLinkQuery("month", null, "2026-08", TODAY)).toBe("?window=week&period=2026-08-31");
+  });
+
+  it("leaves the running month on the rolling week rather than a future one", () => {
+    // September still has days to come, so its last day clamps to today, whose
+    // week is the rolling default the route page already shows.
+    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("?window=week");
   });
 });
 
