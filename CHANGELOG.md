@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.2] - 2026-09-21
+
+### Fixed
+
+- A route whose stopping pattern fails to load now says so instead of showing no directions and no
+  diagram, and a trip whose schedule fails to load says so instead of reading as a run with no
+  stops.
+
 ## [1.31.1] - 2026-09-21
 
 ### Fixed

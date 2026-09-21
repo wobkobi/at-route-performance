@@ -636,6 +636,14 @@ export default async function RoutePage({
             )}
           </div>
         </div>
+        {/* An outage reads as a route with no schedule otherwise: the chips and
+            the diagram simply would not be there, with nothing to say why. */}
+        {view.patternFailed && (
+          <p className="text-sm text-at-late">
+            This route&apos;s stopping pattern could not be loaded, so the direction filter and the
+            line diagram are missing. Every figure below is unaffected. Reload to try again.
+          </p>
+        )}
         {dirKeys.length > 1 && (
           <DirectionFilter
             dirKeys={dirKeys}
@@ -698,18 +706,23 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
           />
-          <Suspense fallback={<LineDiagramSkeleton />}>
-            <RouteDiagramSection
-              alertsPromise={alertsPromise}
-              live={isLiveView}
-              slug={slug}
-              rawToCanon={view.rawToCanon}
-              directions={view.directions}
-              delayByStop={{}}
-              nameByStop={nameByStop}
-              mode={routeMode}
-            />
-          </Suspense>
+          {/* Hidden rather than empty when the pattern failed to load: the
+              diagram's own empty state reads "no stopping pattern yet", which
+              is the wrong story, and the note above already tells the right one. */}
+          {!view.patternFailed && (
+            <Suspense fallback={<LineDiagramSkeleton />}>
+              <RouteDiagramSection
+                alertsPromise={alertsPromise}
+                live={isLiveView}
+                slug={slug}
+                rawToCanon={view.rawToCanon}
+                directions={view.directions}
+                delayByStop={{}}
+                nameByStop={nameByStop}
+                mode={routeMode}
+              />
+            </Suspense>
+          )}
         </>
       ) : (
         <>
@@ -786,18 +799,21 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense fallback={<LineDiagramSkeleton />}>
-            <RouteDiagramSection
-              alertsPromise={alertsPromise}
-              live={isLiveView}
-              slug={slug}
-              rawToCanon={view.rawToCanon}
-              directions={diagramDirections}
-              delayByStop={delayByStop}
-              nameByStop={nameByStop}
-              mode={routeMode}
-            />
-          </Suspense>
+          {/* Hidden, not empty, when the pattern failed - see the week view above. */}
+          {!view.patternFailed && (
+            <Suspense fallback={<LineDiagramSkeleton />}>
+              <RouteDiagramSection
+                alertsPromise={alertsPromise}
+                live={isLiveView}
+                slug={slug}
+                rawToCanon={view.rawToCanon}
+                directions={diagramDirections}
+                delayByStop={delayByStop}
+                nameByStop={nameByStop}
+                mode={routeMode}
+              />
+            </Suspense>
+          )}
 
           {byStop.length === 0 ? (
             <section className="border border-at-border bg-at-surface px-4 py-3">

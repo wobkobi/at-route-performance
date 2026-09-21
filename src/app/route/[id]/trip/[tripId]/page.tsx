@@ -74,17 +74,28 @@ export default async function TripPage({
   const dAt = d ? new Date(d) : null;
   const day =
     dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
-  // An AT outage costs this request its schedule and road path, not the day's cache entries.
-  const [timeline, scheduledStops, roadPath, flag, detour] = await Promise.all([
+  // An AT outage costs this request its schedule and road path, not the day's
+  // cache entries - but a swallowed failure read as "this run has no stops", so
+  // `allSettled` keeps the rejection and the page below says which it was.
+  const [timeline, optional, flag, detour] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
-    getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
-    getTripShape(tripId).catch((): Array<[number, number]> => []),
+    Promise.allSettled([getTripScheduledStops(tripId), getTripShape(tripId)]),
     getTripCancellation(tripId, day),
     day ? getTripDetour(tripId, day) : Promise.resolve(null),
   ]);
+  const [scheduledResult, roadResult] = optional;
+  const scheduleFailed = scheduledResult.status === "rejected";
+  const scheduledStops: ScheduledStop[] =
+    scheduledResult.status === "fulfilled" ? scheduledResult.value : [];
+  const roadPath: Array<[number, number]> =
+    roadResult.status === "fulfilled" ? roadResult.value : [];
   const { route, vehicle_id } = timeline;
   // Nothing knows this run: no route row, no arrival on any day, no schedule.
-  if (!route && timeline.stops.length === 0 && scheduledStops.length === 0) notFound();
+  // Not when the schedule call failed, though - that is an outage, and a 404
+  // would tell the reader the run does not exist.
+  if (!route && !scheduleFailed && timeline.stops.length === 0 && scheduledStops.length === 0) {
+    notFound();
+  }
   const routeMode = route?.mode ?? "BUS";
 
   // Cancellation: the recorded arrivals against AT's flag tell a trip that never
@@ -272,8 +283,15 @@ export default async function TripPage({
       )}
 
       {mergedStops.length === 0 ? (
-        <p className="border border-at-border bg-at-surface p-4 text-at-muted">
-          No stop records found for this trip.
+        <p
+          className={cn(
+            "border border-at-border bg-at-surface p-4",
+            scheduleFailed ? "text-at-late" : "text-at-muted",
+          )}
+        >
+          {scheduleFailed
+            ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
+            : "No stop records found for this trip."}
         </p>
       ) : (
         <section className="border border-at-border bg-at-surface p-4">
