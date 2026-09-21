@@ -1,6 +1,7 @@
 // src/app/(home)/page.tsx
 // Home page: the network dashboard for a day, week or month. The day view is
-// rendered here; a week or month streams in PeriodOverview behind the header. When
+// rendered here; a week or month streams its three bands from one batch
+// (PeriodOverview) behind their headings and filter chips. When
 // no day is requested and the current service day is too sparse to fill the
 // boards (early morning, or ingest catching up), it falls back to the most
 // recent day that does. Mode, school-bus, delay-direction, and day filters each
@@ -14,14 +15,27 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
-import { PeriodOverview } from "@/components/PeriodOverview";
+import {
+  loadPeriodBatch,
+  PeriodBoards,
+  PeriodModeFilter,
+  PeriodStopCard,
+  PeriodTripCard,
+  PeriodVerdict,
+  type PeriodView,
+} from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
+import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
-import { FeatureCardPairSkeleton } from "@/components/SkeletonParts";
+import {
+  FeatureCardPairSkeleton,
+  FeatureCardSkeleton,
+  KpiStripSkeleton,
+} from "@/components/SkeletonParts";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -57,6 +71,7 @@ import {
 import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
+import { buildShameHref } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -75,6 +90,39 @@ interface HomeSearchParams {
   school?: string;
   dir?: string;
   day?: string;
+}
+
+/**
+ * Query params each home filter keeps when it links, so the filters compose:
+ * every control carries the other two filters plus the page's own view params
+ * (the day, or the window and period), and drops only the one it sets itself.
+ * @param filters - The active filters.
+ * @param filters.mode - Active mode, or null for every mode.
+ * @param filters.includeSchool - Whether school services are included.
+ * @param filters.dir - Delay-direction filter.
+ * @param view - The view params every control keeps; undefined values are left out.
+ * @returns One param set per control.
+ */
+function preservedFor(
+  filters: { mode: ModeFilterValue; includeSchool: boolean; dir: DelayDirection },
+  view: Record<string, string | undefined>,
+): Record<"mode" | "school" | "dir", Record<string, string>> {
+  const all: Record<string, string | undefined> = {
+    ...view,
+    mode: filters.mode ?? undefined,
+    school: filters.includeSchool ? "1" : undefined,
+    dir: filters.dir ?? undefined,
+  };
+  /**
+   * The full set minus one control's own param and any unset value.
+   * @param key - The param the control sets itself.
+   * @returns The params that control keeps.
+   */
+  const without = (key: string): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(all).filter((e): e is [string, string] => e[0] !== key && e[1] !== undefined),
+    );
+  return { mode: without("mode"), school: without("school"), dir: without("dir") };
 }
 
 /**
@@ -98,26 +146,78 @@ async function PeriodHome({
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
   const anchor = latest ?? new Date();
   const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest);
-  return (
-    <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-          {overviewHeading(nav, period)}
-        </h1>
-        <RangeControls basePath="/" nav={nav} />
-      </header>
+  const view: PeriodView = {
+    window,
+    mode,
+    dir,
+    includeSchool,
+    period: period ?? undefined,
+    range,
+    anchor,
+  };
+  // Started here and not awaited: each band's data part awaits the one promise,
+  // so the headings and chips between them never wait on the batch.
+  const batch = loadPeriodBatch(view);
+  const {
+    mode: modePreserved,
+    school: schoolPreserved,
+    dir: dirPreserved,
+  } = preservedFor({ mode, includeSchool, dir }, { window, period: view.period });
+  // The shame boards take the same window and filters, so their links carry both.
+  const shameNav = { window, period: view.period };
+  const shameFilter = { mode, includeSchool };
 
-      <Suspense fallback={<RankingsBodySkeleton />}>
-        <PeriodOverview
-          window={window}
-          mode={mode}
-          dir={dir}
-          includeSchool={includeSchool}
-          period={period ?? undefined}
-          range={range}
-          anchor={anchor}
+  // The same three bands as the day view; see its render for the layout rule.
+  return (
+    <main className="space-y-10">
+      <section className="space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+            {overviewHeading(nav, period)}
+          </h1>
+          <RangeControls basePath="/" nav={nav} />
+        </header>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Suspense
+            fallback={<ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />}
+          >
+            <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
+          </Suspense>
+          <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+        </div>
+
+        <Suspense fallback={<KpiStripSkeleton verdict />}>
+          <PeriodVerdict batch={batch} />
+        </Suspense>
+      </section>
+
+      <section className="space-y-4">
+        <SectionLink
+          title={`Shame of the ${window}`}
+          href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
-      </Suspense>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Suspense fallback={<FeatureCardSkeleton withHeadsign />}>
+            <PeriodTripCard batch={batch} window={window} />
+          </Suspense>
+          <Suspense fallback={<FeatureCardSkeleton />}>
+            <PeriodStopCard
+              batch={batch}
+              href={buildShameHref("/shame/stop", shameNav, shameFilter)}
+            />
+          </Suspense>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <RankingsHeader>
+          <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
+        </RankingsHeader>
+        <Suspense fallback={<RankingsBodySkeleton />}>
+          <PeriodBoards batch={batch} view={view} />
+        </Suspense>
+      </section>
     </main>
   );
 }
@@ -197,59 +297,39 @@ export default async function Home({
     size: Infinity,
   });
 
-  // Each control preserves the others' params so the filters compose in links.
-  const modePreserved: Record<string, string> = {};
-  const schoolPreserved: Record<string, string> = {};
-  const dirPreserved: Record<string, string> = {};
-  if (mode) {
-    schoolPreserved.mode = mode;
-    dirPreserved.mode = mode;
-  }
-  if (includeSchool) {
-    modePreserved.school = "1";
-    dirPreserved.school = "1";
-  }
-  if (dir) {
-    modePreserved.dir = dir;
-    schoolPreserved.dir = dir;
-  }
-  // A non-default day pins itself onto every other control's links.
-  if (requestedDay) {
-    modePreserved.day = requestedDay;
-    schoolPreserved.day = requestedDay;
-    dirPreserved.day = requestedDay;
-  }
+  const {
+    mode: modePreserved,
+    school: schoolPreserved,
+    dir: dirPreserved,
+  } = preservedFor({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
   const nav = dayRangeNav(serviceDate, earliestDay);
 
+  // Three bands: the day's verdict, its shame, and the route rankings. Mode and
+  // school sit in the first band because they filter all three; the direction
+  // chips sit on the rankings heading because they filter only the off-schedule
+  // board.
   return (
-    <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-          {overviewHeading(nav, null)}
-        </h1>
-        <RangeControls basePath="/" nav={nav} />
-      </header>
+    <main className="space-y-10">
+      <section className="space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
+            {overviewHeading(nav, null)}
+          </h1>
+          <RangeControls basePath="/" nav={nav} />
+        </header>
 
-      {serviceDate === DATA_START_DAY && (
-        <p className="text-sm text-at-muted">
-          This is the first day on record. Nothing before {DATA_START_LABEL} was captured.
-        </p>
-      )}
+        {serviceDate === DATA_START_DAY && (
+          <p className="text-sm text-at-muted">
+            This is the first day on record. Nothing before {DATA_START_LABEL} was captured.
+          </p>
+        )}
 
-      <AlertBanner
-        alerts={networkWideAlerts(await alertsPromise)}
-        pastWindow={linkDay !== undefined}
-      />
+        <AlertBanner
+          alerts={networkWideAlerts(await alertsPromise)}
+          pastWindow={linkDay !== undefined}
+        />
 
-      <FleetSummary data={heroData} />
-
-      <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
-      <Suspense fallback={<FeatureCardPairSkeleton />}>
-        <HomeShameCards range={range} mode={mode} includeSchool={includeSchool} linkDay={linkDay} />
-      </Suspense>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <ModeFilter
             active={mode}
@@ -259,51 +339,74 @@ export default async function Home({
           />
           <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
         </div>
-        <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-      </div>
 
-      {mode && visible.every((r) => r.events < boardMin) && (
-        <p className="text-sm text-at-muted">
-          Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day - try the{" "}
-          <Link
-            href={buildHref("/", { window: "week", mode, school: includeSchool ? "1" : undefined })}
-            className="underline"
-          >
-            week
-          </Link>{" "}
-          or switch back to All.
-        </p>
-      )}
+        <FleetSummary data={heroData} verdict />
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <RankBoard
-          title="Most off-schedule"
-          accentClass="text-at-ink"
-          rows={offSchedule.slice(0, BOARD_SIZE)}
-          metric="delay"
-          caption={ON_TIME_CAPTION}
-          cancelled={cancelledByRoute}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
-          total={offSchedule.length}
-          seeAllHref={buildHref("/routes", {
-            day: linkDay,
-            ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
-          })}
-        />
-        <RankBoard
-          title="Most reliable"
-          accentClass="text-at-ontime"
-          rows={boards.reliable.slice(0, BOARD_SIZE)}
-          metric="onTime"
-          caption={ON_TIME_SHARE_CAPTION}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
-          total={boards.reliable.length}
-          seeAllHref={buildHref("/routes", {
-            day: linkDay,
-            ...viewQuery("reliable", { mode, school: includeSchool }),
-          })}
-        />
-      </div>
+      <section className="space-y-4">
+        <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
+        <Suspense fallback={<FeatureCardPairSkeleton />}>
+          <HomeShameCards
+            range={range}
+            mode={mode}
+            includeSchool={includeSchool}
+            linkDay={linkDay}
+          />
+        </Suspense>
+      </section>
+
+      <section className="space-y-4">
+        <RankingsHeader>
+          <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
+        </RankingsHeader>
+
+        {mode && visible.every((r) => r.events < boardMin) && (
+          <p className="text-sm text-at-muted">
+            Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day - try the{" "}
+            <Link
+              href={buildHref("/", {
+                window: "week",
+                mode,
+                school: includeSchool ? "1" : undefined,
+              })}
+              className="underline"
+            >
+              week
+            </Link>{" "}
+            or switch back to All.
+          </p>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <RankBoard
+            title="Most off-schedule"
+            accentClass="text-at-ink"
+            rows={offSchedule.slice(0, BOARD_SIZE)}
+            metric="delay"
+            caption={ON_TIME_CAPTION}
+            cancelled={cancelledByRoute}
+            routeQuery={routeLinkQuery("day", linkDay, null)}
+            total={offSchedule.length}
+            seeAllHref={buildHref("/routes", {
+              day: linkDay,
+              ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
+            })}
+          />
+          <RankBoard
+            title="Most reliable"
+            accentClass="text-at-ontime"
+            rows={boards.reliable.slice(0, BOARD_SIZE)}
+            metric="onTime"
+            caption={ON_TIME_SHARE_CAPTION}
+            routeQuery={routeLinkQuery("day", linkDay, null)}
+            total={boards.reliable.length}
+            seeAllHref={buildHref("/routes", {
+              day: linkDay,
+              ...viewQuery("reliable", { mode, school: includeSchool }),
+            })}
+          />
+        </div>
+      </section>
     </main>
   );
 }

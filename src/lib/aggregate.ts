@@ -47,9 +47,12 @@ export const CATCH_UP_EXTRA_DAYS = 2;
  * The aggregation that rolls a service day up per route. The initial `$match`
  * carries no deviation filter, so every event contributes to the `events`
  * count and a route with ghost readings is not pushed below the rankings
- * threshold; the averages and on-time rates count only the real readings
- * through `$cond` guards. With the day classified (its ghost pass has just run)
- * the guards drop the magnitude bound, so a genuine three-hour delay counts.
+ * threshold. Everything computed from the readings - the averages and all three
+ * rates - counts only the real ones through the same `$cond` guard, and divides
+ * by the real-reading count rather than by `events`, so a run the nightly pass
+ * hid cannot move a route's on-time figure. With the day classified (its ghost
+ * pass has just run) the guard drops the magnitude bound, so a genuine
+ * three-hour delay counts.
  * Routes missing from the static Route collection (seen in realtime before the
  * nightly GTFS sync catches up) are kept with a bare `$unwind` that preserves
  * empties; their on-time pick falls through to the strict (bus) rule.
@@ -82,9 +85,9 @@ export function dailySummaryPipeline(
         _plausible: { $sum: { $cond: [plausible, 1, 0] } },
         w_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
         w_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
-        ...onTimeTwoCounts(),
-        ...earlyTwoCounts(),
-        late_count: lateSum(),
+        ...onTimeTwoCounts(plausible),
+        ...earlyTwoCounts(plausible),
+        late_count: lateSum(plausible),
       },
     },
     { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
@@ -94,9 +97,13 @@ export function dailySummaryPipeline(
       $addFields: {
         avg_delay_sec: { $divide: ["$w_delay", { $max: [1, "$_plausible"] }] },
         avg_abs_delay_sec: { $divide: ["$w_abs", { $max: [1, "$_plausible"] }] },
-        on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-        early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
-        late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
+        on_time_pct: {
+          $multiply: [{ $divide: ["$on_time_count", { $max: [1, "$_plausible"] }] }, 100],
+        },
+        early_pct: {
+          $multiply: [{ $divide: ["$early_count", { $max: [1, "$_plausible"] }] }, 100],
+        },
+        late_pct: { $multiply: [{ $divide: ["$late_count", { $max: [1, "$_plausible"] }] }, 100] },
       },
     },
     {

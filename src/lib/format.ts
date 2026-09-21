@@ -3,7 +3,7 @@
 
 // From the leaf rather than time.ts, which imports this module.
 import { NZ_TZ } from "@/lib/nz-tz";
-import { isOnTime } from "@/lib/on-time";
+import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";
@@ -67,6 +67,48 @@ export function formatDuration(sec: number): string {
   return parts.join(" ");
 }
 
+/** How an {@link offScheduleValue} reads at a glance: its colour band, or mixed. */
+export type OffScheduleTone = "ontime" | "early" | "late" | "mixed" | "unknown";
+
+/** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
+export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
+  ontime: "text-at-ontime",
+  early: "text-at-early",
+  late: "text-at-late",
+  mixed: "text-at-ink",
+  unknown: "text-at-muted",
+};
+
+/**
+ * The value a board ranked by average absolute deviation prints for one row.
+ * Always a distance: a run 2m late inside the on-time window reads "2m late" in
+ * the on-time colour, never the bare words "on time", or a board sorted "Most
+ * off" would list rows whose value names no distance at all. A consistently
+ * late or early row carries its direction; a mixed one, whose signed average
+ * is partly cancelled out, shows the magnitude as "5m 10s off".
+ * @param signedSec - Signed average deviation in seconds, or null when unknown.
+ * @param absSec - Average absolute deviation in seconds, or null to fall back
+ *   to the signed value's magnitude.
+ * @param mode - Route mode, for the on-time window behind the colour.
+ * @returns The text and its tone; the unknown dash when neither figure exists.
+ */
+export function offScheduleValue(
+  signedSec: number | null,
+  absSec: number | null,
+  mode: string,
+): { text: string; tone: OffScheduleTone } {
+  if (signedSec == null && absSec == null) return { text: UNKNOWN_VALUE, tone: "unknown" };
+  const signed = signedSec ?? 0;
+  const abs = absSec ?? Math.abs(signed);
+  if (!isConsistentlyLateOrEarly(signed, abs)) {
+    return { text: `${formatDuration(abs)} off`, tone: "mixed" };
+  }
+  const tone = isOnTime(signed, mode) ? "ontime" : signed < 0 ? "early" : "late";
+  // A zero threshold names the distance even inside the window; only a run
+  // that rounds to exactly 0s still reads "on time".
+  return { text: formatDelay(signed, { thresholdSec: 0 }), tone };
+}
+
 /**
  * Auckland-local day/month and year parts of a UTC instant.
  * @param d - UTC instant.
@@ -93,9 +135,10 @@ export function dmY(d: Date): { dm: string; y: string } {
 /**
  * Format a GTFS departure time string ("HH:MM:SS") as a short 12-hour clock
  * string. Handles GTFS extended times where hours >= 24 represent post-midnight
- * trips on the following calendar day (e.g. "25:30:00" displays as "1:30am").
+ * trips on the following calendar day (e.g. "25:30:00" displays as "1:30 am").
+ * Spaced like the en-NZ clock times elsewhere on the site.
  * @param hms - GTFS time string or null.
- * @returns Formatted time like "9:05am" / "1:30am", or null when input is null.
+ * @returns Formatted time like "9:05 am" / "1:30 am", or null when input is null.
  */
 export function formatGtfsTime(hms: string | null): string | null {
   if (!hms) return null;
@@ -107,5 +150,5 @@ export function formatGtfsTime(hms: string | null): string | null {
   // GTFS extended time: hours >= 24 wrap to the next calendar day.
   const suffix = hours % 24 < 12 ? "am" : "pm";
   hours = (hours % 24) % 12 || 12;
-  return `${hours}:${String(mins).padStart(2, "0")}${suffix}`;
+  return `${hours}:${String(mins).padStart(2, "0")} ${suffix}`;
 }

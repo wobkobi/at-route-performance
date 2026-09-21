@@ -4,6 +4,71 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.4] - 2026-09-22
+
+### Changed
+
+- The week and month pages show the verdict and boards as soon as the rankings are ready, and each
+  shame card loads on its own.
+
+## [1.32.3] - 2026-09-22
+
+### Changed
+
+- The current week and month now serve their last result while it refreshes, instead of recomputing
+  after every ingest run.
+
+## [1.32.2] - 2026-09-21
+
+### Fixed
+
+- The verdict scale now reads Great, Fine, Meh, Bit bad, Shit.
+
+## [1.32.1] - 2026-09-21
+
+### Changed
+
+- Group the home page into three bands: the verdict, the shame of the day and the route rankings.
+  Mode and school chips sit above the verdict, since they filter all three; the late/early chips sit
+  on the rankings heading. On a week or month the chips and headings no longer disappear while the
+  figures load.
+
+## [1.32.0] - 2026-09-21
+
+### Added
+
+- The home page answers its own question: the day (or week, or month) now leads with a one-word
+  verdict on the network on-time share, from "Actually fine" down to "Shit", with a five-step meter
+  and the sentence it is built from. The on-time popover lists the scale. The worst-trip card puts
+  its headsign on its own line so its route sits level with the worst stop beside it.
+
+## [1.31.7] - 2026-09-21
+
+### Fixed
+
+- Boards ranked by how far off schedule a run or route was now always show that distance: a run 2m
+  late inside the on-time window reads "2m late" in the on-time colour rather than "on time". The
+  trip page names its day, and timetable times are spaced like the rest of the site ("12:49 pm").
+
+## [1.31.6] - 2026-09-21
+
+### Fixed
+
+- A run the nightly pass hid as a ghost no longer occupies a row or counts in a route's Trips
+  figure, and the on-time, early and late rates on the day boards and rankings count only real
+  readings, so a hidden run cannot move a route's on-time figure. Every cached board is recomputed
+  once on deploy so a repaired day stops serving its old numbers.
+
+## [1.31.5] - 2026-09-21
+
+### Changed
+
+- Every day board now files a run under the service date ingest stamped on it rather than
+  recomputing it from the clock, so a run that crosses 4am is counted once, whole, on the day it
+  started. The route-shame streaks were also folding a fortnight of one trip's runs into a single
+  row on its earliest day, because AT reuses a trip id on every day its timetable runs; streaks now
+  count each day's runs.
+
 ## [1.31.4] - 2026-09-21
 
 ### Fixed

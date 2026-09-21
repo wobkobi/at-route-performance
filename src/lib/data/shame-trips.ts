@@ -4,12 +4,12 @@ import { cachedForDay, cachedForRange, scheduledAtWindow, toIso } from "@/lib/da
 import { SCHOOL_BUS_REGEX, type ShameFilter } from "@/lib/data/shame-filter";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { serviceDateExpr } from "@/lib/service-day-expr";
 import {
   type DateRange,
   NZ_TZ,
   SERVICE_START_HOUR,
   nzServiceDayRange,
+  padScanRange,
   serviceDatesInRange,
 } from "@/lib/time";
 import type { ShameOfDay, ShameOfWeek, ShameTrip } from "@/types/dashboard";
@@ -78,7 +78,8 @@ export async function getShameOfDay(
       const pipeline: any[] = [
         {
           $match: {
-            scheduledAt: scheduledAtWindow(range),
+            scheduledAt: scheduledAtWindow(padScanRange(range)),
+            serviceDate: { $in: serviceDatesInRange(range) },
             ...realDeviationMatchFor(classified),
           },
         },
@@ -243,7 +244,8 @@ function shamePipelineBase(
   const pipeline: any[] = [
     {
       $match: {
-        scheduledAt: scheduledAtWindow(range),
+        scheduledAt: scheduledAtWindow(padScanRange(range)),
+        serviceDate: { $in: serviceDatesInRange(range) },
         ...realDeviationMatchFor(classified),
       },
     },
@@ -252,6 +254,9 @@ function shamePipelineBase(
         _id: "$tripId",
         route_id: { $first: "$routeId" },
         scheduled_start: { $min: "$scheduledAt" },
+        // $min, not $first: $first is order-dependent without a preceding
+        // $sort, so a run whose readings disagreed would bucket at random.
+        service_date: { $min: "$serviceDate" },
         _stops: { $addToSet: "$stopId" },
         avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
         avg_delay_sec: { $avg: "$deviationSec" },
@@ -299,7 +304,7 @@ function shamePipelineBase(
  * The week's "Shame of the Week": the single most off-schedule run plus the
  * worst run of each service day, within the chosen filter. Mirrors
  * {@link getShameOfDay} but groups by service day instead of hour, bucketing
- * each run with {@link serviceDateExpr}. Cached at the supplied revalidate rate.
+ * each run by the service date ingest stamped on it. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters mirroring the home page.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
@@ -351,9 +356,9 @@ async function worstTripsForRange(
   const pipeline = shamePipelineBase(range, mode, includeSchool, classified);
   pipeline.push(
     {
-      // Bucket each run by the service day its start falls in, so a
-      // post-midnight run lands under the day it belongs to.
-      $addFields: { serviceDay: serviceDateExpr("$scheduled_start") },
+      // The day each run belongs to, as ingest stamped it, so a post-midnight
+      // run lands under the day it started rather than the day it ended.
+      $addFields: { serviceDay: "$service_date" },
     },
     // Worst run per service day via a bounded per-group $top (one row per day)
     // instead of a global blocking $sort, which can exceed the cluster's 32MB

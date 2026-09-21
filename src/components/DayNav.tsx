@@ -2,12 +2,10 @@
 // Date label with previous/next day stepper links for the shame views.
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
-import { parseYmd, shiftWeek, weekdayShort } from "@/lib/time";
+import { serviceDayLabel, shiftWeek } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Props for {@link DayNav}. */
 export interface DayNavProps {
@@ -28,16 +26,6 @@ export interface DayNavProps {
   nextHref?: string;
   /** Whether the shown day is the archive's first, so the absent chevron reads as a fact. */
   atFloor?: boolean;
-}
-
-/**
- * Format a `YYYY-MM-DD` service date as `Wed 18 Jun`.
- * @param ymd - The date.
- * @returns The label.
- */
-function dateLabel(ymd: string): string {
-  const { mo, d } = parseYmd(ymd);
-  return `${weekdayShort(ymd)} ${d} ${MONTHS[mo - 1] ?? ""}`;
 }
 
 /**
@@ -100,7 +88,9 @@ export function DayNav({
         </Link>
       )}
       {!hasPrev && atFloor && <span className="px-1 text-xs text-at-muted">first day</span>}
-      <span className="px-2 text-sm font-semibold tabular-nums">{dateLabel(serviceDate)}</span>
+      <span className="px-2 text-sm font-semibold tabular-nums">
+        {serviceDayLabel(serviceDate)}
+      </span>
       {hasNext && (
         <Link
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}

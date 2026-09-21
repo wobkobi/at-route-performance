@@ -5,7 +5,12 @@ import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { getLastIngestRun, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import { unstable_cache } from "@/lib/mem-cache";
-import { type DateRange, nzServiceDayRange, serviceDatesInRange } from "@/lib/time";
+import {
+  type DateRange,
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDatesInRange,
+} from "@/lib/time";
 
 /**
  * Normalise an extended-JSON date (`{ $date }`) or ISO string to an ISO string.
@@ -21,6 +26,25 @@ export const MS_IN_DAY = 86_400_000;
 
 /** Cache TTL for a completed, classified service day's aggregation (seconds). */
 const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
+
+/**
+ * Bumped whenever the ghost classification changes what a completed day's boards
+ * say. A recompute changes neither the cache key nor the seven-day TTL, and
+ * `unstable_cache` persists its entries across requests and deployments, so
+ * without this a repaired day keeps serving its old numbers for a week.
+ */
+const PASS_VERSION = "g2";
+
+/**
+ * The full key an aggregation caches under: the classification version, the
+ * caller's own parts, then the window's state.
+ * @param keyParts - Cache key parts unique to the query and its window.
+ * @param state - The window's state, from {@link cacheState}.
+ * @returns The key parts, in order.
+ */
+export function cacheKey(keyParts: readonly string[], state: string): string[] {
+  return [PASS_VERSION, ...keyParts, state];
+}
 
 /**
  * Cache TTL for a window that can still change - anything touching the live
@@ -82,7 +106,13 @@ export async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
  * - `ended` for a window that is over but not yet summarised, so a board
  *   computed while the day was still running (cut off at that moment) is never
  *   served for the finished day;
- * - `run-<ms>` for a window still running, keyed by the ingest run behind it;
+ * - `open-<service date>` for a still-running window of more than one day (the
+ *   current week or month), one key per service day, so the Data Cache serves
+ *   the last result and refreshes it in the background once the caller's TTL
+ *   passes. Keyed by run, a week-wide scan would be thrown away every couple of
+ *   minutes and paid again by the next reader, for figures one run barely
+ *   moves. The day in the key means a new day still starts a fresh entry;
+ * - `run-<ms>` for a single live day, keyed by the ingest run behind it;
  * - `live-<n>` for a running window with no run logged yet, a new key every TTL,
  *   so the live day is never more than one TTL behind however long ago the last
  *   visit was.
@@ -110,6 +140,9 @@ export function cacheState(
 ): string {
   if (final) return "final";
   if (range !== null && range.end.getTime() <= now) return "ended";
+  if (range !== null && serviceDatesInRange(range).length > 1) {
+    return `open-${nzServiceDayString(new Date(now))}`;
+  }
   if (lastIngestMs !== null) return `run-${lastIngestMs}`;
   return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
 }
@@ -148,7 +181,7 @@ export async function cachedForRange<T>(
     : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
   return unstable_cache(
     fn,
-    [...keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)],
+    cacheKey(keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)),
     { revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate },
   )(final);
 }

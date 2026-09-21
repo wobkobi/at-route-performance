@@ -220,6 +220,27 @@ export function nzServiceDayRange(
 }
 
 /**
+ * Widen a service-day-aligned window to hold the tail of a run that started
+ * just before its end. A query that filters on the stored service date has to
+ * reach this far past the boundary or it drops the last readings of the day's
+ * last run, and the equality then throws away the extra rows the pad let in.
+ * @param range - The service-day-aligned window.
+ * @returns The same window with {@link RUN_TAIL_HOURS} added to its end.
+ */
+export function padScanRange(range: DateRange): DateRange {
+  return { start: range.start, end: new Date(range.end.getTime() + RUN_TAIL_HOURS * 3_600_000) };
+}
+
+/**
+ * The `scheduledAt` window that holds every reading of one service day's runs.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns The day's window, padded for the run tail.
+ */
+export function serviceDayScanRange(date: string): DateRange {
+  return padScanRange(nzServiceDayRange(date));
+}
+
+/**
  * The instant a GTFS schedule time falls at within a service day. GTFS measures
  * times from "noon minus 12h" of the service date, which is local midnight
  * except on a DST-switch day; the service day's 4am start minus four real hours
@@ -467,6 +488,33 @@ export function weekdayShort(ymd: string): string {
   return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short" }).format(
     new Date(`${ymd}T00:00:00Z`),
   );
+}
+
+/** Short month names, indexed 0-11. */
+const MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/**
+ * A service date as `Sun 13 Sep`, the label the day stepper, the cancellation
+ * list and the trip page all use for one day.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The label.
+ */
+export function serviceDayLabel(ymd: string): string {
+  const { mo, d } = parseYmd(ymd);
+  return `${weekdayShort(ymd)} ${d} ${MONTHS_SHORT[mo - 1] ?? ""}`;
 }
 
 /**

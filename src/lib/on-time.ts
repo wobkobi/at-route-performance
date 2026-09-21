@@ -98,41 +98,45 @@ export function isConsistentlyLateOrEarly(avgDelaySec: number, avgAbsDelaySec: n
 // reference a joined `route.mode`. They return plain objects for $runCommandRaw.
 
 /**
+ * Wrap a counter's condition so a pipeline can count only the rows it considers
+ * real. Every counter below takes the same optional gate, so a caller guarding
+ * its averages with an expression guards its rates with the identical one rather
+ * than restating the on-time window a second time.
+ * @param cond - The counter's own condition.
+ * @param when - A condition a row must also meet, or undefined to count every row.
+ * @returns The `$sum` accumulator.
+ */
+function countWhen(cond: object, when?: object): object {
+  return { $sum: { $cond: [when ? { $and: [when, cond] } : cond, 1, 0] } };
+}
+
+/**
  * Two `$sum` accumulators for the on-time count under each rule, for pipelines
  * that learn a group's mode only after a later `$lookup` (group by routeId, then
  * pick with {@link pickOnTimeByRouteMode}).
+ * @param when - Optional gate a row must also meet to be counted.
  * @returns `{ on_time_strict, on_time_ferry }` accumulator expressions.
  */
-export function onTimeTwoCounts(): { on_time_strict: object; on_time_ferry: object } {
+export function onTimeTwoCounts(when?: object): { on_time_strict: object; on_time_ferry: object } {
   return {
-    on_time_strict: {
-      $sum: {
-        $cond: [
-          {
-            $and: [
-              { $gte: ["$deviationSec", -BUS_EARLY_SEC] },
-              { $lte: ["$deviationSec", ON_TIME_LATE_SEC] },
-            ],
-          },
-          1,
-          0,
+    on_time_strict: countWhen(
+      {
+        $and: [
+          { $gte: ["$deviationSec", -BUS_EARLY_SEC] },
+          { $lte: ["$deviationSec", ON_TIME_LATE_SEC] },
         ],
       },
-    },
-    on_time_ferry: {
-      $sum: {
-        $cond: [
-          {
-            $and: [
-              { $gte: ["$deviationSec", -ON_TIME_LATE_SEC] },
-              { $lte: ["$deviationSec", ON_TIME_LATE_SEC] },
-            ],
-          },
-          1,
-          0,
+      when,
+    ),
+    on_time_ferry: countWhen(
+      {
+        $and: [
+          { $gte: ["$deviationSec", -ON_TIME_LATE_SEC] },
+          { $lte: ["$deviationSec", ON_TIME_LATE_SEC] },
         ],
       },
-    },
+      when,
+    ),
   };
 }
 
@@ -144,22 +148,24 @@ export const pickOnTimeByRouteMode = {
 /**
  * A `$sum` accumulator counting events that ran late (beyond the 5-minute late
  * bound). Mode-independent, so it needs no later mode pick.
+ * @param when - Optional gate a row must also meet to be counted.
  * @returns A `$sum` of 1/0 per event.
  */
-export function lateSum(): object {
-  return { $sum: { $cond: [{ $gt: ["$deviationSec", ON_TIME_LATE_SEC] }, 1, 0] } };
+export function lateSum(when?: object): object {
+  return countWhen({ $gt: ["$deviationSec", ON_TIME_LATE_SEC] }, when);
 }
 
 /**
  * Two `$sum` accumulators for the early count under each rule, for pipelines that
  * learn a group's mode only after a later `$lookup` (pick with
  * {@link pickEarlyByRouteMode}). Early = ahead of the mode's early tolerance.
+ * @param when - Optional gate a row must also meet to be counted.
  * @returns `{ early_strict, early_ferry }` accumulator expressions.
  */
-export function earlyTwoCounts(): { early_strict: object; early_ferry: object } {
+export function earlyTwoCounts(when?: object): { early_strict: object; early_ferry: object } {
   return {
-    early_strict: { $sum: { $cond: [{ $lt: ["$deviationSec", -BUS_EARLY_SEC] }, 1, 0] } },
-    early_ferry: { $sum: { $cond: [{ $lt: ["$deviationSec", -ON_TIME_LATE_SEC] }, 1, 0] } },
+    early_strict: countWhen({ $lt: ["$deviationSec", -BUS_EARLY_SEC] }, when),
+    early_ferry: countWhen({ $lt: ["$deviationSec", -ON_TIME_LATE_SEC] }, when),
   };
 }
 

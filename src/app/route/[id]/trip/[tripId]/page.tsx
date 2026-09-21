@@ -21,7 +21,7 @@ import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
-import { nzClockTime, nzServiceDayRange, nzServiceDayString } from "@/lib/time";
+import { nzClockTime, nzServiceDayRange, nzServiceDayString, serviceDayLabel } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
@@ -30,19 +30,28 @@ import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
 /**
- * Per-trip page title, so a tab and a shared link name the route and the run.
+ * Per-trip page title, so a tab and a shared link name the route, the run and,
+ * when the link carries one, the day it ran. AT reuses a trip id every day its
+ * timetable runs, so without the day two tabs of one id read the same.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id, tripId }`.
+ * @param root0.searchParams - Optional query params (`d` = the run's instant).
  * @returns Title metadata for the trip.
  */
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; tripId: string }>;
+  searchParams?: Promise<{ d?: string }>;
 }): Promise<Metadata> {
   const { id, tripId } = await params;
+  const { d } = (await searchParams) ?? {};
+  const dAt = d ? new Date(d) : null;
+  const dayPart =
+    dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
   return {
-    title: `Trip ${tripId} on ${routeSlug(id)}`,
+    title: `Trip ${tripId} on ${routeSlug(id)}${dayPart}`,
     description: `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`,
   };
 }
@@ -228,6 +237,7 @@ export default async function TripPage({
           {title}
         </h1>
         <p className="text-at-muted">
+          {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
           {departing ? `Trip departing ${departing}` : "Trip"}
           {vehicle_id && ` · ${vehicle_id}`}
         </p>

@@ -9,13 +9,13 @@ import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
-import { serviceDateExpr } from "@/lib/service-day-expr";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/station";
 import {
   type DateRange,
   nzLast7DaysRange,
   nzServiceDayRange,
   nzServiceDayString,
+  padScanRange,
   serviceDatesInRange,
 } from "@/lib/time";
 import type { RouteByStop, RouteDay, RouteSummary } from "@/types/api";
@@ -393,14 +393,18 @@ export async function getRouteDailyStats(
               {
                 $match: {
                   routeId: { $in: routeIds },
-                  scheduledAt: scheduledAtWindow(live),
+                  // liveDates, not serviceDatesInRange(live): a summarised day
+                  // sitting between two unsummarised ones is already excluded
+                  // from the list, and the equality must not let it back in.
+                  scheduledAt: scheduledAtWindow(padScanRange(live)),
+                  serviceDate: { $in: liveDates },
                   // Only unsummarised days are scanned here, so the guard stays on.
                   ...realDeviationMatchFor(false),
                 },
               },
               {
                 $group: {
-                  _id: serviceDateExpr("$scheduledAt"),
+                  _id: "$serviceDate",
                   events: { $sum: 1 },
                   avg_delay_sec: { $avg: "$deviationSec" },
                   avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },

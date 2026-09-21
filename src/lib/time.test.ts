@@ -11,10 +11,13 @@ import {
   nzServiceDayString,
   nzWeekRange,
   nzWeekStart,
+  padScanRange,
   SERVICE_START_HOUR,
   serviceDatesInRange,
   serviceDayClockInstant,
+  serviceDayLabel,
   serviceDayNoon,
+  serviceDayScanRange,
   shiftMonth,
   weekdayShort,
 } from "@/lib/time";
@@ -292,5 +295,36 @@ describe("serviceDayNoon", () => {
       expect(nzServiceDayString(serviceDayNoon("2026-04-05"), startHour)).toBe("2026-04-05");
     }
     expect(nzServiceDayString(serviceDayNoon("2026-09-11"), SERVICE_START_HOUR)).toBe("2026-09-11");
+  });
+});
+
+describe("serviceDayScanRange", () => {
+  it("adds the run tail to the service day's end", () => {
+    const { start, end } = serviceDayScanRange("2026-09-15");
+    expect(start.toISOString()).toBe("2026-09-14T16:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-09-15T19:00:00.000Z");
+  });
+
+  it("keeps the pad on the short and the long DST day", () => {
+    // 2026-09-26 is 23 hours long, 2027-04-03 is 25; the pad is three hours
+    // past whatever the day's own end turned out to be.
+    expect(serviceDayScanRange("2026-09-26").end.toISOString()).toBe("2026-09-26T18:00:00.000Z");
+    expect(serviceDayScanRange("2027-04-03").end.toISOString()).toBe("2027-04-03T19:00:00.000Z");
+  });
+
+  it("pads any window, not only a single day", () => {
+    const week = {
+      start: new Date("2026-09-06T16:00:00Z"),
+      end: new Date("2026-09-13T16:00:00Z"),
+    };
+    expect(padScanRange(week).start.toISOString()).toBe("2026-09-06T16:00:00.000Z");
+    expect(padScanRange(week).end.toISOString()).toBe("2026-09-13T19:00:00.000Z");
+  });
+});
+
+describe("serviceDayLabel", () => {
+  it("names the weekday, day and month of the date itself", () => {
+    expect(serviceDayLabel("2026-09-13")).toBe("Sun 13 Sep");
+    expect(serviceDayLabel("2027-01-01")).toBe("Fri 1 Jan");
   });
 });
