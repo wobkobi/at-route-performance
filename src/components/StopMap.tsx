@@ -10,7 +10,7 @@ import { vehicleStatus } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Stop for map rendering */
 interface StopPoint {
@@ -43,6 +43,17 @@ const NO_OFF_ROUTE: OffRoutePoint[] = [];
  * server caches the AT feed for 120s, so polling faster only re-reads the cache.
  */
 const POLL_MS = 120_000;
+
+/** How long a vehicle takes to glide from its last polled position to its new one. */
+const GLIDE_MS = 1000;
+
+/** Options for a vehicle's floating delay label. */
+const VEHICLE_TOOLTIP: Leaflet.TooltipOptions = {
+  permanent: true,
+  direction: "right",
+  offset: [4, 0],
+  className: "bus-delay-label",
+};
 
 /**
  * Zoom for focusing a single stop: a neighbourhood view that shows surrounding
@@ -243,6 +254,102 @@ interface MapState {
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
   markerById: Map<string, Leaflet.CircleMarker>;
+  /** Live vehicle markers by vehicle id, reused from one poll to the next. */
+  vehicles: Map<string, VehicleEntry>;
+}
+
+/** A live vehicle's marker and what it last showed, so a poll changes only what moved. */
+interface VehicleEntry {
+  marker: Leaflet.Marker;
+  /** Colour, mode and heading the icon was built from; a new icon only when they change. */
+  iconKey: string;
+  label: string | null;
+}
+
+/**
+ * Let a marker and its label slide to the next position rather than jump. The
+ * transition is switched on only for the length of one glide: left on, it would
+ * also drag the marker behind every zoom, when Leaflet repositions it.
+ * @param marker - The vehicle marker about to move.
+ */
+function glide(marker: Leaflet.Marker): void {
+  const els = [marker.getElement(), marker.getTooltip()?.getElement()].filter(
+    (el): el is HTMLElement => el != null,
+  );
+  for (const el of els) el.classList.add("vehicle-gliding");
+  setTimeout(() => {
+    for (const el of els) el.classList.remove("vehicle-gliding");
+  }, GLIDE_MS);
+}
+
+/**
+ * Bring the vehicle markers in line with one poll, keyed by vehicle id. A vehicle
+ * already on the map keeps its marker and glides to its new position, so an open
+ * popup, a hover and keyboard focus all survive the poll; its icon, label and
+ * popup change only where the poll changed them. A vehicle missing from the poll
+ * is removed, and a new one is added.
+ * @param state - The map state holding the vehicle layer and markers.
+ * @param vehicles - The vehicles to show, already filtered to this map.
+ * @param mode - The route's mode, which sets the glyph and the on-time window.
+ */
+function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode): void {
+  const { L, colours } = state;
+  const seen = new Set<string>();
+  for (const veh of vehicles) {
+    seen.add(veh.vehicleId);
+    // One verdict for the ring, the label and the popup, on the same mode-aware
+    // window as every figure on the page.
+    const status = vehicleStatus(veh.delaySec, mode);
+    const colour = status.band === "unknown" ? colours.muted : colours[status.band];
+    const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
+    const iconKey = `${colour}|${mode}|${bearing}`;
+    const popup = `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${esc(status.detail)}`;
+
+    const entry = state.vehicles.get(veh.vehicleId);
+    if (!entry) {
+      const marker = L.marker([veh.lat, veh.lon], {
+        icon: vehicleIcon(L, { colour, mode, bearing }),
+      });
+      if (status.label) marker.bindTooltip(status.label, VEHICLE_TOOLTIP);
+      marker.bindPopup(popup);
+      marker.addTo(state.vehicleLayer);
+      state.vehicles.set(veh.vehicleId, { marker, iconKey, label: status.label });
+      continue;
+    }
+
+    const { marker } = entry;
+    const prev = marker.getLatLng();
+    if (prev.lat !== veh.lat || prev.lng !== veh.lon) {
+      glide(marker);
+      marker.setLatLng([veh.lat, veh.lon]);
+    }
+    // A divIcon reuses its element when replaced, so focus stays on the marker.
+    if (entry.iconKey !== iconKey) {
+      marker.setIcon(vehicleIcon(L, { colour, mode, bearing }));
+      entry.iconKey = iconKey;
+    }
+    if (entry.label !== status.label) {
+      if (status.label == null) marker.unbindTooltip();
+      else if (entry.label == null) marker.bindTooltip(status.label, VEHICLE_TOOLTIP);
+      else marker.setTooltipContent(status.label);
+      entry.label = status.label;
+    }
+    marker.setPopupContent(popup);
+  }
+  for (const [id, entry] of state.vehicles) {
+    if (seen.has(id)) continue;
+    state.vehicleLayer.removeLayer(entry.marker);
+    state.vehicles.delete(id);
+  }
+}
+
+/**
+ * Remove every live vehicle marker, when polling stops.
+ * @param state - The map state holding the vehicle layer and markers.
+ */
+function clearVehicles(state: MapState): void {
+  state.vehicleLayer.clearLayers();
+  state.vehicles.clear();
 }
 
 /**
@@ -448,6 +555,8 @@ export default function StopMap({
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
+  // Set once the async map setup has finished, so the vehicle poll can start.
+  const [ready, setReady] = useState(false);
   // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
   // the current mode reachable without rebuilding the map when the prop changes.
   const modeRef = useRef<RouteMode>(mode);
@@ -480,12 +589,10 @@ export default function StopMap({
   });
 
   // --- Effect 1: initialise map once -------------------------------------------
-  // Creates the Leaflet instance and layer groups, draws the initial content, sets
-  // up the viewport, and starts live-vehicle polling. Tears down on unmount only.
+  // Creates the Leaflet instance and layer groups, draws the initial content and
+  // sets up the viewport. Tears down on unmount only.
   useEffect(() => {
     let dead = false;
-    const ctrl = new AbortController();
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     void (async () => {
       const L = (await import("leaflet")) as typeof import("leaflet");
@@ -529,6 +636,7 @@ export default function StopMap({
         stopLayer: L.layerGroup().addTo(map),
         vehicleLayer: L.layerGroup().addTo(map),
         markerById: new Map(),
+        vehicles: new Map(),
       };
       stateRef.current = state;
 
@@ -574,81 +682,11 @@ export default function StopMap({
         }
       }
 
-      // A past day's map shows where vehicles are right now, not where they were, so
-      // only a view that covers now polls.
-      if (!rId || !latestRef.current.live) return;
-
-      /** Fetch and redraw live vehicles, reading always-current values from latestRef. */
-      const pollVehicles = async (): Promise<void> => {
-        const {
-          routeId: pollRId,
-          stops: pollStops,
-          filterTripId: pollFTrip,
-          filterDirectionIds: pollFDirs,
-          mode: pollMode,
-        } = latestRef.current;
-        if (!pollRId || !stateRef.current || dead) return;
-        try {
-          const res = await fetch(`/api/routes/${encodeURIComponent(pollRId)}/vehicles`, {
-            cache: "no-store",
-            signal: ctrl.signal,
-          });
-          if (!res.ok || dead || !stateRef.current) return;
-          const data = (await res.json()) as { vehicles: LiveVehicle[] };
-          if (dead || !stateRef.current) return;
-
-          state.vehicleLayer.clearLayers();
-          let vehicles = pollFTrip
-            ? data.vehicles.filter((v) => v.tripId === pollFTrip)
-            : data.vehicles;
-          if (!pollFTrip) {
-            if (pollFDirs) {
-              vehicles = vehicles.filter(
-                (v) => v.directionId == null || pollFDirs.includes(v.directionId),
-              );
-            }
-            if (pollStops.length > 0) {
-              vehicles = vehicles.filter((v) =>
-                pollStops.some((st) => haversineKm(v.lat, v.lon, st.lat, st.lon) < 2.0),
-              );
-            }
-          }
-          for (const veh of vehicles) {
-            // One verdict for the ring, the label and the popup, on the same
-            // mode-aware window as every figure on the page.
-            const status = vehicleStatus(veh.delaySec, pollMode);
-            const colour = status.band === "unknown" ? colours.muted : colours[status.band];
-            const vehMarker = L.marker([veh.lat, veh.lon], {
-              icon: vehicleIcon(L, { colour, mode: pollMode, bearing: veh.bearing }),
-            });
-            if (status.label) {
-              vehMarker.bindTooltip(status.label, {
-                permanent: true,
-                direction: "right",
-                offset: [4, 0],
-                className: "bus-delay-label",
-              });
-            }
-            vehMarker.bindPopup(
-              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${esc(status.detail)}`,
-            );
-            vehMarker.addTo(state.vehicleLayer);
-          }
-        } catch {
-          // Aborted on unmount or transient fetch error; ignore.
-        }
-      };
-
-      await pollVehicles();
-      pollTimer = setInterval(() => {
-        if (document.visibilityState === "visible") void pollVehicles();
-      }, POLL_MS);
+      setReady(true);
     })();
 
     return () => {
       dead = true;
-      ctrl.abort();
-      if (pollTimer) clearInterval(pollTimer);
       stateRef.current?.map.remove();
       stateRef.current = null;
     };
@@ -680,6 +718,88 @@ export default function StopMap({
     });
     marker.openPopup();
   }, [selectedStopId]);
+
+  // --- Effect 4: poll live vehicles while the view covers now ------------------
+  // A past day's map shows where vehicles are right now, not where they were, so
+  // only a live view polls. Keyed on `live` and `routeId`, so a view that turns
+  // live after mount starts polling, and one that stops being live clears its
+  // vehicles. A hidden tab skips its polls, so returning to it polls straight away
+  // when the last positions are a full poll old.
+  useEffect(() => {
+    const state = stateRef.current;
+    if (!ready || !state || !live || !routeId) return;
+    let dead = false;
+    const ctrl = new AbortController();
+    let lastPoll = 0;
+
+    /** Fetch the route's vehicles and move the markers, reading current props. */
+    const poll = async (): Promise<void> => {
+      lastPoll = Date.now();
+      const {
+        stops: pollStops,
+        filterTripId: pollFTrip,
+        filterDirectionIds: pollFDirs,
+        mode: pollMode,
+      } = latestRef.current;
+      try {
+        const res = await fetch(`/api/routes/${encodeURIComponent(routeId)}/vehicles`, {
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+        if (!res.ok || dead) return;
+        const data = (await res.json()) as { vehicles: LiveVehicle[] };
+        if (dead) return;
+
+        let vehicles = pollFTrip
+          ? data.vehicles.filter((v) => v.tripId === pollFTrip)
+          : data.vehicles;
+        if (!pollFTrip) {
+          if (pollFDirs) {
+            vehicles = vehicles.filter(
+              (v) => v.directionId == null || pollFDirs.includes(v.directionId),
+            );
+          }
+          if (pollStops.length > 0) {
+            vehicles = vehicles.filter((v) =>
+              pollStops.some((st) => haversineKm(v.lat, v.lon, st.lat, st.lon) < 2.0),
+            );
+          }
+        }
+        syncVehicles(state, vehicles, pollMode);
+      } catch {
+        // Aborted on cleanup or transient fetch error; ignore.
+      }
+    };
+
+    /** Poll on returning to the tab, when the last positions are a full poll old. */
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible" && Date.now() - lastPoll >= POLL_MS) {
+        void poll();
+      }
+    };
+    /** End any running glide, which would otherwise drag its marker behind a zoom. */
+    const stopGlides = (): void => {
+      for (const el of state.map.getContainer().querySelectorAll(".vehicle-gliding")) {
+        el.classList.remove("vehicle-gliding");
+      }
+    };
+
+    void poll();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void poll();
+    }, POLL_MS);
+    document.addEventListener("visibilitychange", onVisible);
+    state.map.on("zoomstart", stopGlides);
+
+    return () => {
+      dead = true;
+      ctrl.abort();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      state.map.off("zoomstart", stopGlides);
+      clearVehicles(state);
+    };
+  }, [ready, live, routeId]);
 
   // `isolate` keeps Leaflet's high pane z-indexes (200-700) in their own stacking
   // context so they don't paint over the sticky header.

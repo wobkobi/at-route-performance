@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.4] - 2026-09-22
+
+### Changed
+
+- Live vehicles glide to their new positions instead of flickering on every refresh, keep an open
+  popup, refresh straight away when you come back to the tab, and start updating when a view turns
+  live.
+
 ## [1.36.3] - 2026-09-22
 
 ### Fixed

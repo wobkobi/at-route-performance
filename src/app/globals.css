@@ -199,6 +199,11 @@
   line-height: 0;
 }
 
+/* A vehicle and its label sliding to a new polled position; see glide() in StopMap. */
+.vehicle-gliding {
+  transition: transform 1s linear;
+}
+
 /*
   Reduced motion: the pill and button hover transitions become instant, and the
   stepper pulse becomes a still dim, since a waiting click still needs
@@ -212,5 +217,8 @@
   .step-pending {
     animation: none;
     opacity: 0.4;
+  }
+  .vehicle-gliding {
+    transition: none;
   }
 }
