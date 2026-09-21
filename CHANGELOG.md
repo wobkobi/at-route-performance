@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.1] - 2026-09-22
+
+### Fixed
+
+- A live vehicle's ring, floating label and popup now agree: all three use the mode's on-time
+  window, the label says the same distance as the popup, a delay inside the window says how far off
+  it is, and a vehicle with no live delay is grey instead of on-time blue.
+
 ## [1.36.0] - 2026-09-22
 
 ### Added

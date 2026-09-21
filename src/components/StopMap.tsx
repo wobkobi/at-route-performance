@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { cartoTileUrl } from "@/lib/map-tiles";
+import { vehicleStatus } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
@@ -37,9 +38,6 @@ export interface OffRoutePoint {
 /** Stable empty default for `offRoute`, so the redraw effect does not rerun on every render. */
 const NO_OFF_ROUTE: OffRoutePoint[] = [];
 
-/** Vehicles beyond this many seconds off schedule are coloured late/early. */
-const VEHICLE_THRESHOLD = 120;
-
 /**
  * How often to refresh live vehicle positions while the tab is visible. The
  * server caches the AT feed for 120s, so polling faster only re-reads the cache.
@@ -68,16 +66,6 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.asin(Math.sqrt(a));
-}
-
-/**
- * Compact delay label for a bus map marker, e.g. `4m late` / `3m early`.
- * @param sec - Signed deviation in seconds (negative early, positive late).
- * @returns A short label rounded to the nearest minute.
- */
-function busLabel(sec: number): string {
-  const mins = Math.max(1, Math.round(Math.abs(sec) / 60));
-  return `${mins}m ${sec > 0 ? "late" : "early"}`;
 }
 
 /**
@@ -204,6 +192,8 @@ interface MapColours {
   late: string;
   early: string;
   ontime: string;
+  /** A vehicle with no live delay, so it never reads as on time. */
+  muted: string;
   ink: string;
   shore: string;
   border: string;
@@ -221,6 +211,7 @@ function readColours(): MapColours {
     late: cssVar("--color-at-late") || "#de0a2b",
     early: cssVar("--color-at-early") || "#95c11f",
     ontime: cssVar("--color-at-ontime") || "#0073bd",
+    muted: cssVar("--color-at-muted") || "#667583",
     ink: cssVar("--color-at-ink") || "#001930",
     shore: cssVar("--color-at-shore") || "#0073bd",
     border: cssVar("--color-at-border") || "#c7ced6",
@@ -610,20 +601,15 @@ export default function StopMap({
             }
           }
           for (const veh of vehicles) {
-            const d = veh.delaySec;
-            const colour =
-              d == null
-                ? colours.ontime
-                : d > VEHICLE_THRESHOLD
-                  ? colours.late
-                  : d < -VEHICLE_THRESHOLD
-                    ? colours.early
-                    : colours.ontime;
+            // One verdict for the ring, the label and the popup, on the same
+            // mode-aware window as every figure on the page.
+            const status = vehicleStatus(veh.delaySec, pollMode);
+            const colour = status.band === "unknown" ? colours.muted : colours[status.band];
             const vehMarker = L.marker([veh.lat, veh.lon], {
               icon: vehicleIcon(L, { colour, mode: pollMode, bearing: veh.bearing }),
             });
-            if (d != null && Math.abs(d) > VEHICLE_THRESHOLD) {
-              vehMarker.bindTooltip(busLabel(d), {
+            if (status.label) {
+              vehMarker.bindTooltip(status.label, {
                 permanent: true,
                 direction: "right",
                 offset: [6, 0],
@@ -631,7 +617,7 @@ export default function StopMap({
               });
             }
             vehMarker.bindPopup(
-              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${d == null ? "No live delay" : formatDelay(d, { mode: modeRef.current })}`,
+              `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${esc(status.detail)}`,
             );
             vehMarker.addTo(state.vehicleLayer);
           }
