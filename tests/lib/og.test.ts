@@ -3,16 +3,19 @@
 import {
   cardCacheControl,
   cardFilterLabel,
+  cardPath,
   cardWhenSuffix,
   homeCardPath,
   homeCardTitle,
+  listCardTitle,
   parseCardQuery,
   parseHomeCard,
   parseHomeCardQuery,
+  parseListCard,
   parseRouteCard,
+  parseShameCard,
   parseStopCard,
   parseTripCard,
-  subjectCardPath,
 } from "@/lib/og";
 import { describe, expect, it } from "vitest";
 
@@ -96,7 +99,7 @@ function reparse(path: string): ReturnType<typeof parseCardQuery> {
 describe("route cards", () => {
   it("strips the feed version and keeps a valid day", () => {
     const card = parseRouteCard("501-217", { day: "2026-09-20" });
-    expect(subjectCardPath(card)).toBe("/api/og?card=route&id=501&day=2026-09-20");
+    expect(cardPath(card)).toBe("/api/og?card=route&id=501&day=2026-09-20");
   });
 
   it("reads any window but the day as the week, dropping the day", () => {
@@ -111,7 +114,7 @@ describe("route cards", () => {
 
   it("round-trips through the handler's parse", () => {
     const card = parseRouteCard("NX1", { window: "week", period: "2026-09-14" });
-    expect(reparse(subjectCardPath(card))).toEqual(card);
+    expect(reparse(cardPath(card))).toEqual(card);
   });
 });
 
@@ -120,7 +123,7 @@ describe("trip cards", () => {
     // 07:45 NZST on the 20th.
     const card = parseTripCard("152-203", "1152-20310-27900-2-a1b2", "2026-09-19T19:45:00Z");
     expect(card.day).toBe("2026-09-20");
-    expect(reparse(subjectCardPath(card))).toEqual(card);
+    expect(reparse(cardPath(card))).toEqual(card);
   });
 
   it("leaves the day to the handler when the instant is bad", () => {
@@ -132,7 +135,7 @@ describe("trip cards", () => {
 describe("stop cards", () => {
   it("round-trips an id with characters that need encoding", () => {
     const card = parseStopCard("station:133-a1", { day: "2026-09-20" });
-    expect(reparse(subjectCardPath(card))).toEqual(card);
+    expect(reparse(cardPath(card))).toEqual(card);
     expect(cardWhenSuffix(card)).toBe(", Sun 20 Sep");
   });
 });
@@ -142,5 +145,47 @@ describe("parseCardQuery", () => {
     expect(reparse("/api/og?card=route").kind).toBe("home");
     expect(reparse("/api/og?card=trip&id=20").kind).toBe("home");
     expect(reparse(`/api/og?card=stop&id=${"x".repeat(200)}`).kind).toBe("home");
+  });
+});
+
+describe("shame cards", () => {
+  it("keeps the overview on the day, whatever the window says", () => {
+    const card = parseShameCard("overview", { window: "week", day: "2026-09-20", mode: "TRAIN" });
+    expect(card).toMatchObject({ window: "day", day: "2026-09-20", period: null, mode: "TRAIN" });
+    expect(listCardTitle(card)).toBe("Shame of the day, Sun 20 Sep (Trains)");
+  });
+
+  it("reads a board's week and month, and titles them", () => {
+    const week = parseShameCard("route", { window: "week", period: "2026-09-14" });
+    expect(listCardTitle(week)).toBe("Worst route of the week, week of Mon 14 Sep");
+    const month = parseShameCard("stop", { window: "month", period: "2026-09", school: "1" });
+    expect(listCardTitle(month)).toBe(
+      "Worst stop of the month, September 2026 (Incl. school services)",
+    );
+    // The current period is the page's default, so it names no date.
+    expect(listCardTitle(parseShameCard("trip", { window: "week" }))).toBe("Shame of the week");
+  });
+
+  it("round-trips through the handler's parse", () => {
+    const card = parseShameCard("trip", { window: "month", period: "2026-09", mode: "BUS" });
+    expect(reparse(cardPath(card))).toEqual(card);
+  });
+
+  it("falls back to the home card on an unknown board", () => {
+    expect(reparse("/api/og?card=shame&board=bogus").kind).toBe("home");
+  });
+});
+
+describe("list cards", () => {
+  it("round-trips both pages with their filters", () => {
+    const routes = parseListCard("routes", { window: "week", period: "2026-09-14", mode: "TRAIN" });
+    expect(reparse(cardPath(routes))).toEqual(routes);
+    const cancelled = parseListCard("cancellations", { day: "2026-09-20", school: "1" });
+    expect(reparse(cardPath(cancelled))).toEqual(cancelled);
+    expect(listCardTitle(cancelled)).toBe("Cancellations, Sun 20 Sep (Incl. school services)");
+  });
+
+  it("falls back to the home card on an unknown page", () => {
+    expect(reparse("/api/og?card=list&page=stops").kind).toBe("home");
   });
 });

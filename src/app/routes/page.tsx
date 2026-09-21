@@ -17,6 +17,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
@@ -36,11 +37,30 @@ import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import type { JSX } from "react";
 
-export const metadata: Metadata = {
-  title: "Routes",
-  description:
-    "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.",
-};
+/** What a shared link to this page says under its title. */
+const DESCRIPTION =
+  "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database. The tab keeps the plain title; the shared
+ * link names the period and filter.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>;
+}): Promise<Metadata> {
+  const card = parseListCard("routes", (await searchParams) ?? {});
+  return {
+    title: "Routes",
+    description: DESCRIPTION,
+    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
+  };
+}
 
 /** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
 const PERIOD_REVALIDATE = 3600;

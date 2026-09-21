@@ -17,12 +17,33 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { buildShameHref, parseShameParams, type ShameSearchParams } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import type { Metadata } from "next";
 import type { JSX } from "react";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<Metadata> {
+  const card = parseShameCard("overview", (await searchParams) ?? {});
+  const title = listCardTitle(card);
+  const description =
+    "The worst run, route and stop of the day on Auckland's buses, trains and ferries.";
+  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+}
 
 /**
  * Shame dashboard: single-screen summary of the worst trip, route, and stop

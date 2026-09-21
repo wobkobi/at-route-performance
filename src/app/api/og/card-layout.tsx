@@ -224,8 +224,12 @@ function Glyph({ route, size }: { route: GlyphRoute; size: number }): JSX.Elemen
 export interface SubjectBodyProps {
   /** The route whose glyph leads the name, or null for a stop. */
   route: GlyphRoute | null;
-  /** The subject's name: the route number, or the stop's name. */
-  name: string;
+  /**
+   * The subject's name: the route number, or the stop's name. Null on a card
+   * whose eyebrow already names its subject (a list page, an empty board), which
+   * then leads with the hero.
+   */
+  name: string | null;
   /** A second name line: the line's name, or the run's destination. */
   subname: string | null;
   /** The hero figure and its colour class, or null when there is no data. */
@@ -247,27 +251,36 @@ export interface SubjectBodyProps {
  */
 export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyProps): JSX.Element {
   // A long stop name or a long hero phrase steps down a size rather than clip.
-  const nameSize = name.length > 28 ? 48 : 60;
+  const nameSize = name && name.length > 28 ? 48 : 60;
   const heroSize = hero && hero.text.length > 12 ? 92 : 116;
+  // Children as an array rather than fragments: Satori gives an empty fragment
+  // the flex gap too, so a missing glyph or name row would still leave space.
+  const head =
+    name === null
+      ? []
+      : [
+          <div key="name" style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 24 }}>
+            {[
+              ...(route ? [<Glyph key="glyph" route={route} size={nameSize} />] : []),
+              <div key="name" style={{ fontSize: nameSize, fontWeight: 900, lineHeight: 1.1 }}>
+                {name}
+              </div>,
+            ]}
+          </div>,
+          <div key="subname" style={{ fontSize: 30, marginTop: 6, color: MUTED }}>
+            {subname ?? ""}
+          </div>,
+        ];
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 24 }}>
-        {/* No placeholder for a stop: an empty child would still take the gap. */}
-        {[
-          ...(route ? [<Glyph key="glyph" route={route} size={nameSize} />] : []),
-          <div key="name" style={{ fontSize: nameSize, fontWeight: 900, lineHeight: 1.1 }}>
-            {name}
-          </div>,
-        ]}
-      </div>
-      <div style={{ fontSize: 30, marginTop: 6, color: MUTED }}>{subname ?? ""}</div>
+      {head}
       {hero ? (
         <div
           style={{
             fontSize: heroSize,
             fontWeight: 900,
             lineHeight: 1,
-            marginTop: 20,
+            marginTop: name === null ? 40 : 20,
             color: toneHex(hero.toneClass),
           }}
         >

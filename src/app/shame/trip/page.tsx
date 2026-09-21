@@ -18,6 +18,7 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   filterLiveHours,
   maybeFallbackDay,
@@ -47,8 +48,28 @@ import {
   type DateRange,
 } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<Metadata> {
+  const card = parseShameCard("trip", (await searchParams) ?? {});
+  const title = listCardTitle(card);
+  const description =
+    "The most off-schedule run of each hour or day on Auckland's buses, trains and ferries.";
+  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+}
 
 const BASE = "/shame/trip";
 

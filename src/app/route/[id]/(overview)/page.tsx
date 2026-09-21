@@ -40,7 +40,7 @@ import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
-import { cardMetadata, cardWhenSuffix, parseRouteCard, subjectCardPath } from "@/lib/og";
+import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
@@ -240,7 +240,7 @@ export async function generateMetadata({
   return {
     title,
     description,
-    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, subjectCardPath(card)),
+    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, cardPath(card)),
   };
 }
 

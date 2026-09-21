@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.0] - 2026-09-22
+
+### Added
+
+- Shared links to /shame, its three boards, /routes and /cancellations now unfurl with their own
+  card: the worst run, route or stop with its figure, the route count and on-time share, or the
+  flagged-cancelled count, for the period and filter that was shared.
+
 ## [1.35.0] - 2026-09-22
 
 ### Added

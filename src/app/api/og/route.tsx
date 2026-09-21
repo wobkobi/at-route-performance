@@ -26,7 +26,9 @@ import { join } from "node:path";
 import type { JSX } from "react";
 import {
   homeCardData,
+  listCardData,
   routeCardData,
+  shameCardData,
   stopCardData,
   tripCardData,
   type HomeCardData,
@@ -75,7 +77,7 @@ async function render(element: JSX.Element, cacheControl: string): Promise<Image
 }
 
 /**
- * GET /api/og?card=home|route|trip|stop&... - the card for a shared page.
+ * GET /api/og?card=home|route|trip|stop|shame|list&... - the card for a shared page.
  * @param req - The request; its query names the card and the view.
  * @returns The PNG, always 200.
  */
@@ -88,7 +90,9 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
     if (card.kind === "home") home = await homeCardData(card);
     else if (card.kind === "route") subject = await routeCardData(card);
     else if (card.kind === "trip") subject = await tripCardData(card);
-    else subject = await stopCardData(card);
+    else if (card.kind === "stop") subject = await stopCardData(card);
+    else if (card.kind === "shame") subject = await shameCardData(card);
+    else subject = await listCardData(card);
   } catch (err) {
     console.error("[og] card data failed, sending the plain card", err);
   }

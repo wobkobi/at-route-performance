@@ -20,7 +20,7 @@ import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/da
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
-import { cardMetadata, cardWhenSuffix, parseStopCard, subjectCardPath } from "@/lib/og";
+import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay, routeLinkQuery } from "@/lib/range-page";
@@ -71,7 +71,7 @@ export async function generateMetadata({
   return {
     title: name,
     description,
-    ...cardMetadata(`${name}${cardWhenSuffix(card)}`, description, subjectCardPath(card)),
+    ...cardMetadata(`${name}${cardWhenSuffix(card)}`, description, cardPath(card)),
   };
 }
 

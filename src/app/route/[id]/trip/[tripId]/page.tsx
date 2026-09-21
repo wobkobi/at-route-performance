@@ -18,7 +18,7 @@ import {
   type ScheduledStop,
 } from "@/lib/data";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
-import { cardMetadata, parseTripCard, subjectCardPath } from "@/lib/og";
+import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
@@ -56,7 +56,7 @@ export async function generateMetadata({
   return {
     title,
     description,
-    ...cardMetadata(title, description, subjectCardPath(parseTripCard(id, tripId, d))),
+    ...cardMetadata(title, description, cardPath(parseTripCard(id, tripId, d))),
   };
 }
 
