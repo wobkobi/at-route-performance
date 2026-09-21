@@ -5,7 +5,7 @@
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { CANCELLED_SPLIT_COPY, earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { useId, useRef, useState, type JSX } from "react";
+import { useId, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 /**
  * CSS width for a share-bar segment from a percentage (clamped at 0).
@@ -114,6 +114,60 @@ export function PunctualityStat({
   size = "lg",
   bare = false,
 }: PunctualityStatProps): JSX.Element {
+  return (
+    <div
+      className={cn(
+        "relative bg-at-surface",
+        bare ? "" : "border border-at-border",
+        size === "lg" ? "p-4" : "p-3",
+      )}
+    >
+      {/* Card text stays plain (selectable); only the info button opens the popover. */}
+      <div className="flex items-center gap-1 text-xs tracking-zero text-at-muted uppercase">
+        {label}
+        <PunctualityInfo label={label} breakdown={breakdown} variant={variant} />
+      </div>
+      <span
+        className={cn(
+          "block font-ultra tracking-zero tabular-nums",
+          size === "lg" ? "text-2xl" : "text-xl",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/** Props for {@link PunctualityInfo}. */
+export interface PunctualityInfoProps {
+  /** Caption the button and popover are named after. */
+  label: string;
+  /** Numbers shown in the popover. */
+  breakdown: PunctualityBreakdown;
+  /** Which detail to reveal; see {@link PunctualityStatProps.variant}. */
+  variant: "split" | "average";
+  /** Extra content under the split's footnote, such as the verdict scale. */
+  extra?: ReactNode;
+}
+
+/**
+ * The info button and the breakdown popover it opens. The popover anchors to
+ * the nearest positioned ancestor, so the caller decides where it drops from by
+ * making that container `relative`.
+ * @param props - Component props.
+ * @param props.label - Caption the button and popover are named after.
+ * @param props.breakdown - The on-time split + averages.
+ * @param props.variant - Which detail to reveal (`split` or `average`).
+ * @param props.extra - Extra content under the split's footnote.
+ * @returns The button and, while open, the popover.
+ */
+export function PunctualityInfo({
+  label,
+  breakdown,
+  variant,
+  extra,
+}: PunctualityInfoProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const { on_time_pct, early_pct, late_pct, avg_delay_sec, avg_abs_delay_sec, mode } = breakdown;
   const popoverId = useId();
@@ -125,45 +179,33 @@ export function PunctualityStat({
     buttonRef.current?.focus();
   };
 
+  /**
+   * Close on Escape from the button or from inside the popover.
+   * @param e - The key event.
+   */
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (open && e.key === "Escape") {
+      e.stopPropagation();
+      close();
+    }
+  };
+
   return (
-    <div
-      className={cn(
-        "relative bg-at-surface",
-        bare ? "" : "border border-at-border",
-        size === "lg" ? "p-4" : "p-3",
-      )}
-      onKeyDown={(e) => {
-        if (open && e.key === "Escape") {
-          e.stopPropagation();
-          close();
-        }
-      }}
-    >
-      {/* Card text stays plain (selectable); only the info button opens the popover. */}
-      <span className="flex items-center gap-1 text-xs tracking-zero text-at-muted uppercase">
-        {label}
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => (open ? close() : setOpen(true))}
-          aria-expanded={open}
-          aria-controls={popoverId}
-          aria-label={`${label} breakdown`}
-          className="cursor-pointer text-at-muted transition-colors hover:text-at-ink"
-        >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-            <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5Zm.8 9.7H7.2V7h1.6Zm0-5.2H7.2V4.8h1.6Z" />
-          </svg>
-        </button>
-      </span>
-      <span
-        className={cn(
-          "block font-ultra tracking-zero tabular-nums",
-          size === "lg" ? "text-2xl" : "text-xl",
-        )}
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => (open ? close() : setOpen(true))}
+        onKeyDown={onKeyDown}
+        aria-expanded={open}
+        aria-controls={popoverId}
+        aria-label={`${label} breakdown`}
+        className="cursor-pointer text-at-muted transition-colors hover:text-at-ink"
       >
-        {value}
-      </span>
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5Zm.8 9.7H7.2V7h1.6Zm0-5.2H7.2V4.8h1.6Z" />
+        </svg>
+      </button>
 
       {open && (
         <>
@@ -176,11 +218,12 @@ export function PunctualityStat({
             id={popoverId}
             role="group"
             aria-label={`${label} breakdown`}
+            onKeyDown={onKeyDown}
             /* A phone gets a sheet across the bottom of the viewport rather than
                a 256px panel anchored to the card: anchored, a right-hand KPI
                pushes most of it off screen, and there is nowhere on a 390px
                viewport for it to flip to. From `sm` up it is the anchored panel. */
-            className="fixed inset-x-3 bottom-3 z-50 rounded-md border border-at-border bg-at-surface p-3 shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1 sm:w-64"
+            className="fixed inset-x-3 bottom-3 z-50 rounded-md border border-at-border bg-at-surface p-3 text-left text-at-ink normal-case shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1 sm:w-64"
           >
             {variant === "split" ? (
               <>
@@ -201,6 +244,7 @@ export function PunctualityStat({
                 <p className="mt-2 text-xs leading-snug text-at-muted">
                   {onTimeWindowDescription(mode)} {CANCELLED_SPLIT_COPY}
                 </p>
+                {extra}
               </>
             ) : (
               <>
@@ -233,6 +277,6 @@ export function PunctualityStat({
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

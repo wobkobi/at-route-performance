@@ -6,13 +6,13 @@ import { cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
-import { serviceDateExpr } from "@/lib/service-day-expr";
 import {
   type DateRange,
   NZ_TZ,
   SERVICE_START_HOUR,
   nzServiceDayRange,
   nzServiceDayString,
+  padScanRange,
   serviceDatesInRange,
   shiftWeek,
 } from "@/lib/time";
@@ -160,6 +160,7 @@ export async function getShameRouteStreaksBatch(
   // the visible route set grew during the day, re-running the full 14-day
   // aggregation on every new hourly cycle.
   const fourteenDaysAgo = new Date(currentRange.start.getTime() - 14 * MS_IN_DAY);
+  const streakRange: DateRange = { start: fourteenDaysAgo, end: currentRange.start };
   const firstBatch = await cachedForRange(
     async (classified) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,26 +169,29 @@ export async function getShameRouteStreaksBatch(
           $match: {
             scheduledAt: {
               $gte: { $date: fourteenDaysAgo.toISOString() },
-              $lt: { $date: currentRange.start.toISOString() },
+              $lt: { $date: padScanRange(streakRange).end.toISOString() },
             },
+            serviceDate: { $in: serviceDatesInRange(streakRange) },
             ...realDeviationMatchFor(classified),
           },
         },
-        // Collapse to one row per (routeId, tripId) so time buckets use trip
-        // start rather than individual stop times.
+        // Collapse to one row per run so time buckets use trip start rather than
+        // individual stop times. The service date is in the key because AT reuses
+        // a trip id on every day its timetable runs: keyed on the id alone, a
+        // fortnight of one trip's runs became a single row on its earliest day.
         {
           $group: {
-            _id: { routeId: "$routeId", tripId: "$tripId" },
+            _id: { routeId: "$routeId", tripId: "$tripId", serviceDay: "$serviceDate" },
             trip_start: { $min: "$scheduledAt" },
             events: { $sum: 1 },
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
           },
         },
-        // Service date as the shame pages label it, so the buckets match their
-        // day links (every service-day board shares this expression).
+        // The day each run belongs to, as ingest stamped it, so the buckets
+        // match their day links (every service-day board shares this field).
         {
           $addFields: {
-            serviceDay: serviceDateExpr("$trip_start"),
+            serviceDay: "$_id.serviceDay",
             hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } },
           },
         },
@@ -360,7 +364,8 @@ const MIN_ROUTE_EVENTS_HOUR = 30;
  * @param includeSchool - Whether to include school services.
  * @param classified - Whether every day in the window has been through the ghost pass.
  * @param groupKey - Name of the field computed by `addFieldsStage`.
- * @param addFieldsStage - `$addFields` stage that computes `groupKey` from `$trip_start`.
+ * @param addFieldsStage - `$addFields` stage that computes `groupKey` from the
+ *   grouped run (`$trip_start` for a clock bucket, `$service_date` for a day).
  * @returns The partial pipeline array.
  */
 function routeShamePipelineBase(
@@ -377,7 +382,8 @@ function routeShamePipelineBase(
   const pipeline: any[] = [
     {
       $match: {
-        scheduledAt: scheduledAtWindow(range),
+        scheduledAt: scheduledAtWindow(padScanRange(range)),
+        serviceDate: { $in: serviceDatesInRange(range) },
         ...realDeviationMatchFor(classified),
       },
     },
@@ -388,6 +394,9 @@ function routeShamePipelineBase(
       $group: {
         _id: { routeId: "$routeId", tripId: "$tripId" },
         trip_start: { $min: "$scheduledAt" },
+        // $min, not $first: $first is order-dependent without a preceding
+        // $sort, so a run whose readings disagreed would bucket at random.
+        service_date: { $min: "$serviceDate" },
         events: { $sum: 1 },
         avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
         avg_delay_sec: { $avg: "$deviationSec" },
@@ -595,7 +604,7 @@ async function worstRoutesForRange(
   classified: boolean,
 ): Promise<ShameRouteRow[]> {
   const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "serviceDay", {
-    serviceDay: serviceDateExpr("$trip_start"),
+    serviceDay: "$service_date",
   });
   pipeline.push(
     // Worst route per service day via a bounded per-group $top (one row per day)

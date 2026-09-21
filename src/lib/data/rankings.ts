@@ -71,6 +71,12 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
     {
       $match: {
         scheduledAt: scheduledAtWindow({ start, end }),
+        // This board drops ghost rows at the match rather than guarding each
+        // counter, and that difference is deliberate: its `events` is only the
+        // row count behind the rate it shows, never a rankings threshold. The
+        // day boards keep every row in `events` and guard the counters instead
+        // (see dailySummaryPipeline). The two shapes agree on every rate and
+        // differ only in what `events` means.
         ...realDeviationMatchFor(classified),
       },
     },
@@ -250,9 +256,9 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
             _plausible: { $sum: { $cond: [plausible, 1, 0] } },
             w_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
             w_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
-            ...onTimeTwoCounts(),
-            ...earlyTwoCounts(),
-            late_count: lateSum(),
+            ...onTimeTwoCounts(plausible),
+            ...earlyTwoCounts(plausible),
+            late_count: lateSum(plausible),
           },
         },
         { $lookup: { from: "Route", localField: "_id", foreignField: "_id", as: "route" } },
@@ -274,13 +280,22 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
               $round: [{ $divide: ["$w_abs", { $max: [1, "$_plausible"] }] }, 1],
             },
             on_time_pct: {
-              $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
+              $round: [
+                { $multiply: [{ $divide: ["$on_time_count", { $max: [1, "$_plausible"] }] }, 100] },
+                1,
+              ],
             },
             early_pct: {
-              $round: [{ $multiply: [{ $divide: ["$early_count", "$events"] }, 100] }, 1],
+              $round: [
+                { $multiply: [{ $divide: ["$early_count", { $max: [1, "$_plausible"] }] }, 100] },
+                1,
+              ],
             },
             late_pct: {
-              $round: [{ $multiply: [{ $divide: ["$late_count", "$events"] }, 100] }, 1],
+              $round: [
+                { $multiply: [{ $divide: ["$late_count", { $max: [1, "$_plausible"] }] }, 100] },
+                1,
+              ],
             },
           },
         },

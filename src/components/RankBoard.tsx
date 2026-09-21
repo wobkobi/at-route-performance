@@ -4,8 +4,8 @@
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
-import { earlyToleranceFor, isConsistentlyLateOrEarly, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import Link from "next/link";
@@ -58,7 +58,8 @@ function DelayColourKey(): JSX.Element {
   const keys = [
     { swatch: "bg-at-late", label: "Late" },
     { swatch: "bg-at-early", label: "Early" },
-    { swatch: "bg-at-ink", label: "Inside the window" },
+    { swatch: "bg-at-ontime", label: "Inside the window" },
+    { swatch: "bg-at-ink", label: "Mixed" },
   ];
   return (
     <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-at-muted">
@@ -165,32 +166,13 @@ export function RankBoard({
       ) : (
         <ol>
           {rows.map((r, i) => {
-            // Ranked by abs deviation; display the same so the column numbers are
-            // in descending order. When abs ≈ |signed| the route is consistently
-            // late/early - show direction ("4m 8s late"). When they differ the
-            // route is mixed - show magnitude only ("5m off").
-            const signed = r.avg_delay_sec ?? 0;
-            const abs = r.avg_abs_delay_sec ?? Math.abs(signed);
-            // A row with no plausible deviations has null delays - show a dash
-            // rather than coercing to 0 and rendering a spurious "on time".
-            const noDelayData = r.avg_delay_sec == null && r.avg_abs_delay_sec == null;
-            const value =
-              metric === "delay"
-                ? noDelayData
-                  ? "—"
-                  : isConsistentlyLateOrEarly(signed, abs)
-                    ? formatDelay(signed, { mode: r.mode })
-                    : `${formatDuration(abs)} off`
-                : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
+            // Ranked by abs deviation, so the value always names a distance and
+            // the column reads in descending order.
+            const off = offScheduleValue(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode);
+            const value = metric === "delay" ? off.text : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
             const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
             const valueClass =
-              metric === "onTime"
-                ? "text-at-ontime"
-                : signed > 0
-                  ? "text-at-late"
-                  : signed < 0
-                    ? "text-at-early"
-                    : "text-at-ink";
+              metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
             return (
               <li key={r.route_id}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}

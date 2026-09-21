@@ -8,7 +8,6 @@ import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
-import { serviceDateExpr } from "@/lib/service-day-expr";
 import {
   STATION_PREFIX,
   type StationRow,
@@ -25,6 +24,7 @@ import {
   NZ_TZ,
   SERVICE_START_HOUR,
   nzServiceDayRange,
+  padScanRange,
   serviceDatesInRange,
 } from "@/lib/time";
 import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
@@ -428,7 +428,11 @@ async function worstStopsForRange(
 ): Promise<ShameDayStop[]> {
   const routeIds = await worstStopRouteIds(mode, includeSchool);
   const match: Record<string, unknown> = {
-    scheduledAt: scheduledAtWindow(range),
+    // The pad reaches the tail of a run that started before the boundary; the
+    // equality then keeps only the readings that belong to the day, so a run is
+    // counted once, whole, on its own day.
+    scheduledAt: scheduledAtWindow(padScanRange(range)),
+    serviceDate: { $in: serviceDatesInRange(range) },
     ...realDeviationMatchFor(classified),
   };
   if (routeIds) match.routeId = { $in: routeIds };
@@ -441,7 +445,7 @@ async function worstStopsForRange(
         {
           $group: {
             _id: {
-              serviceDay: serviceDateExpr("$scheduledAt"),
+              serviceDay: "$serviceDate",
               stop_id: "$stopId",
             },
             events: { $sum: 1 },

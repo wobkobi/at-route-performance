@@ -2,9 +2,7 @@
 // Highlight card for the period's most off-schedule route, linking to its shame breakdown.
 
 import { ModeIcon } from "@/components/ModeIcon";
-import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
-import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
+import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { routeSlug } from "@/lib/route-slug";
 import { nzHourLabel, weekdayShort } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
@@ -49,7 +47,7 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
     );
   }
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
-  const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
+
   // Week-view rows carry a service date and no meaningful hour; day rows are the
   // other way round.
   const bucket = route.date ? weekdayShort(route.date) : nzHourLabel(route.hour);
@@ -75,43 +73,11 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
         />
         <span className="text-2xl font-ultra tracking-zero text-at-ink">{name}</span>
       </div>
-      <p className="text-sm text-at-muted">
-        {signedEqAbs ? (
-          <>
-            Ran{" "}
-            <span
-              className={cn(
-                "font-semibold",
-                isOnTime(route.avg_delay_sec, route.mode)
-                  ? "text-at-ontime"
-                  : route.avg_delay_sec < 0
-                    ? "text-at-early"
-                    : "text-at-late",
-              )}
-            >
-              {formatDelay(route.avg_delay_sec, { mode: route.mode })}
-            </span>{" "}
-            on average
-          </>
-        ) : (
-          <>
-            Ran{" "}
-            <span
-              className={cn(
-                "font-semibold",
-                isOnTime(route.avg_delay_sec, route.mode)
-                  ? "text-at-ontime"
-                  : route.avg_delay_sec < 0
-                    ? "text-at-early"
-                    : "text-at-late",
-              )}
-            >
-              {formatDuration(route.avg_abs_delay_sec)}
-            </span>{" "}
-            off schedule on average ({formatDelay(route.avg_delay_sec, { mode: route.mode })})
-          </>
-        )}
-      </p>
+      <OffScheduleLine
+        signedSec={route.avg_delay_sec}
+        absSec={route.avg_abs_delay_sec}
+        mode={route.mode}
+      />
       <p className="text-xs text-at-muted tabular-nums">
         {route.events} arrivals in that {bucketWord}
       </p>
