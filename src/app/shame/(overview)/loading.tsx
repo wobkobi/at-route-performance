@@ -17,7 +17,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton />
+      <ShameHeaderSkeleton filters />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <FeatureCardSkeleton withHeadsign narrow />
         <FeatureCardSkeleton />

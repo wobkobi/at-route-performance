@@ -18,7 +18,7 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
-import { LineDiagramSkeleton, TripBoardSkeleton } from "@/components/SkeletonParts";
+import { LineDiagramSkeleton } from "@/components/SkeletonParts";
 import { StepPending } from "@/components/StepPending";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
@@ -375,6 +375,18 @@ export default async function RoutePage({
     isWeekView || !isLiveView
       ? Promise.resolve<LiveVehicle[]>([])
       : getLiveVehicles().catch(() => []);
+  // Narrowed to this route and handed to the board unresolved: the rows, the
+  // sort chips and the pager are all already in hand, so only the LIVE badges
+  // wait on AT. `vehiclesPromise` already swallows its own failure, so this
+  // cannot reject.
+  const liveTripIdsPromise = vehiclesPromise.then(
+    (vehicles) =>
+      new Set(
+        vehicles
+          .filter((v) => routeSlug(v.routeId) === slug && v.tripId !== null)
+          .map((v) => v.tripId as string),
+      ),
+  );
 
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
@@ -624,6 +636,14 @@ export default async function RoutePage({
             )}
           </div>
         </div>
+        {/* An outage reads as a route with no schedule otherwise: the chips and
+            the diagram simply would not be there, with nothing to say why. */}
+        {view.patternFailed && (
+          <p className="text-sm text-at-late">
+            This route&apos;s stopping pattern could not be loaded, so the direction filter and the
+            line diagram are missing. Every figure below is unaffected. Reload to try again.
+          </p>
+        )}
         {dirKeys.length > 1 && (
           <DirectionFilter
             dirKeys={dirKeys}
@@ -686,18 +706,23 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
           />
-          <Suspense fallback={<LineDiagramSkeleton />}>
-            <RouteDiagramSection
-              alertsPromise={alertsPromise}
-              live={isLiveView}
-              slug={slug}
-              rawToCanon={view.rawToCanon}
-              directions={view.directions}
-              delayByStop={{}}
-              nameByStop={nameByStop}
-              mode={routeMode}
-            />
-          </Suspense>
+          {/* Hidden rather than empty when the pattern failed to load: the
+              diagram's own empty state reads "no stopping pattern yet", which
+              is the wrong story, and the note above already tells the right one. */}
+          {!view.patternFailed && (
+            <Suspense fallback={<LineDiagramSkeleton />}>
+              <RouteDiagramSection
+                alertsPromise={alertsPromise}
+                live={isLiveView}
+                slug={slug}
+                rawToCanon={view.rawToCanon}
+                directions={view.directions}
+                delayByStop={{}}
+                nameByStop={nameByStop}
+                mode={routeMode}
+              />
+            </Suspense>
+          )}
         </>
       ) : (
         <>
@@ -736,22 +761,20 @@ export default async function RoutePage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Suspense fallback={<TripBoardSkeleton />}>
-              <RouteTripBoardSection
-                vehiclesPromise={vehiclesPromise}
-                routeId={slug}
-                serviceDate={serviceDate}
-                rows={pageRows}
-                sort={tripSort}
-                isReversed={isReversed}
-                mode={routeMode}
-                basePath={`/route/${encodeURIComponent(slug)}`}
-                preservedParams={tripPreserved}
-                page={tripPage}
-                totalPages={totalPages}
-                detouredTripIds={new Set(detouredTripIds)}
-              />
-            </Suspense>
+            <WorstTripsBoard
+              liveTripIds={liveTripIdsPromise}
+              routeId={slug}
+              serviceDate={serviceDate}
+              rows={pageRows}
+              sort={tripSort}
+              isReversed={isReversed}
+              mode={routeMode}
+              basePath={`/route/${encodeURIComponent(slug)}`}
+              preservedParams={tripPreserved}
+              page={tripPage}
+              totalPages={totalPages}
+              detouredTripIds={new Set(detouredTripIds)}
+            />
             {tripsCapped && (
               <p className="text-xs text-at-muted lg:col-span-2">
                 Showing the first {TRIPS_FETCH_CAP} runs of the day.
@@ -776,18 +799,21 @@ export default async function RoutePage({
             />
           </div>
 
-          <Suspense fallback={<LineDiagramSkeleton />}>
-            <RouteDiagramSection
-              alertsPromise={alertsPromise}
-              live={isLiveView}
-              slug={slug}
-              rawToCanon={view.rawToCanon}
-              directions={diagramDirections}
-              delayByStop={delayByStop}
-              nameByStop={nameByStop}
-              mode={routeMode}
-            />
-          </Suspense>
+          {/* Hidden, not empty, when the pattern failed - see the week view above. */}
+          {!view.patternFailed && (
+            <Suspense fallback={<LineDiagramSkeleton />}>
+              <RouteDiagramSection
+                alertsPromise={alertsPromise}
+                live={isLiveView}
+                slug={slug}
+                rawToCanon={view.rawToCanon}
+                directions={diagramDirections}
+                delayByStop={delayByStop}
+                nameByStop={nameByStop}
+                mode={routeMode}
+              />
+            </Suspense>
+          )}
 
           {byStop.length === 0 ? (
             <section className="border border-at-border bg-at-surface px-4 py-3">
@@ -912,27 +938,4 @@ async function RouteDiagramSection({
     a.informed_entity.filter((e) => e.stop_id).map((e) => rawToCanon.get(e.stop_id!) ?? e.stop_id!),
   );
   return <RouteLineDiagramClient {...diagram} alertStopIds={alertStopIds} hasDetour={hasDetour} />;
-}
-
-/**
- * Streamed worst-trips board: awaits the shared live-vehicles feed off the
- * critical path to flag the running trips, then renders the board with
- * everything else passed straight through.
- * @param root0 - Props (the board's own props plus the live-vehicles input).
- * @param root0.vehiclesPromise - The in-flight network-wide live-vehicles fetch.
- * @returns The worst-trips board.
- */
-async function RouteTripBoardSection({
-  vehiclesPromise,
-  ...board
-}: Omit<ComponentProps<typeof WorstTripsBoard>, "liveTripIds"> & {
-  vehiclesPromise: Promise<LiveVehicle[]>;
-}): Promise<JSX.Element> {
-  const liveVehicles = await vehiclesPromise;
-  const liveTripIds = new Set(
-    liveVehicles
-      .filter((v) => routeSlug(v.routeId) === board.routeId && v.tripId !== null)
-      .map((v) => v.tripId as string),
-  );
-  return <WorstTripsBoard {...board} liveTripIds={liveTripIds} />;
 }

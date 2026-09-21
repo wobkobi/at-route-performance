@@ -496,7 +496,7 @@ export function DiagramSvg({
                   fill="transparent"
                   tabIndex={0}
                   role={onSelectStop ? "button" : undefined}
-                  className="cursor-pointer outline-none"
+                  className="cursor-pointer"
                   onMouseEnter={() => setHovered(idx)}
                   onMouseLeave={() => setHovered((h) => (h === idx ? null : h))}
                   onFocus={() => setHovered(idx)}

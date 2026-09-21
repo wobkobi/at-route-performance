@@ -4,6 +4,74 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.4] - 2026-09-21
+
+### Fixed
+
+- A wheel over a map now scrolls the page instead of zooming, a trip map frames the whole trip
+  rather than opening zoomed on its first stop with an uninvited popup, panning a trip map no longer
+  overwrites the route map's saved view, and the trip timeline explains its grey and hollow stop
+  dots.
+
+## [1.31.3] - 2026-09-21
+
+### Fixed
+
+- The whole of a trips-board or cancelled-trips row is now the link, not just the name, and a badge
+  that will not fit drops under the name instead of truncating it.
+
+## [1.31.2] - 2026-09-21
+
+### Fixed
+
+- A route whose stopping pattern fails to load now says so instead of showing no directions and no
+  diagram, and a trip whose schedule fails to load says so instead of reading as a run with no
+  stops.
+
+## [1.31.1] - 2026-09-21
+
+### Fixed
+
+- The trips board and the cancellations list carry a key naming each badge they show and what it
+  means, instead of hiding it in a hover a phone cannot reach.
+
+## [1.31.0] - 2026-09-21
+
+### Added
+
+- Every control, link and diagram stop draws a focus ring when reached by keyboard; the footer uses
+  the brand yellow, which reads on its dark band.
+
+## [1.30.21] - 2026-09-21
+
+### Fixed
+
+- The punctuality breakdown opens as a sheet on a phone instead of running off the side of the
+  screen, sits above the sticky header, and dismisses on a tap.
+
+## [1.30.20] - 2026-09-21
+
+### Fixed
+
+- The Routes list keeps how many rows it was showing in the URL, so Back returns to the same list
+  rather than the first page.
+
+## [1.30.19] - 2026-09-21
+
+### Fixed
+
+- Shame pages carry mode and school chips, and /shame honours the filter its links were already
+  carrying.
+
+## [1.30.18] - 2026-09-21
+
+### Fixed
+
+- The route page's worst-trips board waited behind AT's live-vehicle call, so every sort or page
+  click - both server navigations - replaced the chips and pager that triggered it with a skeleton
+  until AT answered. The board now renders from rows that are already in hand and only the LIVE
+  badges stream in.
+
 ## [1.30.17] - 2026-09-21
 
 ### Fixed

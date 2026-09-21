@@ -59,6 +59,13 @@ export interface RouteView {
    * to the canonical IDs the SVG diagram renders.
    */
   rawToCanon: Map<string, string>;
+  /**
+   * Whether the stopping pattern could not be read at all. True means the
+   * empty `directions` describes an outage, not a route without a schedule, and
+   * the page says so instead of quietly dropping its direction chips and its
+   * line diagram.
+   */
+  patternFailed: boolean;
 }
 
 /** Static route shape: pattern + stop positions + road geometry, without day-specific delay data. */
@@ -69,6 +76,23 @@ interface RouteShape {
   nameByStop: Map<string, string>;
   directionIdAliases: Map<number, number>;
   rawToCanon: Map<string, string>;
+}
+
+/**
+ * A shape with nothing in it, for a route whose pattern could not be read.
+ * Built fresh each time rather than shared, so no caller can mutate a constant
+ * every other route would then see.
+ * @returns An empty shape.
+ */
+function emptyShape(): RouteShape {
+  return {
+    staticStops: [],
+    routeLines: [],
+    directions: {},
+    nameByStop: new Map(),
+    directionIdAliases: new Map(),
+    rawToCanon: new Map(),
+  };
 }
 
 /**
@@ -103,18 +127,16 @@ function isInteriorSub(a: string[], b: string[]): boolean {
  * @returns Static shape data with uncoloured stops.
  */
 async function queryRouteShape(routeId: string, mode: string): Promise<RouteShape> {
-  const empty: RouteShape = {
-    staticStops: [],
-    routeLines: [],
-    directions: {},
-    nameByStop: new Map(),
-    directionIdAliases: new Map(),
-    rawToCanon: new Map(),
-  };
+  const empty = emptyShape();
 
+  // Neither call is caught here. A swallowed failure would be indistinguishable
+  // from a route with no schedule, and worse, `buildRouteView` caches this
+  // result for 24 hours - so one AT blip would leave the route with no
+  // directions and no diagram for the rest of the day. Rejecting instead leaves
+  // the cache empty, and the caller says what happened.
   const [pattern, activeStops] = await Promise.all([
-    getRoutePattern(routeId).catch(() => ({ directions: {} })),
-    getRecentStopIds(routeId).catch(() => new Set<string>()),
+    getRoutePattern(routeId),
+    getRecentStopIds(routeId),
   ]);
 
   // Keep every variant with a usable length; the not-recently-served filter is
@@ -429,9 +451,22 @@ export async function buildRouteView(
   // which next/cache would lose when serialising to JSON. Use memCache instead so
   // the Maps are stored in-process without serialisation. The 24 h TTL means each
   // worker thread pays the AT API cost at most once per day.
-  const shape = await memCache(`route-shape|${routeId}|${mode}`, 86400, () =>
-    queryRouteShape(routeId, mode),
-  );
+  let shape: RouteShape;
+  let patternFailed = false;
+  try {
+    shape = await memCache(`route-shape|${routeId}|${mode}`, 86400, () =>
+      queryRouteShape(routeId, mode),
+    );
+  } catch (err) {
+    // memCache stores nothing for a rejected factory, so the next request
+    // retries rather than living with this for the 24 h TTL.
+    console.warn(
+      `[route-view] Pattern unavailable for ${routeId}`,
+      err instanceof Error ? err.message : err,
+    );
+    shape = emptyShape();
+    patternFailed = true;
+  }
 
   const delayById = new Map(byStop.map((s) => [s.stop_id, s]));
   // When the route has no pattern data, fall back to the caller's byStop list
@@ -452,5 +487,6 @@ export async function buildRouteView(
     nameByStop: shape.nameByStop,
     directionIdAliases: shape.directionIdAliases,
     rawToCanon: shape.rawToCanon,
+    patternFailed,
   };
 }

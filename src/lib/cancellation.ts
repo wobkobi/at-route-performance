@@ -72,3 +72,22 @@ export const CANCELLATION_BADGE_SHORT: Record<CancellationStage, string> = {
   "mid-trip": "CUT SHORT",
   ran: "REINSTATED",
 };
+
+/**
+ * What each stage badge means, in words. Read by the key under each board that
+ * shows these badges, so the meaning does not live only in a hover a phone
+ * cannot reach - which also matters most on a phone, where the row carries the
+ * shorter label of the two.
+ */
+export const CANCELLATION_BADGE_MEANING: Record<CancellationStage, string> = {
+  before: "AT cancelled this trip",
+  "mid-trip": "AT cancelled this trip after it set off",
+  ran: "AT flagged this trip cancelled, then it ran anyway",
+};
+
+/** Badge styling per stage: reinstated is an outline, an actual cancellation is solid. */
+export const CANCELLATION_BADGE_CLASS: Record<CancellationStage, string> = {
+  before: "bg-at-late text-white",
+  "mid-trip": "bg-at-late text-white",
+  ran: "border border-at-border text-at-muted",
+};

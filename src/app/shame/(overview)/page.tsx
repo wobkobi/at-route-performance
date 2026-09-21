@@ -20,20 +20,15 @@ import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { buildShameHref } from "@/lib/shame-page";
+import { buildShameHref, parseShameParams, type ShameSearchParams } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { JSX } from "react";
-
-/** Query params for the Shame dashboard. */
-interface ShameSearchParams {
-  day?: string;
-}
 
 /**
  * Shame dashboard: single-screen summary of the worst trip, route, and stop
  * for the day, linking to the full per-hour breakdown pages.
  * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (`day`).
+ * @param root0.searchParams - Optional query params (`day`, `mode`, `school`).
  * @returns Page markup.
  */
 export default async function ShameDashboard({
@@ -44,15 +39,16 @@ export default async function ShameDashboard({
   const sp = (await searchParams) ?? {};
   clampDayParam("/shame", sp);
   dropTodayParam("/shame", sp);
+  const { filter, mode, includeSchool, preserved, subtitle } = parseShameParams(sp);
 
   const requestedDay = resolveRequestedDay(sp.day);
   let range = nzServiceDayRange(requestedDay ?? new Date());
   let serviceDate = nzServiceDayString(range.start);
 
   const [initialTrip, initialRoute, initialStops, earliestDay] = await Promise.all([
-    getShameOfDay(range, {}, TODAY_REVALIDATE),
-    getShameRouteOfDay(range, {}, TODAY_REVALIDATE),
-    getWorstStops(range, {}, 1, TODAY_REVALIDATE),
+    getShameOfDay(range, filter, TODAY_REVALIDATE),
+    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+    getWorstStops(range, filter, 1, TODAY_REVALIDATE),
     getEarliestDataDay(1),
   ]);
 
@@ -69,9 +65,9 @@ export default async function ShameDashboard({
     range = nzServiceDayRange(fallbackDay);
     serviceDate = nzServiceDayString(range.start);
     [tripShame, routeShame, stops] = await Promise.all([
-      getShameOfDay(range, {}, TODAY_REVALIDATE),
-      getShameRouteOfDay(range, {}, TODAY_REVALIDATE),
-      getWorstStops(range, {}, 1, TODAY_REVALIDATE),
+      getShameOfDay(range, filter, TODAY_REVALIDATE),
+      getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+      getWorstStops(range, filter, 1, TODAY_REVALIDATE),
     ]);
   }
 
@@ -84,34 +80,35 @@ export default async function ShameDashboard({
   // nothing; an explicit `?day` is never fallen back from.
   const nextDayHref =
     hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? "/shame"
+      ? buildShameHref("/shame", {}, filter)
       : undefined;
 
   // Cancellations are resolved after any day fallback, so the board matches the
   // day the rest of the dashboard settled on.
   const [cancelledTotal, cancelledRoutes] = await Promise.all([
-    getCancelledCount(range, {}, TODAY_REVALIDATE),
-    getCancelledRoutes(range, {}, 10, TODAY_REVALIDATE),
+    getCancelledCount(range, filter, TODAY_REVALIDATE),
+    getCancelledRoutes(range, filter, 10, TODAY_REVALIDATE),
   ]);
 
-  // Dashboard tabs carry no mode/school filter, only the active day.
-  const noFilter = { mode: null, includeSchool: false };
-  const tripHref = buildShameHref("/shame/trip", { day: linkDay }, noFilter);
-  const routeHref = buildShameHref("/shame/route", { day: linkDay }, noFilter);
-  const stopHref = buildShameHref("/shame/stop", { day: linkDay }, noFilter);
+  // The boards behind the tabs read the same filter this page now does, so a
+  // reader who narrows to trains here stays on trains when they open one.
+  const tripHref = buildShameHref("/shame/trip", { day: linkDay }, filter);
+  const routeHref = buildShameHref("/shame/route", { day: linkDay }, filter);
+  const stopHref = buildShameHref("/shame/stop", { day: linkDay }, filter);
 
   return (
     <main className="space-y-6">
       <ShameHeader
         title="Shame of the Day"
-        subtitle="The worst trip, route, and stop"
+        subtitle={`The worst trip, route, and stop · ${subtitle}`}
         activeTab="none"
         tabHrefs={{ trip: tripHref, route: routeHref, stop: stopHref }}
+        filter={{ basePath: "/shame", mode, includeSchool, nav: { day: linkDay } }}
         nav={{
           kind: "day",
           basePath: "/shame",
           serviceDate,
-          preserved: {},
+          preserved,
           hasPrev: hasPrevDay,
           atFloor: serviceDate === DATA_START_DAY,
           hasNext: hasNextDay,

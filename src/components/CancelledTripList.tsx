@@ -5,10 +5,13 @@
 // page. A week or month runs to thousands of trips, so the list shows a page at
 // a time behind a "Show more" button.
 
+import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import {
   CANCELLATION_BADGE,
+  CANCELLATION_BADGE_CLASS,
+  CANCELLATION_BADGE_MEANING,
   CANCELLATION_BADGE_SHORT,
   type CancellationStage,
 } from "@/lib/cancellation";
@@ -61,6 +64,21 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
   const [shown, setShown] = useState(PAGE_SIZE);
   const ordered = useMemo(() => (multiDay ? [...trips].reverse() : trips), [trips, multiDay]);
   const visible = stage ? ordered.filter((t) => t.stage === stage) : ordered;
+  // Key entries for the stages on screen, so no badge is explained in a hover a
+  // phone cannot reach - and none is explained that the reader cannot see. The
+  // filter chips name the stages in their own words ("Never ran", "Cut short"),
+  // which is not the same vocabulary as the badges.
+  const keyItems: BadgeKeyItem[] = useMemo(() => {
+    const shownStages = new Set(visible.slice(0, shown).map((t) => t.stage));
+    return (["before", "mid-trip", "ran"] as const)
+      .filter((s) => shownStages.has(s))
+      .map((s) => ({
+        label: CANCELLATION_BADGE[s],
+        shortLabel: CANCELLATION_BADGE_SHORT[s],
+        className: CANCELLATION_BADGE_CLASS[s],
+        meaning: CANCELLATION_BADGE_MEANING[s],
+      }));
+  }, [visible, shown]);
   const counts = useMemo(() => {
     const c: Record<CancellationStage, number> = { before: 0, "mid-trip": 0, ran: 0 };
     for (const t of trips) c[t.stage]++;
@@ -123,20 +141,28 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
                     longName={t.long_name}
                     colour={t.colour}
                   />
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="font-semibold text-at-ink">{t.short_name ?? t.route_id}</span>
-                    <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
-                  </span>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                      t.stage === "ran"
-                        ? "border border-at-border text-at-muted"
-                        : "bg-at-late text-white",
-                    )}
-                  >
-                    <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
-                    <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                  {/* Name and badge share a wrapping line: the badge is `shrink-0`, so
+                      as a sibling of the name it left the name as the only column that
+                      could give, truncating a route to "32 to Manger...". `min-w-40` on
+                      the name is what makes the badge wrap instead - a `flex-1` item has
+                      a zero flex basis, so without a floor nothing would ever wrap. */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-40 flex-1 truncate">
+                      <span className="font-semibold text-at-ink">
+                        {t.short_name ?? t.route_id}
+                      </span>
+                      <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
+                    </span>
+                    <span
+                      title={CANCELLATION_BADGE_MEANING[t.stage]}
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                        CANCELLATION_BADGE_CLASS[t.stage],
+                      )}
+                    >
+                      <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
+                      <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                    </span>
                   </span>
                   <ChevronRight className="shrink-0 text-at-muted" />
                 </Link>
@@ -145,6 +171,7 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
           })}
         </ol>
       )}
+      <BadgeKey items={keyItems} />
       {visible.length > shown && (
         <div className="mt-3 flex justify-center">
           <button

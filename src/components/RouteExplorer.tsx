@@ -25,6 +25,8 @@ import {
   EXPLORER_VIEWS,
   explorerQuery,
   filterRoutes,
+  PAGE_SIZE,
+  SHOWN_PARAM,
   sortRoutes,
   type ExplorerFilters,
   type ExplorerRoute,
@@ -33,15 +35,14 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 
-/** Routes shown before "Show more", and how many each press adds. */
-const PAGE_SIZE = 40;
-
 /** Props for {@link RouteExplorer}. */
 export interface RouteExplorerProps {
   /** Every route with arrivals in the window. */
   rows: ExplorerRoute[];
   /** The filters parsed from the page's query string. */
   initialFilters: ExplorerFilters;
+  /** How many rows to show, parsed from the page's query string. */
+  initialShown: number;
   /** Query (with its `?`) each route link carries, so the route opens on the same window. */
   routeQuery: string;
 }
@@ -126,16 +127,18 @@ function Figure({
  * @param props - Component props.
  * @param props.rows - Every route with arrivals in the window.
  * @param props.initialFilters - The filters parsed from the query string.
+ * @param props.initialShown - How many rows to show, parsed from the query string.
  * @param props.routeQuery - Query each route link carries.
  * @returns The explorer.
  */
 export function RouteExplorer({
   rows,
   initialFilters,
+  initialShown,
   routeQuery,
 }: RouteExplorerProps): JSX.Element {
   const [filters, setFilters] = useState<ExplorerFilters>(initialFilters);
-  const [shown, setShown] = useState(PAGE_SIZE);
+  const [shown, setShown] = useState(initialShown);
 
   const matching = useMemo(() => filterRoutes(rows, filters), [rows, filters]);
   const sorted = useMemo(
@@ -150,18 +153,23 @@ export function RouteExplorer({
     [matching],
   );
 
-  // Mirror the filters into the query string, keeping the window params the
-  // server owns. replaceState updates the URL without a navigation or refetch.
+  // Mirror the filters and the row count into the query string, keeping the
+  // window params the server owns. replaceState updates the URL without a
+  // navigation or refetch - which is also why the count belongs here: the entry
+  // it overwrites is the one Back returns to, so a count held only in state
+  // comes back as the first page after opening a route and stepping back.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     for (const key of EXPLORER_PARAMS) params.delete(key);
+    params.delete(SHOWN_PARAM);
     for (const [k, v] of Object.entries(explorerQuery(filters))) params.set(k, v);
+    if (shown > PAGE_SIZE) params.set(SHOWN_PARAM, String(shown));
     const qs = params.toString();
     const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     if (next !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(null, "", next);
     }
-  }, [filters]);
+  }, [filters, shown]);
 
   /**
    * Apply a filter change and return to the top of the list.
@@ -209,7 +217,7 @@ export function RouteExplorer({
           onChange={(e) => update({ q: e.target.value })}
           placeholder="Search by route number or name"
           aria-label="Search routes"
-          className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore focus:outline-none"
+          className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore"
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
@@ -286,7 +294,7 @@ export function RouteExplorer({
                 const sort = e.target.value as ExplorerSort;
                 update({ sort, dir: defaultDir(sort) });
               }}
-              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore focus:outline-none"
+              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
             >
               {EXPLORER_SORTS.map((s) => (
                 <option key={s.key} value={s.key}>

@@ -74,17 +74,28 @@ export default async function TripPage({
   const dAt = d ? new Date(d) : null;
   const day =
     dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
-  // An AT outage costs this request its schedule and road path, not the day's cache entries.
-  const [timeline, scheduledStops, roadPath, flag, detour] = await Promise.all([
+  // An AT outage costs this request its schedule and road path, not the day's
+  // cache entries - but a swallowed failure read as "this run has no stops", so
+  // `allSettled` keeps the rejection and the page below says which it was.
+  const [timeline, optional, flag, detour] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
-    getTripScheduledStops(tripId).catch((): ScheduledStop[] => []),
-    getTripShape(tripId).catch((): Array<[number, number]> => []),
+    Promise.allSettled([getTripScheduledStops(tripId), getTripShape(tripId)]),
     getTripCancellation(tripId, day),
     day ? getTripDetour(tripId, day) : Promise.resolve(null),
   ]);
+  const [scheduledResult, roadResult] = optional;
+  const scheduleFailed = scheduledResult.status === "rejected";
+  const scheduledStops: ScheduledStop[] =
+    scheduledResult.status === "fulfilled" ? scheduledResult.value : [];
+  const roadPath: Array<[number, number]> =
+    roadResult.status === "fulfilled" ? roadResult.value : [];
   const { route, vehicle_id } = timeline;
   // Nothing knows this run: no route row, no arrival on any day, no schedule.
-  if (!route && timeline.stops.length === 0 && scheduledStops.length === 0) notFound();
+  // Not when the schedule call failed, though - that is an outage, and a 404
+  // would tell the reader the run does not exist.
+  if (!route && !scheduleFailed && timeline.stops.length === 0 && scheduledStops.length === 0) {
+    notFound();
+  }
   const routeMode = route?.mode ?? "BUS";
 
   // Cancellation: the recorded arrivals against AT's flag tell a trip that never
@@ -186,6 +197,10 @@ export default async function TripPage({
   const lastServedIndex = scheduledPart.findLastIndex((s) => s.kind === "served");
   const notServedFrom =
     stage === "before" ? 0 : stage === "mid-trip" ? lastServedIndex + 1 : scheduledStops.length;
+  // Which of the timeline's two unlabelled dot states are on screen, so the key
+  // under it names only what the reader can actually see.
+  const hasUnrecorded = mergedStops.some((s, i) => s.kind === "future" && i < notServedFrom);
+  const hasNotServed = mergedStops.some((s, i) => s.kind === "future" && i >= notServedFrom);
 
   return (
     <main className={cn("space-y-6")}>
@@ -272,8 +287,15 @@ export default async function TripPage({
       )}
 
       {mergedStops.length === 0 ? (
-        <p className="border border-at-border bg-at-surface p-4 text-at-muted">
-          No stop records found for this trip.
+        <p
+          className={cn(
+            "border border-at-border bg-at-surface p-4",
+            scheduleFailed ? "text-at-late" : "text-at-muted",
+          )}
+        >
+          {scheduleFailed
+            ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
+            : "No stop records found for this trip."}
         </p>
       ) : (
         <section className="border border-at-border bg-at-surface p-4">
@@ -367,6 +389,26 @@ export default async function TripPage({
               );
             })}
           </ol>
+          {/* The rail's two grey states carry meaning that no text on the row says.
+              A struck row at least prints "Not served"; a plain grey one prints
+              nothing at all, and the map legend above covers only the three delay
+              colours, which are a different thing entirely. */}
+          {(hasUnrecorded || hasNotServed) && (
+            <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-at-muted">
+              {hasUnrecorded && (
+                <div className="flex items-center gap-1.5">
+                  <dt className="h-3 w-3 shrink-0 rounded-full bg-at-border" />
+                  <dd>Scheduled, with no arrival recorded</dd>
+                </div>
+              )}
+              {hasNotServed && (
+                <div className="flex items-center gap-1.5">
+                  <dt className="h-3 w-3 shrink-0 rounded-full border-2 border-at-late bg-at-surface" />
+                  <dd>The run never reached this stop</dd>
+                </div>
+              )}
+            </dl>
+          )}
         </section>
       )}
     </main>

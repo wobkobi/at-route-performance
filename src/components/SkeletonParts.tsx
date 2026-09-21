@@ -208,19 +208,22 @@ export function BoardFiltersSkeleton(): JSX.Element {
 
 /**
  * Mirrors ShameHeader: the red title over its `mt-0.5 text-sm` subtitle, then the
- * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, and the
- * day stepper.
+ * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, the
+ * day stepper, and the mode/school row on its own line.
  * @param root0 - Props.
  * @param root0.toggle - Whether the header carries the Day/Week toggle chip.
  * @param root0.twoLineSubtitle - Whether the subtitle wraps to two lines below `sm`.
+ * @param root0.filters - Whether the header carries the mode and school chips.
  * @returns The header placeholder.
  */
 export function ShameHeaderSkeleton({
   toggle = false,
   twoLineSubtitle = false,
+  filters = false,
 }: {
   toggle?: boolean;
   twoLineSubtitle?: boolean;
+  filters?: boolean;
 }): JSX.Element {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3">
@@ -237,6 +240,17 @@ export function ShameHeaderSkeleton({
         {toggle && <ChipBone className="w-15" />}
         <DayNavSkeleton />
       </div>
+      {filters && (
+        <div className="flex w-full flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-2">
+            <ChipBone className="w-12" />
+            <ChipBone className="w-13" />
+            <ChipBone className="w-16" />
+            <ChipBone className="w-16" />
+          </div>
+          <ChipBone className="w-28" />
+        </div>
+      )}
     </header>
   );
 }

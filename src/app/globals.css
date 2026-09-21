@@ -95,6 +95,13 @@
 /* AT-style pill controls (filters, day stepper, sort chips). */
 .chip {
   @apply inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold transition-colors;
+  /*
+    `transition-colors` covers `outline-color` too, which would fade the focus
+    ring up over 150ms from the chip's own text colour - white on an active
+    chip, against a light page. A ring has to be there the moment the chip takes
+    focus, so it is left out of the list while the rest still eases.
+  */
+  transition-property: color, background-color, border-color;
 }
 .chip-on {
   @apply bg-at-shore text-white;
@@ -146,6 +153,27 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-at-border, currentcolor);
+  }
+}
+
+/*
+  One focus ring for the whole site, so nothing has to remember to draw its own.
+  `:focus-visible` rather than `:focus`, so a mouse click on a chip or a row link
+  leaves no ring behind while a Tab through the page draws one on every control.
+  An outline, not a box-shadow, because the route diagram's stop nodes are SVG
+  circles and a shadow would not follow their shape.
+*/
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-at-shore);
+    outline-offset: 2px;
+  }
+  /*
+    Shore against Ocean is about 2.5:1, so the one dark band on the site takes
+    the brand's high-visibility yellow instead.
+  */
+  .bg-at-ocean :focus-visible {
+    outline-color: var(--color-at-safety);
   }
 }
 
