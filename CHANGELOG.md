@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.7] - 2026-09-22
+
+### Changed
+
+- Moved the unit and integration tests out of src/ into a tests/ folder that mirrors it.
+
 ## [1.32.6] - 2026-09-22
 
 ### Changed

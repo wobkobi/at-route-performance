@@ -20,15 +20,15 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
 
-  // Type-aware TS rules for app code. Scoped to src/ because scripts/ sits
-  // outside tsconfig's project graph, so it stays on the non-type-checked
-  // recommended set from nextTs.
+  // Type-aware TS rules for app code and its tests. Scoped to src/ and tests/
+  // because scripts/ sits outside tsconfig's project graph, so it stays on the
+  // non-type-checked recommended set from nextTs.
   ...tseslint.configs.recommendedTypeChecked.map((c) => ({
     ...c,
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,tests}/**/*.{ts,tsx}"],
   })),
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,tests}/**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -155,7 +155,7 @@ export default defineConfig([
     "coverage/**",
     ".turbo/**",
     // Static assets, not source. The lint script already only covers
-    // {src,scripts}; this keeps editor-integrated linting off them too.
+    // {src,tests,scripts}; this keeps editor-integrated linting off them too.
     "public/**",
     ".eslintcache",
     "next.config.ts",

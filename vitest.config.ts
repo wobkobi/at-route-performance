@@ -4,9 +4,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["tests/**/*.test.ts"],
     // Integration tests need DATABASE_URL and run through vitest.int.config.ts.
-    exclude: [...configDefaults.exclude, "src/**/*.int.test.ts"],
+    exclude: [...configDefaults.exclude, "tests/**/*.int.test.ts"],
     passWithNoTests: true,
   },
   resolve: {
