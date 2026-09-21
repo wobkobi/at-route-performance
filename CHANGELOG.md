@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.0] - 2026-09-21
+
+### Added
+
+- The home page answers its own question: the day (or week, or month) now leads with a one-word
+  verdict on the network on-time share, from "Actually fine" down to "Shit", with a five-step meter
+  and the sentence it is built from. The on-time popover lists the scale. The worst-trip card puts
+  its headsign on its own line so its route sits level with the worst stop beside it.
+
 ## [1.31.7] - 2026-09-21
 
 ### Fixed

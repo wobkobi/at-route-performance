@@ -13,6 +13,8 @@ export interface OffScheduleLineProps {
   absSec: number | null;
   /** Route mode, for the on-time window behind the colour. */
   mode: string;
+  /** Text before the sentence, such as the run's start time. */
+  lead?: string;
 }
 
 /**
@@ -24,15 +26,22 @@ export interface OffScheduleLineProps {
  * @param props.signedSec - Signed average deviation in seconds.
  * @param props.absSec - Average absolute deviation in seconds.
  * @param props.mode - Route mode.
+ * @param props.lead - Text before the sentence.
  * @returns The sentence.
  */
-export function OffScheduleLine({ signedSec, absSec, mode }: OffScheduleLineProps): JSX.Element {
+export function OffScheduleLine({
+  signedSec,
+  absSec,
+  mode,
+  lead,
+}: OffScheduleLineProps): JSX.Element {
   const value = offScheduleValue(signedSec, absSec, mode);
   const figure = (
     <span className={cn("font-semibold", OFF_SCHEDULE_TONE_CLASS[value.tone])}>{value.text}</span>
   );
   return (
     <p className="text-sm text-at-muted">
+      {lead && <span className="tabular-nums">{lead} · </span>}
       Ran {figure}
       {value.tone === "mixed" && signedSec != null
         ? ` schedule on average (net ${formatDelay(signedSec, { thresholdSec: 0 })})`

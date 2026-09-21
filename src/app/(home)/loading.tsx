@@ -35,7 +35,7 @@ export default function Loading(): JSX.Element {
         </div>
       </header>
 
-      <KpiStripSkeleton />
+      <KpiStripSkeleton verdict />
 
       {/* "Shame of the day" heading: text-lg, 28px */}
       <Bone className="h-7 w-44" />

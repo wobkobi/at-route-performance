@@ -59,20 +59,44 @@ export function DayNavSkeleton(): JSX.Element {
  * `text-xs` label (16px) over a `text-xl` value (28px). One cell carries a
  * third `text-xs` line ("Reinstated trips included"), which sets the whole row's
  * height, so the placeholder has to draw it or the strip jumps on hydration.
+ *
+ * With `verdict` it mirrors the lead panel too: a `p-4` block, 12px apart, of the
+ * `text-xs` label, the `text-5xl`/`sm:text-6xl` word (line height 1, so 48px
+ * then 60px), the 8px meter and a `text-sm` sentence that wraps to two lines on
+ * a phone, over four cells, not five.
  * @param root0 - Props.
  * @param root0.noteCell - Index of the cell carrying the note line. Defaults to
  * FleetSummary's flagged-cancelled cell; the cancellations strip puts it first.
+ * @param root0.verdict - Mirror FleetSummary's verdict panel.
  * @returns The KPI strip placeholder.
  */
-export function KpiStripSkeleton({ noteCell = 3 }: { noteCell?: number } = {}): JSX.Element {
+export function KpiStripSkeleton({
+  noteCell,
+  verdict = false,
+}: { noteCell?: number; verdict?: boolean } = {}): JSX.Element {
+  // The on-time cell moves into the panel, so flagged-cancelled is one earlier.
+  const note = noteCell ?? (verdict ? 2 : 3);
   return (
     <div className="border border-at-border bg-at-surface">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
+      {verdict && (
+        <div className="space-y-3 border-b border-at-border p-4">
+          <Bone className="h-4 w-20" />
+          <Bone className="h-12 w-40 sm:h-15 sm:w-52" />
+          <Bone className="h-2 w-full max-w-xs" />
+          <Bone className="h-10 w-96 max-w-full sm:h-5" />
+        </div>
+      )}
+      <div
+        className={cn(
+          "grid grid-cols-2",
+          verdict ? "lg:grid-cols-4" : "sm:grid-cols-3 lg:grid-cols-5",
+        )}
+      >
+        {Array.from({ length: verdict ? 4 : 5 }).map((_, i) => (
           <div key={i} className="p-3">
             <Bone className="h-4 w-16" />
             <Bone className="h-7 w-20" />
-            {i === noteCell && <Bone className="h-4 w-24" />}
+            {i === note && <Bone className="h-4 w-24" />}
           </div>
         ))}
       </div>
@@ -83,14 +107,14 @@ export function KpiStripSkeleton({ noteCell = 3 }: { noteCell?: number } = {}): 
 /**
  * Mirrors the highlight cards (ShameOfDay, WorstRouteCard, WorstStopCard): a
  * `px-6 py-5` bordered column of a `text-xs` label, a `text-2xl` title row, a
- * `text-sm` summary and a `text-xs` footnote, 4px apart. The trip card's title
- * row also carries the headsign and start time, which wrap onto their own lines
- * once the card is phone-narrow, so `withHeadsign` adds those lines below `md`.
- * In the Shame dashboard's grid (`narrow`) the headsign always takes its own line,
- * and a typical one wraps to two once the cards sit two or three across.
+ * `text-sm` summary and a `text-xs` footnote, 4px apart. The trip card puts its
+ * headsign on a `text-base` line of its own under the title at every width, so
+ * `withHeadsign` draws that line; its start time rides on the summary line. In
+ * the Shame dashboard's grid (`narrow`) a typical headsign wraps to two lines
+ * once the cards sit two or three across.
  * @param root0 - Props.
- * @param root0.withHeadsign - Mirror the trip card's headsign and start time.
- * @param root0.narrow - The card never gets wide enough for the headsign to share the title row.
+ * @param root0.withHeadsign - Mirror the trip card's headsign line.
+ * @param root0.narrow - The card sits in the Shame grid, where the headsign wraps to two lines from `sm`.
  * @returns The card placeholder.
  */
 export function FeatureCardSkeleton({
@@ -103,15 +127,10 @@ export function FeatureCardSkeleton({
   return (
     <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
       <Bone className="h-4 w-20" />
-      <div className="flex flex-wrap items-center gap-2">
-        <Bone className="h-8 w-24" />
-        {withHeadsign && (
-          <>
-            <Bone className={cn("h-6 w-full", narrow ? "sm:h-12" : "md:w-48")} />
-            <Bone className="h-5 w-14" />
-          </>
-        )}
-      </div>
+      <Bone className="h-8 w-24" />
+      {withHeadsign && (
+        <Bone className={cn("h-6", narrow ? "w-full sm:h-12" : "w-48 max-w-full")} />
+      )}
       <Bone className="h-5 w-64 max-w-full" />
       <Bone className="h-4 w-28" />
     </div>

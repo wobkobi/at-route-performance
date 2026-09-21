@@ -155,7 +155,7 @@ export async function PeriodOverview({
 
   return (
     <>
-      <FleetSummary data={heroData} />
+      <FleetSummary data={heroData} verdict />
 
       <SectionLink title={`Shame of the ${window}`} href={shameTripHref} />
       <div className="grid gap-4 md:grid-cols-2">

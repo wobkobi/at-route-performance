@@ -19,7 +19,7 @@ import type { JSX } from "react";
 export function RankingsBodySkeleton(): JSX.Element {
   return (
     <>
-      <KpiStripSkeleton />
+      <KpiStripSkeleton verdict />
 
       {/* "Shame of the week" heading: text-lg, 28px */}
       <Bone className="h-7 w-48" />

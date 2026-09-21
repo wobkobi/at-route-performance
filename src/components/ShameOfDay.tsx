@@ -106,15 +106,15 @@ export function ShameOfDay({
           className="h-6 w-6"
         />
         <span className="text-2xl font-ultra tracking-zero text-at-ink">{name}</span>
-        {trip.headsign && <span className="text-base text-at-muted">to {trip.headsign}</span>}
-        <span className="text-sm text-at-muted tabular-nums">
-          {nzClockTime(trip.scheduled_start)}
-        </span>
       </div>
+      {/* The anchor line holds only the route, so it sits level with the stop
+          card's name beside it; the headsign takes its own line. */}
+      {trip.headsign && <p className="text-base text-at-muted">to {trip.headsign}</p>}
       <OffScheduleLine
         signedSec={trip.avg_delay_sec}
         absSec={trip.avg_abs_delay_sec}
         mode={trip.mode}
+        lead={nzClockTime(trip.scheduled_start)}
       />
       {routeHourCount > 1 && (
         <p className="text-xs text-at-muted">

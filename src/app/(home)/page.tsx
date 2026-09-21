@@ -242,7 +242,7 @@ export default async function Home({
         pastWindow={linkDay !== undefined}
       />
 
-      <FleetSummary data={heroData} />
+      <FleetSummary data={heroData} verdict />
 
       <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
       <Suspense fallback={<FeatureCardPairSkeleton />}>
