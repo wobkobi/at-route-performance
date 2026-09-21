@@ -23,6 +23,25 @@ export const MS_IN_DAY = 86_400_000;
 const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
 
 /**
+ * Bumped whenever the ghost classification changes what a completed day's boards
+ * say. A recompute changes neither the cache key nor the seven-day TTL, and
+ * `unstable_cache` persists its entries across requests and deployments, so
+ * without this a repaired day keeps serving its old numbers for a week.
+ */
+const PASS_VERSION = "g2";
+
+/**
+ * The full key an aggregation caches under: the classification version, the
+ * caller's own parts, then the window's state.
+ * @param keyParts - Cache key parts unique to the query and its window.
+ * @param state - The window's state, from {@link cacheState}.
+ * @returns The key parts, in order.
+ */
+export function cacheKey(keyParts: readonly string[], state: string): string[] {
+  return [PASS_VERSION, ...keyParts, state];
+}
+
+/**
  * Cache TTL for a window that can still change - anything touching the live
  * service day. One ingest cycle: the readings only move when a run lands, so a
  * shorter hold re-runs the aggregation over figures that have not changed. It
@@ -148,7 +167,7 @@ export async function cachedForRange<T>(
     : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
   return unstable_cache(
     fn,
-    [...keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)],
+    cacheKey(keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)),
     { revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate },
   )(final);
 }

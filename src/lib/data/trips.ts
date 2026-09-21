@@ -107,6 +107,11 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                 },
               },
             },
+            // A whole-ghost run builds an empty _ok, so it would reach $limit
+            // with a null average, sort last and still occupy a row and the
+            // Trips count on the route page. Drop it before the same-minute
+            // collapse, so it cannot win a collapse group either.
+            { $match: { $expr: { $gt: [{ $size: "$_ok" }, 0] } } },
             {
               $addFields: {
                 avg_delay_sec: { $avg: "$_ok" },

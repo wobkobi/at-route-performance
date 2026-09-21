@@ -9,7 +9,7 @@ import {
   summaryUpsertOps,
   type DailyStats,
 } from "@/lib/aggregate";
-import { NO_DELAY_SOURCE, UNCLASSIFIED_LIMIT_SEC } from "@/lib/deviation";
+import { NO_DELAY_SOURCE, UNCLASSIFIED_LIMIT_SEC, realDeviationExprFor } from "@/lib/deviation";
 import { nzServiceDayRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,6 +48,31 @@ describe("dailySummaryPipeline", () => {
     const unclassified = JSON.stringify(dailySummaryPipeline(range, false));
     expect(classified).not.toContain(String(UNCLASSIFIED_LIMIT_SEC));
     expect(unclassified).toContain(String(UNCLASSIFIED_LIMIT_SEC));
+  });
+
+  it("counts every event but rates only the real readings", () => {
+    const group = (dailySummaryPipeline(range, true)[1] as { $group: Record<string, unknown> })
+      .$group;
+    // The total stays every row, so a route with ghost readings is not pushed
+    // below the rankings threshold.
+    expect(group.events).toEqual({ $sum: 1 });
+    // Each counter carries the same guard the delay averages already use.
+    const plausible = JSON.stringify(realDeviationExprFor(true));
+    expect(JSON.stringify(group.on_time_strict)).toContain(plausible);
+    expect(JSON.stringify(group.on_time_ferry)).toContain(plausible);
+    expect(JSON.stringify(group.early_strict)).toContain(plausible);
+    expect(JSON.stringify(group.early_ferry)).toContain(plausible);
+    expect(JSON.stringify(group.late_count)).toContain(plausible);
+  });
+
+  it("divides every rate by the real-reading count, not by the total", () => {
+    const rates = (dailySummaryPipeline(range, true)[5] as { $addFields: Record<string, unknown> })
+      .$addFields;
+    for (const key of ["on_time_pct", "early_pct", "late_pct"]) {
+      const text = JSON.stringify(rates[key]);
+      expect(text).toContain('"$max":[1,"$_plausible"]');
+      expect(text).not.toContain('"$events"');
+    }
   });
 });
 

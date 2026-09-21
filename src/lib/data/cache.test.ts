@@ -1,6 +1,6 @@
 // src/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheState, rangeIsFinal } from "@/lib/data/cache";
+import { cacheKey, cacheState, rangeIsFinal } from "@/lib/data/cache";
 import { nzServiceDayRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -86,5 +86,19 @@ describe("rangeIsFinal", () => {
   it("is false while any day in the window has no summary row", async () => {
     findFirst.mockResolvedValue(null);
     await expect(rangeIsFinal(nzServiceDayRange("2026-09-11"))).resolves.toBe(false);
+  });
+});
+
+describe("cacheKey", () => {
+  it("leads with the classification version, so a repaired day cannot serve its old numbers", () => {
+    // A recompute changes neither the caller's key parts nor the seven-day TTL,
+    // and unstable_cache persists entries across deployments, so the version is
+    // the only thing that can retire a stale board.
+    expect(cacheKey(["worst-trips", "152"], "final")).toEqual([
+      expect.stringMatching(/^g\d+$/),
+      "worst-trips",
+      "152",
+      "final",
+    ]);
   });
 });

@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.6] - 2026-09-21
+
+### Fixed
+
+- A run the nightly pass hid as a ghost no longer occupies a row or counts in a route's Trips
+  figure, and the on-time, early and late rates on the day boards and rankings count only real
+  readings, so a hidden run cannot move a route's on-time figure. Every cached board is recomputed
+  once on deploy so a repaired day stops serving its old numbers.
+
 ## [1.31.5] - 2026-09-21
 
 ### Changed
