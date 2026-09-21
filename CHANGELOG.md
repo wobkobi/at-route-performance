@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.3] - 2026-09-21
+
+### Fixed
+
+- The whole of a trips-board or cancelled-trips row is now the link, not just the name, and a badge
+  that will not fit drops under the name instead of truncating it.
+
 ## [1.31.2] - 2026-09-21
 
 ### Fixed

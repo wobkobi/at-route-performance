@@ -141,19 +141,28 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
                     longName={t.long_name}
                     colour={t.colour}
                   />
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="font-semibold text-at-ink">{t.short_name ?? t.route_id}</span>
-                    <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
-                  </span>
-                  <span
-                    title={CANCELLATION_BADGE_MEANING[t.stage]}
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                      CANCELLATION_BADGE_CLASS[t.stage],
-                    )}
-                  >
-                    <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
-                    <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                  {/* Name and badge share a wrapping line: the badge is `shrink-0`, so
+                      as a sibling of the name it left the name as the only column that
+                      could give, truncating a route to "32 to Manger...". `min-w-40` on
+                      the name is what makes the badge wrap instead - a `flex-1` item has
+                      a zero flex basis, so without a floor nothing would ever wrap. */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-40 flex-1 truncate">
+                      <span className="font-semibold text-at-ink">
+                        {t.short_name ?? t.route_id}
+                      </span>
+                      <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
+                    </span>
+                    <span
+                      title={CANCELLATION_BADGE_MEANING[t.stage]}
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                        CANCELLATION_BADGE_CLASS[t.stage],
+                      )}
+                    >
+                      <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
+                      <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                    </span>
                   </span>
                   <ChevronRight className="shrink-0 text-at-muted" />
                 </Link>
