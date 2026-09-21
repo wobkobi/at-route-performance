@@ -47,6 +47,9 @@ const POLL_MS = 120_000;
 /** How long a vehicle takes to glide from its last polled position to its new one. */
 const GLIDE_MS = 1000;
 
+/** The word a vehicle marker's accessible name starts with. */
+const MODE_WORD: Record<RouteMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
+
 /** Options for a vehicle's floating delay label. */
 const VEHICLE_TOOLTIP: Leaflet.TooltipOptions = {
   permanent: true,
@@ -108,22 +111,23 @@ type RouteMode = "BUS" | "TRAIN" | "FERRY";
 
 /**
  * Inner SVG markup for each mode's vehicle glyph, scaled to fit the 20x20 glyph
- * area inside the 40x40 marker disc. Scale factors derived from each icon's viewBox:
- *   BUS  (FaBusAlt)  512x512 - scale(20/512)       = 0.039
- *   TRAIN (FaSubway) 448x512 - scale(20/448, 20/512) = scale(0.0446, 0.039)
- *   FERRY (FaShip)   640x512 - scale(20/640, 20/512) = scale(0.03125, 0.039)
+ * area inside the 40x40 marker disc. Each icon is scaled evenly by 20 over its
+ * longer side and centred along the shorter one, so none is stretched:
+ *   BUS   (FaBusAlt) 512x512 - scale(20/512)
+ *   TRAIN (FaSubway) 448x512 - scale(20/512), 17.5 wide, so shifted 1.25 right
+ *   FERRY (FaShip)   640x512 - scale(20/640), 16 tall, so shifted 2 down
  */
 const MODE_GLYPHS: Record<RouteMode, string> = {
   BUS:
-    '<g transform="scale(0.039)">' +
+    '<g transform="scale(0.0390625)">' +
     '<path d="M488 128h-8V80c0-44.8-99.2-80-224-80S32 35.2 32 80v48h-8c-13.25 0-24 10.74-24 24v80c0 13.25 10.75 24 24 24h8v160c0 17.67 14.33 32 32 32v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h192v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h6.4c16 0 25.6-12.8 25.6-25.6V256h8c13.25 0 24-10.75 24-24v-80c0-13.26-10.75-24-24-24zM160 72c0-4.42 3.58-8 8-8h176c4.42 0 8 3.58 8 8v16c0 4.42-3.58 8-8 8H168c-4.42 0-8-3.58-8-8V72zm-48 328c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32zm128-112H128c-17.67 0-32-14.33-32-32v-96c0-17.67 14.33-32 32-32h112v160zm32 0V128h112c17.67 0 32 14.33 32 32v96c0 17.67-14.33 32-32 32H272zm128 112c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32z"/>' +
     "</g>",
   TRAIN:
-    '<g transform="scale(0.0446 0.039)">' +
+    '<g transform="translate(1.25 0) scale(0.0390625)">' +
     '<path d="M448 96v256c0 51.815-61.624 96-130.022 96l62.98 49.721C386.905 502.417 383.562 512 376 512H72c-7.578 0-10.892-9.594-4.957-14.279L130.022 448C61.82 448 0 403.954 0 352V96C0 42.981 64 0 128 0h192c65 0 128 42.981 128 96zM200 232V120c0-13.255-10.745-24-24-24H72c-13.255 0-24 10.745-24 24v112c0 13.255 10.745 24 24 24h104c13.255 0 24-10.745 24-24zm200 0V120c0-13.255-10.745-24-24-24H272c-13.255 0-24 10.745-24 24v112c0 13.255 10.745 24 24 24h104c13.255 0 24-10.745 24-24zm-48 56c-26.51 0-48 21.49-48 48s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48zm-256 0c-26.51 0-48 21.49-48 48s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48z"/>' +
     "</g>",
   FERRY:
-    '<g transform="scale(0.03125 0.039)">' +
+    '<g transform="translate(0 2) scale(0.03125)">' +
     '<path d="M496.616 372.639l70.012-70.012c16.899-16.9 9.942-45.771-12.836-53.092L512 236.102V96c0-17.673-14.327-32-32-32h-64V24c0-13.255-10.745-24-24-24H248c-13.255 0-24 10.745-24 24v40h-64c-17.673 0-32 14.327-32 32v140.102l-41.792 13.433c-22.753 7.313-29.754 36.173-12.836 53.092l70.012 70.012C125.828 416.287 85.587 448 24 448c-13.255 0-24 10.745-24 24v16c0 13.255 10.745 24 24 24 61.023 0 107.499-20.61 143.258-59.396C181.677 487.432 216.021 512 256 512h128c39.979 0 74.323-24.568 88.742-59.396C508.495 491.384 554.968 512 616 512c13.255 0 24-10.745 24-24v-16c0-13.255-10.745-24-24-24-60.817 0-101.542-31.001-119.384-75.361zM192 128h256v87.531l-118.208-37.995a31.995 31.995 0 0 0-19.584 0L192 215.531V128z"/>' +
     "</g>",
 };
@@ -304,6 +308,9 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
     const popup = `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${esc(status.detail)}`;
+    // Leaflet makes each marker a focusable button, and the icon's svg is hidden
+    // from assistive tech, so the name has to be set on the element itself.
+    const name = `${MODE_WORD[mode] ?? "Vehicle"} ${veh.label ?? veh.vehicleId}, ${status.detail}`;
 
     const entry = state.vehicles.get(veh.vehicleId);
     if (!entry) {
@@ -316,6 +323,7 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
       if (status.label) marker.bindTooltip(status.label, VEHICLE_TOOLTIP);
       marker.bindPopup(popup);
       marker.addTo(state.vehicleLayer);
+      marker.getElement()?.setAttribute("aria-label", name);
       state.vehicles.set(veh.vehicleId, { marker, iconKey, label: status.label });
       continue;
     }
@@ -338,6 +346,7 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
       entry.label = status.label;
     }
     marker.setPopupContent(popup);
+    marker.getElement()?.setAttribute("aria-label", name);
   }
   for (const [id, entry] of state.vehicles) {
     if (seen.has(id)) continue;

@@ -2,6 +2,7 @@
 // Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
 
 import { ChevronLeft } from "@/components/icons";
+import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { TripCancellationNote } from "@/components/TripCancellationNote";
@@ -271,17 +272,7 @@ export default async function TripPage({
         <section className="border border-at-border bg-at-surface p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
-            <span className="flex items-center gap-3 text-xs text-at-muted">
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
-              </span>
-            </span>
+            <StopDotKey />
           </div>
           <StopMapWrapper
             stops={tripMapStops}
@@ -297,6 +288,7 @@ export default async function TripPage({
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
             className="h-100"
           />
+          <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
         </section>
       )}
 

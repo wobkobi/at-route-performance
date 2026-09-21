@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.6] - 2026-09-22
+
+### Fixed
+
+- Live vehicle markers have a name a screen reader can read and a focus ring that follows the disc,
+  the map key now explains the vehicle marker and the off-route line, and the train and ferry icons
+  are no longer stretched.
+
 ## [1.36.5] - 2026-09-22
 
 ### Fixed

@@ -2,6 +2,7 @@
 // src/components/RouteMapDiagram.tsx
 // Plot a route's stops on the map via the stop map wrapper.
 
+import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import type { JSX } from "react";
 
@@ -68,17 +69,7 @@ export function RouteMapDiagram({
     <section className="border border-at-border bg-at-surface p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
-        <span className="flex items-center gap-3 text-xs text-at-muted">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
-          </span>
-        </span>
+        <StopDotKey />
       </div>
       <StopMapWrapper
         stops={stops}
@@ -89,6 +80,7 @@ export function RouteMapDiagram({
         filterDirectionIds={filterDirectionIds}
         className="h-125"
       />
+      <MapMarkKey live={live} />
     </section>
   );
 }

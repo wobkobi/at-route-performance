@@ -198,6 +198,11 @@
 .vehicle-marker {
   line-height: 0;
 }
+/* The focus ring follows the disc rather than the square the icon sits in. */
+.vehicle-marker:focus-visible {
+  border-radius: 50%;
+  outline-offset: -3px;
+}
 
 /* A vehicle and its label sliding to a new polled position; see glide() in StopMap. */
 .vehicle-gliding {
