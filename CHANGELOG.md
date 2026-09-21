@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.4] - 2026-09-21
+
+### Fixed
+
+- A wheel over a map now scrolls the page instead of zooming, a trip map frames the whole trip
+  rather than opening zoomed on its first stop with an uninvited popup, panning a trip map no longer
+  overwrites the route map's saved view, and the trip timeline explains its grey and hollow stop
+  dots.
+
 ## [1.31.3] - 2026-09-21
 
 ### Fixed

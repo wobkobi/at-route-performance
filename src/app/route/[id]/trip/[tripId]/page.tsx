@@ -197,6 +197,10 @@ export default async function TripPage({
   const lastServedIndex = scheduledPart.findLastIndex((s) => s.kind === "served");
   const notServedFrom =
     stage === "before" ? 0 : stage === "mid-trip" ? lastServedIndex + 1 : scheduledStops.length;
+  // Which of the timeline's two unlabelled dot states are on screen, so the key
+  // under it names only what the reader can actually see.
+  const hasUnrecorded = mergedStops.some((s, i) => s.kind === "future" && i < notServedFrom);
+  const hasNotServed = mergedStops.some((s, i) => s.kind === "future" && i >= notServedFrom);
 
   return (
     <main className={cn("space-y-6")}>
@@ -385,6 +389,26 @@ export default async function TripPage({
               );
             })}
           </ol>
+          {/* The rail's two grey states carry meaning that no text on the row says.
+              A struck row at least prints "Not served"; a plain grey one prints
+              nothing at all, and the map legend above covers only the three delay
+              colours, which are a different thing entirely. */}
+          {(hasUnrecorded || hasNotServed) && (
+            <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-at-muted">
+              {hasUnrecorded && (
+                <div className="flex items-center gap-1.5">
+                  <dt className="h-3 w-3 shrink-0 rounded-full bg-at-border" />
+                  <dd>Scheduled, with no arrival recorded</dd>
+                </div>
+              )}
+              {hasNotServed && (
+                <div className="flex items-center gap-1.5">
+                  <dt className="h-3 w-3 shrink-0 rounded-full border-2 border-at-late bg-at-surface" />
+                  <dd>The run never reached this stop</dd>
+                </div>
+              )}
+            </dl>
+          )}
         </section>
       )}
     </main>

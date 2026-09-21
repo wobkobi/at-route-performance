@@ -456,6 +456,7 @@ export default function StopMap({
     routeId,
     live,
     mode,
+    selectedStopId,
     filterTripId,
     filterDirectionIds,
     offRoute,
@@ -467,6 +468,7 @@ export default function StopMap({
       routeId,
       live,
       mode,
+      selectedStopId,
       filterTripId,
       filterDirectionIds,
       offRoute,
@@ -486,7 +488,18 @@ export default function StopMap({
       if (dead || !divRef.current) return;
 
       const colours = readColours();
-      const map = L.map(divRef.current);
+      /*
+        Leaflet's defaults leave wheel zoom and one-finger drag on, so a wheel over
+        the map zoomed it instead of scrolling past it and a thumb swipe panned the
+        map instead of the page - on a phone the map is most of the viewport, so
+        there was no reliable way to scroll past it at all. The zoom buttons and
+        pinch-zoom both still work; this only takes away the two gestures that were
+        stealing a scroll the reader meant for the page.
+      */
+      const map = L.map(divRef.current, {
+        scrollWheelZoom: false,
+        dragging: !L.Browser.mobile,
+      });
       // The key goes out only where CARTO accepts it (see cartoTileUrl).
       const tiles = cartoTileUrl(
         window.location.host,
@@ -521,8 +534,14 @@ export default function StopMap({
       drawOffRouteLayer(state, latestRef.current.offRoute);
       drawStopLayer(state, s0, m0);
 
-      const storageKey = rId ? `map-viewport:${rId}` : null;
-      setInitialViewport(state, s0, rl0, storageKey, !!latestRef.current.filterTripId);
+      /*
+        Only a whole-route map remembers where it was left. The trip page passes the
+        route's own slug as `routeId`, so both maps used to share one key and panning
+        a trip map overwrote the route map's saved view. A trip map has one right
+        framing anyway - the trip - so it saves nothing and always fits its own path.
+      */
+      const storageKey = rId && !latestRef.current.filterTripId ? `map-viewport:${rId}` : null;
+      setInitialViewport(state, s0, rl0, storageKey, !!latestRef.current.selectedStopId);
 
       if (storageKey) {
         map.on("moveend", () => {
@@ -534,8 +553,15 @@ export default function StopMap({
         });
       }
 
-      // Focus a pre-selected stop (e.g. trip page with a known stop).
-      const sel0 = latestRef.current.filterTripId ? s0[0]?.stop_id : undefined;
+      /*
+        Focus a stop the caller actually asked for. This used to key on
+        `filterTripId` and focus `s0[0]`, which meant every trip map opened zoomed
+        on the trip's first stop with that stop's popup up - a framing nobody chose
+        and a popup nobody clicked, hiding the run the page is about. Effect 3 does
+        the same job once the map is live; this covers a stop selected before the
+        map finished loading.
+      */
+      const sel0 = latestRef.current.selectedStopId;
       if (sel0) {
         const m = state.markerById.get(sel0);
         if (m) {
