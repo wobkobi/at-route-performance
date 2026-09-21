@@ -19,7 +19,8 @@ import {
   loadPeriodBatch,
   PeriodBoards,
   PeriodModeFilter,
-  PeriodShameCards,
+  PeriodStopCard,
+  PeriodTripCard,
   PeriodVerdict,
   type PeriodView,
 } from "@/components/PeriodOverview";
@@ -30,7 +31,11 @@ import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
-import { FeatureCardPairSkeleton, KpiStripSkeleton } from "@/components/SkeletonParts";
+import {
+  FeatureCardPairSkeleton,
+  FeatureCardSkeleton,
+  KpiStripSkeleton,
+} from "@/components/SkeletonParts";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -192,13 +197,17 @@ async function PeriodHome({
           title={`Shame of the ${window}`}
           href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
-        <Suspense fallback={<FeatureCardPairSkeleton />}>
-          <PeriodShameCards
-            batch={batch}
-            window={window}
-            stopHref={buildShameHref("/shame/stop", shameNav, shameFilter)}
-          />
-        </Suspense>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Suspense fallback={<FeatureCardSkeleton withHeadsign />}>
+            <PeriodTripCard batch={batch} window={window} />
+          </Suspense>
+          <Suspense fallback={<FeatureCardSkeleton />}>
+            <PeriodStopCard
+              batch={batch}
+              href={buildShameHref("/shame/stop", shameNav, shameFilter)}
+            />
+          </Suspense>
+        </div>
       </section>
 
       <section className="space-y-4">

@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.4] - 2026-09-22
+
+### Changed
+
+- The week and month pages show the verdict and boards as soon as the rankings are ready, and each
+  shame card loads on its own.
+
 ## [1.32.3] - 2026-09-22
 
 ### Changed

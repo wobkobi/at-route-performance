@@ -35,7 +35,7 @@ import { isSchoolBus } from "@/lib/school-bus";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { TopRouteRow } from "@/types/api";
-import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
+import type { FleetSummary as FleetSummaryData, ShameOfWeek, WorstStop } from "@/types/dashboard";
 import type { JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -57,13 +57,11 @@ export interface PeriodView {
   anchor: Date;
 }
 
-/** Everything the three streamed parts of the week or month home render from. */
-export interface PeriodBatch {
+/** Everything the ranking parts of the week or month home render from. */
+export interface PeriodCore {
   heroData: FleetSummaryData;
   /** Modes with at least one route over the board bar, for the mode chips. */
   availableModes: Set<string>;
-  shame: Awaited<ReturnType<typeof getShameOfWeek>>;
-  worstStop: Awaited<ReturnType<typeof getWorstStops>>[number] | null;
   offSchedule: TopRouteRow[];
   reliable: TopRouteRow[];
   offScheduleDeltas: ReturnType<typeof computeRankDelta> | undefined;
@@ -74,24 +72,63 @@ export interface PeriodBatch {
 }
 
 /**
- * Run the week or month ranking batch and derive every figure the page shows.
- * Called once per request; the promise is handed to each streamed part, so the
- * queries run once however many parts await it.
- * @param view - The window, filters and range to load.
- * @returns The derived batch.
+ * The week or month home's three independent reads, each its own promise so
+ * each streamed part waits only for its own: the verdict and boards for the
+ * rankings, each shame card for its own query. The worst stop scans the whole
+ * window, and sharing one promise made the whole page wait for it.
  */
-export async function loadPeriodBatch(view: PeriodView): Promise<PeriodBatch> {
+export interface PeriodBatch {
+  core: Promise<PeriodCore>;
+  shame: Promise<ShameOfWeek>;
+  worstStop: Promise<WorstStop | null>;
+}
+
+/**
+ * Mark a promise as handled without changing it. The parts that await these
+ * render in stream order, so one can reject before its part is reached, and
+ * Node would report that as an unhandled rejection. The part still sees the
+ * rejection when it awaits, so errors reach the error boundary as before.
+ * @param p - The promise.
+ * @returns The same promise.
+ */
+function handled<T>(p: Promise<T>): Promise<T> {
+  p.catch(() => undefined);
+  return p;
+}
+
+/**
+ * Start the week or month reads. Called once per request and not awaited: each
+ * streamed part awaits the promise it needs, so the queries run once however
+ * many parts read them.
+ * @param view - The window, filters and range to load.
+ * @returns The three reads, in flight.
+ */
+export function loadPeriodBatch(view: PeriodView): PeriodBatch {
+  const { mode, includeSchool, range } = view;
+  return {
+    core: handled(loadPeriodCore(view)),
+    shame: handled(getShameOfWeek(range, { mode, includeSchool }, REVALIDATE)),
+    worstStop: handled(
+      getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE).then((r) => r[0] ?? null),
+    ),
+  };
+}
+
+/**
+ * Run the ranking queries and derive the verdict strip and the boards.
+ * @param view - The window, filters and range to load.
+ * @returns The derived figures.
+ */
+async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
   const { window, mode, dir, includeSchool, period, range, anchor } = view;
   // The first week and the first month have no real previous window: resolvePrevRange
   // clamps it away to nothing, and querying that would rank every route as a new entry.
   const prevRange = resolvePrevRange(window, period, anchor);
-  const [rows, worstStops, prevRows, shame, cancelled, cancelledByRoute] = await Promise.all([
+  const [rows, prevRows, cancelled, cancelledByRoute] = await Promise.all([
     getRankings(range, THRESHOLD_SEC, REVALIDATE),
-    getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE),
     rangeIsEmpty(prevRange)
       ? Promise.resolve<TopRouteRow[]>([])
       : getRankings(prevRange, THRESHOLD_SEC, REVALIDATE),
-    getShameOfWeek(range, { mode, includeSchool }, REVALIDATE),
     getCancelledCount(range, { mode, includeSchool }, REVALIDATE),
     getCancelledByRoute(range, { mode, includeSchool }, REVALIDATE),
   ]);
@@ -120,8 +157,6 @@ export async function loadPeriodBatch(view: PeriodView): Promise<PeriodBatch> {
     // from their own count under the same filters.
     heroData: { ...summariseRows(visible), cancelled },
     availableModes: new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode)),
-    shame,
-    worstStop: worstStops[0] ?? null,
     offSchedule,
     reliable: boards.reliable,
     offScheduleDeltas: hasPrev
@@ -144,22 +179,18 @@ export async function loadPeriodBatch(view: PeriodView): Promise<PeriodBatch> {
 /**
  * The verdict and KPI strip for the period.
  * @param props - Component props.
- * @param props.batch - The period's batch.
+ * @param props.batch - The period's reads.
  * @returns The strip.
  */
-export async function PeriodVerdict({
-  batch,
-}: {
-  batch: Promise<PeriodBatch>;
-}): Promise<JSX.Element> {
-  return <FleetSummary data={(await batch).heroData} verdict />;
+export async function PeriodVerdict({ batch }: { batch: PeriodBatch }): Promise<JSX.Element> {
+  return <FleetSummary data={(await batch.core).heroData} verdict />;
 }
 
 /**
- * The mode chips once the batch knows which modes have data. Until then the
+ * The mode chips once the rankings know which modes have data. Until then the
  * page shows every chip, which is this element minus the hidden ones.
  * @param props - Component props.
- * @param props.batch - The period's batch.
+ * @param props.batch - The period's reads.
  * @param props.active - The active mode, or null for "All".
  * @param props.preservedParams - Query params the chips keep.
  * @returns The chips.
@@ -169,7 +200,7 @@ export async function PeriodModeFilter({
   active,
   preservedParams,
 }: {
-  batch: Promise<PeriodBatch>;
+  batch: PeriodBatch;
   active: RankMode;
   preservedParams: Record<string, string>;
 }): Promise<JSX.Element> {
@@ -178,44 +209,51 @@ export async function PeriodModeFilter({
       active={active}
       basePath="/"
       preservedParams={preservedParams}
-      availableModes={(await batch).availableModes}
+      availableModes={(await batch.core).availableModes}
     />
   );
 }
 
 /**
- * The worst-run and worst-stop cards for the period.
+ * The period's worst-run card. It opens that run.
  * @param props - Component props.
- * @param props.batch - The period's batch.
+ * @param props.batch - The period's reads.
  * @param props.window - The active window, for the empty-state copy.
- * @param props.stopHref - Where the stop card leads.
- * @returns The two-card grid.
+ * @returns The card.
  */
-export async function PeriodShameCards({
+export async function PeriodTripCard({
   batch,
   window,
-  stopHref,
 }: {
-  batch: Promise<PeriodBatch>;
+  batch: PeriodBatch;
   window: RankWindow;
-  stopHref: string;
 }): Promise<JSX.Element> {
-  const { shame, worstStop } = await batch;
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {/* The run card opens that run; the stop card stays on the shame board,
-          because /stop reads `?day` only and cannot show a week or a month. */}
-      <ShameOfDay trip={shame.worst} period={window} />
-      <WorstStopCard stop={worstStop} href={stopHref} />
-    </div>
-  );
+  return <ShameOfDay trip={(await batch.shame).worst} period={window} />;
+}
+
+/**
+ * The period's worst-stop card. It stays on the shame board, because /stop
+ * reads `?day` only and cannot show a week or a month.
+ * @param props - Component props.
+ * @param props.batch - The period's reads.
+ * @param props.href - Where the card leads.
+ * @returns The card.
+ */
+export async function PeriodStopCard({
+  batch,
+  href,
+}: {
+  batch: PeriodBatch;
+  href: string;
+}): Promise<JSX.Element> {
+  return <WorstStopCard stop={await batch.worstStop} href={href} />;
 }
 
 /**
  * The two rank boards with rank movement against the previous period, the
  * not-enough-data note above them and the refresh note below.
  * @param props - Component props.
- * @param props.batch - The period's batch.
+ * @param props.batch - The period's reads.
  * @param props.view - The window and filters the batch was loaded for.
  * @returns The boards.
  */
@@ -223,11 +261,11 @@ export async function PeriodBoards({
   batch,
   view,
 }: {
-  batch: Promise<PeriodBatch>;
+  batch: PeriodBatch;
   view: PeriodView;
 }): Promise<JSX.Element> {
   const { window, mode, dir, includeSchool, period } = view;
-  const b = await batch;
+  const b = await batch.core;
   return (
     <>
       {b.noModeData && mode && (
