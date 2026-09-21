@@ -4,6 +4,15 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.1] - 2026-09-21
+
+### Changed
+
+- Group the home page into three bands: the verdict, the shame of the day and the route rankings.
+  Mode and school chips sit above the verdict, since they filter all three; the late/early chips sit
+  on the rankings heading. On a week or month the chips and headings no longer disappear while the
+  figures load.
+
 ## [1.32.0] - 2026-09-21
 
 ### Added

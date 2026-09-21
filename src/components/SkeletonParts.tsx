@@ -200,22 +200,32 @@ export function RankBoardSkeleton({
 }
 
 /**
- * Mirrors the filter row above the boards: the mode chips with the school-bus
- * toggle on the left, the All/Late/Early delay chips at the right (wrapping under
- * them on a phone).
+ * Mirrors the home page's mode chips and school-bus toggle, the row above the
+ * verdict strip.
  * @returns The filter row.
  */
-export function BoardFiltersSkeleton(): JSX.Element {
+export function HomeFiltersSkeleton(): JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap gap-2">
+        <ChipBone className="w-11" />
+        <ChipBone className="w-12" />
+        <ChipBone className="w-15" />
+      </div>
+      <ChipBone className="w-27" />
+    </div>
+  );
+}
+
+/**
+ * Mirrors RankingsHeader: the `text-lg` "Route rankings" heading with the
+ * All/Late/Early delay chips at the right (wrapping under it on a phone).
+ * @returns The heading row.
+ */
+export function RankingsHeaderSkeleton(): JSX.Element {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          <ChipBone className="w-11" />
-          <ChipBone className="w-12" />
-          <ChipBone className="w-15" />
-        </div>
-        <ChipBone className="w-27" />
-      </div>
+      <Bone className="h-7 w-36" />
       <div className="flex flex-wrap gap-2">
         <ChipBone className="w-11" />
         <ChipBone className="w-14" />
