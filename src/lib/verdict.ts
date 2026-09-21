@@ -23,10 +23,10 @@ export interface VerdictBand {
  * reaches. The bottom rung's floor of 0 makes the list total over 0-100.
  */
 export const VERDICT_BANDS: readonly VerdictBand[] = [
-  { floor: 80, label: "Actually fine", toneClass: "text-at-ontime", barClass: "bg-at-ontime" },
-  { floor: 72, label: "Not bad", toneClass: "text-at-ontime", barClass: "bg-at-ontime" },
+  { floor: 80, label: "Great", toneClass: "text-at-ontime", barClass: "bg-at-ontime" },
+  { floor: 72, label: "Fine", toneClass: "text-at-ontime", barClass: "bg-at-ontime" },
   { floor: 66, label: "Meh", toneClass: "text-at-ink", barClass: "bg-at-ink" },
-  { floor: 60, label: "Rough", toneClass: "text-at-late", barClass: "bg-at-late" },
+  { floor: 60, label: "Bit bad", toneClass: "text-at-late", barClass: "bg-at-late" },
   { floor: 0, label: "Shit", toneClass: "text-at-late", barClass: "bg-at-late" },
 ];
 

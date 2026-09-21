@@ -4,6 +4,12 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.2] - 2026-09-21
+
+### Fixed
+
+- The verdict scale now reads Great, Fine, Meh, Bit bad, Shit.
+
 ## [1.32.1] - 2026-09-21
 
 ### Changed

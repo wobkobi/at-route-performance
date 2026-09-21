@@ -11,7 +11,7 @@ describe("dayVerdict", () => {
   });
 
   it("covers both ends of the range", () => {
-    expect(dayVerdict(100)?.label).toBe("Actually fine");
+    expect(dayVerdict(100)?.label).toBe("Great");
     expect(dayVerdict(0)?.label).toBe("Shit");
   });
 
@@ -25,7 +25,7 @@ describe("dayVerdict", () => {
     // the data shape collapses these into one band, the scale stops moving.
     const observed = [62.4, 67.3, 65.6, 60.8, 63.0, 63.0, 63.6, 62.4];
     const labels = observed.map((pct) => dayVerdict(pct)?.label);
-    for (const label of labels) expect(["Rough", "Meh"]).toContain(label);
+    for (const label of labels) expect(["Bit bad", "Meh"]).toContain(label);
     expect(new Set(labels).size).toBe(2);
   });
 });
