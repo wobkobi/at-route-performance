@@ -178,18 +178,17 @@
 }
 
 /* Compact, box-less delay labels for live buses on the route map. */
+/* A solid backing rather than a text halo: a halo is thin over roads and park fill. */
 .leaflet-tooltip.bus-delay-label {
-  background: transparent;
-  border: 0;
+  background: var(--color-at-surface);
+  border: 1px solid var(--color-at-border);
+  border-radius: 2px;
   box-shadow: none;
-  padding: 0;
-  font-size: 10px;
+  padding: 1px 4px;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--color-at-ink);
-  text-shadow:
-    0 0 2px #fff,
-    0 0 2px #fff,
-    0 0 3px #fff;
 }
 .leaflet-tooltip.bus-delay-label::before {
   display: none; /* hide the tooltip pointer */

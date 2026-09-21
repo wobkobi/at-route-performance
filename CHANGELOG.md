@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.2] - 2026-09-22
+
+### Fixed
+
+- A live vehicle's time label now sits beside its marker instead of over it, on a solid backing that
+  reads over roads and parks.
+
 ## [1.36.1] - 2026-09-22
 
 ### Fixed

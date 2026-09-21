@@ -144,7 +144,16 @@ function vehicleIcon(
     `<circle cx="20" cy="20" r="14" fill="#fff" stroke="${opts.colour}" stroke-width="3"/>` +
     `<g transform="translate(10 10)" fill="${opts.colour}">${glyph}</g>` +
     `</svg>`;
-  return L.divIcon({ className: "vehicle-marker", html, iconSize: [40, 40], iconAnchor: [20, 20] });
+  // The tooltip anchor sits just past the ring (radius 14 plus half the 3px
+  // stroke), so a label bound to the right starts beside the disc rather than
+  // over it. A divIcon's default anchor is its centre.
+  return L.divIcon({
+    className: "vehicle-marker",
+    html,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    tooltipAnchor: [16, 0],
+  });
 }
 
 /**
@@ -612,7 +621,7 @@ export default function StopMap({
               vehMarker.bindTooltip(status.label, {
                 permanent: true,
                 direction: "right",
-                offset: [6, 0],
+                offset: [4, 0],
                 className: "bus-delay-label",
               });
             }
