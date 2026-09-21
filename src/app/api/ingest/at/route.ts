@@ -25,8 +25,9 @@ import { NextResponse } from "next/server";
 type StopRow = Prisma.ArrivalEventCreateManyInput;
 type TripRow = Prisma.TripDelayCreateManyInput;
 
-// Realtime feeds carry ~1.6k rows; give the function headroom over the default.
-export const maxDuration = 60;
+// No maxDuration here: the project default is already 300s, and any
+// route-level value splits this route into its own function bundle, each
+// carrying its own ~40MB copy of the Prisma engine.
 
 /** Max documents per bulk insert command (well under Mongo's limits). */
 const INSERT_BATCH = 1000;
