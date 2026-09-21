@@ -1,7 +1,7 @@
 // src/lib/vehicle-status.ts
-// What a live vehicle marker says about its delay. The ring colour, the
-// floating label and the popup all read this one verdict, so a bus cannot show
-// a late ring beside a popup that says it is on time.
+// What a live vehicle marker says about its delay and heading. The ring colour,
+// the floating label and the popup all read one delay verdict, so a bus cannot
+// show a late ring beside a popup that says it is on time.
 import { formatDelay } from "@/lib/format";
 import { delayBand, type DelayBand } from "@/lib/on-time";
 
@@ -35,4 +35,20 @@ export function vehicleStatus(delaySec: number | null, mode: string): VehicleSta
     label: null,
     detail: distance === "on time" ? "On time" : `${distance}, inside the on-time window`,
   };
+}
+
+/**
+ * A feed bearing as a heading the map can draw, or null when it names none.
+ * AT sends 0 for a stationary vehicle or one with no heading, so 0 reads as
+ * unknown: drawing it would show every parked bus heading due north. A genuine
+ * heading of exactly 0.0 is rare enough that losing its arrow costs less than the
+ * false ones.
+ * @param raw - The feed's bearing, a number or a numeric string.
+ * @returns Degrees clockwise from north in [0, 360), or null.
+ */
+export function parseBearing(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) return null;
+  return ((n % 360) + 360) % 360;
 }

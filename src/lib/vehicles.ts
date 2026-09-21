@@ -7,6 +7,7 @@
 import { fetchATTripUpdates, type TripUpdate } from "@/lib/at";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { VehicleReading } from "@/lib/off-route";
+import { parseBearing } from "@/lib/vehicle-status";
 
 /** A live vehicle position with its current schedule deviation (if known). */
 export interface LiveVehicle {
@@ -18,7 +19,7 @@ export interface LiveVehicle {
   lon: number;
   /** Signed deviation in seconds (negative early, positive late), or null. */
   delaySec: number | null;
-  /** Compass heading in degrees (0 = north), when the feed reports it. */
+  /** Compass heading in degrees (0 = north), or null when the feed names none. */
   bearing: number | null;
   /** GTFS trip direction (0/1), when the feed reports it. */
   directionId: number | null;
@@ -100,9 +101,8 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
     const vehicleId = v?.vehicle?.id;
     if (!routeId || vehicleId == null || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     const tripId = v?.trip?.trip_id ?? null;
-    // Bearing and direction arrive as numbers or numeric strings depending on
-    // the feed; coerce and keep only finite values.
-    const bearingNum = Number(v?.position?.bearing);
+    // Direction arrives as a number or a numeric string depending on the feed;
+    // coerce and keep only finite values. The bearing has its own reading.
     const dirNum = Number(v?.trip?.direction_id);
     out.push({
       vehicleId,
@@ -112,7 +112,7 @@ async function queryLiveVehicles(): Promise<LiveVehicle[]> {
       lat: lat as number,
       lon: lon as number,
       delaySec: tripId ? (delayByTrip.get(tripId) ?? null) : null,
-      bearing: Number.isFinite(bearingNum) ? bearingNum : null,
+      bearing: parseBearing(v?.position?.bearing),
       directionId: Number.isFinite(dirNum) ? dirNum : null,
     });
   }

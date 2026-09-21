@@ -1,6 +1,6 @@
 // tests/lib/vehicle-status.test.ts
 // Unit tests for the live vehicle delay verdict.
-import { vehicleStatus } from "@/lib/vehicle-status";
+import { parseBearing, vehicleStatus } from "@/lib/vehicle-status";
 import { describe, expect, it } from "vitest";
 
 describe("vehicleStatus", () => {
@@ -31,5 +31,21 @@ describe("vehicleStatus", () => {
       detail: "No live delay",
     });
     expect(vehicleStatus(0, "BUS").detail).toBe("On time");
+  });
+});
+
+describe("parseBearing", () => {
+  it("reads 0 and a missing heading as unknown", () => {
+    expect(parseBearing(0)).toBeNull();
+    expect(parseBearing("0")).toBeNull();
+    expect(parseBearing(undefined)).toBeNull();
+    expect(parseBearing("")).toBeNull();
+    expect(parseBearing("north")).toBeNull();
+  });
+
+  it("keeps a real heading, as a number, inside one turn", () => {
+    expect(parseBearing("87.5")).toBe(87.5);
+    expect(parseBearing(-90)).toBe(270);
+    expect(parseBearing(450)).toBe(90);
   });
 });

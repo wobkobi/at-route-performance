@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.3] - 2026-09-22
+
+### Fixed
+
+- Live vehicle arrows are a white-edged chevron drawn over the ring, and a parked vehicle no longer
+  claims to be heading north.
+
 ## [1.36.2] - 2026-09-22
 
 ### Fixed

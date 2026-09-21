@@ -120,7 +120,10 @@ const MODE_GLYPHS: Record<RouteMode, string> = {
 /**
  * A live-vehicle `divIcon`: a white disc ringed in the delay colour, the route's
  * mode glyph centred and upright, and (when a heading is known) a same-coloured
- * arrow on the ring pointing the way the vehicle is travelling.
+ * chevron over the top of the ring pointing the way the vehicle is travelling.
+ * The chevron is the route arrows' shape, drawn after the disc with a white edge
+ * so the ring cannot hide it and it reads over any tile; no chevron means the
+ * feed gave no heading.
  * @param L - The Leaflet module.
  * @param opts - Marker options.
  * @param opts.colour - Delay colour for the ring, glyph, and arrow.
@@ -137,12 +140,13 @@ function vehicleIcon(
     opts.bearing == null
       ? ""
       : `<g transform="rotate(${Math.round(opts.bearing)} 20 20)">` +
-        `<path d="M20 0.5 L24.5 6.5 L15.5 6.5 Z" fill="${opts.colour}"/></g>`;
+        `<path d="M20 0.75 L27.5 10 L20 7 L12.5 10 Z" fill="${opts.colour}" stroke="#fff" ` +
+        `stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/></g>`;
   const html =
     `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">` +
-    arrow +
     `<circle cx="20" cy="20" r="14" fill="#fff" stroke="${opts.colour}" stroke-width="3"/>` +
     `<g transform="translate(10 10)" fill="${opts.colour}">${glyph}</g>` +
+    arrow +
     `</svg>`;
   // The tooltip anchor sits just past the ring (radius 14 plus half the 3px
   // stroke), so a label bound to the right starts beside the disc rather than
