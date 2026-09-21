@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { cartoTileUrl } from "@/lib/map-tiles";
-import { vehicleStatus } from "@/lib/vehicle-status";
+import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
 import type { JSX } from "react";
@@ -307,8 +307,11 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
 
     const entry = state.vehicles.get(veh.vehicleId);
     if (!entry) {
+      // Vehicles and route arrows share the marker pane, where Leaflet stacks by
+      // latitude; the offset keeps every vehicle above every arrow.
       const marker = L.marker([veh.lat, veh.lon], {
         icon: vehicleIcon(L, { colour, mode, bearing }),
+        zIndexOffset: 1000,
       });
       if (status.label) marker.bindTooltip(status.label, VEHICLE_TOOLTIP);
       marker.bindPopup(popup);
@@ -557,6 +560,8 @@ export default function StopMap({
   const stateRef = useRef<MapState | null>(null);
   // Set once the async map setup has finished, so the vehicle poll can start.
   const [ready, setReady] = useState(false);
+  // The last vehicle poll failed, so the positions shown (if any) are not current.
+  const [vehiclesFailed, setVehiclesFailed] = useState(false);
   // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
   // the current mode reachable without rebuilding the map when the prop changes.
   const modeRef = useRef<RouteMode>(mode);
@@ -737,6 +742,7 @@ export default function StopMap({
       lastPoll = Date.now();
       const {
         stops: pollStops,
+        routeLines: pollLines,
         filterTripId: pollFTrip,
         filterDirectionIds: pollFDirs,
         mode: pollMode,
@@ -746,28 +752,25 @@ export default function StopMap({
           cache: "no-store",
           signal: ctrl.signal,
         });
-        if (!res.ok || dead) return;
+        if (dead) return;
+        if (!res.ok) {
+          setVehiclesFailed(true);
+          return;
+        }
         const data = (await res.json()) as { vehicles: LiveVehicle[] };
         if (dead) return;
+        setVehiclesFailed(false);
 
-        let vehicles = pollFTrip
-          ? data.vehicles.filter((v) => v.tripId === pollFTrip)
-          : data.vehicles;
-        if (!pollFTrip) {
-          if (pollFDirs) {
-            vehicles = vehicles.filter(
-              (v) => v.directionId == null || pollFDirs.includes(v.directionId),
-            );
-          }
-          if (pollStops.length > 0) {
-            vehicles = vehicles.filter((v) =>
-              pollStops.some((st) => haversineKm(v.lat, v.lon, st.lat, st.lon) < 2.0),
-            );
-          }
-        }
+        const vehicles = vehiclesOnMap(data.vehicles, {
+          tripId: pollFTrip,
+          directionIds: pollFDirs,
+          lines: pollLines,
+          stops: pollStops,
+        });
         syncVehicles(state, vehicles, pollMode);
       } catch {
-        // Aborted on cleanup or transient fetch error; ignore.
+        // An abort on cleanup is not a failure; anything else is.
+        if (!dead) setVehiclesFailed(true);
       }
     };
 
@@ -798,10 +801,23 @@ export default function StopMap({
       document.removeEventListener("visibilitychange", onVisible);
       state.map.off("zoomstart", stopGlides);
       clearVehicles(state);
+      setVehiclesFailed(false);
     };
   }, [ready, live, routeId]);
 
   // `isolate` keeps Leaflet's high pane z-indexes (200-700) in their own stacking
   // context so they don't paint over the sticky header.
-  return <div ref={divRef} className={cn("isolate w-full bg-at-bg", className)} />;
+  return (
+    <div className={cn("relative w-full", className)}>
+      <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
+      {vehiclesFailed && (
+        <p
+          role="status"
+          className="absolute top-2 right-2 z-10 max-w-60 border border-at-border bg-at-surface px-2 py-1 text-xs text-at-ink"
+        >
+          Live positions could not be refreshed. Trying again in two minutes.
+        </p>
+      )}
+    </div>
+  );
 }

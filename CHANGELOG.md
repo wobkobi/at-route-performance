@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.36.5] - 2026-09-22
+
+### Fixed
+
+- The route map now shows trains running between far-apart stations, keeps vehicles above the route
+  arrows, leaves vehicles of unknown direction off a one-direction map, and says so when live
+  positions fail to load.
+
 ## [1.36.4] - 2026-09-22
 
 ### Changed
