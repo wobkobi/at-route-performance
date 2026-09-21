@@ -1,2025 +1,2026 @@
 # Changelog
 
-All notable changes to this project. Versions follow [semantic versioning](https://semver.org/);
-pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
-local-only exploratory scripts are omitted.
+All notable changes to this project. Versions follow [semantic versioning](https://semver.org/): a
+new feature bumps the minor number, and a fix, a tidy-up or a dependency update bumps the patch.
+Merge commits and local-only exploratory scripts are left out.
+
+Each entry says what changed on the site (or in how it runs), what you would notice, and why it was
+needed. Where an entry has to use one of the terms below, this is what it means.
+
+## Terms used in this changelog
+
+- **Arrival** - one vehicle reaching one stop. A bus that serves 40 stops on a run makes 40
+  arrivals. The site counts and averages arrivals, not trips.
+- **Run** or **trip** - one journey by one vehicle from the start of a route to its end, identified
+  by AT's trip id. AT reuses the same trip id on every day that timetable runs.
+- **Service day** - a transport day, which runs 4am to 4am rather than midnight to midnight, so a
+  bus leaving at 11:30pm and finishing at 12:40am counts under the day it left. (Before 1.27.0 the
+  day ran 5am to 5am.)
+- **On-time window** - how early or late an arrival can be and still count as on time: up to 5
+  minutes late, and up to 1 minute early (5 minutes early for ferries).
+- **Off schedule** / **off by** - how far an arrival was from its timetable, early or late alike.
+- **Flagged cancelled** - a trip AT's feed marked as cancelled. Some of these never run, some are
+  cut short part way, and some are reinstated and run anyway.
+- **Ghost run** - a false reading. AT sometimes reports one vehicle's position under a different
+  trip id, so a run appears to be an hour or more off its timetable when it was not. A nightly check
+  finds these and hides them from the figures.
+- **Ingest** - the job that reads AT's live feed every two minutes and stores the new arrivals.
+- **Nightly aggregate** - the job that runs after each day ends, checks it for ghost runs, and
+  stores one summary row per route per day. Week and month figures are built from these summaries.
+- **Board** - a ranked list on the site, such as "Most off-schedule" or the worst trips of the day.
+- **Card** - the preview image a chat app or social site shows when someone shares a link.
+- **Smoke test** - an automated check that opens every page in a real browser and fails if one
+  errors or shows broken text.
+
+## [1.36.7] - 2026-09-22
+
+### Changed
+
+- Documentation only: every changelog entry is rewritten in plain words, saying what changed on the
+  site, what you would notice and why, with a list of the terms it uses (service day, ghost run,
+  on-time window and others) at the top. Entries that only changed how the site is built or tested
+  now say so.
 
 ## [1.36.6] - 2026-09-22
 
 ### Fixed
 
-- Live vehicle markers have a name a screen reader can read and a focus ring that follows the disc,
-  the map key now explains the vehicle marker and the off-route line, and the train and ferry icons
-  are no longer stretched.
+- Live vehicles on the route and trip maps are easier to understand and to use without a mouse.
+  - A screen reader now reads each vehicle marker by name, for example "Bus 3524, 5m 1s late".
+    Before, a marker could be reached with the Tab key but announced nothing.
+  - The keyboard focus ring around a marker is round, following the vehicle's disc, instead of a
+    square around its box.
+  - A key under each map now explains the vehicle marker: the ring colour shows its delay (grey
+    means the feed gave no delay), the point on the ring shows which way it is heading, and the
+    floating label shows how far off schedule it is once it is outside the on-time window. On a trip
+    map where the vehicle left its route, the key also explains the dashed orange line. The route
+    map and the trip map now share one key instead of two copies that had drifted apart.
+  - The train and ferry icons inside the marker were squashed sideways. They now keep their
+    proportions.
 
 ## [1.36.5] - 2026-09-22
 
 ### Fixed
 
-- The route map now shows trains running between far-apart stations, keeps vehicles above the route
-  arrows, leaves vehicles of unknown direction off a one-direction map, and says so when live
-  positions fail to load.
+- The route map was hiding some vehicles that were really running. It only drew a vehicle within 2km
+  of one of the route's stops, and some stops are much further apart than that: Papakura to Pukekohe
+  is about 18km, so a train between them vanished from the map. Distance is now measured to the
+  route's line itself, so a vehicle anywhere along the route shows. A vehicle more than 2km from the
+  line is still left off, since that is usually a bus parked at a depot that the feed has not yet
+  taken off its last trip.
+- Vehicles now always draw on top of the small direction arrows along the route line. Before, an
+  arrow could cover a vehicle, depending on which was further south.
+- When the map is showing one direction only, a vehicle whose direction the feed does not report is
+  now left off, since it may be running the other way.
+- If the live positions fail to load, the map now says "Live positions could not be refreshed.
+  Trying again in two minutes." Before, a failure looked exactly like no vehicles running.
 
 ## [1.36.4] - 2026-09-22
 
 ### Changed
 
-- Live vehicles glide to their new positions instead of flickering on every refresh, keep an open
-  popup, refresh straight away when you come back to the tab, and start updating when a view turns
-  live.
+- Live vehicles on the route and trip maps now move smoothly.
+  - Every two minutes the map used to delete every vehicle and draw them all again, so the map
+    flickered, any popup you had open closed, and vehicles jumped up to a kilometre or two in one
+    frame. Each vehicle is now kept and slides to its new position over one second. An open popup
+    stays open and updates in place. (The slide is turned off if your device asks for reduced
+    motion.)
+  - Coming back to the tab after being away for two minutes or more now fetches fresh positions
+    straight away, instead of showing old ones until the next scheduled refresh.
+  - A map that becomes a live view after the page has loaded now starts showing vehicles. Before,
+    the map only checked once, when it first appeared.
 
 ## [1.36.3] - 2026-09-22
 
 ### Fixed
 
-- Live vehicle arrows are a white-edged chevron drawn over the ring, and a parked vehicle no longer
-  claims to be heading north.
+- The arrow showing which way a live vehicle is heading was a tiny triangle that was hard to see,
+  and in the early (green) colour almost invisible. It is now a larger chevron, the same shape as
+  the arrows along the route line, with a white edge so it stands out against any map background. It
+  is drawn over the vehicle's ring so the ring cannot hide it.
+- A parked or stopped vehicle no longer shows an arrow pointing north. AT's feed reports a heading
+  of 0 (due north) when a vehicle is stationary or its heading is unknown, so every parked bus used
+  to claim it was heading north. A heading of 0 now means "unknown" and draws no arrow.
 
 ## [1.36.2] - 2026-09-22
 
 ### Fixed
 
-- A live vehicle's time label now sits beside its marker instead of over it, on a solid backing that
-  reads over roads and parks.
+- The "5m late" style label beside a live vehicle used to sit on top of the vehicle's own icon,
+  because it was positioned from the icon's centre. It now starts just past the icon's edge.
+- The label now has a solid white box behind it. It used to be thin text with a faint outline, which
+  was hard to read over roads and parks.
+- The label now appears only when a vehicle is outside the on-time window (more than 5 minutes late,
+  or more than 1 minute early). Before, it appeared at a separate 2-minute threshold, so labels
+  popped in and out for vehicles the rest of the site called on time.
 
 ## [1.36.1] - 2026-09-22
 
 ### Fixed
 
-- A live vehicle's ring, floating label and popup now agree: all three use the mode's on-time
-  window, the label says the same distance as the popup, a delay inside the window says how far off
-  it is, and a vehicle with no live delay is grey instead of on-time blue.
+- A live vehicle on the map could give three different answers about how late it was. A bus 3
+  minutes late showed a red "late" ring, a "3m late" label, and a popup saying "on time", because
+  each used its own rule. All three now use the same on-time window as every other figure on the
+  site:
+  - the ring is coloured by that window, so a bus 3 minutes late has an on-time ring;
+  - the label and the popup say the same words, such as "5m 1s late";
+  - inside the window the popup still says how far off it is: "3m late, inside the on-time window"
+    rather than a bare "on time";
+  - a vehicle the feed gives no delay for is now grey. Before, it was the on-time blue, so "no data"
+    and "on time" looked the same.
 
 ## [1.36.0] - 2026-09-22
 
 ### Added
 
-- Shared links to /shame, its three boards, /routes and /cancellations now unfurl with their own
-  card: the worst run, route or stop with its figure, the route count and on-time share, or the
-  flagged-cancelled count, for the period and filter that was shared.
+- Sharing a link to any Shame page, the Routes page or the Cancellations page now shows a preview
+  card in chat apps and on social sites, describing exactly what was shared: the same day, week or
+  month, and the same bus, train or ferry filter.
+  - `/shame` shows the day's worst run and how late it was, plus one line each for the worst route
+    and the worst stop.
+  - `/shame/trip`, `/shame/route` and `/shame/stop` show the worst run, route or stop on that board
+    and its figure. On a day where nothing was worse than the on-time window, the card says "Nothing
+    stood out" instead of naming a winner.
+  - `/routes` shows how many routes match, how many arrivals they made, the share on time and the
+    average off schedule.
+  - `/cancellations` shows how many trips were flagged cancelled, how many never ran and how many
+    were cut short, and which route had the most.
+- These pages now also have their own title in the browser tab and in the link preview (for example
+  "Worst route of the week, week of Mon 14 Sep (Trains)").
 
 ## [1.35.0] - 2026-09-22
 
 ### Added
 
-- Shared links to a route, a run or a stop now unfurl with their own card: the route's on-time share
-  for that day or week, how far off the run ran (or that it was cancelled), and how far off the
-  stop's arrivals were.
+- Sharing a link to a route, a single run or a stop now shows a preview card for it.
+  - A route card shows the route's number and name and its share of arrivals on time, for the day or
+    week in the link, coloured by the same Great-to-Shit scale as the home page.
+  - A run card shows the route, where the run was headed, and how far off schedule it ran on
+    average, or that it was cancelled or cut short.
+  - A stop card shows the stop's name and how far off schedule its arrivals were on average.
+- A card for a past day always describes that day, not today. A link to a route or run that does not
+  exist still gets a plain branded card rather than a broken image.
 
 ## [1.34.0] - 2026-09-22
 
 ### Added
 
-- A link to the overview now unfurls with a card of that view: the day, week or month it names, its
-  mode and school filters, the verdict word and its figures. Past days are cached for a week; today
-  refreshes every five minutes.
+- Sharing a link to the home page now shows a preview card of that exact view: the day, week or
+  month it names, any bus, train, ferry or school-bus filter, the one-word verdict (Great to Shit),
+  the share of arrivals on time and the average off schedule. The card uses the site's colours and
+  the "AT Route Performance" name, and says the site is independent and not affiliated with AT.
+- A card for a finished day never changes, so it is kept for a week. A card for today is refreshed
+  every five minutes.
 
 ## [1.33.0] - 2026-09-22
 
 ### Added
 
-- A Day by day page charts each day of the week or month by its on-time share and verdict, with a
-  table of the same days; each day links to its overview. Reached from the week and month overview.
+- A new Day by day page (`/days`), reached from the "Day by day" link on the week and month views of
+  the home page. It shows a bar for each day of the week or month, its height the share of arrivals
+  on time and its colour that day's verdict (Great to Shit), so you can see which days made the week
+  good or bad. Under the chart is a table of the same days with the verdict, on-time share,
+  arrivals, average off schedule and flagged cancellations. Every day links to that day on the home
+  page. The bus, train, ferry and school-bus filters apply.
 
 ## [1.32.7] - 2026-09-22
 
 ### Changed
 
-- Moved the unit and integration tests out of src/ into a tests/ folder that mirrors it.
+- Behind the scenes only: the automated tests moved out of the `src/` folder into a `tests/` folder
+  laid out the same way, so the app's code and its tests are no longer mixed together. Nothing on
+  the site changed.
 
 ## [1.32.6] - 2026-09-22
 
 ### Changed
 
-- The week and month worst stop is added up from each day's cached figures, so only today is
-  rescanned instead of the whole week or month.
+- The worst stop for a week or month loads much faster. It used to be worked out by scanning every
+  arrival in the whole week or month on each visit (up to about 9 seconds). Each finished day's
+  per-stop totals are now saved once and reused, so only today has to be scanned again.
 
 ## [1.32.5] - 2026-09-22
 
 ### Changed
 
-- Deployments store about half as much server code: the API routes share one function bundle instead
-  of three.
+- Behind the scenes only: the site's API routes are now deployed as one server bundle instead of
+  three, which roughly halves the amount of server code stored for each deployment. Nothing on the
+  site changed.
 
 ## [1.32.4] - 2026-09-22
 
 ### Changed
 
-- The week and month pages show the verdict and boards as soon as the rankings are ready, and each
-  shame card loads on its own.
+- The week and month views of the home page appear sooner. The verdict and the route boards now show
+  as soon as the rankings are ready, and the worst-trip and worst-stop cards each fill in when their
+  own figures arrive. Before, the whole page waited for the slowest of these (usually the worst
+  stop).
 
 ## [1.32.3] - 2026-09-22
 
 ### Changed
 
-- The current week and month now serve their last result while it refreshes, instead of recomputing
-  after every ingest run.
+- The current week and month views load faster. They used to be recalculated from scratch every time
+  new arrivals came in, which is every two minutes, so almost every visitor paid the full wait. They
+  now show the last result straight away and refresh it in the background. A new day still starts
+  fresh, so you never see yesterday's figures labelled as today's.
 
 ## [1.32.2] - 2026-09-21
 
 ### Fixed
 
-- The verdict scale now reads Great, Fine, Meh, Bit bad, Shit.
+- The one-word verdict on the home page now uses the words Great, Fine, Meh, Bit bad and Shit (best
+  to worst). The share of arrivals on time needed for each, and the colours, are unchanged.
 
 ## [1.32.1] - 2026-09-21
 
 ### Changed
 
-- Group the home page into three bands: the verdict, the shame of the day and the route rankings.
-  Mode and school chips sit above the verdict, since they filter all three; the late/early chips sit
-  on the rankings heading. On a week or month the chips and headings no longer disappear while the
-  figures load.
+- The home page is grouped into three clear sections instead of eight loose blocks: Today (the
+  verdict and the day's figures), Shame of the day (the worst run, route and stop), and Route
+  rankings (the two boards).
+- The bus, train, ferry and school-bus filters now sit above the verdict, because they change all
+  three sections. The late and early filters sit on the rankings heading, because they only change
+  the boards.
+- On the week and month views, the filters and headings no longer disappear while the figures are
+  loading.
 
 ## [1.32.0] - 2026-09-21
 
 ### Added
 
-- The home page answers its own question: the day (or week, or month) now leads with a one-word
-  verdict on the network on-time share, from "Actually fine" down to "Shit", with a five-step meter
-  and the sentence it is built from. The on-time popover lists the scale. The worst-trip card puts
-  its headsign on its own line so its route sits level with the worst stop beside it.
+- The home page now answers its own question, "How bad was it today?". It leads with a one-word
+  verdict on the whole network's share of arrivals on time, from the best word down to "Shit", with
+  a five-step meter showing where the day sits and a sentence giving the figures behind it (for
+  example "65.9% of 73,667 arrivals were on time, 2m 19s off on average"). The scale is set so a
+  typical weekday lands in the middle and the word can move either way. The on-time explainer lists
+  the whole scale. The week and month views get the same verdict.
+- The worst-trip card puts where the run was headed on its own line, so the route name lines up with
+  the worst-stop card beside it.
 
 ## [1.31.7] - 2026-09-21
 
 ### Fixed
 
-- Boards ranked by how far off schedule a run or route was now always show that distance: a run 2m
-  late inside the on-time window reads "2m late" in the on-time colour rather than "on time". The
-  trip page names its day, and timetable times are spaced like the rest of the site ("12:49 pm").
+- Boards sorted by how far off schedule something was now always show that distance. A run 2 minutes
+  late used to print "on time", because it was inside the on-time window, even though the board was
+  ranking it by those 2 minutes. It now reads "2m late" in the on-time colour. A run that was early
+  at some stops and late at others reads "4m off".
+- The trip page now names the day the run was on in its heading and browser tab.
+- Timetable times now have a space before am and pm ("12:49 pm"), like the rest of the site.
 
 ## [1.31.6] - 2026-09-21
 
 ### Fixed
 
-- A run the nightly pass hid as a ghost no longer occupies a row or counts in a route's Trips
-  figure, and the on-time, early and late rates on the day boards and rankings count only real
-  readings, so a hidden run cannot move a route's on-time figure. Every cached board is recomputed
-  once on deploy so a repaired day stops serving its old numbers.
+- A ghost run (see Terms) that the nightly check hid no longer takes up a row on a route's trips
+  board or counts in the route's "Trips" figure. Before, it was hidden from the delay figures but
+  still listed and counted.
+- The on-time, early and late percentages on the day boards and rankings now count only real
+  readings, so a hidden ghost run can no longer move a route's on-time share.
+- Every saved board is recalculated once when this version is deployed, so days that were repaired
+  stop showing their old figures.
 
 ## [1.31.5] - 2026-09-21
 
 ### Changed
 
-- Every day board now files a run under the service date ingest stamped on it rather than
-  recomputing it from the clock, so a run that crosses 4am is counted once, whole, on the day it
-  started. The route-shame streaks were also folding a fortnight of one trip's runs into a single
-  row on its earliest day, because AT reuses a trip id on every day its timetable runs; streaks now
-  count each day's runs.
+- Every day board now files a run under the service day stored with it when it was recorded, instead
+  of working it out again from the clock. A run that crosses 4am is now counted once, whole, on the
+  day it started, instead of being split across two days.
+- Fixed a bug in the route "streaks" on the Shame route board. AT reuses a trip id on every day its
+  timetable runs, and the streaks were treating a fortnight of one trip's runs as a single row on
+  its earliest day. Each day's runs are now counted separately.
 
 ## [1.31.4] - 2026-09-21
 
 ### Fixed
 
-- A wheel over a map now scrolls the page instead of zooming, a trip map frames the whole trip
-  rather than opening zoomed on its first stop with an uninvited popup, panning a trip map no longer
-  overwrites the route map's saved view, and the trip timeline explains its grey and hollow stop
-  dots.
+- Scrolling the page with a mouse wheel over a map now scrolls the page instead of zooming the map.
+  On a phone, a one-finger swipe over the map scrolls the page too; use two fingers to move or zoom
+  the map.
+- A trip map now opens showing the whole trip. It used to open zoomed in on the trip's first stop
+  with that stop's popup open, which nobody had asked for.
+- Moving the map on a trip page no longer changes where the route page's map opens. The two maps
+  were sharing one saved position.
+- The trip page's stop list now has a key explaining its grey and hollow stop dots.
 
 ## [1.31.3] - 2026-09-21
 
 ### Fixed
 
-- The whole of a trips-board or cancelled-trips row is now the link, not just the name, and a badge
-  that will not fit drops under the name instead of truncating it.
+- On the trips board and the cancellations list, the whole row is now the link. Before, only the
+  route or destination name could be clicked.
+- On a narrow screen, a badge (such as CANCELLED or OFF ROUTE) that does not fit now moves under the
+  name instead of cutting the name short ("32 to Manger...").
 
 ## [1.31.2] - 2026-09-21
 
 ### Fixed
 
-- A route whose stopping pattern fails to load now says so instead of showing no directions and no
-  diagram, and a trip whose schedule fails to load says so instead of reading as a run with no
-  stops.
+- When a route's stop pattern fails to load from AT, the route page now says so. Before, the
+  direction buttons and the line diagram simply vanished, and the diagram said the route had not
+  recorded a full run yet, which was not true. The failed result was also being saved for 24 hours,
+  so one hiccup at AT broke the route for the rest of the day; it is now retried on the next visit.
+- When a trip's timetable fails to load, the trip page now says so, instead of showing a run with no
+  stops or even a "page not found".
 
 ## [1.31.1] - 2026-09-21
 
 ### Fixed
 
-- The trips board and the cancellations list carry a key naming each badge they show and what it
-  means, instead of hiding it in a hover a phone cannot reach.
+- The trips board and the cancellations list now have a key under them explaining each badge that
+  appears in the rows (CANCELLED, CUT SHORT, REINSTATED, OFF ROUTE, and the wait until the next
+  trip). The explanations used to exist only as hover text, which a phone cannot show. The key only
+  lists badges that are actually on screen.
 
 ## [1.31.0] - 2026-09-21
 
 ### Added
 
-- Every control, link and diagram stop draws a focus ring when reached by keyboard; the footer uses
-  the brand yellow, which reads on its dark band.
+- Every button, link, filter chip and line-diagram stop now shows a clear blue outline when you
+  reach it with the Tab key, so you can see where you are when using a keyboard. In the dark footer
+  the outline is yellow so it stays visible. Clicking with a mouse does not leave the outline
+  behind.
 
 ## [1.30.21] - 2026-09-21
 
 ### Fixed
 
-- The punctuality breakdown opens as a sheet on a phone instead of running off the side of the
-  screen, sits above the sticky header, and dismisses on a tap.
+- The small "i" explainer next to figures like "On time" is now usable on a phone. It used to open a
+  box that ran off the side of the screen, slid under the sticky header, and could not be closed
+  with a tap. On a phone it now opens as a panel across the bottom of the screen and closes when you
+  tap anywhere else.
 
 ## [1.30.20] - 2026-09-21
 
 ### Fixed
 
-- The Routes list keeps how many rows it was showing in the URL, so Back returns to the same list
-  rather than the first page.
+- On the Routes page, "Show more" now survives the Back button. If you had shown 120 routes, opened
+  one and came back, the list used to reset to the first 40. The number shown is now kept in the
+  address.
 
 ## [1.30.19] - 2026-09-21
 
 ### Fixed
 
-- Shame pages carry mode and school chips, and /shame honours the filter its links were already
-  carrying.
+- The Shame pages now have the bus, train, ferry and school-bus filter buttons. Links from elsewhere
+  already carried a filter onto them, but there was no way to see or clear it there.
+- `/shame` itself ignored the filter entirely: a link saying "Trains" showed every mode. It now
+  applies the filter and names it under the heading.
 
 ## [1.30.18] - 2026-09-21
 
 ### Fixed
 
-- The route page's worst-trips board waited behind AT's live-vehicle call, so every sort or page
-  click - both server navigations - replaced the chips and pager that triggered it with a skeleton
-  until AT answered. The board now renders from rows that are already in hand and only the LIVE
-  badges stream in.
+- Sorting or changing page on a route's trips board no longer blanks the board. The board used to
+  wait for AT's live vehicle feed (to know which runs to mark LIVE) before showing anything, so
+  every click replaced the board, including the button you just pressed, with a grey placeholder
+  until AT answered. The rows now show straight away and the LIVE badges appear when the feed
+  arrives.
 
 ## [1.30.17] - 2026-09-21
 
 ### Fixed
 
-- The on-time window was explained under the off-schedule board and nowhere under the reliable
-  board, whose column is that share. Both boards now carry a caption, so their rows start level, and
-  the off-schedule board gains a key for its value colours - ten green rows under a heading reading
-  "Most off-schedule" otherwise look like good news.
+- Both route boards on the home page now explain themselves. The on-time window was only explained
+  under "Most off-schedule", and nothing was under "Most reliable", whose whole column is the
+  on-time share. Each board now has its own line, so the two also start at the same height.
+- "Most off-schedule" now has a colour key. Without one, a week where all ten worst routes ran early
+  showed ten green rows under the heading "Most off-schedule", which looked like good news.
 
 ## [1.30.16] - 2026-09-21
 
 ### Changed
 
-- One word for a stop visit across the site. The route, stop and shame boards said "Events" or
-  "events" for the same thing the home strip and the cards already called Arrivals; all of them now
-  read Arrivals. The underlying data field keeps its name.
+- One word, "Arrivals", is now used everywhere for a vehicle reaching a stop. The route, stop and
+  Shame pages said "Events" for the same number that the home page and the cards called "Arrivals".
 
 ## [1.30.15] - 2026-09-21
 
 ### Fixed
 
-- The home strip called it "Cancelled" and the cancellations page called the same figure "Flagged
-  cancelled". Both now use the second name and both say that reinstated trips are counted in it,
-  since the number is of AT's flags rather than of trips that failed to run.
+- The home page called a figure "Cancelled" while the Cancellations page called the same number
+  "Flagged cancelled". Both now say "Flagged cancelled", with a note under it that reinstated trips
+  are included, because the number counts AT's cancellation flags, and some flagged trips run
+  anyway.
 
 ## [1.30.14] - 2026-09-21
 
 ### Fixed
 
-- The worst-route card's figures are one hour's, not the whole day's - the row is the max over
-  per-hour rows. The card now names that hour and says how many arrivals fell in it, so it no longer
-  looks like it disagrees with the whole-day averages on the home boards.
+- The worst-route card's figures are for that route's single worst hour, not its whole day, but the
+  card did not say so, so they seemed to disagree with the whole-day figures on the route boards.
+  The card now names the hour ("Worst route - 5pm") and says how many arrivals were in that hour.
 
 ## [1.30.13] - 2026-09-21
 
 ### Fixed
 
-- Service alerts come from a live feed with no history, so on a past day or week they describe right
-  now. The banner now says so and dates every active period instead of leaving a bare time that
-  reads as the day being shown, and the route diagram no longer rings stops or dashes the line from
-  an alert that has nothing to do with the archived day.
+- AT's service alerts only exist for right now; there is no history of past alerts. So on a past day
+  or week, the alerts shown are today's. The alert banner now says "running now" on those pages and
+  gives full dates for each alert, instead of a bare time that read as belonging to the day being
+  viewed.
+- On a past day, the route's line diagram no longer marks stops as disrupted or dashes the line
+  because of today's alerts, which had nothing to do with that day.
 
 ## [1.30.12] - 2026-09-21
 
 ### Fixed
 
-- The worst-trip card no longer shows a green "No shame today" when the day recorded no runs at all;
-  a day with nothing to rank now gets the same quiet card the worst-route and worst-stop cards
-  beside it already use.
+- The worst-trip card showed a green "No shame today" on a day with no data at all, which read as a
+  perfect day. A day with nothing recorded now gets a grey "Nothing to rank yet" card, like the
+  worst-route and worst-stop cards beside it.
 
 ## [1.30.11] - 2026-09-21
 
 ### Fixed
 
-- The on-time split now says the same true thing everywhere: a cancelled trip's missed stops count
-  by the wait for the next trip, on time under five minutes and late beyond it.
+- The explanation of how cancelled trips affect the on-time share was wrong in one place and vague
+  in others. It now says the same correct thing everywhere: each stop a cancelled trip missed counts
+  by how long a rider would have waited for the next trip, as on time if that was under five minutes
+  and late if longer.
 
 ## [1.30.10] - 2026-09-20
 
 ### Fixed
 
-- The basemap key is no longer sent from loopback hosts, where CARTO always rejects it; a local
-  production run now draws watermarked tiles instead of eight blank maps.
+- Behind the scenes: when the site runs on a developer's own computer, it no longer sends the map
+  tile key, which the map provider (CARTO) always rejects from there. Local test runs now show
+  watermarked maps instead of eight blank ones, which had made the automated checks fail.
 
 ## [1.30.9] - 2026-09-20
 
 ### Changed
 
-- Corrected the cron doc: the GTFS shapes sync runs daily, not weekly, with the IngestRun evidence
-  for why, plus where its memory figure can and cannot be read.
+- Documentation only: the guide to the scheduled jobs said the route-shape download ran weekly. It
+  actually runs daily, and the guide now says so and explains why daily is right (AT changed its
+  route shapes twice in nine days).
 
 ## [1.30.8] - 2026-09-20
 
 ### Fixed
 
-- The worst-trip, worst-route and worst-stop cards now open that run, route or stop. The board each
-  one came from is on the section heading above them, so a card and its heading no longer lead to
-  different places.
+- The worst-trip, worst-route and worst-stop cards now open the run, route or stop they name.
+  Before, they opened the Shame board they came from, and the heading above them went somewhere else
+  again. The heading now opens the board, and each card opens its subject.
 
 ## [1.30.7] - 2026-09-20
 
 ### Fixed
 
-- A cancelled run whose scheduled start was never captured now opens on the day whose board it was
-  clicked from, instead of the run's most recent day.
+- Clicking a cancelled run with no recorded start time now opens it on the day you were looking at.
+  Before, it could open the most recent day that trip ran instead.
 
 ## [1.30.6] - 2026-09-20
 
 ### Fixed
 
-- The nav tab for the page you are already on no longer wipes that page's own filters, and nav and
-  footer links from a trip page now keep the run's day instead of jumping to today.
+- Clicking the top menu tab for the page you are already on no longer throws away your search and
+  filters on that page.
+- The menu and footer links on a trip page now keep the run's day. Before, they jumped to today.
 
 ## [1.30.5] - 2026-09-20
 
 ### Fixed
 
-- The day stepper and direction chips now keep the delay threshold and trip sort, the step onto
-  today keeps the filters instead of dropping the whole query, and the next-day arrow after an
-  empty-day fallback goes to a real day instead of back to the same one.
+- On a route page, stepping to the previous or next day and choosing a direction now keep your sort
+  order and filters. Stepping forward onto today used to drop them all.
+- After the page falls back to an earlier day (because today has no data yet, early in the morning),
+  the next-day arrow now goes somewhere. It used to lead back to the same page.
 
 ## [1.30.4] - 2026-09-20
 
 ### Fixed
 
-- Route links from a month view now open the week that month hands off to, instead of silently
-  showing today. Every board and the Routes list build that link from one helper.
+- Clicking a route from a month view used to open that route on today, silently. It now opens the
+  route on the last week of that month (the route page has day and week views, but no month view).
+  All the boards and the Routes list now build this link the same way.
 
 ## [1.30.3] - 2026-09-20
 
 ### Fixed
 
-- The Day, Week and Month tabs now carry the date being read across, so switching window stays on
-  that day, week or month instead of resetting to the present.
+- Switching between the Day, Week and Month tabs now keeps the date you were looking at. On Sunday
+  14 September, the Week tab used to open the last seven days up to today; it now opens the week
+  that contains the 14th.
 
 ## [1.30.2] - 2026-09-20
 
 ### Changed
 
-- Dropped four dev dependencies other packages already install: @typescript-eslint/eslint-plugin and
-  @typescript-eslint/parser (via typescript-eslint), sharp (via Next) and postcss. The postcss and
-  sharp overrides go too: Next now pins a postcss past the XSS fix the override was added for. A
-  stray install-script entry for canvas, which is not installed, is removed.
+- Behind the scenes only: removed four development tools from the project's direct list because
+  other packages already install them, and removed two version pins and a leftover setting that were
+  no longer needed. Nothing on the site changed.
 
 ## [1.30.1] - 2026-09-19
 
 ### Changed
 
-- Each server function leaves out Prisma's unused runtimes, which cuts its traced size from about 95
-  MB to 39 MB.
+- Behind the scenes only: each deployment of the site's server code is now much smaller, about 39MB
+  per function instead of 95MB. The database library shipped five engines for other platforms that
+  this site never uses, and they are now left out. It matters because the hosting plan has a 10GB
+  limit on stored server code across all kept deployments, and the site had used 7.26GB of it.
+  Nothing on the site changed.
 
 ## [1.30.0] - 2026-09-19
 
 ### Added
 
-- The nightly pass now hides a run whose every reading was reported under another run's trip, a
-  whole vehicle cycle off its own schedule, and records why it hid each one.
+- The nightly check now catches a second kind of ghost run (see Terms). The existing check compares
+  each reading with the rest of its own run, so it could not see a run where every reading was wrong
+  by the same amount: all of them had been reported under another trip's id, about one vehicle cycle
+  (an hour or more) off the run's real timetable, so they agreed with each other. Such a run is now
+  hidden only when two things are both true: none of its readings is anywhere near its own
+  timetable, and there is supporting evidence, such as the run's own start time (which is part of
+  its trip id) being more than half an hour from the times it was reported at. A run that is
+  genuinely late is still measured against its own timetable, so it is never hidden however late it
+  is. Each hidden run is recorded with the reason it was hidden. On the eight days on record it
+  hides exactly one run, on 14 September.
 
 ## [1.29.2] - 2026-09-18
 
 ### Fixed
 
-- A single-trip cancellation alert now sits on its route's page, headed with the route's short name
-  ("Route 195", not "Route 195-203") and linking to the route, instead of on the home page's
-  network-wide banner.
+- When AT cancels one single trip, its alert now appears on that route's page instead of in the
+  network-wide alert banner on the home page, where it was noise for everyone else. The alert is
+  headed with the route's short name ("Route 195", not AT's internal "Route 195-203") and links to
+  the route.
 
 ## [1.29.1] - 2026-09-18
 
 ### Changed
 
-- The nightly pre-warm now renders every day page (home, the four shame boards, rankings and
-  cancellations) for each of the last seven completed days, so the first reader to step onto a past
-  day no longer waits while it is computed.
+- Past days load faster the first time. Every night the site now opens each day page (home, the four
+  Shame boards, rankings and cancellations) for each of the last seven finished days, so their
+  figures are already calculated and saved. Before, the first person to step back to one of those
+  days had to wait while it was worked out.
 
 ## [1.29.0] - 2026-09-18
 
 ### Added
 
-- Stepping to the previous or next day, week or month is now instant: the neighbouring pages load in
-  the background while you read, and a page seen in the last two minutes is shown again without a
-  round trip. A step that still has to wait pulses its arrow until the new page arrives, instead of
-  looking like a click that did nothing.
+- Stepping to the previous or next day, week or month is now instant most of the time. The
+  neighbouring pages load quietly in the background while you read, and a page you saw in the last
+  two minutes is shown again straight away. If a step does still have to wait, its arrow pulses
+  until the new page arrives, instead of looking like a click that did nothing.
 
 ## [1.28.0] - 2026-09-18
 
 ### Added
 
-- Live pages now update their figures in place when a new ingest run lands, with no reload. The live
-  day's cache turns over with each run instead of on a five-minute clock, and a page showing a past
-  day is left alone.
+- A page showing today now updates its figures by itself, without a reload, each time new arrivals
+  come in (every two minutes). Before, today's figures were refreshed on a fixed five-minute clock
+  and only on reload. A page showing a past day stays as it is, since its figures do not change.
 
 ## [1.27.3] - 2026-09-18
 
 ### Fixed
 
-- A second vehicle reporting a stop visit on a reused trip id can no longer overwrite the real
-  arrival: the nearer reading to the stop's own schedule stays, and the visit is marked.
+- A real arrival could be overwritten by a false one. AT sometimes reuses a trip id for a different
+  vehicle later in the day, and the second vehicle's report of the same stop replaced the first,
+  real one. Now, when a different vehicle reports a stop that already has a reading far from it, the
+  reading closer to the stop's timetable is kept and the stop is marked as affected. A vehicle
+  revising its own reading (for example a bus first predicted on time that then arrives 40 minutes
+  late) still always updates it. This protects arrivals from now on; ones overwritten before this
+  fix (including seven on route 152 on 14 September) cannot be recovered.
 
 ## [1.27.2] - 2026-09-18
 
 ### Added
 
-- A one-off backfill that stamps every archived arrival with the service date of the run it belongs
-  to, folding the readings of a run that crossed the boundary hour back onto the day it departed.
+- Behind the scenes: a one-off repair script that goes back over every stored arrival and records
+  which service day its run belongs to (see 1.26.0, which does this for new arrivals). A run that
+  crossed the day boundary is filed whole under the day it departed. Nothing on the site changed
+  until it was run.
 
 ## [1.27.1] - 2026-09-17
 
 ### Fixed
 
-- A cancellation flagged more than twelve hours before its run no longer lands on the previous
-  service day, which had put two real cancelled runs in the restamp's delete list.
+- A cancellation AT announced far in advance could be filed under the wrong day. The rule that
+  matched a cancellation to its run's day assumed the notice came within twelve hours either side of
+  departure, but AT gives up to 12h40m of notice, so four cancellations landed on the day before.
+  Two of them would then have looked like duplicates of a real cancellation and been deleted by the
+  service-day move (1.26.1). The window now allows up to 14 hours of notice and 10 hours of
+  lateness, which matches what AT actually sends.
 
 ## [1.27.0] - 2026-09-17
 
 ### Changed
 
-- The transit service day now runs 4am to 4am instead of 5am to 5am, so a run that crosses the
-  boundary is no longer split across two days, and the 4am hour is no longer hidden from the live
-  day's hourly rows. Cancelled trips now record the run's own service date.
+- The service day (see Terms) now runs 4am to 4am instead of 5am to 5am. Between 4am and 5am some
+  early runs had already started while the site still counted it as the previous day, so a run could
+  be split across two days, and the 4am hour did not appear in today's hourly figures. A cancelled
+  trip is now also filed under the day its run was due to operate, rather than the day the
+  cancellation was noticed.
 
 ## [1.26.1] - 2026-09-17
 
 ### Added
 
-- The one-off service-day restamp migration is in the repo, ready to run after the 4am boundary
-  change deploys. It moves stored summary stamps onto the new boundary instant, rewrites
-  cancelled-trip service dates to the run's own day, and clears the unused off-route stamp.
+- Behind the scenes: a one-off script to move the stored data onto the new 4am service day (1.27.0),
+  to be run straight after that version was deployed. It moves each day's saved summaries onto the
+  new day boundary, refiles cancelled trips under their run's own day, and removes a date field from
+  off-route readings that nothing used. Nothing on the site changed until it was run.
 
 ## [1.26.0] - 2026-09-16
 
 ### Added
 
-- Every arrival now records the service date of the run it belongs to, derived once per run at
-  ingest, so a run crossing the service-day boundary is no longer split across two days.
+- Every new arrival now records which service day its run belongs to, worked out once for the whole
+  run when it is first seen. Before, each arrival's day was worked out from its own time, so a run
+  that crossed the day boundary had its first stops on one day and its last stops on the next.
 
 ## [1.25.3] - 2026-09-16
 
 ### Changed
 
-- AGENTS.md and CLAUDE.md are now tracked. Next.js regenerates both on every dev-server start, so
-  leaving them untracked left the working tree permanently dirty.
+- Behind the scenes only: two instruction files (AGENTS.md and CLAUDE.md) that the Next.js
+  development server writes into the project every time it starts are now kept in the project's
+  history. Leaving them out meant the project always showed uncommitted changes. Nothing on the site
+  changed.
 
 ## [1.25.2] - 2026-09-16
 
 ### Fixed
 
-- Summary lookups match the stored service-day stamp by range instead of by an exact instant, so a
-  past day still reads as summarised and final if the service-day boundary hour moves.
+- Behind the scenes: the site decides whether a past day is finished (and its figures final) by
+  finding that day's saved summaries. It used to look them up by one exact time of day, so moving
+  the day boundary (as 1.27.0 later did) would have made every past day look unfinished. It now
+  looks for any summary within the day. Nothing on the site changed.
 
 ## [1.25.1] - 2026-09-16
 
 ### Changed
 
-- The ingest peek endpoint now echoes each sampled trip's trip_id, start_date and start_time, so
-  whether the feed populates a run's own service date can be settled before it is relied on.
+- Behind the scenes only: a diagnostic endpoint that shows a sample of AT's live feed now also shows
+  each trip's id, start date and start time. This was to check whether AT's feed says which day a
+  run belongs to before building on it. Nothing on the site changed.
 
 ## [1.25.0] - 2026-09-16
 
 ### Added
 
-- Four surfaces now say when the archive starts: a footer line, a 'first day' hint on the day
-  stepper at 11 September 2026, a '(from 11 Sep)' suffix on a period that starts before the archive,
-  and a line under the home heading on the first day.
+- The site now says when its records start (11 September 2026) in four places: a line in the footer,
+  a "first day" note on the day stepper when you reach 11 September, "(from 11 Sep)" after a week or
+  month that starts before then, and a line under the home heading on that first day.
 
 ## [1.24.0] - 2026-09-16
 
 ### Added
 
-- A ?day outside the archive now redirects onto the nearest real day instead of rendering an empty
-  board, the week and month windows clamp to the archive floor and mark a short first period as
-  partial, and the rank-movement query is skipped when the previous window is empty.
+- Asking for a day before the records start, or after today, now takes you to the nearest day that
+  has data instead of showing an empty page. A week or month that starts before the records begin is
+  cut to start on the first day and marked as partial. The rank movement arrows (up or down since
+  the previous week) are left off when there is no previous week to compare with.
 
 ## [1.23.0] - 2026-09-16
 
 ### Added
 
-- Added DATA_START_DAY (2026-09-11) as a hard archive floor: the day stepper, the data-day walk and
-  the range clamps all stop there, and serviceDayNoon now reads the wall clock instead of adding a
-  fixed seven hours to the service day's start.
+- The site now knows its records start on 11 September 2026. The day stepper will not step back past
+  that day, and week and month views stop there.
+- Fixed how the middle of a service day is worked out. It used to add a fixed seven hours to the
+  day's start, which is an hour out when daylight saving changes during the day. It now uses the
+  actual clock time.
 
 ## [1.22.2] - 2026-09-16
 
 ### Changed
 
-- Cleaned up .gitignore: dropped Yarn/PnP/pnpm, Turborepo and SQLite-era rules this repo never
-  produces, collapsed the env rules onto the wider .env* glob the Vercel CLI needs, and added
-  coverage/ and scripts/route-shots/.
+- Behind the scenes only: tidied the list of files the project keeps out of its history, removing
+  rules for tools this project never uses and adding two folders it does create. Nothing on the site
+  changed.
 
 ## [1.22.1] - 2026-09-16
 
 ### Changed
 
-- The cron schedule is documented in NZ local time, since the jobs are scheduled there and the UTC
-  hour moves with daylight saving; the old table read as an hour of drift for half the year. Adds a
-  runbook for each way the cleanup can refuse.
+- Documentation only: the schedule of the site's nightly jobs is now written in New Zealand time,
+  since that is how they are scheduled. It was written in UTC, which is out by an hour for half the
+  year because of daylight saving. Also added step-by-step instructions for each reason the nightly
+  clean-up can refuse to run (see 1.21.4).
 
 ## [1.22.0] - 2026-09-16
 
 ### Added
 
-- GET /api/health now reports the retention window the last cleanup run actually used, including
-  whether it was refused or a dry run, so production's retention is readable without a mongosh
-  session. An integration test fails if a recorded window ever drops below the safe floor.
+- Behind the scenes: the site's health check address (`/api/health`) now also reports how much
+  history the last nightly clean-up kept, and whether that clean-up refused to run or was only a
+  test run. This makes it possible to confirm that old data is not being deleted without logging in
+  to the database. An automated test fails if the clean-up ever records keeping less than the safe
+  minimum.
 
 ## [1.21.4] - 2026-09-16
 
 ### Fixed
 
-- The retention cleanup now refuses when RETENTION_DAYS is unset instead of falling back to 14 days,
-  refuses a retention under a year, refuses a run that would delete more than 2% of the archive or
-  jump its cutoff more than two days, and records what every run decided on IngestRun.detail. Adds
-  ?dryRun=1.
+- The nightly clean-up, which deletes arrivals older than the retention period, is now much harder
+  to get wrong. If the retention period was not configured, it used to fall back to keeping only 14
+  days and delete everything older. It now refuses to run instead. It also refuses to keep less than
+  a year, to delete more than 2% of all stored data in one go, or to move its cut-off more than two
+  days at once. Every run records what it decided and why, and it can be run as a test that deletes
+  nothing (`?dryRun=1`).
 
 ## [1.21.3] - 2026-09-16
 
 ### Fixed
 
-- The lint script is read-only again and fails on warnings; lint:fix is back for the rewriting
-  variant. Folding --fix into lint made the pre-push hook edit files after the commit was made, and
-  let eslint insert empty JSDoc stubs mid-check.
+- Behind the scenes only: the code-style check (lint) had been changed to fix problems as it found
+  them. That meant the check that runs before code is uploaded was editing files after they had been
+  committed. It is back to only reporting problems, and fails on warnings too; fixing them is a
+  separate command (`lint:fix`). Nothing on the site changed.
 
 ## [1.21.2] - 2026-09-16
 
 ### Changed
 
-- Updated eslint-plugin-jsdoc and vitest, pinned prisma to an exact 6.19.3 so a stray range bump
-  cannot reach Prisma 7, and folded lint:fix into lint.
+- Behind the scenes only: updated two development tools, and pinned the database library (Prisma) to
+  exactly 6.19.3, because Prisma 7 no longer supports the MongoDB database this site uses. Nothing
+  on the site changed.
 
 ## [1.21.0] - 2026-09-14
 
 ### Changed
 
-- The home page and the rankings page were the same dashboard split by window: Today held the day
-  and Rankings the week or month, so changing the window meant changing tabs. The home page now has
-  the Day / Week / Month controls the Routes and Cancellations pages use, with the week and month
-  views (rank movement, Shame of the week or month) that Rankings showed. `/rankings` redirects to
-  them with its window, period and filters. The top bar reads Overview, Routes, Cancellations.
-- Moving between sections keeps the period being looked at: each top-bar link carries the current
-  day, window, period, mode and school bus choice, so a past week on the Overview opens the same
-  week on Routes or Cancellations. The late or early filter stays behind, since `dir` means a sort
-  or travel direction elsewhere.
-- The top bar highlights Routes on route, trip and stop pages, and Overview on the Shame boards,
-  where before nothing was highlighted.
-- "Shame of the day" (and of the week or month) on the Overview links to its boards: the Shame
-  dashboard for a day, which nothing linked to, and the Trips board for a week or month, now with
-  the mode and school bus filters.
+- The home page and the Rankings page were one dashboard split in two: Home showed a day and
+  Rankings showed a week or month, so changing the time span meant changing pages. The home page now
+  has Day, Week and Month buttons like the Routes and Cancellations pages, and its week and month
+  views include everything Rankings had (rank movement, and the Shame of the week or month).
+  `/rankings` now forwards to the matching home page view. The top menu reads Overview, Routes,
+  Cancellations.
+- Moving between sections keeps what you were looking at. Each top menu link carries the current
+  day, week or month and the bus, train, ferry and school-bus filters, so a past week on the
+  Overview opens the same week on Routes or Cancellations. The late or early filter is not carried,
+  because the same setting means something else on the other pages.
+- The top menu now highlights Routes on route, trip and stop pages, and Overview on the Shame pages.
+  Before, nothing was highlighted there.
+- The "Shame of the day" (or week, or month) heading on the Overview now links to the Shame pages:
+  the Shame overview for a day, which nothing linked to before, and the worst-trips page for a week
+  or month, keeping the bus, train, ferry and school-bus filters.
 
 ### Fixed
 
-- On a route's week view, the direction chips dropped back to the day view. They now stay on the
-  week being shown.
-- A route's Day / Week toggle dropped the day, the week and the direction. Week on a past day opens
-  that day's calendar week, Day on a stepped-back week opens its Monday, and the week stepper keeps
-  the direction.
-- A trip page's "Back to" link opened the route on today, not the day the run was on.
-- The Shame boards' Week toggle opened the last 7 days whatever day was showing, and Day opened
-  today; they now keep the day's week, or the week's Monday.
+- On a route's week view, the direction buttons used to jump back to the day view. They now stay on
+  the week you are looking at.
+- A route's Day and Week buttons used to forget the day, the week and the direction. Week on a past
+  day now opens the week containing that day, Day on a past week opens its Monday, and stepping
+  between weeks keeps the direction.
+- A trip page's "Back to" link opened the route on today rather than on the day of the run.
+- The Week button on the Shame pages opened the last seven days whatever day was showing, and the
+  Day button opened today. They now keep the week containing the day, or the Monday of the week.
 
 ## [1.20.1] - 2026-09-14
 
 ### Fixed
 
-- Shame of the Day boards showed the wrong hours. The Data Cache answers an expired entry with its
-  stale value and refreshes it in the background, and the cache key only told a summarised window
-  from an unsummarised one. So at 9:14pm on production the Trips tab stopped at 7pm, Routes at 8pm
-  and Stops at 9pm (each as old as its last visit), and a finished day could open cut off at the
-  hour it was last viewed while live (Sunday 13 September loaded to 4pm on its first visit the next
-  evening). The key now carries three states: `final` (summarised), `ended` (over but not yet
-  summarised, so nothing computed while the day ran is reused) and `live-<n>`, which moves to a new
-  key every TTL so a live day is never more than one TTL behind (`cacheState` in
-  `lib/data/cache.ts`). Every date-scoped aggregation goes through it, and the ranking rows and the
-  cancellation counts behind the home, rankings, Routes and Shame pages now do too.
-- The Shame day boards put ten hours in the left column and the rest in the right, so a full day ran
-  5am to 2pm beside 3pm to 4am with a gap under the left. The rows now split evenly (12 and 12 for a
-  full day).
+- The Shame of the Day pages could show only part of the day. Saved results are reused until they
+  expire, and even an expired one is shown once more while a fresh one is worked out. The saved
+  result only knew whether a day was finished or not, so a result saved partway through today kept
+  being reused. At 9:14pm one evening the Trips page stopped at 7pm, Routes at 8pm and Stops at 9pm,
+  each showing the day as it was when someone last visited. A finished day could also show only up
+  to the hour someone had looked at it while it was live: Sunday 13 September loaded only up to 4pm
+  the next evening. Saved results now know three states: finished and summarised, over but not yet
+  summarised (so nothing saved during the day is reused), and live (a new result at least every few
+  minutes). The ranking and cancellation figures behind the home, Routes and Shame pages now follow
+  the same rule.
+- The Shame day pages put ten hours in the left column and the rest in the right, so a full day ran
+  5am to 2pm on the left and 3pm to 4am on the right, with a gap under the left. The hours now split
+  evenly, 12 and 12 for a full day.
 
 ## [1.20.0] - 2026-09-14
 
 ### Added
 
-- Routes page presets: "All routes", "Most off-schedule" and "Most reliable" chips set the sort and
-  the enough-data filter the boards use, and every other filter (mode, area, late or early,
-  cancellations, school buses) still applies on top. Sorted by a measure, each route shows its rank.
-  On-time % ties go to the route less off schedule, and a route with no absolute average ranks by
-  its signed one on off-by, as on the boards, so a board's top ten matches the page's.
+- The Routes page now has three preset buttons: "All routes", "Most off-schedule" and "Most
+  reliable". The last two sort the list the same way as the home page's boards and hide routes with
+  too few arrivals to judge, and every other filter (mode, area, late or early, cancellations,
+  school buses) still applies. When sorted like this, each route shows its rank. Ties are settled
+  the same way as on the boards, so a board's top ten always matches the top ten on the Routes page.
 
 ### Changed
 
-- The Most off-schedule and Most reliable boards on the home and rankings pages show their top ten
-  and a "See all N" link to the Routes page on that preset, carrying the day or week, mode, school
-  bus and late or early choices, instead of expanding in place. The separate "Every route" link
-  under the boards is gone.
+- The "Most off-schedule" and "Most reliable" boards on the home and Rankings pages now show their
+  top ten and a "See all N" link to the Routes page with that preset, keeping the day or week and
+  the filters, instead of expanding in place. The separate "Every route" link under the boards is
+  gone.
 
 ## [1.19.1] - 2026-09-14
 
 ### Fixed
 
-- Post-deploy smoke on production failed every page with a map: the CARTO key is restricted to the
-  site's host, and the smoke visits the deployment's own URL, where every keyed tile answered 403
-  and the map stayed blank. The key now goes out only from the project's production domain
-  (`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL`); any other Vercel URL loads the watermarked keyless
-  tiles, as previews already did. Off Vercel the key always goes out (`lib/map-tiles.ts`).
+- The automatic check that runs after every deployment (the smoke test) failed on every page with a
+  map. The map provider's key (CARTO) only works from the site's real address, and the check visits
+  the deployment's own temporary address, so every map tile was refused and the maps stayed blank.
+  The key is now only sent from the site's real address. Any other address gets the free tiles with
+  a watermark, as test deployments already did.
 
 ## [1.19.0] - 2026-09-14
 
 ### Changed
 
-- Cancellations count against a route's punctuality as the wait a rider had. On arrivals alone a
-  cancelled trip can never be late, so cancelling runs improved a route's figures. Every stop a
-  flagged trip failed to serve now counts as late by the gap to the next trip that ran on the same
-  route and direction, capped at an hour: all the usual stops (the median of that day's runs) for a
-  trip that never ran, the stops after the cut for one cut short, nothing for one reinstated
-  (`lib/rider-wait.ts`). Applied at read time, per service day, so it reaches the Most off-schedule
-  and Most reliable boards, the KPI strips, the Routes page, and the route page's summary and week
-  table; the Shame boards and stop pages stay on measured arrivals, and the cancellation counts are
-  unchanged. Only routes with a flagged trip are rescanned, and each day is cached.
-- Route trip board: on Most off, Latest and Earliest a cancellation ranks among the runs by its wait
-  ("10m wait"), and a run cut short averages its unserved stops in at the wait, so it can move up. A
-  cancellation whose wait cannot be told stays unranked below the runs.
+- Cancelled trips now count against a route's on-time figures. Before, only arrivals were counted,
+  and a cancelled trip has no arrivals, so it could never be late. That meant a route that cancelled
+  its late runs looked better for it. Now each stop a cancelled trip failed to serve counts as a
+  rider's wait for the next trip on the same route and direction (capped at an hour): on time if
+  that wait was within the on-time window, late if longer.
+  - A trip that never ran counts at all its usual stops, a trip cut short counts at the stops after
+    it stopped, and a trip that was reinstated and ran counts nothing extra.
+  - This feeds the "Most off-schedule" and "Most reliable" boards, the figures strips, the Routes
+    page, and the route page's summary and week table. The Shame boards and stop pages still use
+    measured arrivals only, and the cancellation counts themselves are unchanged.
+- On a route's trips board, sorting by "Most off", "Latest" or "Earliest" now ranks a cancelled trip
+  among the runs by its wait (for example "10m wait"), and a run cut short includes its unserved
+  stops at the wait, so it can move up. A cancellation whose wait cannot be worked out stays below
+  the ranked runs.
 
 ## [1.18.0] - 2026-09-14
 
 ### Added
 
-- Detours: the realtime ingest measures every bus and train part-way through a trip against that
-  trip's GTFS road shape and stores each reading more than 200 m off it (`OffRouteSighting`, pruned
-  with the arrival events). Most such readings are not detours - AT keeps a vehicle signed onto the
-  trip it finished while it drives to its next run or parks at a depot (9% of in-progress vehicles
-  read over 150 m off at one midday snapshot) - so a trip counts as off its route only when two
-  readings fall between arrivals it recorded before and after. Ferries are left out.
-- Trip page: a "Went off its route" note with how far, when, the stop nearest the furthest reading,
-  and AT's detour alert when one was active on the route; the readings are drawn on the trip map as
-  orange dots on a dashed line.
-- Route trip board: an OFF ROUTE badge on runs that left their route.
-- The GTFS shapes sync stores each trip's `shape_id`. Until it has run, a trip is matched to its
-  shape by the `{block}-{service}` prefix its id shares with the shape's (12 of 12 sampled).
+- The site now spots trips that left their route. Every two minutes, each bus and train part way
+  through a trip is compared with that trip's road shape, and any position more than 200m off it is
+  saved. Most of those are not detours: AT often leaves a vehicle signed onto the trip it just
+  finished while it drives to its next run or to a depot. So a trip only counts as off route when at
+  least two such positions fall between stops it actually served before and after. Ferries are left
+  out.
+- The trip page shows a "Went off its route" note saying how far, when, which stop was nearest the
+  furthest point, and AT's detour alert if one was active. The off-route positions are drawn on the
+  trip map as orange dots joined by a dashed line.
+- On a route's trips board, runs that left their route get an OFF ROUTE badge.
+- Behind the scenes: the nightly download of AT's route shapes now also stores which shape each trip
+  uses.
 
 ### Changed
 
-- The realtime ingest reads the vehicle-locations feed once for both the vehicle names on arrival
-  rows and the off-route check; the check is best-effort and never fails a poll.
+- Behind the scenes: AT's vehicle-position feed is now read once per two-minute run and used both
+  for vehicle names and for the off-route check. If the off-route check fails, the run carries on.
 
 ## [1.17.0] - 2026-09-14
 
 ### Added
 
-- Cancellations page (`/cancellations`, in the top bar) for a day, week or month: a KPI strip of
-  every trip AT flagged, split into never ran, cut short and reinstated, and how many routes had
-  one; the Most cancelled board (top 15, linking to the rest on the Routes page); and every flagged
-  trip with its route, destination and stage badge, filterable by stage and linking to its trip
-  page. The mode and school-bus chips filter all three alike, and the Day/Week/Month controls keep
-  them. The trips are read a service day at a time and cached under the day, so a week or month
-  reuses each day.
+- A new Cancellations page (`/cancellations`, in the top menu) for a day, week or month.
+  - A figures strip counting every trip AT flagged as cancelled, split into never ran, cut short and
+    reinstated (ran anyway), and how many routes had at least one.
+  - A "Most cancelled" board of the top 15 routes, linking to the rest on the Routes page.
+  - A list of every flagged trip with its route, destination and a badge for what happened. It can
+    be filtered by what happened, and each trip links to its own page.
+  - The bus, train, ferry and school-bus filters apply to all three.
 
 ## [1.16.0] - 2026-09-14
 
 ### Added
 
-- Routes page (`/routes`, in the top bar): every route for a day, week or month, with a KPI strip
-  over exactly the routes that pass the filters and a "More details" link to each route's page
-  (opening on the same day or week). Filters: search, mode, area, running late or early, enough data
-  to rank, had cancellations, and school buses. Sorts: route number, on-time %, average off by,
-  average delay, late %, early %, arrivals and cancellations, either direction. Filtering runs in
-  the browser and is written to the URL, so a filtered view reloads and shares as it is, and the
-  Day/Week/Month controls carry the filters along.
-- Areas (Central, North Shore, West, East, South, Hibiscus Coast & Rodney, Waiheke & islands). AT's
-  feed gives stops no zone, so each stop is placed by its coordinates against approximate boundaries
-  (`lib/areas.ts`), checked against stop names across 80 suburbs. A route belongs to every area
-  holding at least two of the stops it served over the last seven completed days, or a quarter of
-  them.
-- Routes with cancellations but no recorded arrivals (Te Huia, the Pine Harbour ferry) are listed
-  without punctuality figures, so the page's cancellation total matches the rankings page.
+- A new Routes page (`/routes`, in the top menu) listing every route for a day, week or month, with
+  a figures strip covering exactly the routes shown and a link to each route's own page on the same
+  day or week.
+  - Filters: search, mode, area, running late or early, enough data to rank, had cancellations, and
+    school buses.
+  - Sorts: route number, on-time %, average off schedule, average delay, late %, early %, arrivals
+    and cancellations, either way round.
+  - The filters are kept in the page address, so a filtered list can be reloaded or shared as it is.
+- Areas: Central, North Shore, West, East, South, Hibiscus Coast & Rodney, and Waiheke & islands.
+  AT's data does not say which area a stop is in, so each stop is placed by its map position against
+  rough boundaries, checked against stop names across 80 suburbs. A route belongs to each area that
+  holds at least two of its stops (or a quarter of them).
+- Routes that had cancellations but no recorded arrivals (Te Huia, the Pine Harbour ferry) are still
+  listed, without on-time figures, so the page's cancellation total matches the Rankings page.
 
 ### Changed
 
-- The All routes table left the home and rankings pages for the Routes page; both link to it with
-  their filters. The mode, school-bus and late/early chips share one row above the boards.
-- On a phone the header drops the "Transport Tracker" wordmark beside the logo so the nav fits.
+- The full table of all routes moved from the home and Rankings pages to the Routes page; both link
+  to it with their filters. The mode, school-bus and late or early buttons now sit on one row above
+  the boards.
+- On a phone, the header drops the site name beside the logo so the menu fits.
 
 ## [1.15.1] - 2026-09-14
 
 ### Fixed
 
-- Maps on past days showed where the route's vehicles are right now. The route map polls live
-  vehicles only on today's day view or the rolling week ending today, not on a past day or a
-  stepped-back week, and a trip page only for a run on today's service day. The route trip board
-  only looks up LIVE badges for today: AT reuses trip ids every day, so a past day's run could be
-  marked LIVE because the same trip id was running now.
+- The map on a past day was showing where the route's vehicles are right now. Live vehicles are now
+  only shown when you are looking at today (or the last seven days up to today), and on a trip page
+  only for a run on today's service day.
+- A past day's run on the trips board could be marked LIVE. AT reuses trip ids every day, so the
+  same trip id running today made yesterday's run look live. LIVE badges now only appear on today.
 
 ## [1.15.0] - 2026-09-14
 
 ### Added
 
-- Trip page: a trip AT flagged as cancelled now says so, and how it played out. "Cancelled" when it
-  recorded no arrivals; "Cancelled mid-trip" with its last recorded stop, when the flag landed, and
-  the scheduled stops after that marked "Not served"; "Cancelled, then reinstated" when it kept
-  recording arrivals after the flag. The feed sends one stop update per trip (the next stop), so a
-  trip that stops at the flag can leave one predicted arrival past it; three or more arrivals after
-  the flag count as the trip carrying on (`lib/cancellation.ts`). Over four days that split 248
-  flagged trips into 183 that never ran, 37 cut short and 28 reinstated.
-- Route trip board: a flagged trip that ran shows once, as its ranked run with a CANCELLED MID-TRIP
-  (CUT SHORT on a phone) or REINSTATED badge, instead of a run plus a separate struck-through
-  CANCELLED row. A run made only of a leftover first-stop prediction moves to the unranked
-  cancellations. Cancelled rows link to the trip page, which lists the stops the trip would have
-  served.
+- A trip page for a trip AT flagged as cancelled now says so, and what actually happened:
+  - "Cancelled" if it recorded no arrivals at all;
+  - "Cancelled mid-trip" with its last stop and when the cancellation came, and the stops after that
+    marked "Not served";
+  - "Cancelled, then reinstated" if it carried on after the cancellation.
+- Over four days this split 248 flagged trips into 183 that never ran, 37 cut short and 28
+  reinstated. (AT's feed can leave one predicted arrival after a trip actually stopped, so a trip
+  needs three or more arrivals after the cancellation to count as carrying on.)
+- On a route's trips board, a flagged trip that ran now shows once, as its ranked run with a
+  CANCELLED MID-TRIP (CUT SHORT on a phone) or REINSTATED badge. Before, it showed twice: as a run
+  and as a separate struck-through CANCELLED row. Cancelled rows link to the trip page, which lists
+  the stops the trip would have served.
 
 ## [1.14.5] - 2026-09-14
 
 ### Fixed
 
-- Trip page map: the line joined the trip's stops with straight segments, cutting across blocks and
-  the harbour instead of following the road. It now draws the trip's own GTFS shape (the `shape_id`
-  on AT's trip record, from the stored shapes), and only joins the stops for a trip AT no longer
-  publishes or a shape not yet ingested.
+- The line on a trip's map joined its stops with straight lines, cutting across blocks and the
+  harbour. It now follows the actual road the trip takes, using AT's route shape. Straight lines are
+  only used for a trip AT no longer publishes, or before its shape has been downloaded.
 
 ## [1.14.4] - 2026-09-14
 
 ### Fixed
 
-- The skeleton `Bone` joined its classes with a template string, so a caller's `rounded-full` or
-  `rounded-none` sat beside the default `rounded` and CSS order decided the shape. It merges through
-  `cn()` now, as do the route page's Day/Week toggle and the delay spans in the highlight cards and
-  Shame rows, which were the last class names built by string concatenation.
+- Behind the scenes: the grey placeholder shapes shown while a page loads could come out square when
+  they should be round, or the other way round, depending on the order of the page's styles. The
+  styles are now merged so the intended shape always wins. The same fix went into a few other places
+  that built their styles the same way.
 
 ## [1.14.3] - 2026-09-14
 
 ### Fixed
 
-- Loading skeletons were close to their pages but not the same size, so content jumped a little as
-  each page arrived (the route header 20px taller, the Shame cards and hour rows shorter, the rank
-  boards 25px short, chips 2px taller, the stop page's lower sections misplaced). Every skeleton is
-  now built from shared parts (`SkeletonParts.tsx`) that mirror the real components box for box: the
-  same padding, gaps and borders, with each bar the height of the text line it stands in for.
-  Measured against the loaded pages at desktop and phone widths, every fixed block lines up; what
-  still differs depends on the data (how many hours have passed, a route's alert banner and diagram,
-  a long name wrapping). The in-page Suspense fallbacks (home cards, route trip board and diagram,
-  stop departures, Shame week boards) use the same parts.
+- The grey placeholder shown while a page loads was close to the real page but not the same size, so
+  content jumped slightly as it arrived (the route header 20px too short, the rank boards 25px
+  short, and so on). Every placeholder is now built from shared pieces that match the real page's
+  parts exactly: the same padding, gaps and borders, and each grey bar the height of the line of
+  text it stands in for. Checked against the loaded pages on desktop and phone. What still differs
+  depends on the data, such as how many hours have passed or a long name wrapping.
 
 ## [1.14.2] - 2026-09-14
 
 ### Fixed
 
-- Route page on a phone: the "Buses of the day" board grew to its truncating rows' full width (640px
-  in a 368px column), so its sort chips and row ends ran off the right edge. The board is a grid
-  item and now carries `min-w-0`, so its rows truncate inside the column.
+- On a phone, a route page's trips board was wider than the screen (640px in a 368px column), so its
+  sort buttons and the ends of its rows ran off the right edge. It now fits, cutting long names
+  short instead.
 
 ## [1.14.1] - 2026-09-13
 
 ### Fixed
 
-- The site had no favicon, so every first visit logged a 404 for `/favicon.ico`. It now ships a bus
-  glyph on AT Shore blue as `icon.svg`, with a 32px `favicon.ico` and a 180px `apple-icon.png`
-  rendered from it.
+- The site had no tab icon, so browsers showed a blank one and every first visit logged a "not
+  found" error. It now has a bus icon on AT blue, in the sizes browsers and phones ask for.
 
 ## [1.14.0] - 2026-09-13
 
 ### Added
 
-- The "Most off-schedule" boards on the home and rankings pages note each route's cancelled trips
-  for the same window and filters ("4 cancelled") beside its name. The ranking stays on measured
-  delay: a cancellation has no deviation to average, so it sits next to the score instead of being
-  folded into it.
+- The "Most off-schedule" boards on the home and Rankings pages now show how many of each route's
+  trips were cancelled in the same period ("4 cancelled") beside its name. The ranking itself still
+  uses measured delay only (see 1.19.0 for when cancellations started counting).
 
 ## [1.13.15] - 2026-09-13
 
 ### Changed
 
-- Route icons use each route's `route_color` from the AT API exactly as published. A contrast check
-  replaced any colour under 3:1 on white with a generic mode colour, which dropped the East West
-  Line's green and the Onehunga West Line's blue to the same train purple (only the South City Line
-  kept its red), along with the ferries' teal and the InnerLink and OuterLink colours. Routes the
-  API gives no colour keep the service and mode fallbacks. The unused contrast helper is removed.
+- Route icons now use each route's own colour exactly as AT publishes it. Before, any colour that
+  did not stand out enough against white was swapped for a general colour for that mode, so the East
+  West Line's green and the Onehunga West Line's blue both became the same train purple, and the
+  ferries and the InnerLink and OuterLink lost their colours too. Routes AT gives no colour for
+  still get the general mode colour.
 
 ## [1.13.14] - 2026-09-13
 
 ### Fixed
 
-- Loading skeletons: a `loading.tsx` covers every page nested under its folder, and a prefetch stops
-  at the first one it meets. So the Shame trip, route and stop pages loaded behind the Shame
-  dashboard's card skeleton, and a trip page behind the route page's board-and-map skeleton. The
-  home page, the Shame dashboard and the route day page now sit in route groups (`(home)`,
-  `shame/(overview)`, `route/[id]/(overview)`), so each skeleton covers only its own page; no URL
-  changes.
-- Skeleton shapes: the route skeleton gains the direction chip row and a board as tall as the map;
-  the home and rankings boards show the ten rows the real boards do, with the on-time window line;
-  the Shame hour boards show the subtitle line, and their row placeholders shrink to fit a phone
-  instead of running off the right edge.
+- Some pages loaded behind the wrong placeholder. The Shame trip, route and stop pages showed the
+  Shame overview's placeholder while loading, and a trip page showed the route page's. Each page now
+  has only its own placeholder. No addresses changed.
+- Placeholder shapes now match more closely: the route page's includes the direction buttons and a
+  trips board as tall as the map, the home and Rankings boards show ten rows like the real ones, and
+  the Shame hour boards fit on a phone instead of running off the right edge.
 
 ## [1.13.13] - 2026-09-13
 
 ### Fixed
 
-- Footer freshness: a page view after a quiet spell could read "no update for 11 min, ingest may be
-  stalled" while ingest ran every two minutes, and correct itself only on the next minute's poll.
-  The last-run lookup sat in the Data Cache, which answers an expired entry with its stale value and
-  refreshes in the background. It now uses the in-process TTL cache, which refetches on expiry, so
-  the rendered and polled instants are at most 20 seconds behind the newest run.
+- The footer could wrongly say "no update for 11 min, data collection may be stalled" after a quiet
+  spell, while new data was in fact arriving every two minutes. It corrected itself a minute later.
+  The footer was reading a saved answer that could be shown once more after it expired. It now reads
+  a fresh one, so it is never more than 20 seconds behind.
 
 ## [1.13.12] - 2026-09-13
 
 ### Fixed
 
-- Every sort chip, page number, filter chip, Day/Week toggle, Shame tab and board row was a plain
-  anchor, so each click reloaded the whole document and the page's loading skeleton streamed in
-  before the content. They are client navigations now: changing a sort, page, mode or delay filter
-  swaps the content in place without the skeleton, and the in-page chips keep the scroll position.
-  The all-routes table skips prefetching so a long list does not fire a request per row.
+- Every sort button, page number, filter button, Day or Week toggle, Shame tab and board row used to
+  reload the whole page when clicked, showing the loading placeholder each time. They now update the
+  page in place, and the filter buttons keep your scroll position. The long all-routes table no
+  longer preloads every row's link.
 
 ## [1.13.11] - 2026-09-13
 
 ### Fixed
 
-- Route trip board: cancelled trips pinned to the top of page 1 whatever the sort, so "Most off",
-  "Latest", "Earliest" and "Departure" all opened on them. A cancellation now takes its place by
-  scheduled start on "Departure" (following a reversed sort too) and sits below every ranked run on
-  the delay sorts, since it has no delay to rank by. It follows the direction filter like a running
-  trip, shows its scheduled start, and the rank numbers count running trips only.
-- Ingest records each cancellation's `start_time` from the realtime feed. Cancellations stored
-  before this fall back to the start seconds AT encodes in the trip id.
+- On a route's trips board, cancelled trips were stuck at the top of page 1 whatever the sort, so
+  "Most off", "Latest", "Earliest" and "Departure" all opened on them. A cancelled trip now takes
+  its place by departure time when sorting by departure, and sits below every run on the delay
+  sorts, since it has no delay to rank. It also follows the direction filter, shows its departure
+  time, and is not given a rank number.
+- Behind the scenes: each cancellation now records its trip's start time from AT's feed. Older ones
+  use the start time that is part of the trip id.
 
 ## [1.13.10] - 2026-09-13
 
 ### Fixed
 
-- Maps: CARTO now stamps "API KEY REQUIRED" across every basemap tile requested without a key. The
-  tile URL appends `NEXT_PUBLIC_CARTO_API_KEY` when set (a free key from carto.com/basemaps/apikey,
-  inlined at build time and visible in tile requests, so restrict it to the site's host). Tile
-  requests send the site's origin as the Referer, which the site-wide `same-origin` policy otherwise
-  strips, so a host-restricted key accepts them.
+- The maps' provider (CARTO) started stamping "API KEY REQUIRED" across every map tile. The site now
+  sends its CARTO key with each tile request when one is set, so the maps are clean again.
 
 ## [1.13.9] - 2026-09-13
 
 ### Changed
 
-- Post-deploy workflow: its header claimed the automatic trigger waits until the file is on `main`.
-  GitHub runs a `deployment_status` workflow from the deployed commit, so it fires for every preview
-  as well, and it has done so for each push to `dev` since 1.13.5. The job is named
-  `deployment-smoke` so it can be a required check on `main` without colliding with CI's `smoke`.
+- Behind the scenes only: corrected a note in the after-deployment check's setup, which claimed it
+  only ran once merged to the main branch. It in fact runs for every test deployment too. The check
+  was also renamed so it can be required before merging without clashing with another check. Nothing
+  on the site changed.
 
 ## [1.13.8] - 2026-09-13
 
 ### Changed
 
-- Post-deploy workflow: the `ADMIN_SECRET` pass-through added in 1.13.7 belongs to a different
-  project's copy of this workflow and is removed again; this project has no admin pages.
+- Behind the scenes only: removed the setting added in 1.13.7, which belonged to another project's
+  copy of the same check. Nothing on the site changed.
 
 ## [1.13.7] - 2026-09-13
 
 ### Changed
 
-- Post-deploy workflow: the job also passes an `ADMIN_SECRET` repository secret through to the smoke
-  test, so the same workflow file serves a project with an admin surface. This project has none and
-  no such secret, so it resolves to an empty string the script never reads.
+- Behind the scenes only: the after-deployment check was given an extra setting so the same file
+  could be shared with a project that has admin pages. This site has none, so it had no effect
+  (removed again in 1.13.8). Nothing on the site changed.
 
 ## [1.13.6] - 2026-09-13
 
 ### Fixed
 
-- Smoke test: the standalone server's stdout was piped but never read, so a chatty server would fill
-  the pipe and stall, and anything it printed there was invisible. Both streams are drained into the
-  `[server]` lines now.
+- Behind the scenes only: the smoke test ignored part of the test server's output, which could make
+  the server freeze if it printed a lot, and hid anything it printed there. All of its output is now
+  read and shown. Nothing on the site changed.
 
 ## [1.13.5] - 2026-09-13
 
 ### Fixed
 
-- Smoke test: a bad argument prints one message and exits 2 instead of an unhandled rejection with a
-  stack trace; `--base-url` must be a full http(s) URL, so a bare host fails at once rather than
-  after the 90-second readiness wait; `--port` rejects `3001abc`, which `parseInt` read as 3001.
-- Smoke test: on Windows the server tree was never force-stopped, because `execSync` runs through
-  `cmd.exe`, which rejects the Git Bash `//F` switch form; `taskkill` now takes single slashes, so
-  the port and the Prisma engine are released when the run ends.
-- Smoke test: a web manifest is fetched without cookies and is not reliably intercepted, so on a
-  protected deployment it loops between the site and SSO whatever bypass is primed. That one
-  redirect loop is ignored, only for a `.webmanifest` path on the target's own origin and only while
-  the bypass secret is set; the cookie priming comment no longer claims to cover it.
-- Smoke test: the summary counts "checks", since it includes the endpoint checks; a status echo with
-  no URL no longer prints empty parentheses.
+- Behind the scenes only: several fixes to the smoke test. Nothing on the site changed.
+  - A mistyped option now prints one clear message instead of a crash, and a bad address or port
+    fails straight away instead of after a 90-second wait.
+  - On Windows, the test server was never properly shut down after a run, leaving its port in use.
+  - A redirect loop on one file (the web manifest) that only happens on a password-protected test
+    deployment is now ignored, and only there.
+  - The summary's wording and one empty message were tidied.
 
 ## [1.13.4] - 2026-09-13
 
 ### Fixed
 
-- A raw MongoDB command that fails with the driver's "I/O error: timed out" (a socket read timing
-  out on a long-haul link, which the server labels retryable) is retried once like a connection
-  reset. The CI smoke job, running from a GitHub runner far from the database, hit it once on the
-  rankings page and landed on the error boundary.
+- A database request that timed out on a slow network link is now retried once, as a dropped
+  connection already was. The automated test, which runs on a server far from the database, hit this
+  once and showed the error page on Rankings.
 
 ## [1.13.3] - 2026-09-13
 
 ### Fixed
 
-- The remote smoke test against a preview deployment failed on every page because Vercel injects its
-  preview toolbar script and the site's CSP blocks it; that console error is now ignored (the CSP is
-  doing its job, and production never carries the script).
-- The bypass secret was attached to every request the page made, including the map tile host. It now
-  rides only requests to the deployment's own origin, through request interception, and is also
-  stored as a session cookie up front so a request the browser starts on its own cannot loop through
-  SSO.
-- Console errors that begin "Failed to load resource" were all ignored, which also hid network
-  failures (a blocked, aborted or unresolved request) that never produce a response event. Only the
-  HTTP-status echo of a failure the response handler already recorded is dropped now.
-- The 404 page check now asserts the document's status, so a soft 404 with the right copy fails.
-- A dynamic sample (stop, trip, train line, station) that cannot be found is reported instead of
-  silently narrowing the run; the direct fetches carry a 30-second timeout; the endpoint checks no
-  longer follow redirects, so an SSO bounce reads as its real status rather than a JSON error;
-  `--port` rejects a non-number; the empty-section check looks at the nearest section rather than
-  the heading's parent.
-- Post-deploy workflow: a skipped run raises a warning annotation, the health probe strips a
-  trailing slash from a hand-entered URL and clears the previous body between attempts, and a failed
-  connection logs `000` once.
+- Behind the scenes only: fixes to the smoke test when it runs against a test deployment. Nothing on
+  the site changed.
+  - Every page failed because the hosting company adds a toolbar script to test deployments, which
+    the site's security settings rightly block. That one error is now ignored.
+  - The password for getting past the test deployment's protection was being sent to other sites,
+    such as the map tile server. It is now only sent to the deployment itself.
+  - The test was ignoring every "failed to load" error, which hid real network failures. It now only
+    ignores ones already reported another way.
+  - The "page not found" check now also checks the page really returns a not-found status.
+  - A few smaller checks were made stricter, and the setup reports its failures more clearly.
 
 ### Changed
 
-- The smoke test loads `.env.local` through Node's own `process.loadEnvFile`, which handles quoting,
-  comments and multi-line values; existing environment variables still win.
+- Behind the scenes only: the smoke test reads its local settings file with Node's built-in reader,
+  which handles quotes, comments and multi-line values properly.
 
 ## [1.13.2] - 2026-09-13
 
 ### Fixed
 
-- The post-deploy smoke workflow's first run reached the deployment (the bypass secret and the
-  health probe both worked) and then started a local build: it passed `--base-url` and the URL as
-  two arguments, and the smoke script only read the `--base-url=` form, so the URL was ignored. The
-  script now accepts both forms and refuses an argument it does not know instead of falling back to
-  a build, and the workflow passes the `=` form.
+- Behind the scenes only: the after-deployment check reached the new deployment and then, by
+  mistake, started building and testing a local copy instead, because it misread how the address was
+  passed to it. It now reads the address either way, and refuses an option it does not understand
+  instead of quietly doing something else.
 
 ## [1.13.1] - 2026-09-13
 
 ### Changed
 
-- The post-deploy smoke workflow can be started by hand ("Run workflow" with a deployment URL) from
-  any branch, so a preview or production deployment can be checked before the workflow reaches
-  `main`. Its health probe prints the HTTP status, so a rejected bypass secret (401 or 303), a build
-  without the health route (404) and a version mismatch read differently in the log.
+- Behind the scenes only: the after-deployment check can now be started by hand against any
+  deployment address, and its log says why it could not reach a deployment (wrong password, missing
+  health check, or the wrong version).
 
 ## [1.13.0] - 2026-09-13
 
 ### Added
 
-- `GET /api/health` answers `{ ok, version, time }` from the deployed build, uncached and without
-  touching the database, so a deploy can be confirmed to be the commit it claims.
-- A post-deploy smoke workflow (`.github/workflows/post-deploy-smoke.yml`). Vercel reports each
-  finished deployment to GitHub; the workflow checks out the deployed commit, probes `/api/health`
-  until the expected version answers, and runs the smoke test against the deployment URL. Deployment
-  Protection is on, so it needs the repository secret `VERCEL_AUTOMATION_BYPASS_SECRET` (the
-  project's "Protection Bypass for Automation" value) and skips with a message until it exists.
-- The smoke test sends `x-vercel-protection-bypass` on every page and API request when that
-  environment variable is set, so it can read a protected deployment by hand as well.
+- A health check address, `/api/health`, which reports the version of the site that is actually
+  running. It never touches the database, so it answers even if the database is down. It is used to
+  confirm that a new deployment is live before checking anything else.
+- Behind the scenes: an automatic check that runs after every deployment. When the hosting company
+  reports a finished deployment, the check waits until the health check reports the expected
+  version, then runs the smoke test (see Terms) against that deployment. Test deployments are
+  password-protected, so the check is given a special key to get past that, and skips with a message
+  if the key has not been set up.
 
 ## [1.12.19] - 2026-09-13
 
 ### Fixed
 
-- The smoke test's train-station sample never ran: the station link it looked for is percent-encoded
-  on the page, so the pattern now accepts both spellings.
+- Behind the scenes only: the smoke test was meant to open a train station page but never did,
+  because it looked for the station link written one way and the page writes it another. It now
+  accepts both. Nothing on the site changed.
 
 ### Changed
 
-- Docs: the README says how to run the smoke test against a deployment, and the cron guide notes
-  that the two removed GTFS endpoints should point at the sync endpoint and how to check a deploy.
+- Documentation only: the README explains how to run the smoke test against a deployment, and the
+  scheduled-jobs guide says which address replaces the two that were removed in 1.12.10.
 
 ## [1.12.18] - 2026-09-13
 
 ### Changed
 
-- The smoke test now reads the pages it visits. Every page's rendered text is checked for a leaked
-  raw value (`NaN`, `undefined`, an empty search quote, `Invalid Date`, `[object Object]`), every
-  section heading must have content under it, a page can require or forbid copy, and the path the
-  browser lands on is compared with the requested one so a streamed redirect is caught. It visits
-  more of the site: the route week view, the month rankings, the week shame boards, a trip page
-  found on the NX1 board, the first train line in the directory and one of its stations, and the 404
-  page, and it fetches the three public endpoints directly. `--base-url` runs it against a server
-  that is already up, so a deployment can be checked without a local build.
+- Behind the scenes only: the smoke test now reads the pages it opens, not just checks that they
+  load. Nothing on the site changed.
+  - It fails if a page shows broken text such as `NaN`, `undefined`, `Invalid Date` or
+    `[object Object]`, if a section heading has nothing under it, or if a page ends up at a
+    different address from the one asked for.
+  - It covers more of the site: a route's week view, the month rankings, the week Shame boards, a
+    trip page, a train line and one of its stations, and the "page not found" page.
+  - It can be pointed at a site that is already running, so a live deployment can be checked without
+    building a local copy.
 
 ## [1.12.17] - 2026-09-13
 
 ### Added
 
-- Tests for the parts of the pipeline and the API that had none. The cleanup run moved into
-  `src/lib/cleanup.ts` behind a small storage port so a test drives it with an in-memory store: the
-  cutoff snaps to the 5am service-day start and takes the offset in force on the cutoff day across
-  both DST switches, retention under seven days is refused without `?force=1`, and one collection's
-  delete failing does not skip the others. The query schemas are pinned (empty values read as unset,
-  bounds hold, the 400 body carries field and message only), as are the on-time window per mode, the
-  banding's rounding and the cron bearer guard's 500/401/pass outcomes. Two handler tests exercise
-  `GET /api/routes/top` (defaults, sanitised 400, bare 500 with a message-only log) and
-  `POST /api/ingest/aggregate` (401, an impossible date, the explicit-date form, the catch-up form
-  oldest first, and a failed day recorded without stopping the others). The suite is now 212 tests
-  across 28 files.
+- Behind the scenes only: automated tests for the parts that had none, including the nightly
+  clean-up (which must delete the right days across daylight saving changes, refuse to keep less
+  than a week without being forced, and carry on if one part fails), the checks on the address
+  options the site accepts, the on-time window for each mode, and the nightly summary job. There are
+  now 212 tests. Nothing on the site changed.
 
 ## [1.12.16] - 2026-09-13
 
 ### Changed
 
-- `src/lib/data.ts` (3,640 lines, every server read in one file) is split by concern into
-  `src/lib/data/`: the cache policy, route identity and the directory, rankings, one route's stats,
-  the archive's edges, trips, cancellations, the shared shame filter, the worst-trip and worst-route
-  boards, and stops and stations. `data.ts` is now a barrel re-exporting exactly the 45 names it
-  exported before, so no import site changed. Every declaration moved verbatim with its comment; the
-  only new text is each file's header and imports, the barrel, and `export` on twelve helpers that
-  were private to the one file and now serve another.
+- Behind the scenes only: the one very large file holding every database query (3,640 lines) was
+  split into a folder of smaller files, one per subject (rankings, trips, cancellations, stops, and
+  so on). The code itself moved unchanged. Nothing on the site changed.
 
 ## [1.12.15] - 2026-09-13
 
 ### Fixed
 
-- The footer's freshness line no longer reads "update due now" forever. While no ingest run has been
-  logged (a fresh deploy, or the run log reset) it says it is awaiting the first run rather than
-  projecting a due time from an arrival stamp, and once three ingest cadences pass with no run it
-  says how long ago the last update was and that ingest may be stalled. The resolver behind it is a
-  plain function with tests, and the label re-evaluates every 15 seconds instead of every second.
-- The worst-stops board's hourly rows linked to the stop without the day being viewed, so a past
-  day's row opened today's page; they carry `?day=` like the week rows.
-- The worst-routes week board printed "undefined/undefined" beside a row with no date; the date span
-  renders only when there is one. The worst-stop card called a stop's arrivals "buses" whatever ran
-  there; it says arrivals. The alert banner's route links now encode the slug. The route page says
-  when the trips board holds only the first 500 runs of the day.
-- Motion and accessibility: the map's pan to a selected stop and the pill and button hover
-  transitions honour a reduced-motion preference; the KPI breakdown popover is linked to its button,
-  closes on Escape and returns focus; the flame badge's tooltip opens on keyboard focus as well as
-  hover; the mode icon is labelled once instead of twice; a skip link leads to the page content.
+- The footer's line saying when the data was last updated could read "update due now" forever. When
+  no data run has been recorded yet it now says it is waiting for the first one, and when no run has
+  happened for three cycles in a row it says how long ago the last update was and that data
+  collection may have stopped.
+- The hourly rows on the worst-stops board opened the stop on today, not on the day you were looking
+  at. They now keep the day.
+- The worst-routes week board showed "undefined/undefined" beside a row with no date; it now shows
+  nothing there. The worst-stop card called a stop's arrivals "buses" even at train stations; it now
+  says arrivals. The route page now says when its trips board is only showing the first 500 runs of
+  the day.
+- Accessibility: map movement and button animations are turned off if your device asks for reduced
+  motion; the "i" explainer can be closed with Escape and returns you to its button; the flame
+  badge's explanation also opens from the keyboard; screen readers no longer read the mode icon
+  twice; and a "skip to content" link is the first thing the Tab key reaches.
 
 ## [1.12.14] - 2026-09-13
 
 ### Added
 
-- Error boundaries. A page that throws while rendering (the database unreachable, an AT feed timing
-  out inside a query) now shows a recovery page inside the normal masthead and footer, with a retry
-  button and a link home, instead of Next's blank default; a failure inside the root layout itself
-  falls through to a bare last-resort page with the same retry. Both log the message and Next's
-  error digest so the failure can be found in the function logs.
-- The trip page has its own title and description, so a tab or a shared link names the route and the
-  run.
+- When a page fails to load (for example because the database cannot be reached), it now shows a
+  proper error page with the normal header and footer, a "try again" button and a link home, instead
+  of a blank page. The error is also logged so it can be found and fixed.
+- A trip page now has its own browser tab title and link preview text naming the route and the run.
 
 ### Fixed
 
-- A trip id that matched no route, no recorded arrival on any day and no published schedule rendered
-  an empty page with a 200; it is now a 404 like an unknown route or stop.
+- A trip id that does not exist anywhere used to show an empty page. It now shows "page not found",
+  like an unknown route or stop does.
 
 ## [1.12.13] - 2026-09-13
 
 ### Fixed
 
-- Loading skeletons now match the pages they stand in for, so a page no longer shifts as it arrives.
-  The home and rankings skeletons showed four separate KPI tiles where the page renders one bordered
-  strip of five cells; the route skeleton drew dividers the stats strip does not have; the shame
-  dashboard skeleton lacked the cancelled-routes board that sits under its cards; the hourly shame
-  board skeleton drew 12 rows on mobile and hard-coded its desktop split, and now takes both from
-  the board's own per-column constant. The three pages that carried their own copy of the bone
-  element share the one component.
+- The grey placeholders shown while a page loads now match the pages they stand in for, so the page
+  no longer jumps as it arrives. For example, the home page's placeholder showed four separate
+  figure boxes where the page has one strip of five, and the Shame overview's was missing the board
+  under its cards.
 
 ## [1.12.12] - 2026-09-13
 
 ### Fixed
 
-- Delays are worded through the route's own on-time window everywhere. Seven places rendered a
-  signed deviation with no mode, so a bus 4 seconds behind schedule read "+4s late" under a caption
-  that calls 5 minutes on time: the home and rankings boards, the routes table, the route page's
-  trip board, the line diagram's labels and tooltips, and the map's stop and live vehicle popups now
-  all say "on time" inside the window, as the shame boards already did.
-- A delay or duration that is not a finite number (NaN from an empty average, an infinity from a bad
-  divisor) rendered as "NaNs late"; both formatters now return the unknown dash the tables already
-  use, with tests.
+- Delays are now described using the route's own on-time window everywhere. Seven places showed the
+  raw difference instead, so a bus 4 seconds behind read "+4s late" under a caption saying up to 5
+  minutes late counts as on time. The home and Rankings boards, the Routes table, the route page's
+  trips board, the line diagram, and the map's stop and vehicle popups now say "on time" inside the
+  window, as the Shame boards already did.
+- A delay that could not be worked out (for example an average of nothing) showed as "NaNs late". It
+  now shows a dash, as the tables already did for unknown values.
 
 ## [1.12.11] - 2026-09-13
 
 ### Fixed
 
-- Boards and cards with nothing to show now say so instead of vanishing or showing a hole. The
-  routes table on an empty day printed `No routes match ""` as if a search had failed; it now tells
-  a search miss and an empty period apart. The worst-route and worst-stop cards on the shame
-  dashboard, the home page and the rankings page rendered nothing when no route or stop qualified,
-  leaving a gap in the card grid; each keeps its slot with a quiet "Nothing to rank yet" state. The
-  route page's map, line diagram and stops table disappeared for a route with no arrivals; each
-  keeps its heading and says what it is waiting for. The 404 page's route directory says when it is
-  unavailable rather than omitting the section. The rankings caption mentions movement arrows only
-  when a previous period exists to compare against.
+- Boards and cards with nothing to show now say so, instead of vanishing or leaving a gap.
+  - The routes table on a day with no data said `No routes match ""`, as if a search had failed. It
+    now tells an empty day apart from a search with no results.
+  - The worst-route and worst-stop cards disappeared when nothing qualified, leaving a hole in the
+    layout. They now stay and say "Nothing to rank yet".
+  - A route with no arrivals lost its map, line diagram and stops table entirely. Each now keeps its
+    heading and says what it is waiting for.
+  - The "page not found" page says when its list of routes cannot be loaded, and the Rankings page
+    only mentions the up and down arrows when there is a previous period to compare with.
 
 ## [1.12.10] - 2026-09-13
 
 ### Fixed
 
-- An empty query value (`GET /api/routes/top?limit=`) returned 400; every parameter now reads an
-  empty string as unset and falls back to its default, as `week` and `mode` already did. A failed
-  parse used to echo Zod's whole issue objects, received input included; the 400 body now carries
-  each issue's field and message only. The API handlers log the error message, not the raw error
-  object, under one `[API]` prefix with the route id where there is one, and the remaining log
-  prefixes are one style (`[AUTH]`); the emoji and the em-dash in two log lines are gone.
-- A stop's scheduled departures decided their cache lifetime by comparing the NZ service date to the
-  UTC calendar date. Between midnight UTC and 5am NZ the two differ, so every NZ morning the day
-  just ended looked like the current day and was refetched from AT twelve times an hour, and the
-  current day looked past. The rule now compares service dates, in a small helper with tests.
-- The earliest-data marker was cached for six hours, so after the nightly cleanup the day stepper
-  could offer a day that no longer existed for most of a morning; it now refreshes every ten minutes
-  like the latest-data marker. The cache pre-warm route no longer calls the two markers under the
-  belief it refreshed them (a cached read returns the cached value; it refreshed nothing).
-- The route map polled live vehicles every minute against a feed the server caches for two minutes,
-  so every second poll re-read the same snapshot; it now polls every two minutes, and the vehicles
-  endpoint's comment says 120s rather than 15s.
+- Behind the scenes: the site's data addresses (API) now treat an empty option such as `?limit=` as
+  "use the default" instead of rejecting the request, and an error reply no longer echoes back
+  everything that was sent. Error logs were made consistent.
+- A stop's timetable was fetched from AT far too often between midnight and 5am. The rule for how
+  long to keep a saved copy compared New Zealand's day with the UTC day, which differ in those
+  hours, so every morning the day just ended was re-fetched twelve times an hour.
+- After the nightly clean-up deleted the oldest day, the day stepper could still offer that day for
+  most of the morning, because the site's note of its earliest day was only refreshed every six
+  hours. It now refreshes every ten minutes.
+- The route map asked for vehicle positions every minute, but the server only refreshes them every
+  two minutes, so half the requests got the same answer. It now asks every two minutes.
 
 ### Removed
 
-- `POST /api/ingest/gtfs/routes` and `POST /api/ingest/gtfs/stops`, which ran one half of the static
-  sync each and were scheduled nowhere; `POST /api/ingest/gtfs/sync?force=1` runs both.
+- Two data-loading addresses that each did half of the nightly timetable download and were never
+  scheduled. The single sync address does both.
 
 ## [1.12.9] - 2026-09-13
 
 ### Fixed
 
-- The nightly aggregate now catches up. Without `?date=` it rolls up yesterday plus any of the two
-  days before it that have arrival events but no summary, oldest first, one IngestRun row per day,
-  so a night the cron missed is closed by the next run instead of leaving a permanent hole in the
-  rankings. A ghost-pass failure now fails its day rather than rolling the day up unclassified,
-  which would have pinned the noise into the archive for good; the day stays unsummarised and the
-  next run retries it. The function's time budget is raised to cover three days. The rollup itself
-  moved to `src/lib/aggregate.ts` (pipeline, upsert entries and the catch-up rule are plain
-  functions with unit tests), and the rebuild script runs the same pipeline.
-- The realtime ingest's bulk inserts and upserts bypassed the connection-reset retry, and an
-  `ordered: false` bulk command that rejected some entries still resolved, so a half-failed write
-  passed unnoticed. Both now go through the retry, which also recognises `ECONNRESET`, `EPIPE` and a
-  hung-up socket, and every bulk write checks the reply's per-entry errors, ignoring only the
-  duplicate key an idempotent insert or a raced upsert is expected to hit. The ghost pass shares the
-  check.
+- The nightly aggregate (see Terms) now catches up on days it missed. If the scheduled job did not
+  run one night, that day used to be left without a summary for good, leaving a hole in the
+  rankings. Each run now also finishes any of the two days before that were missed, oldest first. If
+  the ghost-run check fails for a day, that day is left unsummarised and retried the next night,
+  instead of being saved with the false readings still in it.
+- Behind the scenes: when saving new arrivals, a write that partly failed could go unnoticed, and a
+  dropped connection was not retried. Both are now retried and checked properly.
 
 ## [1.12.8] - 2026-09-13
 
 ### Removed
 
-- Dead code and inert settings. `getModeBreakdown` and `getShameStreak` had no caller and the
-  `ModeBreakdown` component rendered nowhere; all three are gone, with the `ModeStat` and
-  `ShameStreak` types only they used. The nightly aggregate and the rebuild script no longer compute
-  the median and 95th-percentile delay per route: nothing read `p50DelaySec` or `p95DelaySec`, and
-  the `$percentile` stage was the one reason the runbook demanded MongoDB 7. The schema keeps the
-  two nullable columns so existing rows need no migration; new summaries simply do not set them.
-  `ON_TIME_THRESHOLD_SEC` is no longer read (the on-time late bound is the code's own constant, and
-  summaries record that), and `NEXT_PUBLIC_SITE_URL`, which nothing read, leaves the README's
-  environment table.
+- Behind the scenes only: removed code that nothing used, including two unused queries, an unused
+  component, and the median and 95th-percentile delay figures the nightly job worked out but the
+  site never showed. Dropping those also removed the only reason the database needed a newer
+  version. Nothing on the site changed.
 
 ## [1.12.7] - 2026-09-13
 
 ### Added
 
-- CI runs the smoke test. A `smoke` job builds the app, starts the standalone server and visits
-  every public page with Puppeteer against the real database, so a pull request that breaks a page
-  at runtime fails before it merges. The job runs only when the `DATABASE_URL` repository secret is
-  set (`AT_API_KEY` is optional), so Dependabot pull requests and forks, which get no secrets, skip
-  it rather than fail. The `test` job now runs the unit suite as well as lint and build, and the
-  unused `MONGODB_URI` secret is no longer passed to the jobs that never open the database.
+- Behind the scenes only: the automated checks run on every proposed change now include the smoke
+  test, which builds the site and opens every public page in a real browser against the real
+  database. A change that breaks a page is caught before it is merged. Nothing on the site changed.
 
 ## [1.12.6] - 2026-09-13
 
 ### Changed
 
-- Every file-level `/** @description */` block (95 files across the app, components, libraries, API
-  routes and scripts) is now a plain `//` comment with the same prose. A top-of-file JSDoc block
-  attaches to no declaration, so the tag was dead ceremony; the smoke test's `@file` tag went with
-  it, and one `{@link}` inside a demoted header names its symbol plainly, since the tag is inert
-  outside a JSDoc block. No code changed.
-- The pre-commit hook chunks lint-staged's command lines (`--max-arg-length=4000`): a commit
-  touching this many files exceeded Windows' command-line limit and the hook failed before it could
-  format anything.
+- Behind the scenes only: the comment at the top of 95 files was changed to a simpler style, and the
+  pre-commit check was fixed so it works when a change touches that many files at once (it was
+  hitting Windows' limit on command length). No code changed.
 
 ## [1.12.5] - 2026-09-12
 
 ### Changed
 
-- The Auckland timezone name is written once. `NZ_TZ` lives in `src/lib/nz-tz.ts` and reaches
-  everything else through `@/lib/time` alongside the date helpers; the 27 places that spelled
-  `"Pacific/Auckland"` themselves (the data layer's pipelines, the formatters, the alert banner, the
-  freshness label, the service-date expression and its test) now use the constant. A lint rule
-  rejects the literal anywhere else, since a hand-written timezone is how a file ends up doing its
-  own date maths and how a DST bug gets in. `format.ts` reads the leaf module directly because
-  `time.ts` imports it, which keeps the two free of an import cycle.
+- Behind the scenes only: the name of Auckland's time zone, which was typed out in 27 places, is now
+  written once and shared, and a rule stops it being typed out again. Doing date sums by hand in
+  many places is how daylight saving bugs get in. Nothing on the site changed.
 
 ## [1.12.4] - 2026-09-12
 
 ### Fixed
 
-- A run's stop count meant two different things. The route page's trip board counted every row the
-  run had, ghost re-reports included, while the shame boards counted only the real ones, so the same
-  run showed different "N stops" on the two pages, and a stop carrying both a real arrival and a
-  re-report counted twice. Every board now counts the distinct stops that have a real reading. The
-  trip board also named the run's vehicle from its earliest row, which for a re-reported run is the
-  other vehicle; it now takes the vehicle from the first real reading.
-- A route's cancelled-trips list matched the service date by equality with the window's start, so it
-  served only a window whose start equalled a stored stamp; it now range-matches like the
-  cancellation count and board, and is cached by both ends of the window.
-- `GET /api/routes/top` took an ISO week as Monday midnight UTC, twelve or thirteen hours late for a
-  New Zealand week; the week now runs from Auckland midnight like every other window.
-- A failed AT stop-times fetch was cached as an empty schedule for a day, so a trip page whose first
-  visitor hit an AT outage showed no upcoming stops until the next day. The failure now throws out
-  of the cache and only that request goes without a schedule.
+- A run's number of stops meant different things on different pages. The route page counted ghost
+  readings (see Terms) and could count one stop twice, while the Shame boards counted only real
+  readings, so the same run could show different "N stops". Every board now counts each stop with a
+  real reading once. The trips board could also name the wrong vehicle for a run with ghost
+  readings; it now takes the vehicle from the first real reading.
+- A route's list of cancelled trips only worked when looking at exactly one day. It now works for
+  any period.
+- Behind the scenes: the data address for top routes started a week at midnight UTC, which is 12 or
+  13 hours late for New Zealand. It now starts at midnight in Auckland like the rest of the site.
+- If AT's timetable service was down when a trip page was first opened, the empty result was saved
+  for a whole day, so the page showed no upcoming stops until the next day. A failure is now not
+  saved, and the next visit tries again.
 
 ## [1.12.3] - 2026-09-12
 
 ### Fixed
 
-- The nightly ghost pass cleared every flag in the day before deciding them again, so between the
-  two steps the day read as unclassified, and a pass that failed in between left it that way. It now
-  rewrites each trip's flags from its level in one multi-update, setting the flag on rows outside
-  the gap and removing it from the rest in the same write, so every trip's rows agree at any instant
-  and a re-run reaches the same verdicts with no clearing step. A failed entry in a bulk update was
-  ignored (`ordered: false` carries on past it and the promise still resolves); the reply's write
-  errors now fail the pass. The trip levels are computed inside the aggregation (the exact median,
-  the same element the in-memory path picks), so the reply carries one number per trip instead of
-  every reading and stays far under the 16 MB reply limit; the pass refuses a reply that fills its
-  batch rather than classify a silently truncated day. The flagged count is read back from the day
-  rather than inferred from rows changed either way.
-- Draining an aggregation cursor through Prisma is not possible (`getMore` needs the 64-bit cursor
-  id, which arrives as a rounded JavaScript number), so the per-day reads keep their single batch
-  and the one unbounded per-trip scan was shrunk instead.
+- Behind the scenes: the nightly ghost-run check used to clear every flag for the day and then set
+  them again. In between, and if it failed part way, the day showed false readings as real ones. It
+  now updates each run's flags in one step, so a day is never half checked, and a failed write stops
+  the check instead of being ignored. It was also changed to fetch much less data from the database,
+  so a busy day cannot exceed the database's reply size limit.
 
 ### Added
 
-- Unit tests for the pass's pipeline shape and update batches, and an integration test that runs it
-  on a scratch collection: median per trip, outliers flagged, a stale flag cleared, the gap
-  exclusive at its boundary, the previous day untouched, and a re-run idempotent.
+- Behind the scenes only: tests for the nightly ghost-run check, including one that runs it on a
+  scratch copy of the database.
 
 ## [1.12.2] - 2026-09-12
 
 ### Fixed
 
-- The three-hour deviation guard applied to every read, classified days included, although its only
-  purpose is to stand in for the ghost flags on a day the nightly pass has not reached; on a
-  classified day it silently capped any service that really did run more than three hours off
-  schedule, which is the kind of run this site exists to show. The two filters now take the window's
-  classification: the guard stays on for the current service day, for a completed day whose
-  aggregate has not run, and for a window that mixes classified and live days, and comes off once
-  every day in the window has a `DailyRouteSummary`. The nightly aggregate rolls a day up without
-  the guard, since its own ghost pass has just run, and keeps it only when that pass failed; the
-  rebuild script keeps it, as it does not classify. A unit test pins both shapes.
+- Before a day has been checked for ghost runs (see Terms), the site hides any reading more than
+  three hours off schedule, as a stand-in. That rule was also being applied to days that had already
+  been checked, so a run that really was more than three hours late was hidden, which is exactly the
+  kind of run this site exists to show. The three-hour rule now only applies to days that have not
+  been checked yet (today, and a finished day whose nightly job has not run).
 
 ## [1.12.1] - 2026-09-12
 
 ### Fixed
 
-- A completed day's boards were held for a week from the moment the day ended, about twenty hours
-  before the nightly aggregate classified its ghost readings, so whichever visitor first opened a
-  board for yesterday pinned the unclassified version for the week. Every date-scoped aggregation
-  (the worst route, trip and stop boards, route, stop and trip stats, the rankings' live days, the
-  shame streaks) now holds for a week only once every service day in its window has a
-  `DailyRouteSummary`, which the aggregate writes after the ghost pass; until then the caller's
-  short TTL applies. The Data Cache judges staleness by the calling TTL, so the state is part of the
-  cache key as well: once the summary lands the key changes and the earlier entry is abandoned
-  rather than kept fresh under the long TTL. The summary check is one indexed point read cached for
-  five minutes.
+- A finished day's figures could be saved before that day's false readings had been removed. Saved
+  results for a finished day are kept for a week, and that started as soon as the day ended, about
+  20 hours before the nightly job removes ghost readings (see Terms). So whoever first opened
+  yesterday's boards fixed the uncorrected figures in place for a week. A day's figures are now only
+  kept long once the nightly job has run for it; before that they are refreshed every few minutes.
 
 ## [1.12.0] - 2026-09-12
 
 ### Added
 
-- Rankings now cover every day in the window, including today. The week and month boards read
-  `DailyRouteSummary` for the days the nightly aggregate has covered and scan `ArrivalEvent` live
-  for the rest (today, and any earlier day whose aggregate has not run), merging the two by event
-  weight. Before, a window fell back to the live scan only when it held no summaries at all, so as
-  soon as the first nightly aggregate landed the newest one or two days vanished from `/rankings`:
-  on 12 September the week view listed ten routes from a 79-event sliver of 10 September and none of
-  the 240,000 arrivals recorded since. Each live day is cached on its own, so every window that
-  covers it shares one aggregation, and a summary written for the current service day is ignored in
-  favour of the live scan.
-- The route page's week view fills the same way: completed days come from the summaries and the rest
-  from one live aggregation grouped by service date, using the same real-reading filter and per-mode
-  on-time window as the day view, so today appears in the table as it happens. Two versions of a
-  route summarised for the same day merge into one row. When the window holds no arrivals the table
-  says so instead of leaving a bare heading over `0` and dashes.
+- Rankings now cover every day in the period, including today. The week and month boards use the
+  nightly summaries for finished days and work out the rest (today, and any day the nightly job has
+  not reached yet) from the raw arrivals, then combine the two. Before, as soon as any summary
+  existed, days without one were left out: on 12 September the week view showed ten routes based on
+  a sliver of 10 September and none of the 240,000 arrivals recorded since.
+- A route's week view fills in the same way, so today appears in its table as it happens. When the
+  week has no arrivals, the table says so instead of showing a heading over zeros and dashes.
 
 ### Fixed
 
-- Live-day boards counted AT's predictions for stops not yet due. The ingest stores the predicted
-  arrival for every remaining stop of a running trip and revises it each poll, so a window reaching
-  past the present ranked guesses alongside observations. Every stats aggregation over a live window
-  (rankings, the worst route, trip and stop boards, route and stop stats, the shame boards) now
-  clips its end to the present; completed days are unchanged, and the trip timeline still shows a
-  run's upcoming stops.
+- Today's boards were counting AT's predictions for stops the vehicle had not reached yet. The site
+  stores a predicted arrival for every remaining stop of a running trip and updates it every two
+  minutes, so today's figures mixed guesses with real arrivals. Today's figures now stop at the
+  present moment. The trip page still shows a run's upcoming stops.
 
 ## [1.11.8] - 2026-09-12
 
 ### Changed
 
-- Dependencies advanced: Next.js, `@next/bundle-analyzer` and `eslint-config-next` to 16.3.5, zod to
-  4.6.2, `eslint-plugin-jsdoc` to 64, and vitest to 5 (which now needs `vite` installed alongside
-  it). Three majors were tried and held back: Prisma 7 has no MongoDB connector; TypeScript 7.0
-  builds and typechecks but typescript-eslint refuses to load under it, so lint and the pre-commit
-  hook fail; ESLint 10 breaks `eslint-plugin-react` 7.37.5, which `eslint-config-next` depends on
-  and which supports ESLint 9 at most. TypeScript stays at 6.0.3 and ESLint at 9.39.5.
+- Behind the scenes only: updated Next.js and several development tools. Three major updates were
+  tried and held back because they do not work with this project: Prisma 7 (no MongoDB support),
+  TypeScript 7 (the code-style checker refuses to run on it) and ESLint 10 (a plugin it needs only
+  supports ESLint 9). Nothing on the site changed.
 
 ## [1.11.7] - 2026-09-12
 
 ### Fixed
 
-- Every Mongo pipeline that buckets runs by service day (the shame-of-the-week route, trip and stop
-  boards and the route streak heatmap) derived the day by subtracting five absolute hours and then
-  truncating to the Auckland calendar date. On a DST-switch Sunday the five-hour shift crosses the
-  transition: 27 September 2026 05:30 NZDT minus five hours is 26 September 23:30 NZST, so the first
-  hour of the new service day filed under the day before and the week boards showed two rows
-  labelled 26 September; on 5 April the same shift files 04:30 NZST under 5 April instead of 4
-  April. One shared expression, `serviceDateExpr`, now decides from the Auckland hour exactly as
-  `nzServiceDayString` does and yields the date string itself, so the pipelines no longer hand back
-  an instant for a second helper to reformat.
-- `scripts/check-data-gaps.ts` labelled every day one short: it took the UTC date of the Auckland
-  midnight instant, which is the previous date. It now buckets events and ingest runs by the same
-  service-date expression, so its tables line up with each other and with the site.
-- `scripts/backfill-aggregate.ts --days=N` stepped back in 24-hour blocks from the wall clock, which
-  can skip or repeat a day across a DST switch; it now steps by service date from the current
-  service day.
+- On the days daylight saving starts or ends, the week Shame boards and the route streaks could file
+  the first hour of a service day under the wrong date. They worked out the day by taking five hours
+  off the time, which crosses the clock change: on 27 September 2026 the week board would have shown
+  two rows labelled 26 September. They now use the same rule as the rest of the site, based on the
+  Auckland clock.
+- Behind the scenes: two maintenance scripts had the same kind of date bug (one labelled every day
+  one day early). Both are fixed.
 
 ### Added
 
-- `npm run test:int` runs integration tests (`src/**/*.int.test.ts`) against the database in
-  `.env.local`. The first proves MongoDB evaluates the service-date expression as the TypeScript
-  helper does at fifteen boundary instants across both DST switches, through a collectionless
-  `$documents` pipeline that touches no collection. The unit run excludes these files.
+- Behind the scenes only: a new kind of test that runs against the real database, the first of which
+  checks that the database and the site agree on which service day a time belongs to, at fifteen
+  times around both daylight saving changes.
 
 ## [1.11.6] - 2026-09-12
 
 ### Added
 
-- Regression tests for the City Rail Link station names as AT publishes them. The platforms are
-  `Te Waihorotiu Train Station 1` and `Waitemata Train Station 3` under their station's parent id
-  and collapse onto it; `Stop C Te Waihorotiu Station` is a bus pole under the bus-station parent
-  and keeps its own id; a stale platform row the feed left without a parent goes to the name-keyed
-  legacy id. Pins the behaviour before the 13 September cutover puts real arrivals through it.
+- Behind the scenes only: tests that check the new City Rail Link station names (Te Waihorotiu,
+  Waitemata) are handled correctly, so platforms join their station and a bus stop with a similar
+  name stays separate. Added before the 13 September opening put real arrivals through them.
 
 ## [1.11.5] - 2026-09-12
 
 ### Fixed
 
-- A retired City Rail Link line redirected to its successor as soon as the successor's route row
-  existed. AT published `S-C-201`, `E-W-201` and `O-W-201` in static GTFS on 10 September, three
-  days before the first train, so `/route/STH`, `/route/EAST`, `/route/WEST` and `/route/ONE` were
-  already bouncing to lines with nothing to show (the redirect streams inside the page shell, so
-  browsers followed it while a plain HTTP probe saw a 200). The redirect now waits until the
-  successor has recorded an arrival in the last seven days, checked with one indexed point read that
-  is cached for ten minutes, so a retired line's page stands until its replacement is actually
-  running and then moves within ten minutes of the first train.
-- The route directory listed a successor line beside the line it replaces. It now lists exactly one
-  of the two: the retired line until the successor is running, then the successor, so the 404 page
-  and `GET /api/routes` never offer an empty line or a link that bounces.
-- Cross-route rankings listed one line twice when the window spanned a change of route id: a feed
-  republish that bumps the version suffix (`501-217` and `501-218` both run in a week with a
-  schedule change), and the CRL cutover, where the retired line and its successor each earn a row in
-  the same week or month. `/rankings`, the home page boards and `GET /api/routes/top` now fold such
-  rows into one per line, summing events and event-weighting the averages and percentages, and the
-  merged row carries the successor's (or newest version's) name and colour. A retired line with no
-  successor row in the window is left alone, so nothing changes before the cutover.
-- The lineage map now carries the published ids only; the flattened `SC`/`EW`/`OW` fallbacks that
-  covered the unknown spelling are gone.
+- The old train lines (Southern, Eastern, Western, Onehunga) were already forwarding to their City
+  Rail Link replacements three days before the new lines ran, because AT published the new lines
+  early. Visitors landed on lines with nothing to show. An old line's page now only forwards once
+  its replacement has recorded an arrival in the last seven days.
+- The route list showed a new line beside the line it replaces. It now shows only one: the old line
+  until the new one is running, then the new one.
+- The rankings could list one line twice in a week where its id changed, either because AT
+  republished its timetable (for example `501-217` and `501-218`) or because of the City Rail Link
+  switch. Such rows are now merged into one per line, under the newer name and colour.
 
 ## [1.11.4] - 2026-09-12
 
 ### Fixed
 
-- Auckland local midnight on a DST-switch day resolved an hour off. `nzLocalToUtc` sampled the
-  offset once, at UTC midnight, which is local noon and already on the far side of the 02:00/03:00
-  switch, then applied that offset to local midnight on the near side. The offset is now resolved in
-  two passes (estimate, then re-sample at the estimate), so 27 September 2026 starts at NZST
-  midnight and runs 23 hours, 5 April 2026 starts at NZDT midnight and runs 25 hours, and the week
-  and month ranges built on it end on the right instant. Only a range whose start date is itself a
-  switch Sunday was affected: no week (they start on Mondays) and no month before April 2029.
-- The rankings page's previous-week comparison window stepped back by a fixed seven days of
-  milliseconds, which lands an hour off the 5am service-day boundary when the two windows straddle a
-  DST switch; it now steps by service date.
+- On the days daylight saving starts or ends, local midnight was worked out an hour wrong, so ranges
+  starting on those days ended at the wrong time. 27 September 2026 now correctly runs 23 hours and
+  5 April 2026 25 hours. Only a period starting on the change-over Sunday itself was affected.
+- The Rankings page's comparison with the previous week stepped back exactly seven days of hours,
+  which is an hour out across a daylight saving change. It now steps back seven calendar days.
 
 ## [1.11.3] - 2026-09-12
 
 ### Fixed
 
-- The summary rankings pipelines divided by a stored `events` total with no guard, unlike the live
-  path beside them. Both writers count events with `$sum: 1`, so a zero cannot be stored today, but
-  Mongo throws on a zero divisor rather than returning NaN, and a single such row would take the
-  whole rankings page down. The divisors now go through the same `$max: [1, ...]` guard the live
-  path uses.
+- Behind the scenes: a calculation on the Rankings page divided by a stored count with no check for
+  zero. A zero cannot be stored today, but if one ever were, the whole Rankings page would fail. It
+  is now guarded.
 
 ## [1.11.2] - 2026-09-12
 
 ### Fixed
 
-- `Route.lastSeenAt` was being stored as an ISO string. The routes sync handed a JS `Date` to
-  `$runCommandRaw`, which JSON-serialises its arguments, so every stamp landed as text: Prisma then
-  refused to read the field as `DateTime` (P2023), `GET /api/routes` answered 500, and the 404 page
-  silently dropped its route directory. The stamp now goes through extended JSON (`{ $date }`) like
-  every other raw write, a unit test pins that shape, and `scripts/migrate-last-seen-at.ts` converts
-  the stored strings in place.
-- The route directory no longer lists rows that carry no `lastSeenAt` once any stamp exists. A row
-  the last sync did not touch is one AT no longer publishes; treating it as current kept nine
-  superseded route versions beside their replacements and six retired routes in the directory.
+- The list of all routes stopped working. When the nightly download saved the date each route was
+  last seen, it stored it as text instead of as a date, so reading it back failed. The list's data
+  address returned an error and the "page not found" page lost its route list. The date is now saved
+  correctly, and a script converted the ones already stored.
+- The route list no longer shows routes AT has stopped publishing. It had been showing nine old
+  versions of routes beside their replacements, and six routes that no longer run.
 
 ## [1.11.1] - 2026-09-12
 
 ### Changed
 
-- `noUncheckedIndexedAccess` is on. Every array and object-key index now reads as possibly
-  undefined, and the 198 places that relied on the old assumption are made explicit: real narrowing
-  where a missing element is a genuine case, a `??` fallback where a sensible default exists,
-  `.at()` for last-element reads, and small parse helpers (`parseYmd` / `parseYm` in `time.ts`)
-  where the same `split("-")` destructure had been repeated. No non-null assertions and no `as`
-  casts were added, and no exported function signature changed. `DirectionFilter`'s `hrefs` prop now
-  requires `both`, which its only caller already passed.
-- `DayNav` drops its private `shiftDate` and weekday table in favour of `shiftWeek` and
-  `weekdayShort` from `time.ts`, which it had duplicated byte for byte.
-- `scripts/tsconfig.json` no longer overrides `moduleResolution` to `node`, which TypeScript 6
-  deprecates; it inherits `bundler` from the root config. The root `include` drops a `tests`
-  directory that never existed.
-- File-level `@description` JSDoc blocks in the files this change touched are demoted to plain `//`
-  lines: a top-of-file block attaches to no declaration, so the tag was dead ceremony.
+- Behind the scenes only: turned on a stricter code check that treats every lookup in a list as
+  possibly missing, and handled each of the 198 places it flagged. Also removed some duplicated date
+  code and old settings. Nothing on the site changed.
 
 ## [1.11.0] - 2026-09-11
 
 ### Added
 
-- Ghost re-reports are classified out of the stats. AT reuses a `trip_id` against a later vehicle
-  block, so a vehicle running about an hour off its slot reports that same offset at every stop of
-  the trip, and a couple of those float a quiet stop to the top of the worst-stops board. A nightly
-  pass over each completed service day tells a ghost apart by its shape rather than its size: it
-  sits at a near-constant offset from the run's own level, while a real delay accumulates along the
-  trip. A magnitude cap cannot make that distinction, and would throw away the genuinely
-  catastrophic delays this site exists to show. Rows are flagged, never deleted, and re-running a
-  day clears its flags first, so the pass is idempotent.
-- A cancelled-trips board. Cancellations sit outside every other board here: a cancelled trip
-  records no arrival, so it cannot be ranked by lateness and it cannot drag an on-time rate down -
-  it silently improves one. This is where that shows.
-- Route brand colours are checked for legibility instead of trusted. AT publishes `route_color` for
-  its own maps and printed material: the Eastern Line's yellow sits at about 1.7:1 against the page
-  surface, well under the 3:1 minimum for a meaningful non-text graphic, and Te Huia ships pure
-  black. The contrast is measured rather than kept as an exception list, since the City Rail Link
-  brings new lines and new colours in September 2026.
-- The route directory can list only what currently runs, off the new `lastSeenAt` stamp. Rows are
-  still never deleted, so a retired route keeps its retained summaries and its URL keeps resolving.
+- Ghost runs (see Terms) are now removed from the figures. AT sometimes reports a vehicle under
+  another trip's id, so it appears to be about an hour off at every stop, and a few of those could
+  put a quiet stop at the top of the worst-stops board. A nightly check looks at the shape of each
+  run's delays rather than their size: a ghost is off by nearly the same amount at every stop, while
+  a real delay builds up along the trip. (A simple cap on size would also throw away genuinely awful
+  delays, which is what this site exists to show.) Readings are flagged, never deleted, and
+  re-checking a day gives the same result.
+- A board of cancelled trips. A cancelled trip records no arrivals, so it can never show up as late
+  and cannot drag a route's on-time share down; if anything, cancelling late runs makes a route look
+  better. This board is where that shows.
+- Route colours are checked for readability. AT's colours are designed for its own maps: the Eastern
+  Line's yellow is far too pale against the page, and Te Huia's is pure black. Colours that are too
+  faint are replaced. (Undone in 1.13.15.)
+- Behind the scenes: each route now records when AT last published it, so the route list can show
+  only routes that currently run. Old routes are never deleted, so their history and links keep
+  working.
 
 ### Changed
 
-- A station's identity is now AT's own `parent_station` id wherever the feed supplies it, falling
-  back to the name only when it does not. AT renames stations (Britomart became Waitemata, Mount
-  Eden became Maungawhau, with more to come from the City Rail Link), and a name-keyed id changes
-  with them, forking a station's history and breaking every shared link.
-- Service alerts are graded by effect. The feed mixes line closures with routine notices, and
-  rendering both in the same alarm styling is what teaches people to ignore the bar, so only a
-  service-stopping effect gets the loud treatment.
-- Loading skeletons honour `prefers-reduced-motion`.
-- The README describes the project instead of `create-next-app`.
+- A station is now identified by AT's own station id instead of its name. AT renames stations
+  (Britomart became Waitemata, Mount Eden became Maungawhau, with more coming from the City Rail
+  Link), and using the name split a station's history in two and broke shared links.
+- Service alerts are now graded by how serious they are. Only alerts that stop a service get the
+  loud styling, so routine notices no longer look like line closures.
+- The loading placeholders stop pulsing if your device asks for reduced motion.
+- The README now describes this project.
 
 ## [1.10.1] - 2026-09-11
 
 ### Fixed
 
-- The self-hosted database could not build indexes at all. mongod presents one certificate for both
-  client traffic and its own replication connections, and a replication connection is a client
-  connection, so the certificate needs the `clientAuth` extended key usage. Let's Encrypt stopped
-  issuing that usage, so from the 8 July renewal onward mongod rejected its own replication
-  connections with `unsuitable certificate purpose` and every `createIndex` hung forever. Reads,
-  writes and index drops stayed fast throughout, which is why nothing looked wrong. A separate
-  self-signed cluster certificate (`--tlsClusterFile` / `--tlsClusterCAFile`) now carries
-  member-to-member TLS, so an ACME renewal cannot break replication again.
-- `npm run smoke` never ran from a clean install: `scripts/smoke-test.ts` imports puppeteer, which
-  was not a dependency. It only worked while a stray copy sat in `node_modules`, so `pre-push` was
-  failing for anyone starting fresh.
-- `npm run analyze` was dead for the same class of reason. The `dotenv` package ships no CLI, so
-  `dotenv -v ANALYZE=true -- next build` had no binary to run; `dotenv-cli` supplies it.
-- The runbook claimed `mongorestore` rebuilds every index. It does not reliably: the builds are a
-  per-collection final phase, and an interrupted restore leaves the documents in place with some
-  collections holding only `_id_`. Nothing reports the gap, so the verification checklist now starts
-  with an explicit index check.
+- Behind the scenes: the self-hosted database had been unable to build its search indexes since 8
+  July. A change in how its security certificate was renewed meant the database refused connections
+  from itself, which index building needs. Reading and writing still worked, which is why nothing
+  looked wrong. It now uses a separate certificate for those internal connections, so a renewal
+  cannot break it again.
+- Behind the scenes: two project commands (the smoke test and the bundle size report) only worked on
+  one machine because a package they needed was not listed. Both are fixed.
+- Documentation: the database restore guide wrongly said a restore always rebuilds every index. It
+  does not if interrupted, so the checklist now starts by checking the indexes.
 
 ### Changed
 
-- Dependencies advanced 17 packages. Five majors are held back deliberately: Prisma 7 has no MongoDB
-  connector (Prisma's own docs recommend 6.19 for MongoDB), ESLint 10 conflicts with the
-  `eslint-plugin-react` peer that `eslint-config-next` pins, and TypeScript 7, Vitest 5 and
-  `eslint-plugin-jsdoc` 64 are untested majors.
-- CI now builds Dependabot pull requests instead of skipping them, because auto-merge treats a green
-  run as the signal that a bump still compiles; skipping the build while auto-merging meant merging
-  bumps nothing had built. Auto-merge parses the version pair in the title and holds back majors,
-  and pre-1.0 minors, for a person to judge. Push runs are limited to `main`, since the
-  `pull_request` event already covers every branch with an open pull request.
-- `tsconfig.json` gains `noImplicitOverride` and `noFallthroughCasesInSwitch`, both clean at zero
-  errors. `noUncheckedIndexedAccess` is not adopted: it reports 198. `ignoreDeprecations` and
-  `baseUrl` are dropped as vestigial.
-- `lint` and `lint:fix` cache to `.eslintcache`, and the pre-commit hook refreshes the lockfile at
-  most once a day rather than on every commit.
+- Behind the scenes only: updated 17 packages, holding back five major updates that would not work
+  yet (Prisma 7 has no MongoDB support, among others). Automatic dependency updates are now built
+  and tested before being merged, and major updates wait for a person. Stricter code settings were
+  turned on and some unused ones removed.
 
 ## [1.10.0] - 2026-08-07
 
 ### Added
 
-- Train lines now read as their published names. AT sets every train route's `route_long_name` to
-  the bare code, so the header showed only "STH"; it now shows "Southern Line" beside the code, and
-  covers the City Rail Link codes that replace them on 13 September 2026 ("S-C" > "South City Line",
-  "E-W" > "East West Line", "O-W" > "Onehunga West Line") plus "HUIA" > "Te Huia".
-- Route history survives the CRL rename. The cutover retires `STH`, `EAST`, `WEST` and `ONE` and
-  introduces `S-C`, `E-W` and `O-W` (Eastern and Western merge into one line), which would strand
-  every retained `DailyRouteSummary` under a slug that never receives another event and restart the
-  replacement from zero. Route reads now aggregate a line together with the lines it replaced, and a
-  retired line's URL redirects to its successor once that appears in the feed. Both hyphenated and
-  flattened forms of the new codes are recognised, since AT has not yet published the ids.
+- Train lines now show their real names. AT gives every train route only a code as its name, so a
+  route page's header read just "STH". It now reads "Southern Line" beside the code. This also
+  covers the new City Rail Link lines that replace them on 13 September 2026 ("S-C" is the South
+  City Line, "E-W" the East West Line, "O-W" the Onehunga West Line) and Te Huia.
+- A line's history carries over when the City Rail Link renames it. On 13 September the Southern,
+  Eastern, Western and Onehunga lines are retired and replaced by three new lines (Eastern and
+  Western merge into one). Without this, the old lines' history would be stranded and the new lines
+  would start from zero. A line's figures now include the lines it replaced, and an old line's page
+  forwards to its replacement once the replacement appears in AT's data.
 
 ### Fixed
 
-- The fleet KPI strip labelled its headline count "Trips" when it counts stop arrivals - one trip
-  contributes one row per stop it serves, so the number read 20-40x higher than the trips it
-  claimed, and contradicted the "Of all arrivals" popover directly beneath it. Now "Arrivals".
-- The GTFS static sync read `version` from AT's `/versions` payload, which only carries
-  `feed_version` - so the version always came back `undefined`, the sync's version gate never
-  engaged, and `gtfs_version` was never stored. The version is now read correctly and selected by
-  the `feed_start_date`/`feed_end_date` window covering the service day, since AT sends no
-  `is_current` flag. This is the gate that pulls in the renamed routes at the cutover.
-- The stop sync no longer stores AT's ~140 `location_type: 1` parent stations. Nothing departs from
-  one, so they could never gain an arrival event, and each duplicates the name of the platforms
-  beneath it in the stop directory.
+- The home page's headline count was labelled "Trips" but actually counts arrivals. One trip makes
+  one arrival per stop, so the number was 20 to 40 times the real number of trips, and contradicted
+  the explainer right under it. It now says "Arrivals".
+- Behind the scenes: the nightly timetable download never worked out which version of AT's timetable
+  was current, because it read a field AT does not send. So it never noticed a new timetable. It now
+  reads the right field and picks the version covering today. This is what brings in the renamed
+  lines at the City Rail Link switch.
+- Behind the scenes: the timetable download no longer stores AT's 140 or so "parent station"
+  entries. Nothing departs from them (only from their platforms), so they could never have arrivals,
+  and they cluttered the stop list with duplicate names.
 
 ### Changed
 
-- Stops keep their GTFS `parent_station` and `platform_code`, so station collapsing can key off AT's
-  own grouping rather than off stop names, which AT renames (Britomart > Waitemata, Mount Eden
-  > Maungawhau).
+- Behind the scenes: each stop now remembers which station it belongs to and its platform number, so
+  platforms can be grouped by AT's own station ids rather than by name, since AT renames stations
+  (Britomart became Waitemata, Mount Eden became Maungawhau).
 
 ## [1.9.5] - 2026-07-23
 
 ### Fixed
 
-- Service-alert ids arriving as non-strings from the GTFS-RT feed no longer stringify objects into
-  `"[object Object]"` (caught by the new `no-base-to-string` rule): numeric ids still convert,
-  anything else falls back to an empty id.
-- The acknowledge-then-run cron handlers (aggregate, cleanup, shapes) are plain synchronous
-  functions now; they never awaited anything before their 202 response.
+- Behind the scenes: a service alert whose id arrived in an unexpected form could be saved with the
+  id "[object Object]". It now falls back to an empty id instead. Also simplified three scheduled
+  jobs. Nothing on the site changed.
 
 ## [1.9.4] - 2026-07-23
 
 ### Changed
 
-- Dropped the type assertions the new type-aware lint pass proved redundant (ingest debug stats,
-  mem-cache inflight promise, rankings test rows, route-view pattern fallback). The triangle
-  layout's mid-node map keeps its `labelDir` type via an annotated callback return instead - the
-  literal widened to `string` without one, which the removed cast had been masking.
+- Behind the scenes only: removed some unnecessary type overrides that the new code checks showed
+  were not needed, and fixed the one place where removing one uncovered a real type mistake. Nothing
+  on the site changed.
 
 ## [1.9.3] - 2026-07-23
 
 ### Changed
 
-- Lint/format toolchain overhaul: core ESLint recommended rules now apply (the Next presets never
-  enabled them), type-aware `typescript-eslint` rules run over `src/` (async-correctness checks on;
-  the `no-unsafe-*` family stays off until the SDK/JSON boundaries are typed), and the new
-  `tailwind-canonical-classes` rule collapses arbitrary values that have a scale equivalent.
-  Prettier now sorts Tailwind classes inside `cn()`/`clsx()`/`twMerge()` calls, not just `className`
-  attributes.
-- Hooks tightened: pre-commit re-stages `package.json`, auto-fixes staged files
-  (`eslint --fix --no-warn-ignored`) and runs a full typecheck; pre-push reuses the fresh build for
-  the smoke test via `--skip-build`.
-- Dependency refresh: Next 16.2.11, React 19.2.8, TypeScript pinned at 6.0.3, ESLint pinned at
-  9.39.5, `sharp` added with a version override, and `cross-env` swapped for `dotenv-cli` (the
-  `analyze` script now goes through it).
+- Behind the scenes only: stricter code-style and correctness checks, automatic sorting of style
+  classes, tighter checks before each commit and upload, and updated Next.js, React and other
+  packages. Nothing on the site changed.
 
 ## [1.9.2] - 2026-07-09
 
 ### Fixed
 
-- Runbook connection-string section pointed at a stale example storage allowance; it now defers to
-  the retention section for `STORAGE_LIMIT_MB` and `RETENTION_DAYS`.
+- Documentation only: the database setup guide pointed at an old example storage size. It now points
+  to the section on how long data is kept.
 
 ## [1.9.1] - 2026-07-09
 
 ### Changed
 
-- Retention policy raised to ten years (`RETENTION_DAYS=3650`, `STORAGE_LIMIT_MB=262144`) for the
-  self-hosted database. The runbook gains a sizing section (~23 GB/year, ~230 GB steady state from
-  measured per-document costs), WiredTiger cache guidance, and a backup-strategy shift: nightly
-  logical dumps retire in favour of ZFS snapshots + replication once the archive outgrows them. The
-  day-marker walk-limit comment no longer assumes 14-day retention.
+- The site now keeps ten years of data instead of a short rolling window, since the database moved
+  to a home server with plenty of room (see 1.8.0). The setup guide now covers how much space that
+  needs (about 23GB a year, about 230GB after ten years), memory settings, and a backup plan using
+  disk snapshots once nightly copies become too big.
 
 ## [1.9.0] - 2026-07-09
 
 ### Added
 
-- `GET /api/freshness`: public read-only endpoint returning the footer's last-updated/next-update
-  instants, backed by the same 60s-cached lookup the server render uses.
+- Behind the scenes: a public address, `/api/freshness`, that reports when the data was last updated
+  and when the next update is due. The footer uses it (below).
 
 ### Fixed
 
-- The footer freshness line went permanently red ("update due now") on any tab left open longer than
-  the 2-minute ingest cadence: the instants were rendered once on the server and only the relative
-  label ticked client-side. An open tab now re-polls `/api/freshness` every 60s (skipping hidden
-  tabs, catching up on return), and the newest instant wins between the server render and the poll.
+- The footer's "last updated" line turned red ("update due now") on any tab left open for more than
+  two minutes, because the times were only fetched when the page first loaded. An open tab now
+  checks again every minute (not while hidden, and straight away when you come back to it).
 
 ## [1.8.1] - 2026-07-09
 
 ### Fixed
 
-- Self-host runbook corrected against the real TrueNAS install: the catalogue MongoDB app is
-  unusable (no extra-args field, forced user creation) so the Custom App YAML is the only path;
-  MongoDB 8.2.x needs `--setParameter tlsUseSystemCA=true` (chain-of-trust startup failure) plus
-  `--tlsAllowConnectionsWithoutCertificates` (else it demands client certs); the combined PEM needs
-  a newline between cert and key ("PEM routines::bad end line"); TrueNAS ACME issues
-  `<name>-acme.crt`/`-acme.key` (the plain `.key` is the CSR's); added the `vm.max_map_count` sysctl
-  prerequisite.
+- Documentation only: corrected the home-server database setup guide after doing the real install.
+  Several steps did not work as written, and each is now replaced with what actually works.
 
 ## [1.8.0] - 2026-07-08
 
 ### Added
 
-- Self-hosted MongoDB support: the database can now run as a MongoDB 8 app on TrueNAS SCALE
-  (single-node replica set for Prisma, TLS + SCRAM auth, non-default port) instead of Atlas, for
-  $0/mo hosting with room to grow retention. `docs/self-host-mongodb.md` is the full runbook -
-  setup, cert renewal, ZFS-snapshot and nightly-dump backups, Atlas dump/restore migration with a
-  crons-paused cutover, and rollback. No code changes required; `DATABASE_URL` and the existing
-  `STORAGE_LIMIT_MB` / `RETENTION_DAYS` env vars carry the switch.
+- The database can now run on a home server (a TrueNAS box) instead of the paid-tier-limited MongoDB
+  Atlas cloud service, costing nothing a month and leaving room to keep far more history. A full
+  setup guide covers installing it, renewing its security certificate, backups, moving the data
+  across from Atlas with the scheduled jobs paused, and how to switch back. No code changes were
+  needed; the site just points at a different database address.
 
 ### Changed
 
-- Comments in `src/lib/db.ts` and `src/lib/data.ts` no longer describe the idle-reset retry and the
-  in-memory sort limit as Atlas-specific, and `docs/cron-setup.md` points at the new runbook for the
-  connection string.
+- Behind the scenes only: a few code comments and the scheduled-jobs guide no longer assume the
+  database is on Atlas.
 
 ## [1.7.8] - 2026-07-08
 
 ### Fixed
 
-- Dropped the single-field `scheduledAt` index on ArrivalEvent (64.6MB at 3.2M events): the
-  `[scheduledAt, routeId]` compound serves every plain scheduledAt range and sort via its prefix,
-  confirmed with explain plans after the drop (no in-memory sort). Applied directly to the
-  production cluster; the schema change keeps `db:push` consistent.
-- The cleanup storage warning now reports real on-disk sizes from `dbStats` (compressed data +
-  indexes, with the allowance overridable via `STORAGE_LIMIT_MB`) instead of a 250-bytes/event
-  estimate that overstated usage by ~2x, and no longer asserts the cluster is an Atlas M0.
+- Behind the scenes: removed a database index (64.6MB at the time) that another, larger index
+  already covered, freeing space on the storage-limited free database.
+- The nightly clean-up's storage warning now reports the database's real size on disk. It had been
+  estimating, and was overstating the usage about two times.
 
 ## [1.7.7] - 2026-07-08
 
 ### Fixed
 
-- Vercel functions now run in `syd1` (Sydney) beside the Atlas cluster instead of the default `iad1`
-  (US East). Every DB round trip was paying ~210 ms iad1 > Sydney; uncached renders issue several
-  sequential round trips, and NZ visitors also reach Sydney faster than US East.
+- The site's server now runs in Sydney, next to the database, instead of the default in the eastern
+  US. Every database request had been making a round trip across the Pacific (about 210ms), and a
+  page can need several in a row. New Zealand visitors also reach Sydney faster.
 
 ## [1.7.6] - 2026-07-08
 
 ### Fixed
 
-- The earliest/most-recent data-day markers and the latest-event lookup no longer scan the whole
-  ArrivalEvent collection (~17 s each at 3.2M events on the shared cluster). They now read the
-  collection's endpoint event via the `scheduledAt` index and, when a qualifying threshold is set,
-  count candidate service days with indexed range counts (~30-200 ms). `getEarliestDataDay` sits on
-  every page's critical path, so cache misses were the 17-27 s page loads.
+- Pages could take 17 to 27 seconds to load. Finding the earliest and latest days with data read
+  through every stored arrival (3.2 million at the time), taking about 17 seconds each, and the
+  earliest day is needed on every page. It now reads just the first and last arrival directly, which
+  takes 30 to 200 milliseconds.
 
 ## [1.7.5] - 2026-07-08
 
 ### Fixed
 
-- The slow cron jobs (gtfs sync, shapes, aggregate, cleanup) now acknowledge with 202 and run after
-  the response: cron-job.org drops requests at 30 s, so a ~40 s cleanup reported "Failed (timeout)"
-  even though it completed. Outcomes are recorded in IngestRun and the function logs.
+- The slow scheduled jobs (timetable download, route shapes, nightly summary, clean-up) now reply
+  "accepted" straight away and do their work afterwards. The scheduling service gives up after 30
+  seconds, so a 40-second clean-up was reported as failed even though it finished. Each job's result
+  is now recorded in the site's own run log instead.
 
 ## [1.7.4] - 2026-07-08
 
 ### Fixed
 
-- Dedupe script gains `--since=<hours>` so a recent-only rescan can win the race against the
-  2-minute ingest cadence when rebuilding the unique index.
+- Behind the scenes: the script that removes duplicate arrivals can now check only recent hours, so
+  it can finish between two data runs (every two minutes) while the duplicate guard is being
+  rebuilt.
 
 ## [1.7.3] - 2026-07-08
 
 ### Fixed
 
-- `db:push` now runs only on production builds. It sat in the shared Vercel `buildCommand`, so any
-  preview build of a stale branch (e.g. a Dependabot PR based on main) synced its old schema against
-  the production database - dropping the new ArrivalEvent unique index and letting duplicates
-  accumulate unchecked.
+- Behind the scenes: every test deployment, including ones built from old branches, was updating the
+  live database's structure to match its own copy. A test build of an old branch removed the guard
+  against duplicate arrivals, and duplicates piled up. Only the real (production) build changes the
+  database structure now.
 
 ## [1.7.2] - 2026-07-07
 
 ### Fixed
 
-- Shame week boards showed eight day-rows ("Monday to Monday"): the day list now clamps to service
-  days starting inside the window, and the rolling week no longer gains or loses a day across DST.
-- Weekday labels on the week boards were one day ahead of the dates beside them.
-- The hourly shame boards went nearly empty between midnight and 5am NZ (the live-hours filter
-  dropped the whole daytime instead of the not-yet-started hours).
-- Route service alerts never matched: the feed's versioned route ids ("NX1-202409") are now
-  normalised before comparing, restoring the route alert banner, detour dashing and stop disruption
-  rings.
-- The trip timeline page returned a 500 for a malformed `?d=`; impossible calendar dates like
-  `2026-02-31` no longer silently normalise onto a different day; a raw `%` in a stop URL no longer
-  throws.
-- Worst-route week rows drilled down to the rolling "Last 7 days" instead of the week being viewed.
-- Routes with no measurable delay data showed "on time" instead of a dash in the tables and boards.
-- Streak counts bridged missing days as consecutive and skipped a day across the spring DST change.
-- The daily aggregate silently dropped events for routes not yet in the static GTFS sync.
-- The realtime ingest stored duplicate rows per stop visit as predictions were revised (~5% of all
-  events); arrival events now upsert on the stop visit and existing duplicates were removed.
-- The backfill script parsed dates with a fixed +12:00 offset (wrong during NZDT).
+- The Shame week boards showed eight days ("Monday to Monday"). They now show seven, and the last
+  seven days no longer gain or lose a day across a daylight saving change.
+- The weekday names on the week boards were one day ahead of the dates beside them.
+- The hourly Shame boards went nearly empty between midnight and 5am. The filter meant to hide hours
+  that had not happened yet was hiding the whole daytime instead.
+- Route service alerts never matched their routes, because AT adds a version to the route id in its
+  alerts ("NX1-202409"). That is now removed before comparing, so the route alert banner, the dashed
+  detour line and the disrupted-stop rings work again.
+- A trip page with a malformed date in its address crashed with a server error. An impossible date
+  such as 31 February no longer quietly turns into a different day, and a stray `%` in a stop
+  address no longer crashes the page.
+- On the worst-route week board, clicking a row opened the last seven days instead of the week being
+  viewed.
+- Routes with no delay data showed "on time" instead of a dash in the tables and boards.
+- Streak counts treated days with no data as part of a streak, and skipped a day across the spring
+  daylight saving change.
+- The nightly summary silently dropped arrivals on routes not yet in AT's downloaded timetable.
+- The same stop visit was stored several times as AT revised its prediction (about 5% of all
+  arrivals were duplicates). Each stop visit is now stored once and updated, and the existing
+  duplicates were removed.
+- A maintenance script assumed New Zealand was always 12 hours ahead of UTC, which is wrong during
+  daylight saving.
 
 ### Security
 
-- Removed the unauthenticated `POST /api/routes` and `POST /api/stops` write endpoints.
+- Removed two data addresses that let anyone write to the database without logging in.
 
 ### Added
 
-- Month view for the three shame boards (`?window=month`), with month stepping; the rankings month
-  cards now land on it, and the rankings page gained prev/next month navigation.
-- `/api/warm` cron endpoint that pre-computes yesterday's boards after the nightly ingest.
+- A month view for the three Shame boards, with buttons to step between months. The Rankings page's
+  month cards now open it, and Rankings gained previous and next month buttons.
+- A nightly job that works out yesterday's boards in advance, so the first visitor does not wait.
 
 ### Performance
 
-- Completed service days now cache for a week across the data layer (they are immutable), so week
-  and month views are warm after their first computation.
-- The shame boards, rankings, home cards and stop departures stream in behind an instant header
-  shell instead of blocking the whole page on cold aggregations.
-- The rankings stepper bound is fetched alongside the anchor query instead of after the batch, and
-  the earliest-day marker's cache lifetime reflects how rarely it moves.
+- Figures for finished days are now saved for a week (they never change), so week and month views
+  are fast after the first time they are opened.
+- The Shame boards, Rankings, home page cards and stop departures now show the page heading straight
+  away and fill in the figures as they are ready, instead of the whole page waiting.
+- A couple of lookups now run at the same time instead of one after the other.
 
 ## [1.0.0] - 2026-06-25
 
 ### New pages
 
-- `/shame` - worst trip and worst stops of the selected day, week, or month. Supports `?window=week`
-  and `?window=month` with week/month navigation and a direct link to the offending trip timeline.
-- `/shame/stop` - stop-level shame board: ranks stops by off-schedule arrival count for the selected
-  period, with a worst-stop card and drill-down to the stop detail page.
-- `/stop/[id]` - per-stop schedule page showing today's planned arrivals, live delay badges, and
-  links to each trip's stop-by-stop timeline.
-- Custom 404 page.
+- `/shame`: the worst trip and worst stops of the chosen day, week or month, with buttons to step
+  between weeks or months and a link straight to the worst trip's stop-by-stop page.
+- `/shame/stop`: ranks stops by how many arrivals were off schedule in the chosen period, with a
+  worst-stop card and a link to each stop's page.
+- `/stop/[id]`: a page for each stop showing today's timetabled arrivals, live delay badges, and
+  links to each trip's stop-by-stop page.
+- A proper "page not found" page.
 
 ### Route page
 
-- Route week summary: a two-week calendar of per-day on-time rate and event count, with prev/next
-  week navigation and a boundary check so the back button disappears at the earliest available data.
-- Period-aware week and month views: the route page accepts `?window=week&period=YYYY-MM-DD` and
-  shows aggregate punctuality stats and the worst-trips board for that period.
-- Direction chips let riders toggle between inbound and outbound on the line diagram.
+- A two-week calendar of each day's on-time share and number of arrivals, with previous and next
+  week buttons. The back button disappears at the earliest day with data.
+- Week and month views: the route page can show a whole week or month, with its figures and its
+  worst trips over that period.
+- Direction buttons to switch the line diagram between the two directions.
 
 ### Rankings and shame links
 
-- Rankings links to route, shame, and worst-stop pages now carry the active `window` and `period`
-  params so clicking through from a weekly or monthly view preserves the context.
-- `ShameOfDay` copy adapts to the selected period: "Shame of the week", "No shame this month", etc.
-  instead of always reading "day".
+- Links from the Rankings page to routes, Shame boards and worst stops now keep the week or month
+  you were looking at.
+- The Shame card's wording follows the period: "Shame of the week", "No shame this month", and so
+  on, instead of always saying "day".
 
 ### Alerts and data freshness
 
-- AT service alerts banner: active disruptions from the AT API appear on the home page and on
-  affected route pages. Alerts are fetched on each revalidation and dismissed per-session.
-- Data freshness indicator on the home page shows when the last successful ingest ran and how many
-  events it inserted.
+- An alert banner showing AT's current service disruptions on the home page and on the affected
+  routes' pages. Each alert can be dismissed for the rest of your visit.
+- A line on the home page saying when data was last collected and how many new arrivals it added.
 
 ### Ingest and data fixes
 
-- Fix aggregate cursor truncation: daily aggregate runs were silently capped at 101 routes
-  (MongoDB's default first-batch limit). Changed to `cursor: { batchSize: 100_000 }` so all routes
-  are captured; rebuilding historical summaries raised per-day route counts from ~101 to 460-512.
-- Cleanup endpoint gains an optional `?summaryDays=N` param to prune `DailyRouteSummary` records
-  older than N NZ service days.
+- The nightly summary was silently stopping after 101 routes, because of a default limit on how many
+  results the database returns in one go. It now gets every route. Rebuilding the past summaries
+  took each day from about 101 routes to between 460 and 512.
+- Behind the scenes: the clean-up job can now also delete old daily summaries.
 
 ### Maintenance
 
-- Remove one-off diagnostic and spike scripts. Keep `backfill-aggregate.ts`, `check-data-gaps.ts`,
-  `check-routes.ts`, `rebuild-daily-summaries.ts`, and `smoke-test.ts`.
+- Behind the scenes only: removed one-off investigation scripts, keeping the five still in use.
 
 ## [0.21.0] - 2026-06-19
 
-- Restyle the site to feel like Auckland Transport's own: a solid Shore-blue header bar with the
-  white AT logo and nav, a dark Ocean footer with links and an "independent project" note, unified
-  AT pill controls (mode/school/delay filters, day stepper, window + trip sort chips) via shared
-  `.chip` classes, and a hairline border on every card.
+- Restyled the site to feel like Auckland Transport's own: a solid blue header bar with the white AT
+  logo and menu, a dark footer with links and a note that this is an independent project, matching
+  pill-shaped buttons for every filter and control, and a thin border around every card.
 
 ## [0.20.1] - 2026-06-19
 
-- Make the route trip board heading match the mode: "Ferries of the day" / "Trains of the day"
-  instead of always "Buses of the day".
+- The route page's trips board heading now matches the mode: "Ferries of the day" or "Trains of the
+  day" instead of always "Buses of the day".
 
 ## [0.20.0] - 2026-06-19
 
-- Sort the route page's "buses of the day" board: by most off-schedule (default), latest, earliest,
-  or departure time, via sort chips that keep the selected day.
+- The route page's trips board can now be sorted by most off schedule (the default), latest,
+  earliest or departure time, and keeps the chosen day when you sort.
 
 ## [0.19.1] - 2026-06-19
 
-- Show ferries when the Ferry filter is selected. The boards required >=10 events, which a ferry
-  rarely reaches in a day (they run a handful of times), so picking Ferry came up empty. A
-  single-mode view now uses a lower event threshold so low-frequency modes appear.
+- Choosing the Ferry filter now shows ferries. The boards only listed routes with at least 10
+  arrivals, which a ferry rarely reaches in a day, so the Ferry filter came up empty. When a single
+  mode is chosen, the minimum is now lower.
 
 ## [0.19.0] - 2026-06-19
 
-- Make the route map follow the actual road. Each direction's path now uses its GTFS shape geometry
-  (from the new `Shape` collection) instead of straight stop-to-stop lines, drawn as two parallel
-  offset lines so the two directions read separately. Routes without a stored shape fall back to the
-  straight stop-to-stop line.
+- The route map now follows the actual roads, using AT's route shapes (see 0.18.0) instead of
+  straight lines between stops. The two directions are drawn as two lines side by side so each can
+  be seen. Routes without a stored shape still use straight lines.
 
 ## [0.18.0] - 2026-06-18
 
-- Ingest GTFS route geometry: a new `/api/ingest/gtfs/shapes` endpoint downloads AT's full GTFS zip,
-  extracts `shapes.txt`, simplifies each shape, and upserts it into a new `Shape` collection (keyed
-  by `shape_id`). This backs the road-following route map. Documented as a weekly cron job.
+- Behind the scenes: a new job downloads AT's full timetable package, takes the shape of every route
+  from it, simplifies each one and stores it. This is what lets the route map follow the roads
+  (0.19.0). Documented as a weekly scheduled job.
 
 ## [0.17.0] - 2026-06-18
 
-- Polish the line diagram: draw every direction (and disjoint sub-pattern) at one shared scale so it
-  fills the card width and dot/label sizes stay consistent; only fork for substantial divergences
-  (no tiny 1-2 stop offshoots); reserve space so the angled delay labels no longer clip at the edge;
-  show variants that share no origin with the trunk as their own labelled lines instead of dropping
-  them; hide stops the route has not served in the past week (origin termini, never-served pattern
-  stops) while keeping recently-active stops without today's data as neutral dots; and add a
-  hover/focus tooltip showing each stop's name and delay.
+- Polished the line diagram:
+  - every direction is drawn at the same scale, filling the card, with dots and labels the same
+    size;
+  - a line only splits for a real difference in route, not a one- or two-stop offshoot;
+  - delay labels are no longer cut off at the edge;
+  - variants that start somewhere else are shown as their own labelled lines instead of being left
+    out;
+  - stops the route has not served in the past week are hidden, and stops served recently but not
+    today show as plain dots;
+  - hovering over or tabbing to a stop shows its name and delay.
 
 ## [0.16.0] - 2026-06-18
 
-- Rework the route line diagram in the style of AT's rapid-transit map: one bold, rounded trunk line
-  per direction that snake-wraps to stay on-screen, with trip variants that end at different spots
-  forking off at 45 degrees, and white stations ringed by their average delay (termini drawn
+- Redrew the route line diagram in the style of AT's train map: one bold line per direction that
+  wraps onto new rows to stay on screen, with variants that end elsewhere branching off at 45
+  degrees, and each stop a white circle ringed in the colour of its average delay (end stops drawn
   larger).
-- Base the day-focused views on a transit **service day** (5am to 5am the next day) instead of the
-  calendar day, so a route's post-midnight runs count under the day they started; the trip timeline
-  and the "most recent day with data" fallback use it too.
-- Show the actual service **date** with prev / next day arrows on the home and route pages (a
-  `?day=` link) instead of just labelling it "today", so you can step back to earlier days.
+- Days are now service days (5am to 5am the next day) instead of calendar days, so a route's runs
+  after midnight count under the day they started. The trip page and the "most recent day with data"
+  fallback use this too.
+- The home and route pages now show the actual date with previous and next day arrows (in the page
+  address as `?day=`) instead of just saying "today", so you can step back to earlier days.
 
 ## [0.15.1] - 2026-06-18
 
-- Fix the per-trip timeline mixing multiple service days: a GTFS trip id repeats every day it runs,
-  so `getTripTimeline` matched every day's run at once, showing stops out of order and duplicated.
-  Scope it to the run's day (the worst-buses board now passes it), falling back to the trip's most
-  recent day, and collapse a stop that recorded two actuals into one row.
+- A trip page mixed up several days. AT uses the same trip id every day a trip runs, so the page
+  showed every day's run at once, with stops out of order and repeated. It now shows one day's run
+  (the day you came from, or the trip's most recent day), and a stop with two recorded arrivals
+  shows once.
 
 ## [0.15.0] - 2026-06-18
 
-- Style the route map's live vehicles as AT-style markers: the route's mode glyph (bus/train/ferry)
-  on a white disc, ringed in the punctuality colour, with a same-coloured arrow on the ring pointing
-  the direction of travel. Stops stay as the only black-outlined dots.
+- Live vehicles on the route map now look like AT's own markers: a bus, train or ferry icon on a
+  white disc, ringed in the colour of how late it is, with a matching arrow on the ring pointing the
+  way it is heading. Stops are the only dots with a black outline.
 
 ## [0.14.0] - 2026-06-18
 
-- Replace the home/rankings "Running latest" and "Running earliest" boards with a single "Most
-  off-schedule" list ranked by how far off schedule each route ran (largest absolute average
-  deviation), with All / Late / Early filter chips that compose with the mode and school filters.
-- Fix the school-bus filter hiding almost no school services: the `S###` code lives in the route's
-  long name (the short name is the plain number, e.g. `046`), and the code can carry a trailing
-  variant letter (e.g. `S046D`, `S001N`). Match the pattern in either name so school services are
-  excluded by default as intended.
+- The separate "Running latest" and "Running earliest" boards on the home and Rankings pages became
+  one "Most off-schedule" board, ranked by how far off schedule each route ran either way, with All,
+  Late and Early buttons that work together with the mode and school-bus filters.
+- The school-bus filter was hiding almost no school buses. It looked for the school code (such as
+  `S046`) in the route's short name, but the code is in the long name, and can end in a letter (such
+  as `S046D`). It now checks both names, so school buses are hidden by default as intended.
 
 ## [0.13.0] - 2026-06-18
 
-- Refresh the site's look and layout, keeping the AT identity (no dark mode): a real top navigation
-  (Today / Rankings) with a metro-line colour accent under the header and on every page masthead, a
-  slim footer noting the data source, and a more editorial home headline that names the day.
+- Refreshed the look and layout while keeping AT's style: a real top menu (Today and Rankings), a
+  train-line-coloured stripe under the header and on each page heading, a slim footer naming where
+  the data comes from, and a home page headline that names the day.
 
 ## [0.12.0] - 2026-06-18
 
-- Add a branching, metro-style line diagram below the route map: each direction's stops in order,
-  with forks where trip variants diverge (some runs end early or go via a different segment) and
-  each stop node coloured by its average delay. Stop order comes from the AT GTFS schedule; there is
-  no schema change.
+- Added a line diagram under the route map, like a train map: each direction's stops in order,
+  branching where some runs end early or take a different way, with each stop coloured by its
+  average delay. The stop order comes from AT's timetable.
 
 ## [0.11.0] - 2026-06-18
 
-- Add a per-trip timeline page (`/route/[id]/trip/[tripId]`) showing one run's stop-by-stop
-  scheduled times and how early or late it was at each stop, reached from the worst-buses ranking.
+- Added a page for each trip (`/route/[id]/trip/[tripId]`) showing one run's timetabled time at each
+  stop and how early or late it was there, opened from the worst-buses list.
 
 ## [0.10.0] - 2026-06-18
 
-- Revamp the route detail page around a "worst buses of the day" ranking: each run of the route,
-  ranked by how far off schedule it ran (average absolute deviation), showing its scheduled start,
-  vehicle, and stop count, each linking to that run's stop-by-stop timeline. The page is now
-  day-focused (today, falling back to the most recent day with data), like the home page.
-- Turn the route map into a proper route map: draw the route path between stops in order, outline
-  the stop nodes so they pop, and show live buses as heading arrows pointing the way they are
-  travelling. The path uses straight segments between stops - AT's API exposes stop order but no
-  road geometry.
+- Rebuilt the route page around a "worst buses of the day" list: every run of the route, ranked by
+  how far off schedule it ran on average, with its start time, vehicle and number of stops, each
+  linking to that run's stop-by-stop page. Like the home page, it shows today, or the most recent
+  day with data.
+- The route map became a real route map: the route is drawn between its stops in order, stops are
+  outlined so they stand out, and live buses are arrows pointing the way they are going. The route
+  is drawn with straight lines between stops, because AT's live data gives the stop order but not
+  the roads.
 
 ## [0.9.0] - 2026-06-18
 
-- Hide school-service routes (short name `S###`) from the home and rankings lists by default, with a
-  "School buses" toggle to show them. Composes with the mode filter and table sort.
+- School bus routes (short names like `S123`) are now hidden from the home and Rankings lists by
+  default, with a "School buses" button to show them. It works together with the mode filter and the
+  table sort.
 
 ## [0.8.3] - 2026-06-17
 
-- Allow CARTO tiles in the Content-Security-Policy `img-src`; it still only listed the old OSM tile
-  host, so the new basemap was blocked and the map rendered grey.
+- Fixed the route map showing grey instead of a map. The site's security settings only allowed map
+  tiles from the old map provider, so the new one (0.8.1) was blocked.
 
 ## [0.8.2] - 2026-06-17
 
-- Label the late and early buses on the route map directly (e.g. `4m late`), so you can see which
-  are running late without clicking. On-time buses stay an unlabelled dot to keep the map readable.
+- Late and early buses on the route map are now labelled directly (for example `4m late`), so you
+  can see which are running late without clicking. On-time buses stay unlabelled to keep the map
+  readable.
 
 ## [0.8.1] - 2026-06-17
 
-- Switch the route map's basemap from OpenStreetMap's volunteer tile servers (which block
-  app/embedded use with a 403) to CARTO Positron, which permits it and suits the light AT palette.
+- Changed the route map's background map from OpenStreetMap's volunteer servers, which refuse to
+  serve apps like this one, to CARTO's light map, which allows it and suits AT's light colours.
 
 ## [0.8.0] - 2026-06-17
 
-- Add a Bus/Train/Ferry filter on the home and rankings pages that narrows the route lists (boards
-  and table) by mode; fleet KPIs stay network-wide.
-- Start weeks on Sunday instead of Monday/ISO; the rankings week is now labelled `Week of <date>`.
-- Show a single route name in the lists (the short name, falling back to the long name), since for
-  buses the two are usually the same.
+- Added Bus, Train and Ferry filter buttons on the home and Rankings pages, which narrow the route
+  lists to one mode. The network-wide figures stay network-wide.
+- Weeks now start on Sunday, and the Rankings week is labelled "Week of" its first date.
+- The lists show one name per route (the short name, or the long name if there is no short one),
+  since for buses the two are usually the same.
 
 ## [0.7.3] - 2026-06-17
 
-- Fix MongoDB aggregations silently truncating at the cursor's first batch (101 docs): the rankings
-  query returned only ~101 routes (dropping whole modes such as Train) and route-detail stops capped
-  at 101. All aggregations now request a large `batchSize` so the full result set returns.
+- Several lists were silently cut off at 101 results, because of a default limit on how many results
+  the database returns in one go. The rankings only showed about 101 routes (leaving out whole
+  modes, such as trains), and route pages showed at most 101 stops. Every query now gets its full
+  results.
 
 ## [0.7.2] - 2026-06-17
 
-- Throttle the route map's live vehicle polling to a 60s shared server cache and a 60s refresh
-  (paused while the tab is hidden), so AT API usage stays well within the 35,000 calls/week quota
-  regardless of how many people are viewing.
+- The route map now refreshes live vehicle positions once a minute (and not while the tab is
+  hidden), and the server shares one answer per minute between all visitors. This keeps the site
+  well inside AT's limit of 35,000 requests a week however many people are looking.
 
 ## [0.7.1] - 2026-06-17
 
-- Insert realtime arrivals via a single bulk `insert` (`ordered: false`) instead of `createMany`
-  with a per-row duplicate fallback, so `/api/ingest/at` skips already-seen rows in one round-trip
-  per batch and no longer times out (504) on Vercel. Added a `maxDuration` headroom.
+- Behind the scenes: new arrivals are now saved in one batch per group instead of one at a time,
+  with already-seen ones skipped. The two-minute data collection had been timing out on the hosting
+  service.
 
 ## [0.7.0] - 2026-06-17
 
-- Add live vehicle tracking to the route detail map: each route's buses are plotted from AT's
-  GTFS-RT vehicle-locations feed, polled every 20s and coloured by current delay
-  (late/early/on-time), joined to the trip-updates delay feed via a cached
-  `/api/routes/[id]/vehicles` endpoint.
-- Format the route detail page's average delays in minutes/seconds, matching the rest of the app.
-- Load Leaflet's stylesheet globally so the map always renders correctly.
+- The route page's map now shows the route's live buses, from AT's live vehicle-position feed,
+  refreshed every 20 seconds and coloured by how late, early or on time each one is.
+- Delays on the route page are shown in minutes and seconds, like the rest of the site.
+- Fixed the map sometimes drawing incorrectly by always loading its styles.
 
 ## [0.6.4] - 2026-06-17
 
-- Make GTFS sync use bulk Mongo `update` commands (batched, upsert) instead of ~7,500 individual
-  `prisma.upsert` calls, so `/api/ingest/gtfs/sync` finishes in seconds instead of timing out on
-  Vercel. Bulk updates also avoid the replica-set transaction requirement. Added a `maxDuration`
-  headroom on the sync route.
+- Behind the scenes: the timetable download now saves stops and routes in batches instead of about
+  7,500 separate saves, so it finishes in seconds instead of timing out on the hosting service.
 
 ## [0.6.3] - 2026-06-17
 
-- Rename the package to `at-route-performance` and add this changelog.
+- Renamed the project to `at-route-performance` and started this changelog.
 
 ## [0.6.2] - 2026-06-17
 
-- Add the database wipe ops script.
-- Exclude the exploratory `scripts/spike-*.ts` from the repo (kept local only).
+- Behind the scenes only: added a script to wipe the database, and kept experimental scripts out of
+  the project.
 
 ## [0.6.1] - 2026-06-17
 
-- Fix a stored XSS: stop names from the AT feed were interpolated into Leaflet popup HTML; the popup
-  is now built with DOM + `textContent`.
+- Fixed a security hole: stop names from AT's data were inserted into the map's popups as raw HTML,
+  so a stop name containing code could have run it in visitors' browsers. Popups now treat names as
+  plain text.
 
 ## [0.6.0] - 2026-06-17
 
-Backend migrated from a SQL/Prisma-migrations setup to MongoDB, committed in focused steps:
+Moved the database from a SQL database to MongoDB, in these steps:
 
-- Switch the Prisma datasource to MongoDB and drop the SQL migrations.
-- Modernise build tooling: flat ESLint config, TypeScript Prettier/Next config, `simple-git-hooks`.
-- Add the AT ingest and data-access libraries (GTFS static + GTFS-RT, auth, validation).
-- Add the AT-branded app shell, fonts, and shared UI utilities.
-- Add the MongoDB-backed API and ingest routes.
-- Add the route detail page with a Leaflet stop map.
-- Add AT brand assets (fonts, logos) and reference docs.
-- Add CI workflows and refresh Dependabot config + README.
+- Switched the database connection to MongoDB and removed the SQL set-up files.
+- Updated the build and code-checking tools, and added checks that run before each commit.
+- Added the code that reads AT's timetable and live feeds and the code that reads the database.
+- Added the AT-styled page layout, fonts and shared pieces.
+- Added the data addresses (API) and the jobs that collect data.
+- Added the route page with a map of its stops.
+- Added AT's fonts and logos and reference documents.
+- Added automated checks, dependency update settings and a new README.
 
 ## [0.5.2] - 2026-06-16
 
-- Move scheduled ingest off Vercel Cron to an external scheduler (cron-job.org) and document the
-  setup, since the Vercel Hobby plan caps cron jobs.
+- Moved the scheduled data collection from the hosting company's built-in scheduler to an outside
+  one (cron-job.org), because the free hosting plan only allows a few scheduled jobs. The setup is
+  documented.
 
 ## [0.5.1] - 2026-06-16
 
-- Remove the unused weekly fallback helper.
-- Fix a `postcss` `overrides` conflict that broke `npm install` (now follows the direct dependency).
+- Behind the scenes only: removed an unused helper, and fixed a package version clash that stopped
+  the project installing.
 
 ## [0.5.0] - 2026-06-16
 
-- Add the dashboard presentational components (boards, fleet summary, mode breakdown, route table).
-- Rebuild the home page as today's network-performance dashboard.
-- Add the weekly/monthly rankings page.
+- Added the pieces the dashboard is built from (boards, network figures, a per-mode breakdown and a
+  table of routes).
+- Rebuilt the home page as a dashboard of today's network performance.
+- Added a Rankings page for the week and month.
 
 ## [0.4.0] - 2026-06-16
 
-Performance-dashboard foundations:
+Groundwork for the performance dashboard (behind the scenes):
 
-- Add the Vitest test runner.
-- Add `formatDelay` for signed minute/second delay strings.
-- Add Auckland-local day/week/month range helpers (DST-aware).
-- Add `deriveBoards` ranking logic (earliest/latest/most-reliable, minimum-sample gated).
-- Add range-based ranking, fleet-summary, and mode-breakdown queries.
+- Added automated testing.
+- Added a helper that writes delays as "4m 10s late" or "1m early".
+- Added helpers for Auckland days, weeks and months that handle daylight saving.
+- Added the ranking logic (earliest, latest and most reliable routes, only counting routes with
+  enough arrivals to judge).
+- Added the database queries for rankings, network figures and the per-mode breakdown.
 
 ## [0.3.1] - 2026-02-17
 
-- Fix React Server Components CVE vulnerabilities.
-- Dependency updates.
+- Fixed security vulnerabilities in the React server components library, and updated other packages.
 
 ## [0.3.0] - 2025-08-29
 
-- Refactor the database schema and API for improved arrival-event processing.
-- Add the `TripDelay` model with its migration; update dependencies.
+- Behind the scenes: reworked the database layout and the data addresses to process arrivals better,
+  and added a table for each trip's delay. Updated packages.
 
 ## [0.2.1] - 2025-08-13
 
-- Fix the null-delay check and improve date calculations.
-- Refactor query ordering and `route.ts` for clarity.
-- Add and refine the pre-commit hook.
+- Fixed a check that treated a missing delay wrongly, and improved how dates are worked out.
+- Behind the scenes: tidied some code and added checks that run before each commit.
 
 ## [0.2.0] - 2025-08-13
 
-- Fresh start: restructure the project into a single Next.js app and overhaul package settings.
+- Fresh start: rebuilt the project as a single Next.js app instead of a separate server and website.
 
 ## [0.1.1] - 2025-07-22
 
-- Dependency updates across the original backend/frontend (React 19, react-leaflet 5, Next 15.3.3,
-  Express, Axios, ESLint, typescript-eslint, Prettier plugins, and others).
+- Behind the scenes only: updated the packages used by the original server and website (React 19,
+  the map library, Next.js, and others).
 
 ## [0.1.0] - 2025-04-23
 
-- Initial commit: Express backend + React/Leaflet frontend scaffold, Dependabot configuration, and
+- First version: a basic server and a website with a map, plus automatic dependency updates and a
   README.
