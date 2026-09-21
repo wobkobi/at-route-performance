@@ -10,7 +10,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RankBoard } from "@/components/RankBoard";
+import { ON_TIME_CAPTION, RankBoard } from "@/components/RankBoard";
 import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
@@ -172,12 +172,16 @@ export default async function StopPage({
         />
       </header>
 
-      <StopAlertBanner alertsPromise={alertsPromise} stopIds={stats.platform_ids} />
+      <StopAlertBanner
+        alertsPromise={alertsPromise}
+        stopIds={stats.platform_ids}
+        pastWindow={linkDay !== undefined}
+      />
 
       <section className="border border-at-border bg-at-surface">
         <div className="grid grid-cols-2 sm:grid-cols-4">
           <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+            <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
             <p className="text-2xl font-ultra tracking-zero tabular-nums">{summary?.events ?? 0}</p>
           </div>
           <div className="p-4">
@@ -227,6 +231,7 @@ export default async function StopPage({
         accentClass="text-at-ink"
         rows={routes}
         metric="delay"
+        caption={ON_TIME_CAPTION}
         routeQuery={routeLinkQuery("day", linkDay, null)}
       />
 
@@ -284,16 +289,23 @@ async function StopScheduleSection({
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.stopIds - Raw GTFS stop ids behind the page (a station's platforms).
+ * @param root0.pastWindow - Whether the page is showing a past service day.
  * @returns The alert banner.
  */
 async function StopAlertBanner({
   alertsPromise,
   stopIds,
+  pastWindow,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   stopIds: string[];
+  pastWindow: boolean;
 }): Promise<JSX.Element> {
   return (
-    <AlertBanner alerts={alertsForStop(await alertsPromise, stopIds)} heading="Service alerts" />
+    <AlertBanner
+      alerts={alertsForStop(await alertsPromise, stopIds)}
+      heading="Service alerts"
+      pastWindow={pastWindow}
+    />
   );
 }

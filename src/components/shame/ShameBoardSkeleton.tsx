@@ -33,7 +33,7 @@ export interface ShameRowShape {
   gridLines: number;
 }
 
-/** Route rows: a name line over one `text-xs` line of events. */
+/** Route rows: a name line over one `text-xs` line of arrivals. */
 const ONE_LINE: ShameRowShape = { icon: true, mobileLines: 1, gridLines: 1 };
 
 /**

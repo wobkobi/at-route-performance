@@ -4,6 +4,63 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.17] - 2026-09-21
+
+### Fixed
+
+- The on-time window was explained under the off-schedule board and nowhere under the reliable
+  board, whose column is that share. Both boards now carry a caption, so their rows start level, and
+  the off-schedule board gains a key for its value colours - ten green rows under a heading reading
+  "Most off-schedule" otherwise look like good news.
+
+## [1.30.16] - 2026-09-21
+
+### Changed
+
+- One word for a stop visit across the site. The route, stop and shame boards said "Events" or
+  "events" for the same thing the home strip and the cards already called Arrivals; all of them now
+  read Arrivals. The underlying data field keeps its name.
+
+## [1.30.15] - 2026-09-21
+
+### Fixed
+
+- The home strip called it "Cancelled" and the cancellations page called the same figure "Flagged
+  cancelled". Both now use the second name and both say that reinstated trips are counted in it,
+  since the number is of AT's flags rather than of trips that failed to run.
+
+## [1.30.14] - 2026-09-21
+
+### Fixed
+
+- The worst-route card's figures are one hour's, not the whole day's - the row is the max over
+  per-hour rows. The card now names that hour and says how many arrivals fell in it, so it no longer
+  looks like it disagrees with the whole-day averages on the home boards.
+
+## [1.30.13] - 2026-09-21
+
+### Fixed
+
+- Service alerts come from a live feed with no history, so on a past day or week they describe right
+  now. The banner now says so and dates every active period instead of leaving a bare time that
+  reads as the day being shown, and the route diagram no longer rings stops or dashes the line from
+  an alert that has nothing to do with the archived day.
+
+## [1.30.12] - 2026-09-21
+
+### Fixed
+
+- The worst-trip card no longer shows a green "No shame today" when the day recorded no runs at all;
+  a day with nothing to rank now gets the same quiet card the worst-route and worst-stop cards
+  beside it already use.
+
+## [1.30.11] - 2026-09-21
+
+### Fixed
+
+- The on-time split now says the same true thing everywhere: a cancelled trip's missed stops count
+  by the wait for the next trip, on time under five minutes and late beyond it.
+
 ## [1.30.10] - 2026-09-20
 
 ### Fixed

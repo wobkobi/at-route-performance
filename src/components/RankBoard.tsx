@@ -37,8 +37,40 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
   );
 }
 
-/** Plain-English on-time window for the off-schedule board caption. */
-const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way)`;
+/** Plain-English on-time window, for the board captions. */
+export const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way)`;
+
+/**
+ * Caption for the reliable board, whose column is the on-time share itself.
+ * Names the window rather than pointing at the other board's caption, so it
+ * still reads on a phone, where the two boards are stacked rather than paired.
+ */
+export const ON_TIME_SHARE_CAPTION = "Share of arrivals inside the on-time window";
+
+/**
+ * Key for the off-schedule board's value colours. Each value already carries
+ * its own word ("4m 8s late"), so colour is never the only signal, but on a
+ * week view ten green rows under a heading reading "Most off-schedule" look
+ * like good news until something says what the green means.
+ * @returns The key row.
+ */
+function DelayColourKey(): JSX.Element {
+  const keys = [
+    { swatch: "bg-at-late", label: "Late" },
+    { swatch: "bg-at-early", label: "Early" },
+    { swatch: "bg-at-ink", label: "Inside the window" },
+  ];
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-at-muted">
+      {keys.map((k) => (
+        <span key={k.label} className="flex items-center gap-1">
+          <span aria-hidden className={cn("size-2 rounded-full", k.swatch)} />
+          {k.label}
+        </span>
+      ))}
+    </p>
+  );
+}
 
 /** A single leaderboard of routes with a metric value per row. */
 export interface RankBoardProps {
@@ -50,6 +82,12 @@ export interface RankBoardProps {
   rows: TopRouteRow[];
   /** Which metric to render on the right. */
   metric: "delay" | "onTime";
+  /**
+   * One line under the heading saying what the value column is. Both boards
+   * carry one, so their row lists start at the same height when the two sit
+   * side by side.
+   */
+  caption?: string;
   /**
    * Query each route link carries so the route opens on the window being
    * viewed, built by `routeLinkQuery`. Omit for the route's default view.
@@ -77,6 +115,7 @@ export interface RankBoardProps {
  * @param props.accentClass - Tailwind text-colour class for the heading.
  * @param props.rows - Ranked rows.
  * @param props.metric - Whether the right column is a delay or on-time %.
+ * @param props.caption - One line under the heading saying what the column is (optional).
  * @param props.routeQuery - Query each route link carries, from `routeLinkQuery` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
@@ -89,6 +128,7 @@ export function RankBoard({
   accentClass,
   rows,
   metric,
+  caption,
   routeQuery,
   deltas,
   cancelled,
@@ -113,8 +153,12 @@ export function RankBoard({
           title
         )}
       </h2>
-      <div className="mb-3 min-h-5">
-        {metric === "delay" && <p className="text-sm text-at-muted">{ON_TIME_CAPTION}</p>}
+      {/* Both boards reserve the same block, caption plus key, so the two row
+          lists start level. The key only has something to say on the signed
+          board, where the colour varies. */}
+      <div className="mb-3 min-h-14">
+        {caption && <p className="text-sm text-at-muted">{caption}</p>}
+        {metric === "delay" && <DelayColourKey />}
       </div>
       {rows.length === 0 ? (
         <p className="text-base text-at-muted">Not enough data yet.</p>

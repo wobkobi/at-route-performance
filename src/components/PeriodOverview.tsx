@@ -6,7 +6,7 @@
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
-import { RankBoard } from "@/components/RankBoard";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
@@ -19,7 +19,7 @@ import {
   getWorstStops,
 } from "@/lib/data";
 import { rangeIsEmpty } from "@/lib/data-start";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeLinkQuery } from "@/lib/range-page";
 import {
   computeRankDelta,
@@ -194,6 +194,7 @@ export async function PeriodOverview({
           accentClass="text-at-ink"
           rows={offSchedule.slice(0, BOARD_SIZE)}
           metric="delay"
+          caption={ON_TIME_CAPTION}
           cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
@@ -209,6 +210,7 @@ export async function PeriodOverview({
           accentClass="text-at-ontime"
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
+          caption={ON_TIME_SHARE_CAPTION}
           deltas={reliableDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
           total={boards.reliable.length}
@@ -221,8 +223,7 @@ export async function PeriodOverview({
       </div>
 
       <p className="text-xs text-at-muted">
-        Rankings are built from real-time stop events and refresh hourly. A cancelled trip counts as
-        late at every stop it missed, by the wait for the next trip.
+        Rankings are built from real-time arrivals and refresh hourly. {CANCELLED_SPLIT_COPY}
         {(offScheduleDeltas || reliableDeltas) &&
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>

@@ -56,10 +56,15 @@ export function DayNavSkeleton(): JSX.Element {
 
 /**
  * Mirrors FleetSummary: one bordered strip of `p-3` cells, each an uppercase
- * `text-xs` label (16px) over a `text-xl` value (28px).
+ * `text-xs` label (16px) over a `text-xl` value (28px). One cell carries a
+ * third `text-xs` line ("Reinstated trips included"), which sets the whole row's
+ * height, so the placeholder has to draw it or the strip jumps on hydration.
+ * @param root0 - Props.
+ * @param root0.noteCell - Index of the cell carrying the note line. Defaults to
+ * FleetSummary's flagged-cancelled cell; the cancellations strip puts it first.
  * @returns The KPI strip placeholder.
  */
-export function KpiStripSkeleton(): JSX.Element {
+export function KpiStripSkeleton({ noteCell = 3 }: { noteCell?: number } = {}): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -67,6 +72,7 @@ export function KpiStripSkeleton(): JSX.Element {
           <div key={i} className="p-3">
             <Bone className="h-4 w-16" />
             <Bone className="h-7 w-20" />
+            {i === noteCell && <Bone className="h-4 w-24" />}
           </div>
         ))}
       </div>
@@ -127,26 +133,30 @@ export function FeatureCardPairSkeleton(): JSX.Element {
 
 /**
  * Mirrors RankBoard's top ten: a `text-lg` heading (28px, `mb-1`), the caption
- * slot (`mb-3`, 20px; the off-schedule board's on-time line wraps to two lines
- * until the boards are `lg` wide), then ten `py-3` rows of a 24px line split by
- * 1px rules.
+ * block (`mb-3`, 56px; every board captions itself, and the off-schedule line
+ * wraps to two lines until the boards are `lg` wide), then ten `py-3` rows of a
+ * 24px line split by 1px rules.
  * @param root0 - Props.
- * @param root0.caption - Whether the board carries the on-time caption.
+ * @param root0.colourKey - Whether the board is the signed one, which adds the
+ * late/early colour key under its caption.
  * @param root0.rows - How many rows to draw (the home boards show ten).
  * @returns The board placeholder.
  */
 export function RankBoardSkeleton({
-  caption = false,
+  colourKey = false,
   rows = 10,
 }: {
-  caption?: boolean;
+  colourKey?: boolean;
   rows?: number;
 }): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface p-4">
       <Bone className="mb-1 h-7 w-44" />
-      <div className={cn("mb-3", caption ? "h-10 lg:h-5" : "h-5")}>
-        {caption && <Bone className="h-full w-80 max-w-full" />}
+      {/* Both boards caption themselves now, and the signed board adds a colour
+          key under it, so the block is a fixed height on either. */}
+      <div className="mb-3 h-14">
+        <Bone className="h-10 w-80 max-w-full lg:h-5" />
+        {colourKey && <Bone className="mt-1 h-4 w-56 max-w-full" />}
       </div>
       <div>
         {Array.from({ length: rows }).map((_, i) => (

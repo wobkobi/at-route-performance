@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/cn";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { CANCELLED_SPLIT_COPY, earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { useId, useRef, useState, type JSX } from "react";
 
 /**
@@ -191,8 +191,7 @@ export function PunctualityStat({
                   <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
                 </div>
                 <p className="mt-2 text-xs leading-snug text-at-muted">
-                  {onTimeWindowDescription(mode)} Cancelled trips record no arrival, so they are
-                  counted separately rather than in this split.
+                  {onTimeWindowDescription(mode)} {CANCELLED_SPLIT_COPY}
                 </p>
               </>
             ) : (

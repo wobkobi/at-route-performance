@@ -641,7 +641,7 @@ export default async function RoutePage({
         )}
       </header>
 
-      <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} />
+      <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} live={isLiveView} />
 
       {isWeekView ? (
         <>
@@ -649,7 +649,7 @@ export default async function RoutePage({
           <section className="border border-at-border bg-at-surface">
             <div className="grid grid-cols-2 sm:grid-cols-3">
               <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
                   {weekSummary?.events ?? 0}
                 </p>
@@ -689,6 +689,7 @@ export default async function RoutePage({
           <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
+              live={isLiveView}
               slug={slug}
               rawToCanon={view.rawToCanon}
               directions={view.directions}
@@ -704,7 +705,7 @@ export default async function RoutePage({
           <section className="border border-at-border bg-at-surface">
             <div className="grid grid-cols-2 sm:grid-cols-4">
               <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Events</p>
+                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
                   {summary?.events ?? 0}
                 </p>
@@ -778,6 +779,7 @@ export default async function RoutePage({
           <Suspense fallback={<LineDiagramSkeleton />}>
             <RouteDiagramSection
               alertsPromise={alertsPromise}
+              live={isLiveView}
               slug={slug}
               rawToCanon={view.rawToCanon}
               directions={diagramDirections}
@@ -802,7 +804,7 @@ export default async function RoutePage({
                   <thead className="bg-at-bg text-at-muted">
                     <tr>
                       <th className="px-3 py-2 text-left">Stop</th>
-                      <th className="px-3 py-2 text-right">Events</th>
+                      <th className="px-3 py-2 text-right">Arrivals</th>
                       <th className="px-3 py-2 text-right">Avg delay</th>
                     </tr>
                   </thead>
@@ -846,14 +848,17 @@ export default async function RoutePage({
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.slug - This route's slug, to filter the alerts.
+ * @param root0.live - Whether the page is showing the current day or window.
  * @returns The alert banner.
  */
 async function RouteAlertBannerSection({
   alertsPromise,
   slug,
+  live,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
+  live: boolean;
 }): Promise<JSX.Element> {
   const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
   const alertRouteIds = [
@@ -864,7 +869,14 @@ async function RouteAlertBannerSection({
     ),
   ];
   const routeNames = await getRouteNames(alertRouteIds);
-  return <AlertBanner alerts={routeAlerts} heading="Service alerts" routeNames={routeNames} />;
+  return (
+    <AlertBanner
+      alerts={routeAlerts}
+      heading="Service alerts"
+      routeNames={routeNames}
+      pastWindow={!live}
+    />
+  );
 }
 
 /**
@@ -875,19 +887,26 @@ async function RouteAlertBannerSection({
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.slug - This route's slug, to filter the alerts.
  * @param root0.rawToCanon - Maps raw stop ids to their station-canonical ids.
+ * @param root0.live - Whether the page is showing the current day or window.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
   alertsPromise,
   slug,
   rawToCanon,
+  live,
   ...diagram
 }: Omit<ComponentProps<typeof RouteLineDiagramClient>, "alertStopIds" | "hasDetour"> & {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
   rawToCanon: Map<string, string>;
+  live: boolean;
 }): Promise<JSX.Element> {
-  const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
+  // The alerts feed is a snapshot of right now, with no history, so its stop
+  // rings and detour dash describe today whatever day the page is showing. The
+  // banner can say so in words; a ring on a stop cannot, so on an archived day
+  // the diagram simply goes unmarked.
+  const routeAlerts = live ? alertsForRoute(await alertsPromise, [slug]) : [];
   const hasDetour = routeAlerts.some((a) => a.effect === "DETOUR");
   const alertStopIds = routeAlerts.flatMap((a) =>
     a.informed_entity.filter((e) => e.stop_id).map((e) => rawToCanon.get(e.stop_id!) ?? e.stop_id!),

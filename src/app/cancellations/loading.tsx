@@ -46,7 +46,7 @@ export default function Loading(): JSX.Element {
         <ChipBone className="w-27" />
       </div>
 
-      <KpiStripSkeleton />
+      <KpiStripSkeleton noteCell={0} />
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <div className="space-y-2">

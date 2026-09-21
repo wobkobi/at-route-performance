@@ -25,6 +25,13 @@ export interface AlertBannerProps {
   heading?: string;
   /** Short names keyed by route id; falls back to the raw id when absent. */
   routeNames?: Record<string, string>;
+  /**
+   * Whether the page is showing a past day or period. AT publishes only the
+   * alerts running at this moment, so a past window has none of its own; this
+   * labels them as current and dates every active period, because today is not
+   * the day being read and a bare time there names nothing.
+   */
+  pastWindow?: boolean;
 }
 
 /**
@@ -69,11 +76,14 @@ function isToday(unix: number): boolean {
  * long-running notice can't masquerade as tonight's disruption.
  * @param start - Period start, Unix seconds.
  * @param end - Period end, Unix seconds.
+ * @param alwaysDate - Date both bounds whatever they are. Set on a page showing
+ * a past window, where today is not the day being read.
  * @returns A period line, or null when the alert carries no bounds.
  */
-function periodLabel(start?: number, end?: number): string | null {
+function periodLabel(start?: number, end?: number, alwaysDate = false): string | null {
   // Date both ends together, so the two halves of a range stay comparable.
-  const dated = (start !== undefined && !isToday(start)) || (end !== undefined && !isToday(end));
+  const dated =
+    alwaysDate || (start !== undefined && !isToday(start)) || (end !== undefined && !isToday(end));
 
   if (start !== undefined && end !== undefined) {
     return `${fmtTime(start, dated)} – ${fmtTime(end, dated)}`;
@@ -102,12 +112,14 @@ function periodLabel(start?: number, end?: number): string | null {
  * @param props.alerts - Alerts to display.
  * @param props.heading - Accessible region label (defaults to "Service alerts").
  * @param props.routeNames - Map of route id to display name for the informed-entity pills.
+ * @param props.pastWindow - Whether the page is showing a past day or period.
  * @returns Collapsible alert banner, or null when the list is empty.
  */
 export function AlertBanner({
   alerts,
   heading = "Service alerts",
   routeNames,
+  pastWindow = false,
 }: AlertBannerProps): JSX.Element | null {
   if (!alerts.length) return null;
   const severe = hasSevereAlert(alerts);
@@ -139,6 +151,7 @@ export function AlertBanner({
           )}
         >
           {heading}
+          {pastWindow && <span className="font-normal"> - running now</span>}
         </span>
         <span
           className={cn(
@@ -166,6 +179,12 @@ export function AlertBanner({
       </summary>
 
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>
+        {pastWindow && (
+          <p className="p-3 text-xs text-at-muted">
+            Auckland Transport publishes only the alerts running at this moment, so these are the
+            ones running now, not a record of what was disrupted in the period shown.
+          </p>
+        )}
         {alerts.map((alert, i) => {
           const rawHeader = extractText(alert.header_text);
           const headerText = rawHeader ? cleanAlertHeader(rawHeader) : null;
@@ -178,7 +197,7 @@ export function AlertBanner({
             ),
           ];
           const period = alert.active_period[0];
-          const periodText = periodLabel(period?.start, period?.end);
+          const periodText = periodLabel(period?.start, period?.end, pastWindow);
           const rowSevere = alertSeverity(alert) === "severe";
 
           return (

@@ -19,7 +19,7 @@ export interface WorstStopCardProps {
 /**
  * Home card naming the stop whose services ran furthest off schedule on
  * average, across every route, linking to its detail page. Sits beside the
- * Shame of the Day run card. When no stop has enough events to rank it keeps
+ * Shame of the Day run card. When no stop has enough arrivals to rank it keeps
  * its slot with a quiet state, so the card grid never shows a hole.
  * @param props - Component props.
  * @param props.stop - The worst stop (or null).

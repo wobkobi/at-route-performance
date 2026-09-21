@@ -30,7 +30,10 @@ export interface ShameOfDayProps {
 
 /**
  * Home banner naming the day's most off-schedule run, linking to that run.
- * Shows a "no shame" positive state when every run was on time.
+ * Three states, not two: a quiet "nothing to rank" card when no run qualified,
+ * a green "no shame" card when runs happened and the worst was still on time,
+ * and the run card itself otherwise. The first two used to share the green card,
+ * which claimed a clean day on days that recorded nothing.
  * @param props - Component props.
  * @param props.trip - The day's worst run (or null).
  * @param props.href - Override link target (optional).
@@ -47,9 +50,22 @@ export function ShameOfDay({
   routeStreakDays = 0,
 }: ShameOfDayProps): JSX.Element {
   const isDay = period === "day";
-  // No data, or the worst trip's signed average is within the on-time window.
+  // Nothing qualified, which is not good news and must not read as the green
+  // all-clear below. `worst` is the reduce over the per-hour (or per-day) list,
+  // so a null trip means that list was empty: no run cleared SHAME_MIN_STOPS
+  // under the active filters. Same quiet state the worst-route and worst-stop
+  // cards beside this one already use.
+  if (!trip) {
+    return (
+      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
+        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst trip</p>
+        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
+        <p className="text-sm text-at-muted">No run has enough arrivals in this period.</p>
+      </div>
+    );
+  }
+  // Runs were ranked and the worst of them was still inside the on-time window.
   if (
-    !trip ||
     trip.avg_abs_delay_sec <= earlyToleranceFor(trip.mode) ||
     isOnTime(trip.avg_delay_sec ?? 0, trip.mode)
   ) {

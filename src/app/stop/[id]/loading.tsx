@@ -31,7 +31,7 @@ export default function Loading(): JSX.Element {
 
       <StatCellsSkeleton />
       <MapSectionSkeleton mapClass="h-100" />
-      <RankBoardSkeleton caption rows={2} />
+      <RankBoardSkeleton colourKey rows={2} />
       <StopScheduleSkeleton />
     </main>
   );
