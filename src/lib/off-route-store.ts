@@ -6,6 +6,7 @@
 
 import type { AtTripUpdates } from "@/lib/at";
 import {
+  alertsForTrip,
   cleanAlertHeader,
   extractText,
   getServiceAlerts,
@@ -49,17 +50,21 @@ function shapeIndex(): Promise<{ byId: Map<string, Path>; byPrefix: Map<string, 
 }
 
 /**
- * The header of an active reroute-type alert on a route, when one exists.
+ * The header of an active reroute-type alert covering a trip, when one exists:
+ * one on its route, or one naming the trip itself. A cancellation of another
+ * run on the route does not explain this vehicle being off its path.
  * @param alerts - The active alerts.
  * @param routeId - The versioned route id the vehicle reports.
+ * @param tripId - The trip the vehicle is running.
  * @returns The cleaned header, or null.
  */
-function rerouteAlertFor(alerts: readonly ServiceAlert[], routeId: string): string | null {
-  const alert = alerts.find(
-    (a) =>
-      a.effect !== undefined &&
-      REROUTE_EFFECTS.has(a.effect) &&
-      a.informed_entity.some((e) => e.route_id === routeId),
+function rerouteAlertFor(
+  alerts: readonly ServiceAlert[],
+  routeId: string,
+  tripId: string,
+): string | null {
+  const alert = alertsForTrip(alerts, routeId, tripId).find(
+    (a) => a.effect !== undefined && REROUTE_EFFECTS.has(a.effect),
   );
   const header = alert ? extractText(alert.header_text) : null;
   return header ? cleanAlertHeader(header) : null;
@@ -114,7 +119,7 @@ export async function recordOffRouteSightings(
     prisma.$runCommandRaw({
       insert: "OffRouteSighting",
       documents: off.map((r) => {
-        const alert = rerouteAlertFor(alerts, r.routeId);
+        const alert = rerouteAlertFor(alerts, r.routeId, r.tripId);
         return {
           tripId: r.tripId,
           routeId: r.routeId,

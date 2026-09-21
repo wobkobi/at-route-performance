@@ -238,6 +238,22 @@ export function serviceDayClockInstant(serviceDayStart: Date, seconds: number): 
 }
 
 /**
+ * Seconds of the GTFS clock an instant inside a service day falls at: the exact
+ * inverse of {@link serviceDayClockInstant}, so a reading stored against its own
+ * schedule reads back the seconds its trip id encodes. A post-midnight instant
+ * gives a value past 86,400 and is left unwrapped, because the caller decides
+ * whether to compare it plainly or circularly (see `anchorGapSec` in
+ * ghost-pass.ts).
+ * @param serviceDayStart - The service day's start instant, as stored.
+ * @param at - An instant inside that service day.
+ * @returns Seconds since the GTFS reference for that instant.
+ */
+export function serviceDayClockSeconds(serviceDayStart: Date, at: Date): number {
+  const startSec = SERVICE_START_HOUR * 3600;
+  return startSec + Math.round((at.getTime() - serviceDayStart.getTime()) / 1000);
+}
+
+/**
  * The service date (`YYYY-MM-DD`) of the service day containing an instant.
  * @param at - The instant to label.
  * @param startHour - Local hour the service day begins.

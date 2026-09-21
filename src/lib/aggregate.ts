@@ -212,7 +212,8 @@ export async function dayHasEvents(date: string): Promise<boolean> {
  * day, leaving it unsummarised for the next run's catch-up to retry; rolling it
  * up unclassified would pin the noise into the archive for good.
  * @param range - The service-day window.
- * @param serviceDate - Its service date (`YYYY-MM-DD`), for the log.
+ * @param serviceDate - Its service date (`YYYY-MM-DD`), for the log and for the
+ *   ghost pass's record of any run it hides.
  * @returns Routes summarised and the ghost pass's counts.
  */
 export async function aggregateDay(
@@ -225,7 +226,7 @@ export async function aggregateDay(
     end: range.end.toISOString(),
   });
 
-  const ghosts = await classifyGhosts(range);
+  const ghosts = await classifyGhosts(range, serviceDate);
   console.log("[AGGREGATE] Ghost pass complete", { date: serviceDate, ...ghosts });
 
   const result = (await runCommand(() =>

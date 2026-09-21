@@ -4,6 +4,127 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.30.10] - 2026-09-20
+
+### Fixed
+
+- The basemap key is no longer sent from loopback hosts, where CARTO always rejects it; a local
+  production run now draws watermarked tiles instead of eight blank maps.
+
+## [1.30.9] - 2026-09-20
+
+### Changed
+
+- Corrected the cron doc: the GTFS shapes sync runs daily, not weekly, with the IngestRun evidence
+  for why, plus where its memory figure can and cannot be read.
+
+## [1.30.8] - 2026-09-20
+
+### Fixed
+
+- The worst-trip, worst-route and worst-stop cards now open that run, route or stop. The board each
+  one came from is on the section heading above them, so a card and its heading no longer lead to
+  different places.
+
+## [1.30.7] - 2026-09-20
+
+### Fixed
+
+- A cancelled run whose scheduled start was never captured now opens on the day whose board it was
+  clicked from, instead of the run's most recent day.
+
+## [1.30.6] - 2026-09-20
+
+### Fixed
+
+- The nav tab for the page you are already on no longer wipes that page's own filters, and nav and
+  footer links from a trip page now keep the run's day instead of jumping to today.
+
+## [1.30.5] - 2026-09-20
+
+### Fixed
+
+- The day stepper and direction chips now keep the delay threshold and trip sort, the step onto
+  today keeps the filters instead of dropping the whole query, and the next-day arrow after an
+  empty-day fallback goes to a real day instead of back to the same one.
+
+## [1.30.4] - 2026-09-20
+
+### Fixed
+
+- Route links from a month view now open the week that month hands off to, instead of silently
+  showing today. Every board and the Routes list build that link from one helper.
+
+## [1.30.3] - 2026-09-20
+
+### Fixed
+
+- The Day, Week and Month tabs now carry the date being read across, so switching window stays on
+  that day, week or month instead of resetting to the present.
+
+## [1.30.2] - 2026-09-20
+
+### Changed
+
+- Dropped four dev dependencies other packages already install: @typescript-eslint/eslint-plugin and
+  @typescript-eslint/parser (via typescript-eslint), sharp (via Next) and postcss. The postcss and
+  sharp overrides go too: Next now pins a postcss past the XSS fix the override was added for. A
+  stray install-script entry for canvas, which is not installed, is removed.
+
+## [1.30.1] - 2026-09-19
+
+### Changed
+
+- Each server function leaves out Prisma's unused runtimes, which cuts its traced size from about 95
+  MB to 39 MB.
+
+## [1.30.0] - 2026-09-19
+
+### Added
+
+- The nightly pass now hides a run whose every reading was reported under another run's trip, a
+  whole vehicle cycle off its own schedule, and records why it hid each one.
+
+## [1.29.2] - 2026-09-18
+
+### Fixed
+
+- A single-trip cancellation alert now sits on its route's page, headed with the route's short name
+  ("Route 195", not "Route 195-203") and linking to the route, instead of on the home page's
+  network-wide banner.
+
+## [1.29.1] - 2026-09-18
+
+### Changed
+
+- The nightly pre-warm now renders every day page (home, the four shame boards, rankings and
+  cancellations) for each of the last seven completed days, so the first reader to step onto a past
+  day no longer waits while it is computed.
+
+## [1.29.0] - 2026-09-18
+
+### Added
+
+- Stepping to the previous or next day, week or month is now instant: the neighbouring pages load in
+  the background while you read, and a page seen in the last two minutes is shown again without a
+  round trip. A step that still has to wait pulses its arrow until the new page arrives, instead of
+  looking like a click that did nothing.
+
+## [1.28.0] - 2026-09-18
+
+### Added
+
+- Live pages now update their figures in place when a new ingest run lands, with no reload. The live
+  day's cache turns over with each run instead of on a five-minute clock, and a page showing a past
+  day is left alone.
+
+## [1.27.3] - 2026-09-18
+
+### Fixed
+
+- A second vehicle reporting a stop visit on a reused trip id can no longer overwrite the real
+  arrival: the nearer reading to the stop's own schedule stays, and the visit is marked.
+
 ## [1.27.2] - 2026-09-18
 
 ### Added

@@ -16,8 +16,14 @@ describe("cartoTileUrl", () => {
     );
   });
 
-  it("sends the key anywhere when there is no production domain to compare", () => {
-    expect(cartoTileUrl("localhost:3000", "k", undefined)).toContain("key=k");
+  it("sends the key off Vercel, where there is no production domain to compare", () => {
+    expect(cartoTileUrl("transit.example.nz", "k", undefined)).toContain("key=k");
+  });
+
+  it("leaves the key off loopback, which CARTO cannot allow-list", () => {
+    expect(cartoTileUrl("localhost:3000", "k", undefined)).not.toContain("key=");
+    expect(cartoTileUrl("127.0.0.1:3100", "k", undefined)).not.toContain("key=");
+    expect(cartoTileUrl("[::1]:3000", "k", PROD)).not.toContain("key=");
   });
 
   it("requests keyless tiles without a key", () => {

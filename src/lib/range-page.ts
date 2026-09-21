@@ -11,11 +11,25 @@ import {
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { resolveRange } from "@/lib/rankings-page";
-import { type DateRange, nzServiceDayString, parseYmd, shiftWeek } from "@/lib/time";
+import { type DateRange, nzServiceDayString, parseYmd, shiftMonth, shiftWeek } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** The window a range page shows. */
 export type RangeWindow = "day" | "week" | "month";
+
+/**
+ * The `?day` / `?period` each window tab carries, so switching windows lands
+ * near the date being read instead of resetting to the present. A null means
+ * the tab's own default: today for the day, the rolling week, the current month.
+ */
+export interface RangeTabPeriods {
+  /** The `?day` the Day tab carries, or null for today. */
+  day: string | null;
+  /** The `?period` the Week tab carries, or null for the rolling week. */
+  week: string | null;
+  /** The `?period` the Month tab carries, or null for the current month. */
+  month: string | null;
+}
 
 /** The stepper state {@link RangeNav} consumers render: a day stepper or a period stepper. */
 export type RangeNav =
@@ -31,6 +45,8 @@ export type RangeNav =
       nextIsToday: boolean;
       /** Whether the shown day is the archive's first. */
       atFloor: boolean;
+      /** What each window tab carries across. */
+      tabs: RangeTabPeriods;
     }
   | {
       window: "week" | "month";
@@ -42,6 +58,8 @@ export type RangeNav =
       nextHref: string | null;
       /** Whether the period starts before the archive floor, so the label says so. */
       partial: boolean;
+      /** What each window tab carries across. */
+      tabs: RangeTabPeriods;
     };
 
 /**
@@ -88,6 +106,7 @@ export function dayRangeNav(
     hasNext: serviceDate < today,
     nextIsToday: shiftWeek(serviceDate, 1) === today,
     atFloor: serviceDate === DATA_START_DAY,
+    tabs: rangeTabPeriods(serviceDate, today),
   };
 }
 
@@ -99,6 +118,7 @@ export function dayRangeNav(
  * @param rawPeriod - The raw `?period` value.
  * @param anchor - The latest day with data (or now).
  * @param earliestDay - The earliest service day with data, or null when unknown.
+ * @param today - Today's service date (injectable for tests).
  * @returns The range, the validated period (null for the rolling default) and the stepper.
  */
 export function periodRangeNav(
@@ -107,6 +127,7 @@ export function periodRangeNav(
   rawPeriod: string | undefined,
   anchor: Date,
   earliestDay: Date | null,
+  today: string = nzServiceDayString(),
 ): { range: DateRange; period: string | null; nav: RangeNav } {
   const period =
     window === "month" ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
@@ -122,7 +143,18 @@ export function periodRangeNav(
     window === "week"
       ? resolveWeekNav({ periodParam: period, earliestDay, makeHref, now: anchor })
       : resolveMonthNav({ periodParam: period, earliestDay, makeHref, now: anchor });
-  return { range, period, nav: { window, label, prevHref, nextHref, partial } };
+  return {
+    range,
+    period,
+    nav: {
+      window,
+      label,
+      prevHref,
+      nextHref,
+      partial,
+      tabs: rangeTabPeriods(periodAnchorDay(window, period, today), today),
+    },
+  };
 }
 
 /**
@@ -143,6 +175,62 @@ export function weekPeriodOf(
 }
 
 /**
+ * The month `period` holding a day, for a Month toggle that stays on the day's
+ * month: its `YYYY-MM`, or null (the current month) for today. Mirrors
+ * {@link weekPeriodOf}.
+ * @param serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param today - Today's service date (injectable for tests).
+ * @returns The month key `YYYY-MM`, or null.
+ */
+export function monthPeriodOf(
+  serviceDate: string,
+  today: string = nzServiceDayString(),
+): string | null {
+  if (serviceDate >= today) return null;
+  const { y, mo } = parseYmd(serviceDate);
+  return `${y}-${String(mo).padStart(2, "0")}`;
+}
+
+/**
+ * The day a week or month view sits on, so its other tabs can stay near it: the
+ * period's last day, or today when the period runs past it. A rolling period
+ * (no `period` param) already ends at today.
+ * @param window - "week" or "month".
+ * @param period - The validated period, or null for the rolling default.
+ * @param today - Today's service date (injectable for tests).
+ * @returns The anchor service date (`YYYY-MM-DD`).
+ */
+export function periodAnchorDay(
+  window: "week" | "month",
+  period: string | null,
+  today: string = nzServiceDayString(),
+): string {
+  if (!period) return today;
+  // A month key has no day component, so step to the next month's first and
+  // back one day rather than carrying a table of month lengths.
+  const last =
+    window === "week" ? shiftWeek(period, 6) : shiftWeek(`${shiftMonth(period, 1)}-01`, -1);
+  return last < today ? last : today;
+}
+
+/**
+ * What each window tab carries so a tab switch stays on the date being read.
+ * @param anchorDay - The service date the current view sits on.
+ * @param today - Today's service date (injectable for tests).
+ * @returns The per-tab `?day` / `?period` values.
+ */
+export function rangeTabPeriods(
+  anchorDay: string,
+  today: string = nzServiceDayString(),
+): RangeTabPeriods {
+  return {
+    day: anchorDay >= today ? null : anchorDay,
+    week: weekPeriodOf(anchorDay, today),
+    month: monthPeriodOf(anchorDay, today),
+  };
+}
+
+/**
  * The home page heading for a window. The stepper beside it names the date, so
  * the heading only says whether the window is the current one.
  * @param nav - The stepper state for the shown window.
@@ -156,21 +244,28 @@ export function overviewHeading(nav: RangeNav, period: string | null): string {
 }
 
 /**
- * The query a route link carries so the route page opens on the same window. The
- * route page has a day view and a week view, so a month links to its default.
+ * The query a route link carries so the route page opens on the window being
+ * viewed. The route page has only a day view and a week view, so a month hands
+ * off to the week holding its last day - the same week {@link rangeTabPeriods}
+ * gives the Month > Week tab, so every surface answers a month the same way.
+ * This is the single definition of the shape: the Routes explorer and the rank
+ * boards both take their route query from here.
  * @param window - The window being shown.
  * @param serviceDate - The shown service date, for the day view.
- * @param period - The shown week's period, or null for the rolling week.
+ * @param period - The shown week's or month's period, or null for the rolling default.
  * @param today - Today's service date (injectable for tests).
  * @returns The query string with its `?`, or an empty string.
  */
 export function routeLinkQuery(
   window: RangeWindow,
-  serviceDate: string | null,
-  period: string | null,
+  serviceDate: string | null | undefined,
+  period: string | null | undefined,
   today: string = nzServiceDayString(),
 ): string {
   if (window === "day") return serviceDate && serviceDate !== today ? `?day=${serviceDate}` : "";
-  if (window === "week") return `?window=week${period ? `&period=${period}` : ""}`;
-  return "";
+  const weekPeriod =
+    window === "week"
+      ? period
+      : weekPeriodOf(periodAnchorDay("month", period ?? null, today), today);
+  return `?window=week${weekPeriod ? `&period=${weekPeriod}` : ""}`;
 }

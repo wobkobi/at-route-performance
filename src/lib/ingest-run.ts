@@ -6,7 +6,10 @@
 // (e.g. just after deploy), clamping that fallback to now since a scheduled
 // arrival can sit in the near future once the morning's timetable is loaded.
 
-import { getLatestEventDate } from "@/lib/data";
+// From its own module rather than the `@/lib/data` barrel: the cache policy
+// reads the last run to key a live window, and the barrel pulls in the modules
+// that import that policy.
+import { getLatestEventDate } from "@/lib/data/data-days";
 import { prisma } from "@/lib/db";
 import { memCache } from "@/lib/mem-cache";
 import type { Prisma } from "@prisma/client";

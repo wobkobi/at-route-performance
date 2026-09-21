@@ -14,6 +14,7 @@ import {
   getLatestEventDate,
   getRankings,
   getRouteAreas,
+  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -41,8 +42,6 @@ export const metadata: Metadata = {
     "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.",
 };
 
-/** Cache TTL for the live day's rows (seconds). */
-const DAY_REVALIDATE = 300;
 /** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
 const PERIOD_REVALIDATE = 3600;
 /** Row cap that returns every route with a cancellation. */
@@ -72,7 +71,7 @@ export default async function RoutesPage({
   let nav: RangeNav;
   let serviceDate: string | null = null;
   let period: string | null = null;
-  const revalidate = window === "day" ? DAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
   if (window === "day") {
     const requestedDay = resolveRequestedDay(sp.day);
     range = nzServiceDayRange(requestedDay ?? new Date());

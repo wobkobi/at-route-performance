@@ -84,6 +84,15 @@ Data collection runs on scheduled POSTs to `/api/ingest/*`, driven by an externa
 than Vercel Cron. [`docs/cron-setup.md`](docs/cron-setup.md) lists every job and its cadence;
 [`docs/self-host-mongodb.md`](docs/self-host-mongodb.md) is the database runbook.
 
+## Vercel storage
+
+The Hobby plan allows 10 GB of function storage, counted across every deployment Vercel still holds,
+and each deployment carries four functions. `next.config.ts` keeps Prisma's unused runtimes (wasm,
+edge, browser, binary and react-native) out of every function's trace, which roughly halves each
+bundle. How long deployments are kept is a dashboard setting: Settings > Deployment Retention.
+Dependabot previews still build, because `main` requires the `Vercel` and `deployment-smoke` checks,
+and a skipped preview would leave both unreported.
+
 ## City Rail Link
 
 AT renames the train lines when the CRL opens on **13 September 2026**: `STH` becomes `S-C`, `ONE`

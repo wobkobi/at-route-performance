@@ -14,20 +14,24 @@ import type { JSX } from "react";
 export interface WorstRouteCardProps {
   /** The period's most off-schedule route, or null when none qualifies. */
   route: ShameRouteRow | null;
-  /** Link target for the card (full route-shame breakdown page). */
-  href: string;
+  /** Service day (`YYYY-MM-DD`) to pin on the route link; omit for today. */
+  day?: string;
+  /** Override the card's link target; defaults to the route's own page. */
+  href?: string;
 }
 
 /**
- * Shame dashboard card naming the most off-schedule route for the period.
- * Sits beside the worst-trip and worst-stop cards. When no route qualifies it
- * keeps its slot with a quiet state, so the card grid never shows a hole.
+ * Shame dashboard card naming the most off-schedule route for the period,
+ * linking to that route. Sits beside the worst-trip and worst-stop cards. When
+ * no route qualifies it keeps its slot with a quiet state, so the card grid
+ * never shows a hole.
  * @param props - Component props.
  * @param props.route - The worst route row (or null).
- * @param props.href - Link to the full route-shame breakdown page.
+ * @param props.day - Service day to pin on the link (optional).
+ * @param props.href - Override link target (optional).
  * @returns The card element.
  */
-export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Element {
+export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardProps): JSX.Element {
   if (!route) {
     return (
       <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
@@ -39,6 +43,9 @@ export function WorstRouteCard({ route, href }: WorstRouteCardProps): JSX.Elemen
   }
   const name = route.short_name || route.long_name || routeSlug(route.route_id);
   const signedEqAbs = isConsistentlyLateOrEarly(route.avg_delay_sec, route.avg_abs_delay_sec);
+  const href =
+    hrefProp ??
+    `/route/${encodeURIComponent(routeSlug(route.route_id))}${day ? `?day=${day}` : ""}`;
   return (
     <Link
       href={href}

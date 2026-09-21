@@ -14,7 +14,7 @@
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
-import { NO_DELAY_SOURCE } from "@/lib/deviation";
+import { type ArrivalWrite, arrivalWriteStages, NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
@@ -58,15 +58,25 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
   return inserted;
 }
 
+/** One stop visit as the upsert takes it: the key fields, then the values. */
+interface ArrivalUpsert {
+  tripId: string;
+  stopId: string;
+  scheduledAt: { $date: string };
+  write: ArrivalWrite;
+}
+
 /**
  * Upsert arrival events keyed on the stop visit `(tripId, stopId, scheduledAt)`
  * in batches. GTFS-RT re-polls keep revising a stop's predicted arrival, so the
  * latest write wins per visit and converges on the final observation instead of
- * accumulating one row per revision (the old `actualAt` key admitted that).
- * @param docs - Extended-JSON arrival documents (dates as `{ $date }`).
+ * accumulating one row per revision. The write is a pipeline rather than a
+ * blanket `$set`, so a second vehicle claiming the visit a cycle away cannot
+ * overwrite the real arrival (see `arrivalWriteStages` in lib/deviation.ts).
+ * @param docs - The visits to write, keys in extended JSON.
  * @returns Count of rows written (matched or upserted).
  */
-async function bulkUpsertArrivals(docs: Record<string, unknown>[]): Promise<number> {
+async function bulkUpsertArrivals(docs: ArrivalUpsert[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
     const res = (await runCommand(() =>
@@ -74,9 +84,9 @@ async function bulkUpsertArrivals(docs: Record<string, unknown>[]): Promise<numb
         update: "ArrivalEvent",
         updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
           q: { tripId: doc.tripId, stopId: doc.stopId, scheduledAt: doc.scheduledAt },
-          u: { $set: doc },
+          u: arrivalWriteStages(doc.write),
           upsert: true,
-        })) as never,
+        })),
         ordered: false,
       }),
     )) as unknown as { n?: number };
@@ -310,21 +320,22 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     // Upsert per stop visit so a revised prediction replaces the earlier row
-    // rather than inserting a duplicate alongside it.
+    // rather than inserting a duplicate alongside it. The key fields stay
+    // extended JSON in the query; the value fields become the ArrivalWrite the
+    // update pipeline reads.
     const stopCount = await bulkUpsertArrivals(
       stopRows.map((r) => ({
-        routeId: r.routeId,
-        stopId: r.stopId,
         tripId: r.tripId,
+        stopId: r.stopId,
         scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
-        actualAt: { $date: new Date(r.actualAt).toISOString() },
-        deviationSec: r.deviationSec,
-        ...(r.source ? { source: r.source } : {}),
-        ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
-        // Inside the blanket `$set`, so a re-poll of a run stored before this
-        // commit corrects its stamp for free. Spread conditionally like the two
-        // above, because the Prisma input type keeps the field optional.
-        ...(r.serviceDate ? { serviceDate: r.serviceDate } : {}),
+        write: {
+          routeId: r.routeId,
+          actualAtMs: new Date(r.actualAt).getTime(),
+          deviationSec: r.deviationSec,
+          vehicleId: r.vehicleId ?? undefined,
+          source: r.source ?? undefined,
+          serviceDate: r.serviceDate ?? undefined,
+        },
       })),
     );
     const tripCount = await bulkInsert(

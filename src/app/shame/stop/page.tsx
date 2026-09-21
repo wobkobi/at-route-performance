@@ -6,7 +6,12 @@ import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
-import { getEarliestDataDay, getWorstStopsOfDay, getWorstStopsOfWeek } from "@/lib/data";
+import {
+  getEarliestDataDay,
+  getWorstStopsOfDay,
+  getWorstStopsOfWeek,
+  TODAY_REVALIDATE,
+} from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
@@ -24,7 +29,6 @@ import {
   isCrownable,
   parseShameParams,
   pickWorst,
-  TODAY_REVALIDATE,
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,

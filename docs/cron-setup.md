@@ -42,14 +42,14 @@ post-deploy smoke workflow reach a protected deployment.
 
 All endpoints are **POST**. Create one cron-job.org job per row.
 
-| Job              | URL path                  | Method | Schedule (NZ local) | Purpose                         |
-| ---------------- | ------------------------- | ------ | ------------------- | ------------------------------- |
-| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes     | Capture GTFS-RT arrival events  |
-| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 02:00         | Refresh routes + stops          |
-| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | weekly 02:10        | Refresh route geometry (shapes) |
-| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary       |
-| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                 |
-| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute yesterday's boards  |
+| Job              | URL path                  | Method | Schedule (NZ local) | Purpose                          |
+| ---------------- | ------------------------- | ------ | ------------------- | -------------------------------- |
+| Realtime ingest  | `/api/ingest/at`          | POST   | every 2 minutes     | Capture GTFS-RT arrival events   |
+| GTFS static sync | `/api/ingest/gtfs/sync`   | POST   | daily 02:00         | Refresh routes + stops           |
+| GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | daily 02:10         | Refresh route geometry (shapes)  |
+| Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary        |
+| Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                  |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute the last week's days |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
@@ -77,16 +77,30 @@ irreversible and the rollup reads the events the cleanup then removes.
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
+- The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders
+  every day page (home, the four shame boards, rankings and cancellations) for each of the last
+  seven completed days after the response, three at a time. It records no IngestRun; its outcome is
+  the `[WARM] Pages warmed` or `[WARM] Pages failed` line in the Vercel function logs. A day already
+  cached renders in well under a second, so after the first night only yesterday's pages cost
+  anything.
 - The aggregate job catches up on its own: without `?date=` it rolls up yesterday plus any of the
   two days before it that have events but no summary yet (a night the cron missed, or a day whose
   ghost pass failed). Each day records its own IngestRun row. A longer gap closes over successive
   nights; to close one at once, POST `?date=YYYY-MM-DD` per day or run
   `scripts/rebuild-daily-summaries.ts` (which skips the ghost pass).
-- The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`; it is memory-heavy,
-  so run it weekly (the geometry rarely changes) and watch the function's memory headroom. It also
-  stores each trip's `shapeId`, which the realtime job measures vehicles against to spot detours;
-  until it has run, the realtime job matches a trip to its shape by id prefix instead, which is
-  close but can pick between up to three variants.
+- The shapes job downloads AT's full GTFS zip (~33 MB) and parses `shapes.txt`, so it is the
+  memory-heaviest of the six. Peak memory is only in the Vercel runtime logs, and the Hobby plan
+  keeps those for **one hour** - a 02:10 run leaves nothing to read by 03:10. Use `IngestRun`
+  duration as the standing health signal instead (an out-of-memory kill lands there as a failed
+  run), and trigger the endpoint by hand if you want the memory figure. **Run it daily anyway.** The
+  geometry does not "rarely change": the nine `IngestRun` rows for 11-19 September record 44,925
+  shapes to the 13th, 50,293 on the 14th and 50,269 from the 16th - two changes in nine days, one of
+  them 12% - and every run succeeded in 8 to 29 seconds. A weekly schedule would carry stale
+  geometry for up to seven days after each change, and that degrades silently: `route-view.ts` falls
+  back to straight stop-to-stop lines wherever a shape is missing. It also stores each trip's
+  `shapeId`, which the realtime job measures vehicles against to spot detours; until it has run, the
+  realtime job matches a trip to its shape by id prefix instead, which is close but can pick between
+  up to three variants.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
 - `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for

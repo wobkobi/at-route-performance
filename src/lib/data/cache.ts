@@ -3,6 +3,7 @@
 // and the live-day clip on scheduledAt.
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
+import { getLastIngestRun, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import { unstable_cache } from "@/lib/mem-cache";
 import { type DateRange, nzServiceDayRange, serviceDatesInRange } from "@/lib/time";
 
@@ -20,6 +21,15 @@ export const MS_IN_DAY = 86_400_000;
 
 /** Cache TTL for a completed, classified service day's aggregation (seconds). */
 const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
+
+/**
+ * Cache TTL for a window that can still change - anything touching the live
+ * service day. One ingest cycle: the readings only move when a run lands, so a
+ * shorter hold re-runs the aggregation over figures that have not changed. It
+ * is a backstop rather than the mechanism, since a live entry is keyed by the
+ * run behind it (see {@link cacheState}) and turns over as soon as one lands.
+ */
+export const TODAY_REVALIDATE = INGEST_INTERVAL_SEC;
 
 /**
  * Whether the nightly aggregate has written a `DailyRouteSummary` for a
@@ -72,12 +82,23 @@ export async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
  * - `ended` for a window that is over but not yet summarised, so a board
  *   computed while the day was still running (cut off at that moment) is never
  *   served for the finished day;
- * - `live-<n>` for a window still running, a new key every TTL, so the live day
- *   is never more than one TTL behind however long ago the last visit was.
+ * - `run-<ms>` for a window still running, keyed by the ingest run behind it;
+ * - `live-<n>` for a running window with no run logged yet, a new key every TTL,
+ *   so the live day is never more than one TTL behind however long ago the last
+ *   visit was.
+ *
+ * A live window is keyed by the run rather than by a clock bucket because the
+ * figures only move when a run lands. A bucket turns over on a boundary that
+ * has nothing to do with ingest, so a reader who arrives just after a run can
+ * still be served the bucket computed just before it - which is what an open
+ * tab asking for fresher numbers would get back unchanged. Keyed by the run,
+ * the entry turns over exactly when there is something new behind it, and
+ * holds still in between.
  * @param final - Whether every day in the window is summarised.
  * @param range - The queried half-open window, or null for a rolling live one.
  * @param liveRevalidate - TTL while the window can still change, in seconds.
  * @param now - The current time, epoch ms (injectable for tests).
+ * @param lastIngestMs - The newest successful realtime run, epoch ms, or null when none is logged.
  * @returns The key part.
  */
 export function cacheState(
@@ -85,9 +106,11 @@ export function cacheState(
   range: DateRange | null,
   liveRevalidate: number,
   now: number = Date.now(),
+  lastIngestMs: number | null = null,
 ): string {
   if (final) return "final";
   if (range !== null && range.end.getTime() <= now) return "ended";
+  if (lastIngestMs !== null) return `run-${lastIngestMs}`;
   return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
 }
 
@@ -117,9 +140,17 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  return unstable_cache(fn, [...keyParts, cacheState(final, range, liveRevalidate)], {
-    revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
-  })(final);
+  // Only a window that can still change needs the run stamp, and the lookup is
+  // held in process for a fraction of the ingest cadence, so this costs a read
+  // per worker per twenty seconds rather than one per board.
+  const lastIngestMs = final
+    ? null
+    : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
+  return unstable_cache(
+    fn,
+    [...keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)],
+    { revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate },
+  )(final);
 }
 
 /**

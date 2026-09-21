@@ -1,8 +1,10 @@
 // src/lib/at-alerts.ts
 // Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
-// fetches and normalises alerts (with retry and backoff), then selects the ones
-// relevant to a given route, a given stop, or the whole network, and grades how
-// loudly each should be presented.
+// fetches and normalises alerts (with retry and backoff), resolves the route a
+// single-trip alert is about, then selects the ones relevant to a given route, a
+// given stop, a given trip, or the whole network, and grades how loudly each
+// should be presented.
+import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
 import { isObj, sleep } from "@/lib/utils";
@@ -27,6 +29,12 @@ export interface InformedEntity {
   route_id?: string;
   route_type?: number;
   stop_id?: string;
+  /**
+   * The one trip a trip-level alert names. AT sends a single-trip cancellation
+   * as a trip entity alone, with no route: {@link resolveAlertRoutes} fills the
+   * route in from the trip.
+   */
+  trip_id?: string;
 }
 
 export interface ServiceAlert {
@@ -139,6 +147,8 @@ export function toServiceAlerts(raw: unknown): AtServiceAlerts {
           route_id: typeof ie.route_id === "string" ? ie.route_id : undefined,
           route_type: typeof ie.route_type === "number" ? ie.route_type : undefined,
           stop_id: typeof ie.stop_id === "string" ? ie.stop_id : undefined,
+          trip_id:
+            isObj(ie.trip) && typeof ie.trip.trip_id === "string" ? ie.trip.trip_id : undefined,
         }))
       : [];
 
@@ -160,6 +170,123 @@ export function toServiceAlerts(raw: unknown): AtServiceAlerts {
     isObj(root) && isObj(root.header) ? (root.header as { timestamp?: number }) : undefined;
 
   return { header, alerts };
+}
+
+/**
+ * A versioned route id as AT writes it into alert text ("Route 195-203"). Only
+ * the machine id form matches: a hyphen straight into digits. The prose form
+ * ("Route 781 - Cenotaph Road") already carries the short name and is left be.
+ */
+const ROUTE_ID_IN_TEXT = /\bRoute ([A-Za-z0-9]+-\d+)\b/g;
+
+/**
+ * The versioned route ids an alert's header and description name.
+ * @param alert - The alert.
+ * @returns The ids, in order of first mention, without repeats.
+ */
+export function routeIdsInText(alert: ServiceAlert): string[] {
+  const text = [extractText(alert.header_text), extractText(alert.description_text)].join(" ");
+  return [...new Set([...text.matchAll(ROUTE_ID_IN_TEXT)].map((m) => m[1] as string))];
+}
+
+/**
+ * Rewrite every translation of an alert text field so a versioned route id
+ * reads as the route's short name.
+ * @param field - The text field, or undefined.
+ * @param shortNames - Short name by versioned route id.
+ * @returns The rewritten field, or undefined.
+ */
+function withShortNames(
+  field: AlertText | undefined,
+  shortNames: ReadonlyMap<string, string>,
+): AlertText | undefined {
+  if (!field?.translation) return field;
+  return {
+    ...field,
+    translation: field.translation.map((t) => ({
+      ...t,
+      text: t.text.replace(ROUTE_ID_IN_TEXT, (whole, id: string) => {
+        const name = shortNames.get(id);
+        return name ? `Route ${name}` : whole;
+      }),
+    })),
+  };
+}
+
+/**
+ * Resolve the routes an alert is about, and name them the way a rider does.
+ *
+ * AT sends a single-trip cancellation as a trip entity alone, headed with the
+ * route's versioned id ("Service Cancellation for Route 195-203"). With no route
+ * on the entity the alert matches no route page and reads as network-wide, and
+ * its header shows a feed id no rider knows. Each trip entity takes its route
+ * from the trip's metadata; a trip the metadata has not seen yet (a later
+ * cancellation on a route already running) takes the route the header names,
+ * when that is a real route. The header and description then name every known
+ * versioned id by its short name ("Route 195").
+ * @param alert - The alert as normalised from the feed.
+ * @param tripRoutes - Versioned route id by trip id, from trip metadata.
+ * @param shortNames - Short name by versioned route id, for every route the alerts mention.
+ * @returns The alert with trip entities routed and its text renamed.
+ */
+export function resolveAlertRoutes(
+  alert: ServiceAlert,
+  tripRoutes: ReadonlyMap<string, string>,
+  shortNames: ReadonlyMap<string, string>,
+): ServiceAlert {
+  const named = routeIdsInText(alert).find((id) => shortNames.has(id));
+  return {
+    ...alert,
+    informed_entity: alert.informed_entity.map((e) => {
+      if (e.route_id || !e.trip_id) return e;
+      const route_id = tripRoutes.get(e.trip_id) ?? named;
+      return route_id ? { ...e, route_id } : e;
+    }),
+    header_text: withShortNames(alert.header_text, shortNames),
+    description_text: withShortNames(alert.description_text, shortNames),
+  };
+}
+
+/**
+ * {@link resolveAlertRoutes} over the whole feed, with the two lookups it needs:
+ * the route of every unrouted trip entity, and the short name of every route a
+ * trip resolves to or the text names. Best-effort: a failed lookup leaves the
+ * alerts as the feed sent them, since a trip-level alert is kept off the
+ * network-wide banner either way ({@link networkWideAlerts}).
+ * @param alerts - The active alerts.
+ * @returns The alerts, resolved where the lookups allow.
+ */
+async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]> {
+  const tripIds = [
+    ...new Set(
+      alerts.flatMap((a) =>
+        a.informed_entity.flatMap((e) => (e.trip_id && !e.route_id ? [e.trip_id] : [])),
+      ),
+    ),
+  ];
+  try {
+    const metas =
+      tripIds.length > 0
+        ? await prisma.tripMeta.findMany({
+            where: { id: { in: tripIds } },
+            select: { id: true, routeId: true },
+          })
+        : [];
+    const tripRoutes = new Map(metas.flatMap((m) => (m.routeId ? [[m.id, m.routeId]] : [])));
+    const mentioned = [...new Set([...tripRoutes.values(), ...alerts.flatMap(routeIdsInText)])];
+    const routes =
+      mentioned.length > 0
+        ? await prisma.route.findMany({
+            where: { id: { in: mentioned } },
+            select: { id: true, shortName: true },
+          })
+        : [];
+    const shortNames = new Map(routes.map((r) => [r.id, r.shortName ?? routeSlug(r.id)]));
+    return alerts.map((a) => resolveAlertRoutes(a, tripRoutes, shortNames));
+  } catch (err) {
+    console.warn("[AT Alerts] Route lookup failed", err instanceof Error ? err.message : err);
+    return alerts;
+  }
 }
 
 const DEFAULT_ALERTS_URL = "https://api.at.govt.nz/realtime/legacy/servicealerts";
@@ -245,17 +372,18 @@ export function isAlertActive(alert: ServiceAlert, now: Date = new Date()): bool
 }
 
 /**
- * Cached snapshot of all currently-active service alerts (300s TTL). AT
- * operators enter alerts manually so sub-minute freshness adds no value.
- * The longer window keeps alert AT API calls at ~2,000/week - well within
- * the 35,000/week quota when combined with vehicle and ingest traffic.
+ * Cached snapshot of all currently-active service alerts (300s TTL), with each
+ * trip-level alert's route resolved ({@link resolveFeedRoutes}). AT operators
+ * enter alerts manually so sub-minute freshness adds no value. The longer
+ * window keeps alert AT API calls at ~2,000/week - well within the 35,000/week
+ * quota when combined with vehicle and ingest traffic.
  * @returns Active {@link ServiceAlert} array.
  */
 export async function getServiceAlerts(): Promise<ServiceAlert[]> {
   return unstable_cache(
     async () => {
       const feed = await fetchAlerts();
-      return feed.alerts.filter((a) => isAlertActive(a));
+      return resolveFeedRoutes(feed.alerts.filter((a) => isAlertActive(a)));
     },
     ["service-alerts"],
     { revalidate: 300 },
@@ -298,17 +426,39 @@ export function alertsForStop(alerts: ServiceAlert[], stopIds: string[]): Servic
 }
 
 /**
- * Returns network-wide alerts: alerts whose informed entities carry no
- * specific route, stop, or route-type constraint. Agency-level entities
- * (agency_id only) are permitted because an agency-level alert genuinely
- * affects the entire network. Alerts with `route_id`, `route_type`, or
- * `stop_id` on ANY entity are route/mode/stop-level and belong on those
- * pages, not the home-page banner.
+ * Returns the alerts that apply to one running trip: a route-level alert on its
+ * route, or a trip-level alert naming the trip itself. Another trip's alert on
+ * the same route is left out - one cancelled run says nothing about the next.
  * @param alerts - Pool of alerts to filter.
- * @returns Alerts with no route, stop, or route-type constraints.
+ * @param routeId - The versioned route id the trip runs on.
+ * @param tripId - The trip.
+ * @returns Alerts that apply to the trip.
+ */
+export function alertsForTrip(
+  alerts: readonly ServiceAlert[],
+  routeId: string,
+  tripId: string,
+): ServiceAlert[] {
+  return alerts.filter((a) =>
+    a.informed_entity.some(
+      (e) => e.route_id === routeId && (e.trip_id === undefined || e.trip_id === tripId),
+    ),
+  );
+}
+
+/**
+ * Returns network-wide alerts: alerts whose informed entities carry no
+ * specific route, stop, trip, or route-type constraint. Agency-level entities
+ * (agency_id only) are permitted because an agency-level alert genuinely
+ * affects the entire network. Alerts with `route_id`, `route_type`, `stop_id`
+ * or `trip_id` on ANY entity are route/mode/stop/trip-level and belong on those
+ * pages, not the home-page banner - a trip-level one even when its route could
+ * not be resolved.
+ * @param alerts - Pool of alerts to filter.
+ * @returns Alerts with no route, stop, trip, or route-type constraints.
  */
 export function networkWideAlerts(alerts: ServiceAlert[]): ServiceAlert[] {
   return alerts.filter((a) =>
-    a.informed_entity.every((e) => !e.route_id && e.route_type == null && !e.stop_id),
+    a.informed_entity.every((e) => !e.route_id && e.route_type == null && !e.stop_id && !e.trip_id),
   );
 }

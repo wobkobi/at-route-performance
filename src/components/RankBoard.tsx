@@ -51,21 +51,10 @@ export interface RankBoardProps {
   /** Which metric to render on the right. */
   metric: "delay" | "onTime";
   /**
-   * Service day (`YYYY-MM-DD`) to pin on each route link, so the route opens on
-   * the same day being viewed. Omit to link to the route's default day.
+   * Query each route link carries so the route opens on the window being
+   * viewed, built by `routeLinkQuery`. Omit for the route's default view.
    */
-  routeDay?: string;
-  /**
-   * Window to open on each route link (e.g. `"week"`). Applied when `routeDay`
-   * is absent; omit to open the route's default day view.
-   */
-  routeWindow?: string;
-  /**
-   * Calendar period to pin on each route link (Monday `YYYY-MM-DD` for week,
-   * `YYYY-MM` for month). Applied alongside `routeWindow`; omit for the rolling
-   * default.
-   */
-  routePeriod?: string;
+  routeQuery?: string;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
   /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
@@ -88,9 +77,7 @@ export interface RankBoardProps {
  * @param props.accentClass - Tailwind text-colour class for the heading.
  * @param props.rows - Ranked rows.
  * @param props.metric - Whether the right column is a delay or on-time %.
- * @param props.routeDay - Service day to pin on each route link (optional).
- * @param props.routeWindow - Window to open on each route link when no day is pinned (optional).
- * @param props.routePeriod - Calendar period to pin alongside `routeWindow` (optional).
+ * @param props.routeQuery - Query each route link carries, from `routeLinkQuery` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.seeAllHref - Link to the full ranking (optional).
@@ -102,9 +89,7 @@ export function RankBoard({
   accentClass,
   rows,
   metric,
-  routeDay,
-  routeWindow,
-  routePeriod,
+  routeQuery,
   deltas,
   cancelled,
   seeAllHref,
@@ -166,13 +151,7 @@ export function RankBoard({
               <li key={r.route_id}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
                 <Link
-                  href={
-                    routeDay
-                      ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?day=${routeDay}`
-                      : routeWindow
-                        ? `/route/${encodeURIComponent(routeSlug(r.route_id))}?window=${routeWindow}${routePeriod ? `&period=${routePeriod}` : ""}`
-                        : `/route/${encodeURIComponent(routeSlug(r.route_id))}`
-                  }
+                  href={`/route/${encodeURIComponent(routeSlug(r.route_id))}${routeQuery ?? ""}`}
                   className={cn(
                     "-mx-4 flex items-center gap-2 px-4 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",

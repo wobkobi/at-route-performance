@@ -1,6 +1,8 @@
 // src/lib/deviation.test.ts
 // Unit tests for ghost classification and the real-reading filters in deviation.ts.
 import {
+  type ArrivalWrite,
+  arrivalWriteStages,
   GHOST_GAP_SEC,
   isGhostDeviation,
   NO_DELAY_SOURCE,
@@ -109,5 +111,105 @@ describe("real-reading filters", () => {
     expect(realDeviationExprFor(true)).toEqual({
       $and: [{ $ne: ["$ghost", true] }, { $ne: ["$source", NO_DELAY_SOURCE] }],
     });
+  });
+});
+
+describe("arrivalWriteStages", () => {
+  /**
+   * One incoming reading, with the fields under test.
+   * @param overrides - Fields the case changes.
+   * @returns The incoming arrival values.
+   */
+  function write(overrides: Partial<ArrivalWrite> = {}): ArrivalWrite {
+    return {
+      routeId: "152-203",
+      actualAtMs: Date.parse("2026-09-14T09:46:00.000Z"),
+      deviationSec: 3646,
+      vehicleId: "22097",
+      source: "AT_GTFSRT",
+      serviceDate: "2026-09-14",
+      ...overrides,
+    };
+  }
+
+  it("calls block reuse only for a different, named vehicle a cycle away", () => {
+    const [reuse] = arrivalWriteStages(write());
+    expect(reuse).toEqual({
+      $set: {
+        _reuse: {
+          $and: [
+            { $ne: [{ $type: "$vehicleId" }, "missing"] },
+            { $ne: ["22097", null] },
+            { $ne: ["$vehicleId", "22097"] },
+            { $gt: [{ $abs: { $subtract: ["$deviationSec", 3646] } }, GHOST_GAP_SEC] },
+          ],
+        },
+      },
+    });
+  });
+
+  it("compares magnitudes only on a reuse, and takes the write otherwise", () => {
+    const [, take] = arrivalWriteStages(write());
+    expect(take).toEqual({
+      $set: { _take: { $cond: ["$_reuse", { $lt: [3646, { $abs: "$deviationSec" }] }, true] } },
+    });
+  });
+
+  it("guards every value field on the take and never removes a stored one", () => {
+    const [, , values] = arrivalWriteStages(write());
+    expect(values).toEqual({
+      $set: {
+        routeId: { $cond: ["$_take", "152-203", "$routeId"] },
+        actualAt: {
+          $cond: ["$_take", { $toDate: Date.parse("2026-09-14T09:46:00.000Z") }, "$actualAt"],
+        },
+        deviationSec: { $cond: ["$_take", 3646, "$deviationSec"] },
+        source: { $cond: ["$_take", "AT_GTFSRT", "$source"] },
+        vehicleId: { $cond: ["$_take", "22097", "$vehicleId"] },
+        serviceDate: { $cond: ["$_take", "2026-09-14", "$serviceDate"] },
+        blockReuse: { $cond: ["$_reuse", true, "$blockReuse"] },
+      },
+    });
+    // A $$REMOVE branch would erase a vehicle id the locations-feed join had
+    // already supplied, which the blanket `$set` never did.
+    expect(JSON.stringify(values)).not.toContain("REMOVE");
+  });
+
+  it("falls back to the stored value for every field a poll omits", () => {
+    const [, , values] = arrivalWriteStages({
+      routeId: "152-203",
+      actualAtMs: 0,
+      deviationSec: 60,
+    });
+    const set = (values as { $set: Record<string, unknown> }).$set;
+    expect(set.source).toEqual({ $cond: ["$_take", "$source", "$source"] });
+    expect(set.vehicleId).toEqual({ $cond: ["$_take", "$vehicleId", "$vehicleId"] });
+    expect(set.serviceDate).toEqual({ $cond: ["$_take", "$serviceDate", "$serviceDate"] });
+  });
+
+  it("cannot call reuse when the incoming poll names no vehicle", () => {
+    const [reuse] = arrivalWriteStages(write({ vehicleId: undefined }));
+    const and = (reuse as { $set: { _reuse: { $and: unknown[] } } }).$set._reuse.$and;
+    // The second clause is `$ne: [vehicle, null]`, which is false for a nameless
+    // poll, so the whole conjunction is false and the write is never refused.
+    expect(and[1]).toEqual({ $ne: [null, null] });
+  });
+
+  it("treats an empty vehicle id, source or date as absent rather than a value", () => {
+    const [reuse, , values] = arrivalWriteStages(
+      write({ vehicleId: "", source: "", serviceDate: "" }),
+    );
+    const and = (reuse as { $set: { _reuse: { $and: unknown[] } } }).$set._reuse.$and;
+    // Read as a name, an empty id is a different vehicle, and would refuse an
+    // ordinary revision as block reuse.
+    expect(and[1]).toEqual({ $ne: [null, null] });
+    const set = (values as { $set: Record<string, unknown> }).$set;
+    expect(set.vehicleId).toEqual({ $cond: ["$_take", "$vehicleId", "$vehicleId"] });
+    expect(set.source).toEqual({ $cond: ["$_take", "$source", "$source"] });
+    expect(set.serviceDate).toEqual({ $cond: ["$_take", "$serviceDate", "$serviceDate"] });
+  });
+
+  it("leaves no working field on the document", () => {
+    expect(arrivalWriteStages(write()).at(-1)).toEqual({ $unset: ["_reuse", "_take"] });
   });
 });

@@ -99,6 +99,10 @@ model ArrivalEvent {
   /// Nullable permanently - a row written before the backfill, or one whose
   /// descriptor cannot be resolved, must stay readable, and null is truthful.
   serviceDate  String?
+  // Set at ingest on a visit a second vehicle claimed a cycle away: AT's
+  // trip_id block reuse. No index; it is read inside scans the nightly pass
+  // already performs.
+  blockReuse   Boolean?
   // Set by the nightly pass on readings that sit a vehicle cycle off their own
   // run - AT's trip_id block reuse, not a real delay (see lib/deviation.ts).
   // Absent until that day is classified; rows are flagged, never deleted.
@@ -172,16 +176,16 @@ model Setting {
 // trips while still signed onto the last one. The unique key drops a position the
 // vehicle feed repeats across polls. Pruned on the ArrivalEvent retention window.
 model OffRouteSighting {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  tripId     String
-  routeId    String
-  seenAt     DateTime // The vehicle position's own timestamp
-  lat        Float
-  lon        Float
-  distanceM  Int
-  vehicleId  String?
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String
+  routeId   String
+  seenAt    DateTime // The vehicle position's own timestamp
+  lat       Float
+  lon       Float
+  distanceM Int
+  vehicleId String?
   // Header of an active detour-type alert on the route when the reading was taken.
-  alert      String?
+  alert     String?
 
   @@unique([tripId, seenAt])
   // Supports the retention delete and both readers, which all filter seenAt.
@@ -233,5 +237,37 @@ model CancelledTrip {
   detectedAt  DateTime @default(now())
 
   @@unique([tripId, serviceDate])
+  @@index([routeId, serviceDate])
+}
+
+// One run the nightly pass hid outright: every one of its readings sits a
+// vehicle cycle off the schedule it is stored against, and at least one
+// corroborating test fired. Recorded so a verdict is auditable, explicable to a
+// rider and reversible - clear the row and re-run the pass. Rows are never
+// deleted from ArrivalEvent for this; they are flagged.
+model GhostRun {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId          String
+  /// The run's own NZ service date (`YYYY-MM-DD`), the same shape ArrivalEvent
+  /// and CancelledTrip carry. Not a day-start instant: that is derived and
+  /// changes meaning when the boundary hour moves.
+  serviceDate     String
+  routeId         String
+  /// The run's median per-stop reading, seconds off the schedule it was filed
+  /// against.
+  levelSec        Int
+  /// Distinct stops the run reported at, which is what the rule counted.
+  readings        Int
+  vehicleId       String?
+  /// Trip whose run these readings describe, when the sibling test named one.
+  /// Null whenever both neighbouring slots reported, as on 2026-09-14.
+  belongsToTripId String?
+  /// Which tests fired: "anchor", "silent-sibling".
+  evidence        String[]
+
+  // Keeps classifyGhosts idempotent, which the module already guarantees for
+  // the flags themselves.
+  @@unique([tripId, serviceDate])
+  @@index([serviceDate])
   @@index([routeId, serviceDate])
 }

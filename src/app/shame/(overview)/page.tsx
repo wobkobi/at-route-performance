@@ -13,13 +13,14 @@ import {
   getShameOfDay,
   getShameRouteOfDay,
   getWorstStops,
+  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { buildShameHref, TODAY_REVALIDATE } from "@/lib/shame-page";
+import { buildShameHref } from "@/lib/shame-page";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { JSX } from "react";
 
@@ -77,8 +78,14 @@ export default async function ShameDashboard({
   const hasNextDay = serviceDate < nzServiceDayString();
   const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
+  // Stepping onto today drops `?day` so the URL stays canonical, but only when
+  // the shown day was the one asked for. After a fallback a bare link re-enters
+  // the same empty today and falls back again, leaving an arrow that does
+  // nothing; an explicit `?day` is never fallen back from.
   const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString() ? "/shame" : undefined;
+    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
+      ? "/shame"
+      : undefined;
 
   // Cancellations are resolved after any day fallback, so the board matches the
   // day the rest of the dashboard settled on.
@@ -113,9 +120,11 @@ export default async function ShameDashboard({
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ShameOfDay trip={tripShame.worst} href={tripHref} hours={tripShame.hours} />
-        <WorstRouteCard route={routeShame.worst} href={routeHref} />
-        <WorstStopCard stop={stops[0] ?? null} href={stopHref} />
+        {/* Each card names one run, route or stop and opens it. The boards those
+            three come from are the header's tabs, right above. */}
+        <ShameOfDay trip={tripShame.worst} hours={tripShame.hours} />
+        <WorstRouteCard route={routeShame.worst} day={linkDay} />
+        <WorstStopCard stop={stops[0] ?? null} day={linkDay} />
       </div>
 
       <CancelledBoard rows={cancelledRoutes} total={cancelledTotal} routeDay={linkDay} />

@@ -2,6 +2,7 @@
 // Top-bar sections: which one a path belongs to, and the link to each that keeps
 // the reader's day, window and mode filter, which the Overview, Routes and
 // Cancellations pages (and the route, stop and shame pages under them) read the same way.
+import { nzServiceDayString } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */
@@ -38,11 +39,45 @@ export function isNavActive(section: NavSection, pathname: string): boolean {
 }
 
 /**
+ * The day, window, period and mode a link should carry out of the current URL.
+ * A trip page holds its day as `?d`, an instant rather than a service day, so it
+ * is translated here: without that, every link off a trip page silently lands on
+ * today. A `?d` that is already today is left off, since the pages redirect a
+ * `?day=<today>` away again.
+ * @param params - The current URL's query params.
+ * @returns The params to carry, null for each one not set.
+ */
+export function carriedParams(params: URLSearchParams): Record<string, string | null> {
+  const carried: Record<string, string | null> = Object.fromEntries(
+    CARRIED.map((k) => [k, params.get(k)]),
+  );
+  if (carried.day == null) {
+    const at = params.get("d");
+    const dAt = at ? new Date(at) : null;
+    if (dAt && !Number.isNaN(dAt.getTime())) {
+      const day = nzServiceDayString(dAt);
+      if (day !== nzServiceDayString()) carried.day = day;
+    }
+  }
+  return carried;
+}
+
+/**
+ * A link to any site path, carrying the reader's day, window, period and mode.
+ * @param path - The path to link to.
+ * @param params - The current URL's query params.
+ * @returns The href.
+ */
+export function carriedHref(path: string, params: URLSearchParams): string {
+  return buildHref(path, carriedParams(params));
+}
+
+/**
  * The link to a section, carrying the current day, window, period and mode.
  * @param section - The section.
  * @param params - The current URL's query params.
  * @returns The href.
  */
 export function navHref(section: NavSection, params: URLSearchParams): string {
-  return buildHref(section.href, Object.fromEntries(CARRIED.map((k) => [k, params.get(k)])));
+  return carriedHref(section.href, params);
 }

@@ -20,6 +20,7 @@ import {
 } from "@/lib/data";
 import { rangeIsEmpty } from "@/lib/data-start";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { routeLinkQuery } from "@/lib/range-page";
 import {
   computeRankDelta,
   deriveBoards,
@@ -158,7 +159,9 @@ export async function PeriodOverview({
 
       <SectionLink title={`Shame of the ${window}`} href={shameTripHref} />
       <div className="grid gap-4 md:grid-cols-2">
-        <ShameOfDay trip={shame.worst} period={window} href={shameTripHref} />
+        {/* The run card opens that run; the stop card stays on the shame board,
+            because /stop reads `?day` only and cannot show a week or a month. */}
+        <ShameOfDay trip={shame.worst} period={window} />
         <WorstStopCard
           stop={worstStops[0] ?? null}
           href={buildShameHref("/shame/stop", shameNav, shameFilter)}
@@ -193,8 +196,7 @@ export async function PeriodOverview({
           metric="delay"
           cancelled={cancelledByRoute}
           deltas={offScheduleDeltas}
-          routeWindow={window}
-          routePeriod={period}
+          routeQuery={routeLinkQuery(window, null, period)}
           total={offSchedule.length}
           seeAllHref={buildHref("/routes", {
             window,
@@ -208,8 +210,7 @@ export async function PeriodOverview({
           rows={boards.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
           deltas={reliableDeltas}
-          routeWindow={window}
-          routePeriod={period}
+          routeQuery={routeLinkQuery(window, null, period)}
           total={boards.reliable.length}
           seeAllHref={buildHref("/routes", {
             window,

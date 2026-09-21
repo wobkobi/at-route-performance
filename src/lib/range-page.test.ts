@@ -4,8 +4,11 @@ import { DATA_START_DAY } from "@/lib/data-start";
 import {
   dayRangeNav,
   hasEarlierDay,
+  monthPeriodOf,
   overviewHeading,
   parseRangeWindow,
+  periodAnchorDay,
+  rangeTabPeriods,
   routeLinkQuery,
   weekPeriodOf,
 } from "@/lib/range-page";
@@ -60,8 +63,14 @@ describe("routeLinkQuery", () => {
     );
   });
 
-  it("sends a month to the route's default view, which has no month", () => {
-    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("");
+  it("hands a month off to the week its last day falls in, since routes have no month view", () => {
+    expect(routeLinkQuery("month", null, "2026-08", TODAY)).toBe("?window=week&period=2026-08-31");
+  });
+
+  it("leaves the running month on the rolling week rather than a future one", () => {
+    // September still has days to come, so its last day clamps to today, whose
+    // week is the rolling default the route page already shows.
+    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("?window=week");
   });
 });
 
@@ -77,13 +86,61 @@ describe("weekPeriodOf", () => {
   });
 });
 
+describe("monthPeriodOf", () => {
+  it("keeps today on the current month", () => {
+    expect(monthPeriodOf(TODAY, TODAY)).toBeNull();
+  });
+
+  it("snaps a past day to its month key", () => {
+    expect(monthPeriodOf("2026-09-01", TODAY)).toBe("2026-09");
+    expect(monthPeriodOf("2026-08-31", TODAY)).toBe("2026-08");
+    expect(monthPeriodOf("2025-01-05", TODAY)).toBe("2025-01");
+  });
+});
+
+describe("periodAnchorDay", () => {
+  it("anchors a rolling period to today", () => {
+    expect(periodAnchorDay("week", null, TODAY)).toBe(TODAY);
+    expect(periodAnchorDay("month", null, TODAY)).toBe(TODAY);
+  });
+
+  it("anchors a past period to its last day", () => {
+    expect(periodAnchorDay("week", "2026-08-31", TODAY)).toBe("2026-09-06");
+    expect(periodAnchorDay("month", "2026-08", TODAY)).toBe("2026-08-31");
+    // February, so a month-length table would have to be right about leap years.
+    expect(periodAnchorDay("month", "2024-02", TODAY)).toBe("2024-02-29");
+    expect(periodAnchorDay("month", "2026-02", TODAY)).toBe("2026-02-28");
+  });
+
+  it("clamps a period still running to today", () => {
+    expect(periodAnchorDay("week", "2026-09-14", TODAY)).toBe(TODAY);
+    expect(periodAnchorDay("month", "2026-09", TODAY)).toBe(TODAY);
+  });
+});
+
+describe("rangeTabPeriods", () => {
+  it("carries nothing when the view is already on today", () => {
+    expect(rangeTabPeriods(TODAY, TODAY)).toEqual({ day: null, week: null, month: null });
+  });
+
+  it("carries a past day onto every tab", () => {
+    expect(rangeTabPeriods("2026-08-20", TODAY)).toEqual({
+      day: "2026-08-20",
+      week: "2026-08-17",
+      month: "2026-08",
+    });
+  });
+});
+
 describe("overviewHeading", () => {
+  const tabs = { day: null, week: null, month: null } as const;
   const day = {
     window: "day",
     serviceDate: TODAY,
     hasPrev: true,
     nextIsToday: false,
     atFloor: false,
+    tabs,
   } as const;
   const week = {
     window: "week",
@@ -91,6 +148,7 @@ describe("overviewHeading", () => {
     prevHref: null,
     nextHref: null,
     partial: false,
+    tabs,
   } as const;
 
   it("names today, or another day, from the stepper", () => {

@@ -3,10 +3,13 @@
 // Day / Week / Month toggle with the matching stepper for the Routes and
 // Cancellations pages. Every link carries the page's other query params (its
 // filters) from the live URL, so changing the window keeps them - including the
-// ones the Routes page writes on the client without a navigation.
+// ones the Routes page writes on the client without a navigation. The date is
+// carried too, from the tab periods the server put on the nav, so switching
+// window stays on the day being read rather than resetting to the present.
 
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { StepPending } from "@/components/StepPending";
 import { cn } from "@/lib/cn";
 import { DATA_START_SHORT } from "@/lib/data-start";
 import type { RangeNav, RangeWindow } from "@/lib/range-page";
@@ -65,6 +68,10 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
             href={buildHref(basePath, {
               ...carried,
               window: t.key === "day" ? undefined : t.key,
+              // Each tab carries the date being read across, so switching
+              // window keeps the day/week/month instead of jumping to now.
+              day: t.key === "day" ? nav.tabs.day : undefined,
+              period: t.key === "day" ? undefined : nav.tabs[t.key],
             })}
             className={cn("chip", nav.window === t.key ? "chip-on" : "chip-off")}
           >
@@ -84,14 +91,18 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
         />
       ) : (
         <div className="flex items-center gap-1">
-          {/* Step links are omitted (not disabled) at the edges of the data range. */}
+          {/* Step links are omitted (not disabled) at the edges of the data range,
+              and prefetch in full for the reason DayNav's do. */}
           {nav.prevHref && (
             <Link
               href={withCarried(nav.prevHref, carried)}
+              prefetch
               className="chip chip-off"
               aria-label={`Previous ${nav.window}`}
             >
-              <ChevronLeft />
+              <StepPending>
+                <ChevronLeft />
+              </StepPending>
             </Link>
           )}
           <span className="px-1 text-sm font-semibold tabular-nums">
@@ -101,10 +112,13 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
           {nav.nextHref && (
             <Link
               href={withCarried(nav.nextHref, carried)}
+              prefetch
               className="chip chip-off"
               aria-label={`Next ${nav.window}`}
             >
-              <ChevronRight />
+              <StepPending>
+                <ChevronRight />
+              </StepPending>
             </Link>
           )}
         </div>
