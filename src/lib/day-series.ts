@@ -1,8 +1,7 @@
 // src/lib/day-series.ts
 // The per-day series behind the Day by day page: each service day's figures and
 // verdict, built the way the day view builds its strip so the two always agree.
-import { summariseRows } from "@/lib/rankings";
-import { isSchoolBus } from "@/lib/school-bus";
+import { summariseRows, visibleRows } from "@/lib/rankings";
 import { dayVerdict, type VerdictBand } from "@/lib/verdict";
 import type { TopRouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
@@ -43,11 +42,7 @@ export function daySlot(
 ): DaySlot {
   if (date > today) return { kind: "future", date };
   if (!data) return { kind: "empty", date };
-  const moded = filter.mode ? data.rows.filter((r) => r.mode === filter.mode) : data.rows;
-  const visible = filter.includeSchool
-    ? moded
-    : moded.filter((r) => !isSchoolBus(r.short_name, r.long_name));
-  const summary = { ...summariseRows(visible), cancelled: data.cancelled };
+  const summary = { ...summariseRows(visibleRows(data.rows, filter)), cancelled: data.cancelled };
   if (summary.events === 0) return { kind: "empty", date };
   return { kind: "day", date, summary, verdict: dayVerdict(summary.on_time_pct) };
 }

@@ -8,8 +8,29 @@
 // applies for single-mode views so low-frequency services like ferries still
 // populate their boards.
 
+import { isSchoolBus } from "@/lib/school-bus";
 import type { TopRouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
+
+/**
+ * The rows a view shows: narrowed to one mode when set, and without school
+ * services (S###) unless they are asked for.
+ * @param rows - Every route row for the window.
+ * @param filter - The active filters.
+ * @param filter.mode - Restrict to this mode, or null for every mode.
+ * @param filter.includeSchool - Whether school services count.
+ * @returns The visible rows.
+ */
+export function visibleRows(
+  rows: TopRouteRow[],
+  filter: { mode: string | null; includeSchool: boolean },
+): TopRouteRow[] {
+  return rows.filter(
+    (r) =>
+      (!filter.mode || r.mode === filter.mode) &&
+      (filter.includeSchool || !isSchoolBus(r.short_name, r.long_name)),
+  );
+}
 
 /**
  * Aggregate per-route rows into fleet-wide totals (event-weighted), so the KPI

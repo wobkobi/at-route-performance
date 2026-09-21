@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.34.0] - 2026-09-22
+
+### Added
+
+- A link to the overview now unfurls with a card of that view: the day, week or month it names, its
+  mode and school filters, the verdict word and its figures. Past days are cached for a week; today
+  refreshes every five minutes.
+
 ## [1.33.0] - 2026-09-22
 
 ### Added

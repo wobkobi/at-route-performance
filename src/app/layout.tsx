@@ -14,7 +14,13 @@ import { Suspense } from "react";
 import { gothamNarrow } from "./fonts";
 import "./globals.css";
 
+// The production origin Vercel provides, so card and page URLs in metadata
+// resolve absolute. Unset locally, where Next falls back to localhost; a preview
+// deployment's own URL still wins for its cards.
+const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+
 export const metadata: Metadata = {
+  metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
   title: "Auckland Transport Route Performance",
   description: "Auckland Transport route and stop performance analytics.",
 };
