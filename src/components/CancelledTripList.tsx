@@ -17,14 +17,12 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
-import { nzClockTime, nzServiceDayRange, parseYmd, weekdayShort } from "@/lib/time";
+import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
 import Link from "next/link";
 import { useMemo, useState, type JSX } from "react";
 
 /** Trips shown before "Show more", and how many each press adds. */
 const PAGE_SIZE = 30;
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Props for {@link CancelledTripList}. */
 export interface CancelledTripListProps {
@@ -40,16 +38,6 @@ const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = 
   { key: "mid-trip", label: "Cut short" },
   { key: "ran", label: "Reinstated" },
 ];
-
-/**
- * A service date as `Sat 12 Sep`.
- * @param ymd - The service date (`YYYY-MM-DD`).
- * @returns The label.
- */
-function dayLabel(ymd: string): string {
-  const { mo, d } = parseYmd(ymd);
-  return `${weekdayShort(ymd)} ${d} ${MONTHS[mo - 1] ?? ""}`;
-}
 
 /**
  * List a window's flagged trips, filterable by stage. A single day reads in
@@ -128,7 +116,7 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
                   <span className="w-16 shrink-0 tabular-nums">
                     {multiDay && (
                       <span className="block text-xs text-at-muted">
-                        {dayLabel(t.service_date)}
+                        {serviceDayLabel(t.service_date)}
                       </span>
                     )}
                     <span className="font-semibold text-at-shore">

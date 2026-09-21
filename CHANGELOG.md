@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.7] - 2026-09-21
+
+### Fixed
+
+- Boards ranked by how far off schedule a run or route was now always show that distance: a run 2m
+  late inside the on-time window reads "2m late" in the on-time colour rather than "on time". The
+  trip page names its day, and timetable times are spaced like the rest of the site ("12:49 pm").
+
 ## [1.31.6] - 2026-09-21
 
 ### Fixed

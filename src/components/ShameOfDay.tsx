@@ -2,9 +2,8 @@
 // Highlight card for the day's most off-schedule run, linking to its detail page.
 
 import { ModeIcon } from "@/components/ModeIcon";
-import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
-import { earlyToleranceFor, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
+import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { earlyToleranceFor, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
@@ -112,37 +111,11 @@ export function ShameOfDay({
           {nzClockTime(trip.scheduled_start)}
         </span>
       </div>
-      <p className="text-sm text-at-muted">
-        {isConsistentlyLateOrEarly(trip.avg_delay_sec, trip.avg_abs_delay_sec) ? (
-          // Single-direction run: absolute and signed averages are the same, so fold
-          // the direction word in rather than printing the same time twice.
-          <>
-            Ran{" "}
-            <span
-              className={cn(
-                "font-semibold",
-                (trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early",
-              )}
-            >
-              {formatDelay(trip.avg_delay_sec, { mode: trip.mode })}
-            </span>{" "}
-            on average
-          </>
-        ) : (
-          <>
-            Ran{" "}
-            <span
-              className={cn(
-                "font-semibold",
-                (trip.avg_delay_sec ?? 0) >= 0 ? "text-at-late" : "text-at-early",
-              )}
-            >
-              {formatDuration(trip.avg_abs_delay_sec)}
-            </span>{" "}
-            off schedule on average ({formatDelay(trip.avg_delay_sec, { mode: trip.mode })})
-          </>
-        )}
-      </p>
+      <OffScheduleLine
+        signedSec={trip.avg_delay_sec}
+        absSec={trip.avg_abs_delay_sec}
+        mode={trip.mode}
+      />
       {routeHourCount > 1 && (
         <p className="text-xs text-at-muted">
           worst trip in {routeHourCount} of today&apos;s hours

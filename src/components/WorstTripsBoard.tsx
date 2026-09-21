@@ -25,9 +25,8 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
-import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
 import type { TripBoardRow } from "@/lib/trip-board";
 import Link from "next/link";
@@ -331,10 +330,7 @@ export function WorstTripsBoard({
               );
             }
             const t = row.trip;
-            const avg = t.avg_delay_sec ?? 0;
-            const band = delayBand(avg, mode ?? "BUS");
-            const valueClass =
-              band === "late" ? "text-at-late" : band === "early" ? "text-at-early" : "text-at-ink";
+            const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
             return (
               <li key={t.trip_id} className={ROW_CLASS}>
                 <Link
@@ -386,8 +382,13 @@ export function WorstTripsBoard({
                       </Suspense>
                     )}
                   </span>
-                  <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
-                    {t.avg_delay_sec == null ? "—" : formatDelay(avg, { mode: mode ?? "BUS" })}
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold tabular-nums",
+                      OFF_SCHEDULE_TONE_CLASS[value.tone],
+                    )}
+                  >
+                    {value.text}
                   </span>
                   <ChevronRight className="shrink-0 text-at-muted" />
                 </Link>

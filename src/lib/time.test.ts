@@ -15,6 +15,7 @@ import {
   SERVICE_START_HOUR,
   serviceDatesInRange,
   serviceDayClockInstant,
+  serviceDayLabel,
   serviceDayNoon,
   serviceDayScanRange,
   shiftMonth,
@@ -318,5 +319,12 @@ describe("serviceDayScanRange", () => {
     };
     expect(padScanRange(week).start.toISOString()).toBe("2026-09-06T16:00:00.000Z");
     expect(padScanRange(week).end.toISOString()).toBe("2026-09-13T19:00:00.000Z");
+  });
+});
+
+describe("serviceDayLabel", () => {
+  it("names the weekday, day and month of the date itself", () => {
+    expect(serviceDayLabel("2026-09-13")).toBe("Sun 13 Sep");
+    expect(serviceDayLabel("2027-01-01")).toBe("Fri 1 Jan");
   });
 });

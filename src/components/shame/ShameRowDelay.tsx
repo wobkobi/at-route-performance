@@ -2,8 +2,7 @@
 // Delay summary line for a shame board row, wording the average deviation by mode.
 
 import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
-import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
+import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import type { JSX } from "react";
 
 /** Props for {@link ShameRowDelay}. */
@@ -17,10 +16,9 @@ export interface ShameRowDelayProps {
 }
 
 /**
- * The right-aligned delay value for a trip/route shame board row. A
- * consistently late/early entry shows the signed delay in its band colour; a
- * mixed entry (early and late cancelling out) shows the absolute magnitude in
- * neutral ink, flagged with a help cursor and tooltip.
+ * The right-aligned delay value for a trip/route shame board row, worded by
+ * {@link offScheduleValue} so it always names a distance. A mixed entry (early
+ * and late cancelling out) is flagged with a help cursor and tooltip.
  * @param props - Component props.
  * @param props.avgDelaySec - Signed average deviation in seconds.
  * @param props.avgAbsDelaySec - Average absolute deviation in seconds.
@@ -32,28 +30,23 @@ export function ShameRowDelay({
   avgAbsDelaySec,
   mode,
 }: ShameRowDelayProps): JSX.Element {
-  const signed = avgDelaySec ?? 0;
-  const oneDirectional = isConsistentlyLateOrEarly(signed, avgAbsDelaySec);
+  const value = offScheduleValue(avgDelaySec, avgAbsDelaySec, mode);
+  const mixed = value.tone === "mixed";
   return (
     <span className="shrink-0 pt-px text-right">
       <span
         className={cn(
           "block font-semibold tabular-nums",
-          !oneDirectional
-            ? "cursor-help text-at-ink"
-            : isOnTime(signed, mode)
-              ? "text-at-ontime"
-              : signed < 0
-                ? "text-at-early"
-                : "text-at-late",
+          OFF_SCHEDULE_TONE_CLASS[value.tone],
+          mixed && "cursor-help",
         )}
         title={
-          !oneDirectional
+          mixed
             ? "Some services ran early, some ran late — shows absolute average deviation from schedule"
             : undefined
         }
       >
-        {oneDirectional ? formatDelay(signed, { mode }) : `${formatDuration(avgAbsDelaySec)} off`}
+        {value.text}
       </span>
     </span>
   );

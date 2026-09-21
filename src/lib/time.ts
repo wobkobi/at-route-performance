@@ -490,6 +490,33 @@ export function weekdayShort(ymd: string): string {
   );
 }
 
+/** Short month names, indexed 0-11. */
+const MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/**
+ * A service date as `Sun 13 Sep`, the label the day stepper, the cancellation
+ * list and the trip page all use for one day.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The label.
+ */
+export function serviceDayLabel(ymd: string): string {
+  const { mo, d } = parseYmd(ymd);
+  return `${weekdayShort(ymd)} ${d} ${MONTHS_SHORT[mo - 1] ?? ""}`;
+}
+
 /**
  * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
  * week straddles New Year.
