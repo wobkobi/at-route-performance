@@ -40,6 +40,7 @@ import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
+import { cardMetadata, cardWhenSuffix, parseRouteCard, subjectCardPath } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
@@ -47,6 +48,7 @@ import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView } from "@/lib/route-view";
+import { aggregateWeek } from "@/lib/route-week";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -59,7 +61,7 @@ import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
-import type { RouteDay, RouteVariant } from "@/types/api";
+import type { RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -87,29 +89,6 @@ interface StatsSearchParams {
 
 /** Valid trip-sort values. */
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
-
-/**
- * Event-weighted aggregate of per-day route stats from `DailyRouteSummary`.
- * Returns null when there are no days or no events.
- * @param days - Per-day stats, any order.
- * @returns Event-weighted summary, or null when there are no events.
- */
-function aggregateWeek(days: RouteDay[]): {
-  events: number;
-  avg_delay_sec: number;
-  avg_abs_delay_sec: number;
-  on_time_pct: number;
-} | null {
-  const totalEvents = days.reduce((s, d) => s + d.events, 0);
-  if (totalEvents === 0) return null;
-  return {
-    events: totalEvents,
-    avg_delay_sec: days.reduce((s, d) => s + (d.avg_delay_sec ?? 0) * d.events, 0) / totalEvents,
-    avg_abs_delay_sec:
-      days.reduce((s, d) => s + (d.avg_abs_delay_sec ?? 0) * d.events, 0) / totalEvents,
-    on_time_pct: days.reduce((s, d) => s + (d.on_time_pct ?? 0) * d.events, 0) / totalEvents,
-  };
-}
 
 /**
  * Full headsign label for a direction chip, taken from the busiest variant.
@@ -234,26 +213,34 @@ function ViewToggle({
  * Per-route page title, so a tab and a shared link name the line rather than
  * repeating the site title. Uses the published line name where there is one
  * (AT's `route_long_name` for a train is just the bare code).
+ * The shared link's card and title name the day or week the link carries.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic route params `{ id }`.
- * @returns Title and description metadata for the route.
+ * @param root0.searchParams - Optional query params (the day or week).
+ * @returns Title, description and card metadata for the route.
  */
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<StatsSearchParams>;
 }): Promise<Metadata> {
-  const slug = routeSlug((await params).id);
+  const { id } = await params;
+  const slug = routeSlug(id);
+  const card = parseRouteCard(id, (await searchParams) ?? {});
   const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
     () => null,
   );
   const route = stats?.route;
-  if (!route) return { title: `Route ${slug}` };
-  const name = lineName(route.mode, route.shortName);
-  const label = route.shortName ?? slug;
+  const name = route ? lineName(route.mode, route.shortName) : null;
+  const label = route?.shortName ?? slug;
+  const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
+  const description = `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`;
   return {
-    title: name ? `${label} - ${name}` : label,
-    description: `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`,
+    title,
+    description,
+    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, subjectCardPath(card)),
   };
 }
 

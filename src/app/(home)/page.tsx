@@ -51,7 +51,7 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { CARD_HEIGHT, CARD_WIDTH, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
+import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
@@ -108,19 +108,11 @@ export async function generateMetadata({
   searchParams?: Promise<HomeSearchParams>;
 }): Promise<Metadata> {
   const sp = (await searchParams) ?? {};
-  const title = homeCardTitle(parseHomeCard(sp));
-  const image = { url: homeCardPath(sp), width: CARD_WIDTH, height: CARD_HEIGHT, alt: title };
-  const description = "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.";
-  return {
-    openGraph: {
-      title,
-      description,
-      siteName: "AT Route Performance",
-      type: "website",
-      images: [image],
-    },
-    twitter: { card: "summary_large_image", title, description, images: [image] },
-  };
+  return cardMetadata(
+    homeCardTitle(parseHomeCard(sp)),
+    "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
+    homeCardPath(sp),
+  );
 }
 
 /**

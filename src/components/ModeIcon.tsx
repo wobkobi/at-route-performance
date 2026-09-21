@@ -44,6 +44,52 @@ export interface ModeIconProps {
   colour?: string | null;
 }
 
+/** The glyph, fallback colour class and spoken label a route's icon uses. */
+export interface ModeGlyph {
+  Icon: IconType;
+  colourClass: string;
+  label: string;
+}
+
+/**
+ * Pick a route's glyph and fallback colour: a school bus in magenta, trains and
+ * ferries in their mode token, other buses in their branded service colour
+ * (see {@link SERVICE_COLOUR}) or AT Shore blue. The shared-link card draws
+ * its badge from this too, so the two cannot pick different icons.
+ * @param mode - Route mode.
+ * @param shortName - Route short name (code).
+ * @param longName - Route long name.
+ * @returns The glyph, its colour class and its label.
+ */
+export function modeGlyph(
+  mode: string,
+  shortName?: string | null,
+  longName?: string | null,
+): ModeGlyph {
+  if (mode === "BUS" && isSchoolBus(shortName, longName)) {
+    return { Icon: FaBus, colourClass: "text-at-disruption", label: "School bus" };
+  }
+  if (mode === "TRAIN") return { Icon: FaSubway, colourClass: "text-at-cosmic", label: "Train" };
+  if (mode === "FERRY") {
+    return { Icon: FaShip, colourClass: "text-at-greeny-bluey", label: "Ferry" };
+  }
+  return {
+    Icon: FaBusAlt,
+    colourClass: SERVICE_COLOUR[(shortName ?? "").toUpperCase()] ?? "text-at-shore",
+    label: "Bus",
+  };
+}
+
+/**
+ * A route's `route_color` as a CSS colour, or null when AT published none or a
+ * malformed one (the browser would drop it, leaving the glyph uncoloured).
+ * @param colour - The raw value, hex without `#`.
+ * @returns `#rrggbb`, or null.
+ */
+export function brandColour(colour: string | null | undefined): string | null {
+  return colour && HEX_COLOUR.test(colour) ? `#${colour}` : null;
+}
+
 /**
  * Transport-mode glyph drawn next to a route number: a bus, train, ferry, or
  * (magenta) school bus. When the AT API publishes a `route_color` for the route
@@ -66,36 +112,14 @@ export function ModeIcon({
   className,
   colour,
 }: ModeIconProps): JSX.Element {
-  // A malformed value would be dropped by the browser anyway; checking it keeps
-  // the fallback class on instead of rendering an uncoloured glyph.
-  const brandColour = colour && HEX_COLOUR.test(colour) ? colour : null;
-
-  let Icon: IconType;
-  let colourClass: string;
-  let label: string;
-  if (mode === "BUS" && isSchoolBus(shortName, longName)) {
-    Icon = FaBus;
-    colourClass = "text-at-disruption";
-    label = "School bus";
-  } else if (mode === "TRAIN") {
-    Icon = FaSubway;
-    colourClass = "text-at-cosmic";
-    label = "Train";
-  } else if (mode === "FERRY") {
-    Icon = FaShip;
-    colourClass = "text-at-greeny-bluey";
-    label = "Ferry";
-  } else {
-    Icon = FaBusAlt;
-    colourClass = SERVICE_COLOUR[(shortName ?? "").toUpperCase()] ?? "text-at-shore";
-    label = "Bus";
-  }
+  const { Icon, colourClass, label } = modeGlyph(mode, shortName, longName);
+  const brand = brandColour(colour);
   return (
     <Icon
       role="img"
       aria-label={label}
-      className={cn("h-5 w-5 shrink-0", brandColour ? undefined : colourClass, className)}
-      style={brandColour ? { color: `#${brandColour}` } : undefined}
+      className={cn("h-5 w-5 shrink-0", brand ? undefined : colourClass, className)}
+      style={brand ? { color: brand } : undefined}
     />
   );
 }

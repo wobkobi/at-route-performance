@@ -18,6 +18,7 @@ import {
   type ScheduledStop,
 } from "@/lib/data";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
+import { cardMetadata, parseTripCard, subjectCardPath } from "@/lib/og";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
@@ -36,7 +37,7 @@ import type { JSX } from "react";
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id, tripId }`.
  * @param root0.searchParams - Optional query params (`d` = the run's instant).
- * @returns Title metadata for the trip.
+ * @returns Title, description and card metadata for the trip.
  */
 export async function generateMetadata({
   params,
@@ -50,9 +51,12 @@ export async function generateMetadata({
   const dAt = d ? new Date(d) : null;
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
+  const title = `Trip ${tripId} on ${routeSlug(id)}${dayPart}`;
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`;
   return {
-    title: `Trip ${tripId} on ${routeSlug(id)}${dayPart}`,
-    description: `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`,
+    title,
+    description,
+    ...cardMetadata(title, description, subjectCardPath(parseTripCard(id, tripId, d))),
   };
 }
 

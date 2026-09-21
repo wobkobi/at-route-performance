@@ -4,6 +4,14 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.35.0] - 2026-09-22
+
+### Added
+
+- Shared links to a route, a run or a stop now unfurl with their own card: the route's on-time share
+  for that day or week, how far off the run ran (or that it was cancelled), and how far off the
+  stop's arrivals were.
+
 ## [1.34.0] - 2026-09-22
 
 ### Added

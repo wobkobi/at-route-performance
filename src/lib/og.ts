@@ -6,8 +6,10 @@
 // reads live in the route handler.
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page-nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/range-page";
-import { serviceDayLabel } from "@/lib/time";
+import { routeSlug } from "@/lib/route-slug";
+import { nzServiceDayString, serviceDayLabel } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import type { Metadata } from "next";
 
 /** Card canvas: the 1.91:1 Slack, Discord, X and LinkedIn all accept. */
 export const CARD_WIDTH = 1200;
@@ -161,4 +163,193 @@ export function cardCacheControl(complete: boolean): string {
   return complete
     ? "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
     : "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
+}
+
+/** Longest id a card URL carries; anything longer is not a real route, trip or stop. */
+const ID_MAX = 96;
+
+/**
+ * An id from a query, or null when it is missing or implausibly long.
+ * @param v - The raw value.
+ * @returns The id, or null.
+ */
+function cleanId(v: string | null | undefined): string | null {
+  return v && v.length <= ID_MAX ? v : null;
+}
+
+/** What a route page's card describes: one day, or a week (null period = the last 7 days). */
+export interface RouteCard {
+  kind: "route";
+  id: string;
+  window: "day" | "week";
+  day: string | null;
+  period: string | null;
+}
+
+/** What a run's card describes: the trip on one service day, or its latest day when null. */
+export interface TripCard {
+  kind: "trip";
+  id: string;
+  tripId: string;
+  day: string | null;
+}
+
+/** What a stop page's card describes: one day, or today when null. */
+export interface StopCard {
+  kind: "stop";
+  id: string;
+  day: string | null;
+}
+
+/** A card about one route, run or stop. */
+export type SubjectCard = RouteCard | TripCard | StopCard;
+
+/** Any card the handler can draw. */
+export type Card = ({ kind: "home" } & HomeCard) | SubjectCard;
+
+/**
+ * Validate a route page's query into its card. Any window but the day is the
+ * week view, as on the page, and a week's period is the Monday it starts on.
+ * @param id - The route segment, version suffix or not.
+ * @param sp - The page's raw query.
+ * @param sp.window - The window param.
+ * @param sp.day - The day param.
+ * @param sp.period - The week param.
+ * @returns The card state.
+ */
+export function parseRouteCard(
+  id: string,
+  sp: { window?: string; day?: string; period?: string },
+): RouteCard {
+  const week = sp.window !== undefined && sp.window !== "day";
+  return {
+    kind: "route",
+    id: routeSlug(id),
+    window: week ? "week" : "day",
+    day: week ? null : resolveRequestedDay(sp.day),
+    period: week ? resolveRequestedDay(sp.period) : null,
+  };
+}
+
+/**
+ * Validate a trip page's query into its card. The page keys the run by an
+ * instant (`?d=`), which names its service day; the card keeps only the day.
+ * @param id - The route segment.
+ * @param tripId - The trip id segment.
+ * @param d - The run's instant, if the link carries one.
+ * @returns The card state.
+ */
+export function parseTripCard(id: string, tripId: string, d: string | undefined): TripCard {
+  const at = d ? new Date(d) : null;
+  return {
+    kind: "trip",
+    id: routeSlug(id),
+    tripId,
+    day: at && !Number.isNaN(at.getTime()) ? nzServiceDayString(at) : null,
+  };
+}
+
+/**
+ * Validate a stop page's query into its card.
+ * @param id - The decoded stop id.
+ * @param sp - The page's raw query.
+ * @param sp.day - The day param.
+ * @returns The card state.
+ */
+export function parseStopCard(id: string, sp: { day?: string }): StopCard {
+  return { kind: "stop", id, day: resolveRequestedDay(sp.day) };
+}
+
+/**
+ * The card URL for a route, run or stop card. Like {@link homeCardPath} it
+ * carries only validated state, so every spelling of one view shares a card.
+ * @param card - The card state.
+ * @returns The `/api/og` path with its query.
+ */
+export function subjectCardPath(card: SubjectCard): string {
+  switch (card.kind) {
+    case "route":
+      return buildHref("/api/og", {
+        card: "route",
+        id: card.id,
+        window: card.window === "week" ? "week" : undefined,
+        day: card.day ?? undefined,
+        period: card.period ?? undefined,
+      });
+    case "trip":
+      return buildHref("/api/og", {
+        card: "trip",
+        id: card.id,
+        trip: card.tripId,
+        day: card.day ?? undefined,
+      });
+    case "stop":
+      return buildHref("/api/og", { card: "stop", id: card.id, day: card.day ?? undefined });
+  }
+}
+
+/**
+ * Parse any card URL's query back into its state. A route, trip or stop card
+ * missing its id falls back to the home card, which always has something to show.
+ * @param query - The `/api/og` request's search params.
+ * @returns The card state.
+ */
+export function parseCardQuery(query: URLSearchParams): Card {
+  const kind = query.get("card");
+  const id = cleanId(query.get("id"));
+  /**
+   * One query value, with a missing one as undefined.
+   * @param k - The param name.
+   * @returns The value, or undefined.
+   */
+  const get = (k: string): string | undefined => query.get(k) ?? undefined;
+  if (kind === "route" && id) {
+    return parseRouteCard(id, { window: get("window"), day: get("day"), period: get("period") });
+  }
+  if (kind === "trip" && id) {
+    const tripId = cleanId(query.get("trip"));
+    if (tripId) return { kind: "trip", id, tripId, day: resolveRequestedDay(get("day")) };
+  }
+  if (kind === "stop" && id) return parseStopCard(id, { day: get("day") });
+  return { kind: "home", ...parseHomeCardQuery(query) };
+}
+
+/**
+ * The period a route, run or stop card names, as a title suffix: empty for
+ * the page's own default (today, or a run's latest day), otherwise
+ * ", Sun 20 Sep", ", week of Mon 14 Sep" or ", last 7 days".
+ * @param card - The card state.
+ * @returns The suffix.
+ */
+export function cardWhenSuffix(card: SubjectCard): string {
+  if (card.kind === "route" && card.window === "week") {
+    return card.period ? `, week of ${serviceDayLabel(card.period)}` : ", last 7 days";
+  }
+  return card.day ? `, ${serviceDayLabel(card.day)}` : "";
+}
+
+/**
+ * The Open Graph and Twitter halves of a page's metadata, pointing both at
+ * one card image.
+ * @param title - The shared link's title.
+ * @param description - The shared link's description.
+ * @param path - The card's `/api/og` path.
+ * @returns The `openGraph` and `twitter` metadata.
+ */
+export function cardMetadata(
+  title: string,
+  description: string,
+  path: string,
+): Pick<Metadata, "openGraph" | "twitter"> {
+  const image = { url: path, width: CARD_WIDTH, height: CARD_HEIGHT, alt: title };
+  return {
+    openGraph: {
+      title,
+      description,
+      siteName: "AT Route Performance",
+      type: "website",
+      images: [image],
+    },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
+  };
 }
