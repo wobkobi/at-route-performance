@@ -1,20 +1,19 @@
 // src/app/api/ingest/gtfs/shapes/route.ts
 // Cron-only POST that syncs GTFS shape geometry (road paths) and
 // trip metadata. Both run in parallel off AT's full GTFS zip, which is large to
-// download and parse - hence the extended maxDuration and the infrequent, static
-// schedule rather than the regular ingest cadence. Responds 202 before the sync
-// runs (it takes minutes, far past the external scheduler's 30s request
-// timeout); the outcome is recorded in IngestRun and the function logs.
+// download and parse - hence the infrequent, static schedule rather than the
+// regular ingest cadence. Responds 202 before the sync runs (it takes minutes,
+// far past the external scheduler's 30s request timeout); the outcome is
+// recorded in IngestRun and the function logs.
 
 import { requireCronAuth } from "@/lib/auth";
 import { syncShapes, syncTripMeta } from "@/lib/ingest";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { after, NextResponse } from "next/server";
 
-// Downloads + parses AT's full GTFS zip (large); give it generous headroom.
-// 300s needs fluid compute on the Hobby plan (classic serverless caps at 60s);
-// verify it is enabled under Project > Settings > Functions before relying on it.
-export const maxDuration = 300;
+// No maxDuration here: the project default is already 300s, and any
+// route-level value splits this route into its own function bundle, each
+// carrying its own ~40MB copy of the Prisma engine.
 
 /**
  * Run the shapes + trip-meta sync and record the outcome. Invoked via `after`
