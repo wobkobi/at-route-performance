@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.6] - 2026-09-22
+
+### Changed
+
+- The week and month worst stop is added up from each day's cached figures, so only today is
+  rescanned instead of the whole week or month.
+
 ## [1.32.5] - 2026-09-22
 
 ### Changed
