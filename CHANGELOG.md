@@ -4,6 +4,16 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.31.5] - 2026-09-21
+
+### Changed
+
+- Every day board now files a run under the service date ingest stamped on it rather than
+  recomputing it from the clock, so a run that crosses 4am is counted once, whole, on the day it
+  started. The route-shame streaks were also folding a fortnight of one trip's runs into a single
+  row on its earliest day, because AT reuses a trip id on every day its timetable runs; streaks now
+  count each day's runs.
+
 ## [1.31.4] - 2026-09-21
 
 ### Fixed
