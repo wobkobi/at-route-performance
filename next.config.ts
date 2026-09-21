@@ -7,13 +7,14 @@ const isDev = process.env.NODE_ENV !== "production";
 
 // Fonts are bundled locally (next/font/local) and the map is Leaflet + CARTO basemap
 // tiles, so the only external origin needed is the CARTO tile CDN (loaded as images).
+// Vercel Speed Insights requires allowing scripts and connections to Vercel's CDN.
 const cspProd =
   "default-src 'self'; " +
-  "script-src 'self' 'unsafe-inline' blob:; " +
+  "script-src 'self' 'unsafe-inline' blob: https://va.vercel-scripts.com; " +
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: blob: https://*.basemaps.cartocdn.com; " +
   "font-src 'self' data:; " +
-  "connect-src 'self'; " +
+  "connect-src 'self' https://va.vercel-scripts.com; " +
   "worker-src 'self' blob:; " +
   "manifest-src 'self'; " +
   "frame-ancestors 'none'; " +
@@ -22,11 +23,11 @@ const cspProd =
 
 const cspDev =
   "default-src 'self' blob: data:; " +
-  "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; " +
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://va.vercel-scripts.com; " +
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: blob: https://*.basemaps.cartocdn.com; " +
   "font-src 'self' data:; " +
-  "connect-src 'self' ws: http://localhost:3000 http://127.0.0.1:3000; " +
+  "connect-src 'self' ws: http://localhost:3000 http://127.0.0.1:3000 https://va.vercel-scripts.com; " +
   "worker-src 'self' blob:; " +
   "frame-ancestors 'none'; " +
   "base-uri 'self'; " +

@@ -6,6 +6,7 @@ import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
 import { DATA_START_LABEL } from "@/lib/data-start";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -119,6 +120,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        <SpeedInsights />
       </body>
     </html>
   );
