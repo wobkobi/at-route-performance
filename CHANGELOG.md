@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.3] - 2026-09-22
+
+### Changed
+
+- The current week and month now serve their last result while it refreshes, instead of recomputing
+  after every ingest run.
+
 ## [1.32.2] - 2026-09-21
 
 ### Fixed

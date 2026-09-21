@@ -5,7 +5,12 @@ import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { getLastIngestRun, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import { unstable_cache } from "@/lib/mem-cache";
-import { type DateRange, nzServiceDayRange, serviceDatesInRange } from "@/lib/time";
+import {
+  type DateRange,
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDatesInRange,
+} from "@/lib/time";
 
 /**
  * Normalise an extended-JSON date (`{ $date }`) or ISO string to an ISO string.
@@ -101,7 +106,13 @@ export async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
  * - `ended` for a window that is over but not yet summarised, so a board
  *   computed while the day was still running (cut off at that moment) is never
  *   served for the finished day;
- * - `run-<ms>` for a window still running, keyed by the ingest run behind it;
+ * - `open-<service date>` for a still-running window of more than one day (the
+ *   current week or month), one key per service day, so the Data Cache serves
+ *   the last result and refreshes it in the background once the caller's TTL
+ *   passes. Keyed by run, a week-wide scan would be thrown away every couple of
+ *   minutes and paid again by the next reader, for figures one run barely
+ *   moves. The day in the key means a new day still starts a fresh entry;
+ * - `run-<ms>` for a single live day, keyed by the ingest run behind it;
  * - `live-<n>` for a running window with no run logged yet, a new key every TTL,
  *   so the live day is never more than one TTL behind however long ago the last
  *   visit was.
@@ -129,6 +140,9 @@ export function cacheState(
 ): string {
   if (final) return "final";
   if (range !== null && range.end.getTime() <= now) return "ended";
+  if (range !== null && serviceDatesInRange(range).length > 1) {
+    return `open-${nzServiceDayString(new Date(now))}`;
+  }
   if (lastIngestMs !== null) return `run-${lastIngestMs}`;
   return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
 }

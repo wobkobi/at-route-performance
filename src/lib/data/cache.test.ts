@@ -62,6 +62,24 @@ describe("cacheState", () => {
     expect(next).not.toBe(cacheState(false, RANGE, 120, START + 60_000, run));
   });
 
+  it("holds an open week under one key per service day, whatever the run", () => {
+    const week = {
+      start: nzServiceDayRange("2026-09-14").start,
+      end: nzServiceDayRange("2026-09-20").end,
+    };
+    // Tuesday 15 Sep, 10am and 6pm NZST: two runs apart, one entry.
+    const morning = Date.parse("2026-09-14T22:00:00Z");
+    const evening = Date.parse("2026-09-15T06:00:00Z");
+    const a = cacheState(false, week, 3600, morning, morning - 60_000);
+    expect(a).toBe("open-2026-09-15");
+    expect(cacheState(false, week, 3600, evening, evening - 60_000)).toBe(a);
+    // Wednesday: a new service day starts a new entry.
+    const wednesday = Date.parse("2026-09-15T22:00:00Z");
+    expect(cacheState(false, week, 3600, wednesday, wednesday - 60_000)).toBe("open-2026-09-16");
+    // A single live day keeps the exact-to-the-run key.
+    expect(cacheState(false, nzServiceDayRange("2026-09-15"), 120, morning, 1)).toBe("run-1");
+  });
+
   it("lets a finished window's state win over the run behind it", () => {
     expect(cacheState(true, RANGE, 120, END + 1, END)).toBe("final");
     expect(cacheState(false, RANGE, 120, END, END - 1)).toBe("ended");
