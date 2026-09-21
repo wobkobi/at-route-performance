@@ -185,6 +185,17 @@ async function PeriodHome({
             <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
           </Suspense>
           <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+          <Link
+            href={buildHref("/days", {
+              window,
+              period: view.period,
+              mode: mode ?? undefined,
+              school: includeSchool ? "1" : undefined,
+            })}
+            className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+          >
+            Day by day
+          </Link>
         </div>
 
         <Suspense fallback={<KpiStripSkeleton verdict />}>

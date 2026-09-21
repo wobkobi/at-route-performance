@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.33.0] - 2026-09-22
+
+### Added
+
+- A Day by day page charts each day of the week or month by its on-time share and verdict, with a
+  table of the same days; each day links to its overview. Reached from the week and month overview.
+
 ## [1.32.7] - 2026-09-22
 
 ### Changed

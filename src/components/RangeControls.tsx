@@ -27,6 +27,8 @@ export interface RangeControlsProps {
   basePath: string;
   /** The stepper state for the active window. */
   nav: RangeNav;
+  /** The window tabs to offer; every window when omitted. */
+  windows?: readonly RangeWindow[];
 }
 
 const TABS: ReadonlyArray<{ key: RangeWindow; label: string }> = [
@@ -52,9 +54,10 @@ function withCarried(href: string, carried: Record<string, string>): string {
  * @param props - Component props.
  * @param props.basePath - The page path the links point at.
  * @param props.nav - The stepper state for the active window.
+ * @param props.windows - The window tabs to offer; every window when omitted.
  * @returns The controls.
  */
-export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Element {
+export function RangeControls({ basePath, nav, windows }: RangeControlsProps): JSX.Element {
   const searchParams = useSearchParams();
   const carried = Object.fromEntries(
     [...searchParams.entries()].filter(([k]) => !OWN_PARAMS.has(k)),
@@ -62,7 +65,7 @@ export function RangeControls({ basePath, nav }: RangeControlsProps): JSX.Elemen
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !windows || windows.includes(t.key)).map((t) => (
           <Link
             key={t.key}
             href={buildHref(basePath, {
