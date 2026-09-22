@@ -1,7 +1,7 @@
 // Folds a route's per-stop arrival sums into figures by direction and by version, so the route
 // diagram can print each direction's figure beside each stop and swap in one version's alone.
-// Pure and client-safe: the rows come from lib/data/route-stop-split.ts.
-import type { RouteVariant } from "@/types/api";
+// Pure and client-safe: the rows come from lib/data/route-stop-split.ts, and the versions from
+// the route's strip (lib/route-strip.ts), which groups variants by the names of their ends.
 
 /** Arrival sums for one stop, from the runs of one direction, shape and headsign. */
 export interface StopSplitRow {
@@ -26,27 +26,26 @@ export interface StopFigure {
 /** Figures by canonical stop id, then by primary direction id. */
 export type StopFigures = Record<string, Record<number, StopFigure>>;
 
-/**
- * A version of a route: every variant, in either direction, that runs between the same two
- * termini. On 65 that is Coyle Park to Glen Innes and back, which is one version.
- */
-export interface RouteVersion {
-  key: string;
-  /** Canonical stop id the version starts from, read off its lowest direction. */
-  from: string;
-  to: string;
-  tripCount: number;
-}
-
 /** A route's stop figures over every run, and over each version's runs alone. */
 export interface StopSplit {
   all: StopFigures;
   byVersion: Record<string, StopFigures>;
 }
 
-/** The pieces of a route view the fold needs. */
+/** What placing a run needs of one of a version's variants. */
+export interface VersionVariant {
+  /** Primary direction id. */
+  directionId: number;
+  headsign: string | null;
+  shapeId: string | null;
+  /** Every shape folded into the variant, when others collapsed onto the same stops. */
+  shapeIds?: string[];
+}
+
+/** What the fold needs of a route: its versions, and its view's direction and stop maps. */
 export interface SplitContext {
-  directions: Record<number, { variants: RouteVariant[] }>;
+  /** The route's versions and the variants each is made of. */
+  versions: ReadonlyArray<{ key: string; variants: ReadonlyArray<VersionVariant> }>;
   /** A merged direction id > the direction it was folded into. */
   directionIdAliases: Map<number, number>;
   /** Raw stop id > canonical station id. */
@@ -54,49 +53,10 @@ export interface SplitContext {
 }
 
 /**
- * A variant's version key: its two termini in a fixed order, so the run out and the run back
- * share one key.
- * @param v - The variant.
- * @returns The key, empty for a variant with no stops.
- */
-export function versionKey(v: RouteVariant): string {
-  const first = v.stopIds[0];
-  const last = v.stopIds.at(-1);
-  if (first === undefined || last === undefined) return "";
-  return [first, last].sort().join("|");
-}
-
-/**
- * Every version of a route, busiest first. A route with one pair of termini has one version.
- * @param directions - The route's merged directions.
- * @returns The versions.
- */
-export function routeVersions(
-  directions: Record<number, { variants: RouteVariant[] }>,
-): RouteVersion[] {
-  const out = new Map<string, RouteVersion>();
-  const dirs = Object.keys(directions)
-    .map(Number)
-    .sort((a, b) => a - b);
-  for (const d of dirs) {
-    for (const v of directions[d]?.variants ?? []) {
-      const key = versionKey(v);
-      if (!key) continue;
-      const cur = out.get(key);
-      // The lowest direction is read first, so its variant names the start.
-      if (cur) cur.tripCount += v.tripCount;
-      else
-        out.set(key, { key, from: v.stopIds[0]!, to: v.stopIds.at(-1)!, tripCount: v.tripCount });
-    }
-  }
-  return [...out.values()].sort((a, b) => b.tripCount - a.tripCount);
-}
-
-/**
  * The version a run belongs to. Shape first, since a shape is one road: every shape a merged
  * variant was built from counts. A run whose shape matches nothing falls back to its headsign
  * within its direction, and only when that headsign names one version.
- * @param ctx - The route view.
+ * @param ctx - The route's versions.
  * @param dir - The run's primary direction id.
  * @param shapeId - The run's shape id.
  * @param headsign - The run's headsign.
@@ -108,13 +68,15 @@ function versionOfRun(
   shapeId: string | null,
   headsign: string | null,
 ): string | null {
-  const variants = ctx.directions[dir]?.variants ?? [];
+  const inDir = ctx.versions.flatMap((ver) =>
+    ver.variants.filter((v) => v.directionId === dir).map((v) => ({ key: ver.key, v })),
+  );
   if (shapeId) {
-    const v = variants.find((x) => x.shapeId === shapeId || x.shapeIds?.includes(shapeId));
-    if (v) return versionKey(v);
+    const hit = inDir.find(({ v }) => v.shapeId === shapeId || v.shapeIds?.includes(shapeId));
+    if (hit) return hit.key;
   }
   if (headsign) {
-    const keys = new Set(variants.filter((x) => x.headsign === headsign).map(versionKey));
+    const keys = new Set(inDir.filter(({ v }) => v.headsign === headsign).map(({ key }) => key));
     if (keys.size === 1) return [...keys][0]!;
   }
   return null;
@@ -178,7 +140,7 @@ function finish(table: Map<string, Map<number, Acc>>): StopFigures {
  * stops the diagram draws. A row with no direction (its run has no trip record) is left out,
  * since there is no column to put it in.
  * @param rows - Arrival sums by stop, direction, shape and headsign.
- * @param ctx - The route view the figures are for.
+ * @param ctx - The route's versions and direction and stop maps.
  * @returns Figures over every run, and over each version's runs.
  */
 export function splitStopFigures(rows: StopSplitRow[], ctx: SplitContext): StopSplit {

@@ -32,6 +32,19 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.46.0] - 2026-09-23
+
+### Added
+
+- The route diagram v2 now has its layout. Both directions merge into one list of stops, with a
+  stop's two sides of the road on one row. The version that reaches the most stops runs straight
+  down, and stops only other versions reach sit on a track beside it. A loop such as the Southern
+  line's city loop is drawn as a lasso, and a circuit such as the Inner Link ends on the stop it
+  started from. Every stretch of line is drawn once and knows which versions run along it, so the
+  pieces always meet. Versions are now matched by the names of their ends, since a bus stop has a
+  different id on each side of the road, and one carrying under 5% of a route's runs is listed as a
+  minor version.
+
 ## [1.45.0] - 2026-09-23
 
 ### Added

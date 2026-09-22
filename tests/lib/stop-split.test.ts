@@ -1,31 +1,21 @@
 // tests/lib/stop-split.test.ts
 import {
-  routeVersions,
   splitStopFigures,
-  versionKey,
   type SplitContext,
   type StopSplitRow,
+  type VersionVariant,
 } from "@/lib/stop-split";
-import type { RouteVariant } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
 /**
- * A variant.
+ * A version's variant.
  * @param dir - Direction id.
- * @param stops - Stop ids in order.
  * @param shape - Shape id.
- * @param trips - Trip count.
  * @param headsign - Headsign.
  * @returns The variant.
  */
-function variant(
-  dir: number,
-  stops: string[],
-  shape: string,
-  trips = 10,
-  headsign: string | null = null,
-): RouteVariant {
-  return { directionId: dir, stopIds: stops, shapeId: shape, tripCount: trips, headsign };
+function variant(dir: number, shape: string, headsign: string | null = null): VersionVariant {
+  return { directionId: dir, shapeId: shape, headsign };
 }
 
 /**
@@ -61,41 +51,19 @@ function row(
 
 // 65 in miniature: Coyle Park runs and Walker Park runs to Glen Innes and back.
 const ctx: SplitContext = {
-  directions: {
-    0: {
-      variants: [
-        variant(0, ["WP", "WAK", "GI"], "walk-out", 89, "Glen Innes"),
-        variant(0, ["CP", "WAK", "GI"], "coyle-out", 30, "Glen Innes"),
-      ],
+  versions: [
+    {
+      key: "walker",
+      variants: [variant(0, "walk-out", "Glen Innes"), variant(1, "walk-back", "Walker Park")],
     },
-    1: {
-      variants: [
-        variant(1, ["GI", "WAK", "WP"], "walk-back", 89, "Walker Park"),
-        variant(1, ["GI", "WAK", "CP"], "coyle-back", 30, "Coyle Park"),
-      ],
+    {
+      key: "coyle",
+      variants: [variant(0, "coyle-out", "Glen Innes"), variant(1, "coyle-back", "Coyle Park")],
     },
-  },
+  ],
   directionIdAliases: new Map(),
   rawToCanon: new Map([["WAK-2", "WAK"]]),
 };
-
-describe("versionKey", () => {
-  it("gives the run out and the run back one key", () => {
-    expect(versionKey(variant(0, ["A", "B", "C"], "s"))).toBe(
-      versionKey(variant(1, ["C", "B", "A"], "t")),
-    );
-  });
-});
-
-describe("routeVersions", () => {
-  it("pairs the directions, busiest first, named from the lowest direction", () => {
-    const vs = routeVersions(ctx.directions);
-    expect(vs.map((v) => [v.from, v.to, v.tripCount])).toEqual([
-      ["WP", "GI", 178],
-      ["CP", "GI", 60],
-    ]);
-  });
-});
 
 describe("splitStopFigures", () => {
   const rows = [
@@ -127,11 +95,9 @@ describe("splitStopFigures", () => {
   });
 
   it("keeps each version's runs apart", () => {
-    const walker = versionKey(variant(0, ["WP", "GI"], "x"));
-    const coyle = versionKey(variant(0, ["CP", "GI"], "x"));
-    expect(split.byVersion[walker]?.WAK?.[0]?.avg_delay_sec).toBe(60);
-    expect(split.byVersion[coyle]?.WAK?.[0]?.avg_delay_sec).toBe(-20);
-    expect(split.byVersion[walker]?.CP).toBeUndefined();
+    expect(split.byVersion.walker?.WAK?.[0]?.avg_delay_sec).toBe(60);
+    expect(split.byVersion.coyle?.WAK?.[0]?.avg_delay_sec).toBe(-20);
+    expect(split.byVersion.walker?.CP).toBeUndefined();
   });
 
   it("leaves out a run with no direction", () => {
@@ -148,7 +114,7 @@ describe("splitStopFigures", () => {
 
   it("places a run by headsign only when that headsign names one version", () => {
     const back = splitStopFigures([row("WAK", 1, "unknown", 2, 20, 2, "Coyle Park")], ctx);
-    expect(Object.keys(back.byVersion)).toEqual([versionKey(variant(0, ["CP", "GI"], "x"))]);
+    expect(Object.keys(back.byVersion)).toEqual(["coyle"]);
     const out = splitStopFigures([row("WAK", 0, "unknown", 2, 20, 2, "Glen Innes")], ctx);
     expect(out.byVersion).toEqual({});
     expect(out.all.WAK?.[0]?.events).toBe(2);
@@ -157,11 +123,14 @@ describe("splitStopFigures", () => {
   it("matches a shape folded into a merged variant", () => {
     const withMerged: SplitContext = {
       ...ctx,
-      directions: {
-        0: { variants: [{ ...variant(0, ["CP", "GI"], "a"), shapeIds: ["a", "b"] }] },
-      },
+      versions: [{ key: "coyle", variants: [{ ...variant(0, "a"), shapeIds: ["a", "b"] }] }],
     };
     const s = splitStopFigures([row("CP", 0, "b", 1, 0)], withMerged);
-    expect(Object.keys(s.byVersion)).toHaveLength(1);
+    expect(Object.keys(s.byVersion)).toEqual(["coyle"]);
+  });
+
+  it("matches a shape only within the run's direction", () => {
+    const s = splitStopFigures([row("WAK", 1, "walk-out", 1, 0)], ctx);
+    expect(s.byVersion).toEqual({});
   });
 });
