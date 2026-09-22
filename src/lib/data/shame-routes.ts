@@ -1,6 +1,6 @@
 // src/lib/data/shame-routes.ts
 // The worst routes: hourly and per-day boards, and the streak batch behind the flame badges.
-import { MS_IN_DAY, cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { SCHOOL_BUS_REGEX, type ShameFilter } from "@/lib/data/shame-filter";
 import { cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
 import { prisma, runCommand } from "@/lib/db";
@@ -59,7 +59,12 @@ export async function getShameRouteStreak(
 ): Promise<number> {
   return unstable_cache(
     async () => {
-      const sevenDaysAgo = new Date(currentRange.end.getTime() - 7 * MS_IN_DAY);
+      // The start of the service day six days back, found by date rather than
+      // by 7 x 24h of milliseconds: that lands an hour off 4am across a DST
+      // change, and when the clocks go back it misses the first day's summary.
+      const sevenDaysAgo = nzServiceDayRange(
+        shiftWeek(nzServiceDayString(currentRange.start), -6),
+      ).start;
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
           aggregate: "DailyRouteSummary",
@@ -159,7 +164,11 @@ export async function getShameRouteStreaksBatch(
   // routes anyway; including routeIds in the key caused a cache miss whenever
   // the visible route set grew during the day, re-running the full 14-day
   // aggregation on every new hourly cycle.
-  const fourteenDaysAgo = new Date(currentRange.start.getTime() - 14 * MS_IN_DAY);
+  // By date, as the streak walk below steps, so a DST change cannot shift the
+  // window's start off 4am and drop its first day.
+  const fourteenDaysAgo = nzServiceDayRange(
+    shiftWeek(nzServiceDayString(currentRange.start), -14),
+  ).start;
   const streakRange: DateRange = { start: fourteenDaysAgo, end: currentRange.start };
   const firstBatch = await cachedForRange(
     async (classified) => {

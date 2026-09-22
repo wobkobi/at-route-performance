@@ -13,6 +13,7 @@ import {
   nzServiceDayRange,
   serviceDatesInRange,
   serviceDayClockInstant,
+  serviceDayScanRange,
 } from "@/lib/time";
 import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-id";
 
@@ -42,40 +43,39 @@ interface FlagKey {
 /**
  * Each flag's stage, from the real (non-ghost) arrivals its trip recorded on
  * the flag's own service day. One indexed read for the whole set: the trip ids
- * lead the ArrivalEvent unique key, and the window spans the flags' days.
+ * lead the ArrivalEvent unique key, and the window spans the flags' days plus
+ * the run tail, so a run cut short after 4am still shows the calls it made.
+ * Each arrival is then matched to a flag by its stamped service date.
  * @param flags - The cancellation flags to classify.
  * @returns Stage per flag, keyed by `tripId|serviceDate`.
  */
 async function flagStages(flags: readonly FlagKey[]): Promise<Map<string, CancellationStage>> {
   const out = new Map<string, CancellationStage>();
   if (flags.length === 0) return out;
-  const days = flags.map((f) => nzServiceDayRange(f.serviceDate));
+  const dates = [...new Set(flags.map((f) => f.serviceDate))];
+  const days = dates.map((d) => serviceDayScanRange(d));
   const start = new Date(Math.min(...days.map((d) => d.start.getTime())));
   const end = new Date(Math.max(...days.map((d) => d.end.getTime())));
   const events = await prisma.arrivalEvent.findMany({
     where: {
       tripId: { in: [...new Set(flags.map((f) => f.tripId))] },
       scheduledAt: { gte: start, lt: end },
+      serviceDate: { in: dates },
     },
-    select: { tripId: true, scheduledAt: true, actualAt: true, ghost: true },
+    select: { tripId: true, serviceDate: true, actualAt: true, ghost: true },
   });
-  const eventsByTrip = new Map<string, typeof events>();
+  const arrivalsByRun = new Map<string, string[]>();
   for (const e of events) {
     if (e.ghost === true) continue;
-    const list = eventsByTrip.get(e.tripId);
-    if (list) list.push(e);
-    else eventsByTrip.set(e.tripId, [e]);
+    const key = `${e.tripId}|${e.serviceDate}`;
+    const list = arrivalsByRun.get(key);
+    if (list) list.push(e.actualAt.toISOString());
+    else arrivalsByRun.set(key, [e.actualAt.toISOString()]);
   }
-  flags.forEach((f, i) => {
-    const day = days[i];
-    const arrivals = (eventsByTrip.get(f.tripId) ?? [])
-      .filter((e) => day !== undefined && e.scheduledAt >= day.start && e.scheduledAt < day.end)
-      .map((e) => e.actualAt.toISOString());
-    out.set(
-      `${f.tripId}|${f.serviceDate}`,
-      cancellationStage(f.detectedAt.toISOString(), arrivals),
-    );
-  });
+  for (const f of flags) {
+    const key = `${f.tripId}|${f.serviceDate}`;
+    out.set(key, cancellationStage(f.detectedAt.toISOString(), arrivalsByRun.get(key) ?? []));
+  }
   return out;
 }
 
@@ -108,7 +108,7 @@ export async function getCancelledTrips(
       const byTrip = new Map(rows.map((r) => [r.tripId, r]));
       return (await describeFlags([...byTrip.values()])).sort(byScheduledStart);
     },
-    ["cancelled-trips-v3", routeId, range.start.toISOString(), range.end.toISOString()],
+    ["cancelled-trips-v4", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
     300,
   );
@@ -225,7 +225,7 @@ function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[
         })
         .sort(byScheduledStart);
     },
-    ["network-cancelled-trips", date],
+    ["network-cancelled-trips-v2", date],
     date,
     300,
   );

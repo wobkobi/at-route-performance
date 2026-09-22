@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.4] - 2026-09-23
+
+### Fixed
+
+- A run that crosses 4am now counts whole, on the day it started, on the trip page, the route's trip
+  board, the stop board, the stop page and cards, and the cancellation stages; an undated trip link
+  opens the day the run started
+
 ## [1.49.3] - 2026-09-23
 
 ### Fixed
