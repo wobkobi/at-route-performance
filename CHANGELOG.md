@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.42.1] - 2026-09-22
+
+### Fixed
+
+- The smallest text on the site is 13px, nothing is set under 12px, and the shared-link cards'
+  smaller lines are larger.
+
 ## [1.42.0] - 2026-09-22
 
 ### Added

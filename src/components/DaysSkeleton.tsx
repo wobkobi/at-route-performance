@@ -46,8 +46,8 @@ export function DaysHeaderSkeleton(): JSX.Element {
 
 /**
  * Mirrors the chart, its caption and the table. The chart's plot is `h-48`,
- * `sm:h-64`, under it the labels: two `text-[10px]`/`sm:text-xs` tight lines on
- * a week, one on a month. Table rows are `p-3 text-sm` plus a 1px rule.
+ * `sm:h-64`, under it the labels: two tight `text-xs` lines (16.25px each) on a
+ * week, one on a month. Table rows are `p-3 text-sm` plus a 1px rule.
  * @param root0 - Props.
  * @param root0.window - The window, which sets the label height and row count.
  * @returns The body placeholder.
@@ -59,7 +59,7 @@ export function DaysBodySkeleton({ window }: { window: "week" | "month" }): JSX.
       <div className="space-y-2">
         <div className="border border-at-border bg-at-surface p-3 sm:p-4">
           <Bone className="h-48 sm:h-64" />
-          <div className={window === "week" ? "mt-1 h-6.25 sm:h-7.5" : "mt-1 h-3.25"} />
+          <div className={window === "week" ? "mt-1 h-[32.5px]" : "mt-1 h-[16.25px]"} />
         </div>
         {/* The caption: four text-xs lines on a phone, two at sm, one from lg. */}
         <Bone className="h-16 sm:h-8 lg:h-4" />

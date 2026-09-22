@@ -49,7 +49,7 @@ function ColumnLabel({
   const dayOfMonth = Number(slot.date.slice(8));
   if (!monthView) {
     return (
-      <span className="block text-center text-[10px] leading-tight text-at-muted sm:text-xs">
+      <span className="block text-center text-xs leading-tight text-at-muted">
         {weekdayShort(slot.date)}
         <br />
         {dayOfMonth}
@@ -60,7 +60,7 @@ function ColumnLabel({
   return (
     <span
       className={cn(
-        "block text-center text-[10px] leading-tight text-at-muted tabular-nums",
+        "block text-center text-xs leading-tight text-at-muted tabular-nums",
         !keep && "invisible sm:visible",
       )}
     >
@@ -97,17 +97,17 @@ export function DayChart({
     <div aria-hidden className="border border-at-border bg-at-surface p-3 sm:p-4">
       <div className="flex">
         {/* Guide labels: each band's word at its floor, plus the baseline. */}
-        <div className="relative h-48 w-14 shrink-0 sm:h-64 sm:w-18">
+        <div className="relative h-48 w-20 shrink-0 sm:h-64">
           {guides.map((b) => (
             <span
               key={b.label}
-              className="absolute right-2 translate-y-1/2 text-[10px] leading-none whitespace-nowrap text-at-muted sm:text-xs"
+              className="absolute right-2 translate-y-1/2 text-xs leading-none whitespace-nowrap text-at-muted"
               style={{ bottom: `${plotHeight(b.floor)}%` }}
             >
               {b.label} {b.floor}
             </span>
           ))}
-          <span className="absolute right-2 bottom-0 translate-y-1/2 text-[10px] leading-none text-at-muted sm:text-xs">
+          <span className="absolute right-2 bottom-0 translate-y-1/2 text-xs leading-none text-at-muted">
             {CHART_FLOOR}%
           </span>
         </div>

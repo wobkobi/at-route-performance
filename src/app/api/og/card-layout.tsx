@@ -92,12 +92,12 @@ export function CardFrame({
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          padding: "56px 64px 0",
+          padding: "48px 64px 0",
         }}
       >
         <div
           style={{
-            fontSize: 28,
+            fontSize: 34,
             letterSpacing: 2,
             textTransform: "uppercase",
             color: MUTED,
@@ -121,9 +121,9 @@ export function CardFrame({
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain img only */}
           <img src={logo} width={60} height={60} alt="" />
-          <div style={{ fontSize: 34, fontWeight: 900 }}>AT Route Performance</div>
+          <div style={{ fontSize: 38, fontWeight: 900 }}>AT Route Performance</div>
         </div>
-        <div style={{ fontSize: 20, color: BORDER }}>Independent, not affiliated with AT</div>
+        <div style={{ fontSize: 26, color: BORDER }}>Independent, not affiliated with AT</div>
       </div>
     </div>
   );
@@ -180,10 +180,10 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
           />
         ))}
       </div>
-      <div style={{ fontSize: 36, marginTop: 32 }}>
+      <div style={{ fontSize: 42, marginTop: 28 }}>
         {`${summary.on_time_pct.toFixed(1)}% of ${summary.events.toLocaleString("en-NZ")} arrivals on time`}
       </div>
-      <div style={{ fontSize: 30, marginTop: 8, color: MUTED }}>
+      <div style={{ fontSize: 36, marginTop: 8, color: MUTED }}>
         {summary.avg_abs_delay_sec === null
           ? ""
           : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`}
@@ -252,7 +252,7 @@ export interface SubjectBodyProps {
 export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyProps): JSX.Element {
   // A long stop name or a long hero phrase steps down a size rather than clip.
   const nameSize = name && name.length > 28 ? 48 : 60;
-  const heroSize = hero && hero.text.length > 12 ? 92 : 116;
+  const heroSize = hero && hero.text.length > 12 ? 88 : 104;
   // Children as an array rather than fragments: Satori gives an empty fragment
   // the flex gap too, so a missing glyph or name row would still leave space.
   const head =
@@ -267,7 +267,7 @@ export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyPr
               </div>,
             ]}
           </div>,
-          <div key="subname" style={{ fontSize: 30, marginTop: 6, color: MUTED }}>
+          <div key="subname" style={{ fontSize: 36, marginTop: 6, color: MUTED }}>
             {subname ?? ""}
           </div>,
         ];
@@ -293,7 +293,7 @@ export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyPr
         <div
           key={line}
           style={{
-            fontSize: i === 0 ? 34 : 28,
+            fontSize: i === 0 ? 40 : 34,
             marginTop: i === 0 ? 20 : 6,
             color: i === 0 ? INK : MUTED,
           }}
