@@ -34,7 +34,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
+import { dayRangeNav, periodInPhrase, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -93,16 +93,19 @@ function tripHref(t: ShameTrip): string {
  * @param root0.range - The active window.
  * @param root0.filter - Active mode/school filter.
  * @param root0.periodNoun - Copy noun for the period ("week" / "month").
+ * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function TripRangeBoard({
   range,
   filter,
   periodNoun,
+  periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
   periodNoun: "week" | "month";
+  periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
@@ -141,7 +144,7 @@ async function TripRangeBoard({
                 tier="week"
                 count={dayCount}
                 worst={isWorst}
-                label={`${name} appeared as the worst trip on ${dayCount} days this ${periodNoun}`}
+                label={`${name} appeared as the worst trip on ${dayCount} days in ${periodWhen}`}
               />
             )}
           </span>
@@ -205,7 +208,7 @@ export default async function TripShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title={`Shame of the ${isMonth ? "Month" : "Week"}`}
+          title={`Worst trips of the ${periodNoun}`}
           subtitle={`The most off-schedule run of each day · ${subtitle}`}
           activeTab="trip"
           tabHrefs={{
@@ -241,7 +244,12 @@ export default async function TripShamePage({
             />
           }
         >
-          <TripRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
+          <TripRangeBoard
+            range={activeRange}
+            filter={filter}
+            periodNoun={periodNoun}
+            periodWhen={periodInPhrase(periodNoun, periodParam)}
+          />
         </Suspense>
       </main>
     );
@@ -362,7 +370,7 @@ export default async function TripShamePage({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title="Shame of the Day"
+        title="Worst trips of the day"
         subtitle={`The most off-schedule run of each hour · ${subtitle}`}
         activeTab="trip"
         tabHrefs={{

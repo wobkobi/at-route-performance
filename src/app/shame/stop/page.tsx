@@ -31,7 +31,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
+import { dayRangeNav, periodInPhrase, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import {
   buildShameHref,
   countById,
@@ -86,19 +86,24 @@ function badTimes(count: number): string {
  * @param root0.range - The active window.
  * @param root0.filter - Active mode/school filter.
  * @param root0.periodNoun - Copy noun for the period ("week" / "month").
+ * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function StopRangeBoard({
   range,
   filter,
   periodNoun,
+  periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
   periodNoun: "week" | "month";
+  periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);
-  const worstId = shame.worst?.stop_id ?? null;
+  // Crowned by day, not by stop: a stop that tops several days wins one of them,
+  // and its other rows are ordinary rows.
+  const worstKey = shame.worst?.date ?? null;
   const stopDayCounts = countById(shame.days, (d) => d.stop_id);
 
   /**
@@ -108,7 +113,7 @@ async function StopRangeBoard({
    * @returns The row anchor element.
    */
   const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
-    const isWorst = s.stop_id === worstId;
+    const isWorst = s.date === worstKey;
     const [, m, d] = s.date.split("-");
     const dayLabel = weekdayShort(s.date);
     const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
@@ -128,7 +133,7 @@ async function StopRangeBoard({
           <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {weekCount > 1 && (
             <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(weekCount)} this {periodNoun}
+              {s.name} was bad {badTimes(weekCount)} in {periodWhen}
             </span>
           )}
         </span>
@@ -169,7 +174,7 @@ export default async function StopShamePage({
   const sp = (await searchParams) ?? {};
   clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
-  const { filter, view, preserved } = parseShameParams(sp);
+  const { filter, view, preserved, subtitle } = parseShameParams(sp);
 
   if (view !== "day") {
     /**
@@ -189,8 +194,8 @@ export default async function StopShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title={`Worst Stop of the ${isMonth ? "Month" : "Week"}`}
-          subtitle="The most off-schedule stop of each day"
+          title={`Worst stops of the ${periodNoun}`}
+          subtitle={`The most off-schedule stop of each day · ${subtitle}`}
           activeTab="stop"
           tabHrefs={{
             trip: buildShameHref("/shame/trip", rangeNav, filter),
@@ -225,7 +230,12 @@ export default async function StopShamePage({
             />
           }
         >
-          <StopRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
+          <StopRangeBoard
+            range={activeRange}
+            filter={filter}
+            periodNoun={periodNoun}
+            periodWhen={periodInPhrase(periodNoun, periodParam)}
+          />
         </Suspense>
       </main>
     );
@@ -250,8 +260,8 @@ export default async function StopShamePage({
   const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
   const worst = pickWorst(visibleHours);
-  const worstId = worst && isCrownable(worst) ? worst.stop_id : null;
-  const noneNotablyBad = visibleHours.length > 0 && worstId === null;
+  const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.stop_id}` : null;
+  const noneNotablyBad = visibleHours.length > 0 && worstKey === null;
 
   /**
    * Render one day-view hour row.
@@ -260,7 +270,7 @@ export default async function StopShamePage({
    * @returns The row anchor element.
    */
   const renderDayRow = (s: ShameStop, ctx: ShameRowContext): JSX.Element => {
-    const isWorst = s.stop_id === worstId;
+    const isWorst = worstKey === `${s.hour}-${s.stop_id}`;
     const hourCount = stopHourCounts.get(s.stop_id) ?? 0;
     return (
       <Link
@@ -313,8 +323,8 @@ export default async function StopShamePage({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title="Worst Stop of the Day"
-        subtitle="The most off-schedule stop of each hour"
+        title="Worst stops of the day"
+        subtitle={`The most off-schedule stop of each hour · ${subtitle}`}
         activeTab="stop"
         tabHrefs={{
           trip: buildShameHref("/shame/trip", { day: linkDay }, filter),

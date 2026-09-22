@@ -399,7 +399,7 @@ function offHero(signed: number, abs: number, mode: string): SubjectBodyProps["h
 /** Each shame card's heading and the noun its empty state uses. */
 const SHAME_HEADINGS = {
   overview: { head: "Shame of the day", noun: "run" },
-  trip: { head: "Worst run", noun: "run" },
+  trip: { head: "Worst trip", noun: "run" },
   route: { head: "Worst route", noun: "route" },
   stop: { head: "Worst stop", noun: "stop" },
 } as const;

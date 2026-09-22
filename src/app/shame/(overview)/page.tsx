@@ -85,7 +85,7 @@ export default async function ShameDashboard({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title="Shame of the Day"
+        title="Shame of the day"
         subtitle={`The worst trip, route, and stop · ${subtitle}`}
         activeTab="none"
         tabHrefs={{ trip: tripHref, route: routeHref, stop: stopHref }}

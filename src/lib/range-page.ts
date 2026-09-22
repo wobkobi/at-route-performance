@@ -256,6 +256,20 @@ export function windowPhrase(nav: RangeNav, period: string | null): string {
 }
 
 /**
+ * The shown week or month as the words that follow "in": "the last 7 days" for
+ * the rolling week, "that week" for a stepped-back one, "this month", "that
+ * month". {@link windowPhrase} says the same thing where the phrase stands on
+ * its own ("How bad was it over the last 7 days?").
+ * @param window - "week" or "month".
+ * @param period - The shown week or month, or null for the current one.
+ * @returns The phrase.
+ */
+export function periodInPhrase(window: "week" | "month", period: string | null): string {
+  if (period !== null) return `that ${window}`;
+  return window === "week" ? "the last 7 days" : "this month";
+}
+
+/**
  * The home page heading for a window (see {@link windowPhrase}).
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.

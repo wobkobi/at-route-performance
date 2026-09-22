@@ -408,9 +408,9 @@ export function cardWhenSuffix(card: SubjectCard | ShameCard | ListCard): string
 /** Each shame page's heading, by board, before its window's noun. */
 const SHAME_HEADS: Record<ShameBoard, string> = {
   overview: "Shame of the",
-  trip: "Shame of the",
-  route: "Worst route of the",
-  stop: "Worst stop of the",
+  trip: "Worst trips of the",
+  route: "Worst routes of the",
+  stop: "Worst stops of the",
 };
 
 /**

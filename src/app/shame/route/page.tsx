@@ -34,7 +34,13 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, routeLinkQuery, weekPeriodOf, windowPhrase } from "@/lib/range-page";
+import {
+  dayRangeNav,
+  periodInPhrase,
+  routeLinkQuery,
+  weekPeriodOf,
+  windowPhrase,
+} from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -139,7 +145,10 @@ async function RouteRangeBoard({
                 tier="week"
                 count={dayCount}
                 worst={isWorst}
-                label={`${name} was the worst route on ${dayCount} days this ${periodNoun}`}
+                label={`${name} was the worst route on ${dayCount} days in ${periodInPhrase(
+                  periodNoun,
+                  periodParam,
+                )}`}
               />
             )}
           </span>
@@ -200,7 +209,7 @@ export default async function RoutesShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title={`Worst Route of the ${isMonth ? "Month" : "Week"}`}
+          title={`Worst routes of the ${periodNoun}`}
           subtitle={`The most off-schedule route of each day · ${subtitle}`}
           activeTab="route"
           tabHrefs={{
@@ -360,7 +369,7 @@ export default async function RoutesShamePage({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title="Worst Route of the Day"
+        title="Worst routes of the day"
         subtitle={`The most off-schedule route of each hour · ${subtitle}`}
         activeTab="route"
         tabHrefs={{

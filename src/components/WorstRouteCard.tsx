@@ -27,9 +27,9 @@ export interface WorstRouteCardProps {
  *
  * Every figure on it is **one hour's**, not the period's. The row is the max
  * over per-hour `(route, hour)` rows, so the winner is a route at its worst
- * hour; the eyebrow names that hour, because the same route's whole-day average
- * appears on the home boards and the two would otherwise look like they
- * disagreed.
+ * hour; the last line names that hour, because the same route's whole-day
+ * average appears on the home boards and the two would otherwise look like they
+ * disagreed. The eyebrow stays "Worst route", the name its board goes by.
  * @param props - Component props.
  * @param props.route - The worst route row (or null).
  * @param props.day - Service day to pin on the link (optional).
@@ -50,8 +50,9 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
 
   // Week-view rows carry a service date and no meaningful hour; day rows are the
   // other way round.
-  const bucket = route.date ? weekdayShort(route.date) : nzHourLabel(route.hour);
-  const bucketWord = route.date ? "day" : "hour";
+  const bucket = route.date
+    ? `on ${weekdayShort(route.date)}`
+    : `in the ${nzHourLabel(route.hour)} hour`;
   const href =
     hrefProp ??
     `/route/${encodeURIComponent(routeSlug(route.route_id))}${day ? `?day=${day}` : ""}`;
@@ -60,9 +61,7 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
       href={href}
       className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
     >
-      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">
-        Worst route - {bucket}
-      </p>
+      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst route</p>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={route.mode}
@@ -79,7 +78,7 @@ export function WorstRouteCard({ route, day, href: hrefProp }: WorstRouteCardPro
         mode={route.mode}
       />
       <p className="text-xs text-at-muted tabular-nums">
-        {route.events} arrivals in that {bucketWord}
+        {route.events} arrivals {bucket}
       </p>
     </Link>
   );

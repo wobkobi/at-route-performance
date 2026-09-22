@@ -8,6 +8,7 @@ import {
   overviewHeading,
   parseRangeWindow,
   periodAnchorDay,
+  periodInPhrase,
   rangeTabPeriods,
   routeLinkQuery,
   weekPeriodOf,
@@ -236,5 +237,14 @@ describe("hasEarlierDay", () => {
   it("ignores a live floor that sits before the constant", () => {
     // The 10 September remnant must never re-open the stepper.
     expect(hasEarlierDay(DATA_START_DAY, nzServiceDayRange("2026-09-10").start)).toBe(false);
+  });
+});
+
+describe("periodInPhrase", () => {
+  it("names the rolling window by its days and a stepped-back one as that period", () => {
+    expect(periodInPhrase("week", null)).toBe("the last 7 days");
+    expect(periodInPhrase("week", "2026-09-14")).toBe("that week");
+    expect(periodInPhrase("month", null)).toBe("this month");
+    expect(periodInPhrase("month", "2026-08")).toBe("that month");
   });
 });

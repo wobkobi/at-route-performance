@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.9] - 2026-09-23
+
+### Fixed
+
+- The worst-trip, worst-route and worst-stop boards now go by one name each - on the page, in the
+  browser tab and on a shared link - and the worst-stop board marks the one hour or day it crowns
+  instead of every appearance of that stop. The stop board names the filter it is under, and a past
+  week or month is described as such rather than as "this week".
+
 ## [1.49.8] - 2026-09-23
 
 ### Fixed

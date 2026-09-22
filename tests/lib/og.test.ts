@@ -157,13 +157,15 @@ describe("shame cards", () => {
 
   it("reads a board's week and month, and titles them", () => {
     const week = parseShameCard("route", { window: "week", period: "2026-09-14" });
-    expect(listCardTitle(week)).toBe("Worst route of the week, week of Mon 14 Sep");
+    expect(listCardTitle(week)).toBe("Worst routes of the week, week of Mon 14 Sep");
     const month = parseShameCard("stop", { window: "month", period: "2026-09", school: "1" });
     expect(listCardTitle(month)).toBe(
-      "Worst stop of the month, September 2026 (Incl. school services)",
+      "Worst stops of the month, September 2026 (Incl. school services)",
     );
     // The current period is the page's default, so it names no date.
-    expect(listCardTitle(parseShameCard("trip", { window: "week" }))).toBe("Shame of the week");
+    expect(listCardTitle(parseShameCard("trip", { window: "week" }))).toBe(
+      "Worst trips of the week",
+    );
   });
 
   it("round-trips through the handler's parse", () => {
