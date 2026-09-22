@@ -14,7 +14,7 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
-  { href: "/", label: "Overview", under: ["/shame", "/days"] },
+  { href: "/", label: "Overview", under: ["/shame", "/days", "/vehicles"] },
   { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
   { href: "/cancellations", label: "Cancellations", under: [] },
 ];
