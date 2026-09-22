@@ -18,6 +18,8 @@ export type {
   TripCancellation,
 } from "@/lib/data/cancelled";
 export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
+export { getGhostRun, getGhostRunFor } from "@/lib/data/ghost-runs";
+export type { GhostRunRow } from "@/lib/data/ghost-runs";
 export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";

@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.42.0] - 2026-09-22
+
+### Added
+
+- The trip page says when Auckland Transport reported a run under another run's number.
+
 ## [1.41.12] - 2026-09-22
 
 ### Fixed

@@ -7,15 +7,19 @@ import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { TripCancellationNote } from "@/components/TripCancellationNote";
 import { TripDetourNote } from "@/components/TripDetourNote";
+import { TripGhostRunNote } from "@/components/TripGhostRunNote";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import {
+  getGhostRun,
+  getGhostRunFor,
   getLatestTripDay,
   getTripCancellation,
   getTripDetour,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
+  type GhostRunRow,
   type ScheduledStop,
 } from "@/lib/data";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
@@ -91,11 +95,18 @@ export default async function TripPage({
   // An AT outage costs this request its schedule and road path, not the day's
   // cache entries - but a swallowed failure read as "this run has no stops", so
   // `allSettled` keeps the rejection and the page below says which it was.
-  const [timeline, optional, flag, detour] = await Promise.all([
+  // The stored service date the ghost records are keyed on is null only for an
+  // undated link to a trip that has never recorded anything.
+  const serviceDate = day ? nzServiceDayString(day.start) : null;
+  const [timeline, optional, flag, detour, ghostRun, ghostRunHere] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
     Promise.allSettled([getTripScheduledStops(tripId), getTripShape(tripId)]),
     getTripCancellation(tripId, day),
     day ? getTripDetour(tripId, day) : Promise.resolve(null),
+    // This run's readings were not its own.
+    getGhostRun(tripId, serviceDate),
+    // Another run's readings were filed under this run's number.
+    serviceDate ? getGhostRunFor(tripId, serviceDate) : Promise.resolve<GhostRunRow | null>(null),
   ]);
   const [scheduledResult, roadResult] = optional;
   const scheduleFailed = scheduledResult.status === "rejected";
@@ -111,6 +122,9 @@ export default async function TripPage({
     notFound();
   }
   const routeMode = route?.mode ?? "BUS";
+  const vehicleNoun = routeMode === "TRAIN" ? "train" : routeMode === "FERRY" ? "ferry" : "bus";
+  // The ghost panels' link to the other run keeps this run's day.
+  const linkD = d ?? day?.start.toISOString() ?? null;
 
   // Cancellation: the recorded arrivals against AT's flag tell a trip that never
   // ran from one cut short or reinstated (see lib/cancellation.ts). A trip that
@@ -253,7 +267,7 @@ export default async function TripPage({
           sightings={detour.sightings}
           alert={detour.alert}
           nearestStop={nearestStop}
-          noun={routeMode === "TRAIN" ? "train" : routeMode === "FERRY" ? "ferry" : "bus"}
+          noun={vehicleNoun}
         />
       )}
 
@@ -265,6 +279,26 @@ export default async function TripPage({
           notServed={
             scheduledStops.length > 0 ? scheduledStops.length - Math.max(notServedFrom, 0) : null
           }
+        />
+      )}
+
+      {ghostRun && (
+        <TripGhostRunNote
+          kind="hidden"
+          other={ghostRun.belongs_to}
+          routeSlug={slug}
+          day={linkD}
+          noun={vehicleNoun}
+        />
+      )}
+
+      {ghostRunHere && (
+        <TripGhostRunNote
+          kind="mirror"
+          other={{ trip_id: ghostRunHere.trip_id, label: ghostRunHere.label }}
+          routeSlug={slug}
+          day={linkD}
+          noun={vehicleNoun}
         />
       )}
 
