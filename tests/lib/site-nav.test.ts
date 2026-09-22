@@ -15,6 +15,8 @@ describe("isNavActive", () => {
     expect(isNavActive(overview, "/")).toBe(true);
     expect(isNavActive(overview, "/shame/trip")).toBe(true);
     expect(isNavActive(overview, "/days")).toBe(true);
+    expect(isNavActive(overview, "/vehicles")).toBe(true);
+    expect(isNavActive(overview, "/vehicle/59018")).toBe(true);
     expect(isNavActive(overview, "/routes")).toBe(false);
     expect(isNavActive(routes, "/route/NX1/trip/abc")).toBe(true);
     expect(isNavActive(routes, "/stop/123")).toBe(true);

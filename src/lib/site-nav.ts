@@ -19,7 +19,8 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
-  { href: "/", label: "Overview", under: ["/shame", "/days", "/vehicles"] },
+  // `/vehicle/` too: a vehicle's page is not a prefix match of the list it opens from.
+  { href: "/", label: "Overview", under: ["/shame", "/days", "/vehicles", "/vehicle/"] },
   { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
   { href: "/live", label: "Live", under: [], carries: ["mode"] },
   { href: "/cancellations", label: "Cancellations", under: [] },

@@ -35,10 +35,12 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
             {s.label}
           </span>
         ) : (
+          // A lit section tab here is the parent of the current page, not the
+          // page itself, so it is marked as the current section rather than page.
           <Link
             key={s.href}
             href={navHref(s, params)}
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? "true" : undefined}
             className={className}
           >
             {s.label}
