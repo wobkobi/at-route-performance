@@ -10,18 +10,16 @@ const CARTO_TILES = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /**
- * The Vercel hosts the key may go out from: the production domain, the
- * branch's stable preview alias (at-route-performance-git-dev-...), and on a
- * preview build the deployment's own URL (at-route-performance-<hash>-...), so
- * any shared preview link draws clean tiles. A production build leaves its own
- * deployment URL out, so the post-deploy smoke, which visits that URL, never
- * depends on CARTO accepting it. The per-commit URLs change on every push, so
- * CARTO has to allow them by pattern rather than one by one.
+ * The Vercel hosts the key may go out from: the production domain, and the
+ * branch's stable preview alias (at-route-performance-git-dev-...), so a shared
+ * preview link draws clean tiles. Per-deployment URLs
+ * (at-route-performance-<hash>-...) are left out: CARTO's allow-list takes one
+ * whole-label wildcard, so the only pattern matching them is *.vercel.app,
+ * which would let any Vercel site spend the key's quota.
  */
 export const VERCEL_KEY_HOSTS = [
   process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
   process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL,
-  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ? process.env.NEXT_PUBLIC_VERCEL_URL : undefined,
 ] as const;
 
 /**

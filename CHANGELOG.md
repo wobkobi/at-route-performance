@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.10] - 2026-09-22
+
+### Fixed
+
+- Per-deployment preview addresses go back to the watermarked map tiles. CARTO can only allow them
+  with a wildcard over every Vercel site, so only the branch preview link gets the key.
+
 ## [1.41.9] - 2026-09-22
 
 ### Changed
