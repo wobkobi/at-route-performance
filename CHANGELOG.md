@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.51.1] - 2026-09-23
+
+### Fixed
+
+- The smoke test now expects /shame to land on the trips board, and it visits the routes board
+  alongside the trips and stops ones.
+
 ## [1.51.0] - 2026-09-23
 
 ### Added
