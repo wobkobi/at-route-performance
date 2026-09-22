@@ -9,8 +9,10 @@
 // denser time labels, and the viewBox is trimmed to the drawn content so every
 // diagram in a section can share one width and render at the same scale.
 
+import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay } from "@/lib/format";
+import { labelWidth } from "@/lib/label-width";
 import type { BranchLabel, DiagramEdge, LabelDir } from "@/lib/route-graph";
 import { useState, type JSX } from "react";
 
@@ -255,15 +257,23 @@ export function DiagramSvg({
    * Resolve a label to the first side (preferred, then opposite, then the
    * horizontals) whose box clears every line and every placed label; fall back
    * to the first side that at least clears the lines, then to the preferred
-   * side. Registers the chosen box so later labels avoid it.
+   * side. When every position crosses a line the label is still drawn, on the
+   * first side no other label claims, and flagged for a halo so it reads over
+   * the line beneath it. Registers the chosen box so later labels avoid it.
    * @param cx - Stop centre x.
    * @param cy - Stop centre y.
    * @param dir - Preferred side.
    * @param w - Text width (px).
    * @param h - Text line-box height (px).
-   * @returns The chosen placement, or null when every position crosses a line segment.
+   * @returns The chosen placement, and whether it crosses a line.
    */
-  const place = (cx: number, cy: number, dir: LabelDir, w: number, h: number): Placement | null => {
+  const place = (
+    cx: number,
+    cy: number,
+    dir: LabelDir,
+    w: number,
+    h: number,
+  ): { lp: Placement; halo: boolean } => {
     let segClear: { lp: Placement; box: LabelBox } | null = null;
     for (const d of LABEL_ORDER[dir]) {
       const lp = labelPlacement(cx, cy, d);
@@ -271,7 +281,7 @@ export function DiagramSvg({
       if (boxHitsSeg(segs, box)) continue;
       if (!placedBoxes.some((p) => boxesOverlap(p, box))) {
         placedBoxes.push(box);
-        return lp;
+        return { lp, halo: false };
       }
       segClear ??= { lp, box };
     }
@@ -284,15 +294,28 @@ export function DiagramSvg({
         const box = lpToBox(lp, w, h);
         if (!boxHitsSeg(segs, box) && !placedBoxes.some((p) => boxesOverlap(p, box))) {
           placedBoxes.push(box);
-          return lp;
+          return { lp, halo: false };
         }
       }
     }
-    // No position at any distance clears the surrounding line segments - skip
-    // this label rather than drawing it across a connector or turn.
-    if (!segClear) return null;
-    placedBoxes.push(segClear.box);
-    return segClear.lp;
+    if (segClear) {
+      placedBoxes.push(segClear.box);
+      return { lp: segClear.lp, halo: false };
+    }
+    // No position at any distance clears the lines. A stop with a recorded delay
+    // still gets its number: across the line, with a halo, on the first side no
+    // other label has taken, else the preferred side.
+    for (const d of LABEL_ORDER[dir]) {
+      const lp = labelPlacement(cx, cy, d);
+      const box = lpToBox(lp, w, h);
+      if (!placedBoxes.some((p) => boxesOverlap(p, box))) {
+        placedBoxes.push(box);
+        return { lp, halo: true };
+      }
+    }
+    const lp = labelPlacement(cx, cy, dir);
+    placedBoxes.push(lpToBox(lp, w, h));
+    return { lp, halo: true };
   };
 
   // Per-node time label placement (resolved clear of every line + placed label;
@@ -302,9 +325,9 @@ export function DiagramSvg({
   // top names the line, so the end node carries no separate name label.
   const nodeLabels = nodes.map((node) => {
     const value = node.delay == null ? null : formatDelay(node.delay, { mode });
-    if (value == null) return { node, value: null as string | null, lp: null };
-    const lp = place(node.cx, node.cy, node.labelDir, value.length * 7, LABEL_H);
-    return { node, value, lp };
+    if (value == null) return { node, value: null as string | null, w: 0, lp: null, halo: false };
+    const w = labelWidth(value, 12);
+    return { node, value, w, ...place(node.cx, node.cy, node.labelDir, w, LABEL_H) };
   });
 
   // Branch end labels (origin / divergent terminus) go last, nudged down until
@@ -322,7 +345,7 @@ export function DiagramSvg({
     const display = raw.replace(/\s+Via\s+.*/i, "").trim();
     const text =
       display.length > BRANCH_LABEL_MAX ? `${display.slice(0, BRANCH_LABEL_MAX - 1)}…` : display;
-    const w = text.length * 8;
+    const w = labelWidth(text, 14);
     const endOff = NODE_R + NODE_STROKE + 9;
     const x0 = l.toLeft ? l.cx - endOff - w : l.cx + endOff;
     const x1 = l.toLeft ? l.cx - endOff : l.cx + endOff + w;
@@ -377,11 +400,10 @@ export function DiagramSvg({
   // diagram fills the width instead of leaving the fixed reserves as blank margin.
   // A minimum width keeps short routes from blowing up to fill the card.
   const xs: number[] = [];
-  for (const { node: n, value, lp } of nodeLabels) {
+  for (const { node: n, value, w, lp } of nodeLabels) {
     const r = n.branch === 0 && (n === first || n === last) ? TERMINUS_R : NODE_R;
     xs.push(n.cx - r, n.cx + r);
     if (value && lp) {
-      const w = value.length * 7;
       const lx = lp.anchor === "end" ? lp.x - w : lp.anchor === "middle" ? lp.x - w / 2 : lp.x;
       xs.push(lx, lx + w);
     }
@@ -440,7 +462,7 @@ export function DiagramSvg({
                 strokeDasharray={hasDetour ? "8 4" : undefined}
               />
             ))}
-          {nodeLabels.map(({ node: n, value, lp }, idx) => {
+          {nodeLabels.map(({ node: n, value, lp, halo }, idx) => {
             const terminus = n.branch === 0 && (n === first || n === last);
             const r = terminus ? TERMINUS_R : NODE_R;
             const selected = selectedStopId != null && n.stopId === selectedStopId;
@@ -452,7 +474,13 @@ export function DiagramSvg({
                     y={lp.y}
                     textAnchor={lp.anchor}
                     dominantBaseline={lp.baseline}
-                    className="fill-at-ink text-[12px] font-semibold"
+                    strokeWidth={halo ? 4 : undefined}
+                    strokeLinejoin="round"
+                    paintOrder="stroke"
+                    className={cn(
+                      "fill-at-ink text-[12px] font-semibold",
+                      halo && "stroke-at-surface",
+                    )}
                   >
                     {value}
                   </text>

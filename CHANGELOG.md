@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.1] - 2026-09-22
+
+### Fixed
+
+- The line diagram no longer leaves a stop without its delay when every side of it is crossed by a
+  line; the number is drawn over the line with a white backing instead. Label widths now come from
+  the font itself, so labels stop dodging space they never needed. A detour note with no readings no
+  longer prints a nonsense distance.
+
 ## [1.41.0] - 2026-09-22
 
 ### Added

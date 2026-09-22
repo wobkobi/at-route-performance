@@ -26,14 +26,16 @@ export interface TripDetourNoteProps {
  * @param props.alert - The active reroute alert, or null.
  * @param props.nearestStop - The stop nearest the furthest reading, or null.
  * @param props.noun - What to call the vehicle.
- * @returns The note.
+ * @returns The note, or nothing when there are no readings to describe.
  */
 export function TripDetourNote({
   sightings,
   alert,
   nearestStop,
   noun,
-}: TripDetourNoteProps): JSX.Element {
+}: TripDetourNoteProps): JSX.Element | null {
+  // Math.max of no readings is -Infinity, which would print as a distance.
+  if (sightings.length === 0) return null;
   const furthest = Math.max(...sightings.map((s) => s.distanceM));
   const first = sightings[0];
   const last = sightings.at(-1);
