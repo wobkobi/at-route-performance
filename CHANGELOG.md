@@ -32,6 +32,22 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.47.0] - 2026-09-23
+
+### Added
+
+- The route page's line diagram is now a strip map. The line runs down the page carrying both
+  directions, and each stop's ring is split in two: the left half for runs reading down the list and
+  the right half for runs reading up it, each in the colour of that direction's average delay that
+  day, and dashed where that direction doesn't stop. Two figure columns beside the names give each
+  direction's delay, headed by where its runs end, or Clockwise and Anticlockwise on a circuit run
+  both ways. Where a route has more than one version, chips pick one: the stops it doesn't use go
+  grey, and the figures become that version's runs alone. The direction chip at the top of the page
+  dims the other direction instead of redrawing, so no stop moves. A long route splits into two
+  columns on a wide screen, and on a phone a long stop name wraps onto a second line. The week view
+  draws the line without figures, since figures per stop are kept for a single day. The old snake
+  diagram is gone.
+
 ## [1.46.0] - 2026-09-23
 
 ### Added

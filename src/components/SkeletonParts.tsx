@@ -436,21 +436,42 @@ export function TripBoardSkeleton(): JSX.Element {
   );
 }
 
+/** Stops in the placeholder strip: a typical bus route's length. */
+const STRIP_BONE_ROWS = 40;
+
 /**
- * Mirrors the head of RouteLineDiagram: the `text-lg` heading (`mb-1`), the
- * `text-xs` hint (`mb-3`), then the diagram, whose real height depends on
- * the route's branches, so its box is only a typical size.
+ * Mirrors RouteStrip: the `text-lg` heading (`mb-3`), the figure columns'
+ * headings over a rule, then one 32px row per stop with its ring, name and
+ * two figures. The real length depends on the route, so this is a typical
+ * one: a single column on a phone, two from `lg`, as the strip breaks there.
  * @returns The diagram placeholder.
  */
 export function LineDiagramSkeleton(): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface p-4">
-      <Bone className="mb-1 h-7 w-32" />
-      {/* The hint wraps to two lines on a phone. */}
-      <Bone className="mb-3 h-8 w-full sm:h-4 sm:w-96" />
-      {/* A typical two-direction route: about 1,000px of 6-column snake on a
-          phone, about 480px of 20-column line from sm up. */}
-      <Bone className="h-240 sm:h-120" />
+      <Bone className="mb-3 h-7 w-32" />
+      <div className="lg:grid lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-[auto_repeat(20,2rem)] lg:gap-x-10">
+        {[0, 1].map((col) => (
+          <div
+            key={col}
+            className={cn(
+              "flex justify-end gap-3 border-b border-at-border pb-1.5 lg:row-start-1",
+              col === 0 ? "lg:col-start-1" : "hidden lg:col-start-2 lg:flex",
+            )}
+          >
+            <Bone className="h-4 w-22" />
+            <Bone className="h-4 w-22" />
+          </div>
+        ))}
+        {Array.from({ length: STRIP_BONE_ROWS }, (_, i) => (
+          <div key={i} className="flex h-8 items-center gap-3 pl-2.5">
+            <Bone className="size-3.5 shrink-0 rounded-full" />
+            <Bone className="ml-3 h-3.5 w-36" />
+            <Bone className="ml-auto h-3.5 w-14" />
+            <Bone className="h-3.5 w-14" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -15,8 +15,8 @@ import { DirectionFilter } from "@/components/DirectionFilter";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RouteLineDiagramClient } from "@/components/RouteLineDiagramClient";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
+import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { LineDiagramSkeleton } from "@/components/SkeletonParts";
 import { StepPending } from "@/components/StepPending";
@@ -32,6 +32,7 @@ import {
   getRouteDailyStats,
   getRouteNames,
   getRouteStats,
+  getRouteStopSplit,
   getTripRiderWait,
   getWorstTripsOfDay,
   type TripSort,
@@ -47,8 +48,10 @@ import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
-import { buildRouteView } from "@/lib/route-view";
+import { buildStrip, type StripSide } from "@/lib/route-strip";
+import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
+import { splitStopFigures } from "@/lib/stop-split";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -65,7 +68,7 @@ import type { RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Suspense, type ComponentProps, type JSX } from "react";
+import { Suspense, type JSX } from "react";
 
 /** Trips shown per page on the "of the day" board. */
 const PAGE_SIZE = 10;
@@ -426,8 +429,6 @@ export default async function RoutePage({
 
   const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
   const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
-  const delayByStop = Object.fromEntries(byStop.map((s) => [s.stop_id, s.avg_delay_sec]));
-  const nameByStop = Object.fromEntries(view.nameByStop);
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -480,8 +481,6 @@ export default async function RoutePage({
     activeVariants == null ? null : new Set(activeVariants.flatMap((v) => v.stopIds));
   const mapStops =
     dirStopIds == null ? view.stops : view.stops.filter((s) => dirStopIds.has(s.stop_id));
-  const diagramDirections =
-    activeEntry == null ? view.directions : { [activeEntry[0]]: activeEntry[1] };
 
   // A cut-short run carries the wait for the stops it never reached (see
   // lib/rider-wait.ts), which can move it on a delay sort, so those sorts are
@@ -498,14 +497,6 @@ export default async function RoutePage({
   );
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
-  // The week has no per-stop delays either, but the diagram reads a stop missing
-  // from its map as a direction with no trips yet. A null for every stop draws
-  // the line in neutral colours instead.
-  const weekDiagramDelays: Record<string, null> = Object.fromEntries(
-    Object.values(diagramDirections).flatMap((d) =>
-      d.variants.flatMap((v) => v.stopIds.map((id) => [id, null])),
-    ),
-  );
   const weekMapStops = mapStops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
   const weekSummary = aggregateWeek(weekDays);
   const weekPunctuality: PunctualityBreakdown = {
@@ -708,7 +699,7 @@ export default async function RoutePage({
               split by direction, so say so rather than imply they are filtered. */}
           {activeDir != null && (
             <p className="text-xs text-at-muted">
-              The week&apos;s figures cover both directions; the map and diagram show this one.
+              The week&apos;s figures cover both directions; the map and diagram pick out this one.
             </p>
           )}
 
@@ -732,11 +723,11 @@ export default async function RoutePage({
                 alertsPromise={alertsPromise}
                 live={isLiveView}
                 slug={slug}
-                rawToCanon={view.rawToCanon}
-                directions={diagramDirections}
-                delayByStop={weekDiagramDelays}
-                nameByStop={nameByStop}
+                view={view}
+                range={null}
                 mode={routeMode}
+                colour={route?.colour ?? null}
+                activeDir={activeDir}
               />
             </Suspense>
           )}
@@ -814,11 +805,11 @@ export default async function RoutePage({
                 alertsPromise={alertsPromise}
                 live={isLiveView}
                 slug={slug}
-                rawToCanon={view.rawToCanon}
-                directions={diagramDirections}
-                delayByStop={delayByStop}
-                nameByStop={nameByStop}
+                view={view}
+                range={range}
                 mode={routeMode}
+                colour={route?.colour ?? null}
+                activeDir={activeDir}
               />
             </Suspense>
           )}
@@ -914,36 +905,86 @@ async function RouteAlertBannerSection({
 }
 
 /**
- * Streamed line diagram: awaits the shared alerts feed off the critical path to
- * derive the alerted-stop highlights and detour flag, then renders the diagram
- * with everything else passed straight through.
- * @param root0 - Props (the diagram's own props plus the alert inputs).
+ * Streamed line diagram: lays the route out as one strip, and awaits the day's
+ * figures per stop and the shared alerts feed off the critical path, so neither
+ * holds up the shell. The strip always carries both directions; the page's
+ * direction chip dims the other one rather than dropping it, so no stop moves.
+ * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
- * @param root0.slug - This route's slug, to filter the alerts.
- * @param root0.rawToCanon - Maps raw stop ids to their station-canonical ids.
+ * @param root0.slug - This route's slug, to filter the alerts and read its figures.
+ * @param root0.view - The route's directions, stop names and positions.
+ * @param root0.range - The day to read figures per stop for, or null for the week, which has none.
+ * @param root0.mode - The route's mode.
+ * @param root0.colour - The route's GTFS colour, or null.
+ * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
   alertsPromise,
   slug,
-  rawToCanon,
+  view,
+  range,
+  mode,
+  colour,
+  activeDir,
   live,
-  ...diagram
-}: Omit<ComponentProps<typeof RouteLineDiagramClient>, "alertStopIds" | "hasDetour"> & {
+}: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
-  rawToCanon: Map<string, string>;
+  view: RouteView;
+  range: DateRange | null;
+  mode: string;
+  colour: string | null;
+  activeDir: number | null;
   live: boolean;
 }): Promise<JSX.Element> {
+  const strip = buildStrip({
+    directions: view.directions,
+    names: view.nameByStop,
+    coords: new Map(view.stops.map((s) => [s.stop_id, [s.lat, s.lon] as const])),
+  });
   // The alerts feed is a snapshot of right now, with no history, so its stop
-  // rings and detour dash describe today whatever day the page is showing. The
-  // banner can say so in words; a ring on a stop cannot, so on an archived day
-  // the diagram simply goes unmarked.
-  const routeAlerts = live ? alertsForRoute(await alertsPromise, [slug]) : [];
-  const hasDetour = routeAlerts.some((a) => a.effect === "DETOUR");
-  const alertStopIds = routeAlerts.flatMap((a) =>
-    a.informed_entity.filter((e) => e.stop_id).map((e) => rawToCanon.get(e.stop_id!) ?? e.stop_id!),
+  // rings describe today whatever day the page is showing. The banner can say
+  // so in words; a ring on a stop cannot, so on an archived day the diagram
+  // simply goes unmarked.
+  const [routeAlerts, splitRows] = await Promise.all([
+    live ? alertsPromise.then((a) => alertsForRoute(a, [slug])) : Promise.resolve([]),
+    range ? getRouteStopSplit(slug, range, mode) : Promise.resolve(null),
+  ]);
+  const split = splitRows
+    ? splitStopFigures(splitRows, {
+        versions: strip.versions,
+        directionIdAliases: view.directionIdAliases,
+        rawToCanon: view.rawToCanon,
+      })
+    : null;
+  const alertStops = new Set(
+    routeAlerts.flatMap((a) =>
+      a.informed_entity
+        .filter((e) => e.stop_id)
+        .map((e) => view.rawToCanon.get(e.stop_id!) ?? e.stop_id!),
+    ),
   );
-  return <RouteLineDiagramClient {...diagram} alertStopIds={alertStopIds} hasDetour={hasDetour} />;
+  const alertRows = strip.rows
+    .filter((r) => r.stopIds.some((id) => alertStops.has(id)))
+    .map((r) => r.key);
+  const side: StripSide | null =
+    activeDir == null
+      ? null
+      : strip.down.includes(activeDir)
+        ? "down"
+        : strip.up.includes(activeDir)
+          ? "up"
+          : null;
+  return (
+    <RouteStrip
+      strip={strip}
+      split={split}
+      mode={mode}
+      colour={colour}
+      side={side}
+      alertRows={alertRows}
+    />
+  );
 }

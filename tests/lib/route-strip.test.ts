@@ -140,6 +140,8 @@ describe("buildStrip on 65", () => {
     ]);
     for (const v of s.versions) {
       expect(new Set(v.variants.map((x) => x.directionId))).toEqual(new Set([0, 1]));
+      // Each version runs down to Glen Innes and back up to its own start.
+      expect([v.downTo, v.upTo]).toEqual(["Glen Innes Station", v.from]);
     }
   });
 

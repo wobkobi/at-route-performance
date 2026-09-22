@@ -70,6 +70,16 @@ export interface StripVersion {
   /** Where it starts and ends, read in its first direction: "Coyle Park" to "Glen Innes Station". */
   from: string;
   to: string;
+  /**
+   * Where its runs reading down the page end, and those reading up it, or null when it has none
+   * that way or they end in different places. Not always `to` and `from`: OUT runs St Lukes to
+   * Westfield Newmarket, and back from Mahuru Street.
+   */
+  downTo: string | null;
+  upTo: string | null;
+  /** Which way round its runs go each way, from their headsigns, for a circuit run both ways. */
+  downWay: string | null;
+  upWay: string | null;
   tripCount: number;
   /** Under {@link MINOR_SHARE} of the route's runs: listed under the diagram, with no chip. */
   minor: boolean;
@@ -109,6 +119,9 @@ export interface RouteStrip {
   /** Where every chip-worthy run reading each way ends, or null when they end in different places. */
   downTo: string | null;
   upTo: string | null;
+  /** Which way round every chip-worthy run reading each way goes: "Clockwise", or null. */
+  downWay: string | null;
+  upWay: string | null;
   /** How many lanes the strip uses: 1 for a plain line. */
   lanes: number;
 }
@@ -988,8 +1001,56 @@ function emptyStrip(): RouteStrip {
     up: [],
     downTo: null,
     upTo: null,
+    downWay: null,
+    upWay: null,
     lanes: 0,
   };
+}
+
+/**
+ * Where the given versions' runs on one side end, read in their own direction of travel.
+ * @param drafts - The versions.
+ * @param side - The side.
+ * @param input - Stop names.
+ * @returns The shared name, or null when they end in different places or have no run that way.
+ */
+function endOf(drafts: readonly Draft[], side: StripSide, input: StripInput): string | null {
+  const ends = new Map<string, string>();
+  for (const d of drafts) {
+    for (const s of d.seqs) {
+      if (s.side !== side) continue;
+      const id = s.variant.stopIds.at(-1)!;
+      const name = input.names.get(id) ?? id;
+      ends.set(normName(name), name);
+    }
+  }
+  return ends.size === 1 ? [...ends.values()][0]! : null;
+}
+
+/**
+ * Which way round the given versions' runs on one side go, read from their headsigns: "Inner Link
+ * Anticlockwise", "Newmarket Anti Clockwise To Pukekohe". Only a circuit run both ways needs it,
+ * since both its columns end at the same stop and "To" can't tell them apart.
+ * @param drafts - The versions.
+ * @param side - The side.
+ * @returns "Clockwise" or "Anticlockwise" when every run that way says the same, else null.
+ */
+function wayOf(drafts: readonly Draft[], side: StripSide): string | null {
+  const ways = new Set<string | null>();
+  for (const d of drafts) {
+    for (const s of d.seqs) {
+      if (s.side !== side) continue;
+      const sign = s.variant.headsign ?? "";
+      ways.add(
+        /\banti[\s-]?clockwise\b/i.test(sign)
+          ? "Anticlockwise"
+          : /\bclockwise\b/i.test(sign)
+            ? "Clockwise"
+            : null,
+      );
+    }
+  }
+  return ways.size === 1 ? [...ways][0]! : null;
 }
 
 /**
@@ -1191,6 +1252,10 @@ export function buildStrip(input: StripInput): RouteStrip {
       key: d.key,
       from: d.from,
       to: d.to,
+      downTo: endOf([d], "down", input),
+      upTo: endOf([d], "up", input),
+      downWay: wayOf([d], "down"),
+      upWay: wayOf([d], "up"),
       tripCount: d.trips,
       minor: d.minor,
       variants: d.seqs.map((s) => ({
@@ -1208,25 +1273,7 @@ export function buildStrip(input: StripInput): RouteStrip {
 
   const reach = rowReach(rows, stripSegments({ rows, edges, versions }));
   rows.forEach((r, i) => (r.reach = reach[i]!));
-
-  /**
-   * Where every chip-worthy run on one side ends, read in its own direction of travel.
-   * @param side - The side.
-   * @returns The shared name, or null when they end in different places.
-   */
-  const endOf = (side: StripSide): string | null => {
-    const ends = new Map<string, string>();
-    for (const d of drafts) {
-      if (d.minor) continue;
-      for (const s of d.seqs) {
-        if (s.side !== side) continue;
-        const id = s.variant.stopIds.at(-1)!;
-        const name = input.names.get(id) ?? id;
-        ends.set(normName(name), name);
-      }
-    }
-    return ends.size === 1 ? [...ends.values()][0]! : null;
-  };
+  const chipped = drafts.filter((d) => !d.minor);
 
   return {
     rows,
@@ -1235,8 +1282,10 @@ export function buildStrip(input: StripInput): RouteStrip {
     trunk: trunk.key,
     down: dirIds.filter((d) => sideOf.get(d) === "down"),
     up: dirIds.filter((d) => sideOf.get(d) === "up"),
-    downTo: endOf("down"),
-    upTo: endOf("up"),
+    downTo: endOf(chipped, "down", input),
+    upTo: endOf(chipped, "up", input),
+    downWay: wayOf(chipped, "down"),
+    upWay: wayOf(chipped, "up"),
     lanes: Math.max(0, ...rows.map((r) => r.lane), ...edges.map((e) => e.loopLane ?? 0)) + 1,
   };
 }
