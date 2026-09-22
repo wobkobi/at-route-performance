@@ -1,6 +1,6 @@
 // src/app/vehicle/[id]/loading.tsx
 // Loading skeleton for a vehicle page, drawn for the day view of a vehicle on
-// the road.
+// a run.
 
 import { ChipBone, TitleBone } from "@/components/SkeletonParts";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";

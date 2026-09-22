@@ -360,7 +360,7 @@ function Figure({ label, children }: { label: string; children: ReactNode }): JS
 
 /**
  * Where the vehicle is now: its run, how late, how full, how fast, or when it
- * was last seen when it is off the road.
+ * was last seen when it is not on a run.
  * @param root0 - Props.
  * @param root0.now - The vehicle in the live feed, if it is in it.
  * @param root0.register - Its fleet register row, if any.
@@ -407,7 +407,7 @@ function LiveCard({
             <span className="rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
               LIVE
             </span>
-            On the road now
+            On a run now
           </p>
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
