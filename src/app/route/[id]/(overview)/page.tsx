@@ -460,8 +460,21 @@ export default async function RoutePage({
     hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
       ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
       : undefined;
+  // The chosen direction's GTFS ids: its own plus any merged into it, so a
+  // shape or vehicle filed under an alias id stays with its direction.
+  const activeDirIds =
+    activeDir == null
+      ? null
+      : [
+          activeDir,
+          ...[...view.directionIdAliases.entries()]
+            .filter(([, primary]) => primary === activeDir)
+            .map(([alias]) => alias),
+        ];
   const mapLines = (
-    activeDir == null ? view.routeLines : view.routeLines.filter((l) => l.directionId === activeDir)
+    activeDirIds == null
+      ? view.routeLines
+      : view.routeLines.filter((l) => l.directionId != null && activeDirIds.includes(l.directionId))
   ).map((l) => l.points);
   const dirStopIds =
     activeVariants == null ? null : new Set(activeVariants.flatMap((v) => v.stopIds));
@@ -485,7 +498,15 @@ export default async function RoutePage({
   );
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
-  const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
+  // The week has no per-stop delays either, but the diagram reads a stop missing
+  // from its map as a direction with no trips yet. A null for every stop draws
+  // the line in neutral colours instead.
+  const weekDiagramDelays: Record<string, null> = Object.fromEntries(
+    Object.values(diagramDirections).flatMap((d) =>
+      d.variants.flatMap((v) => v.stopIds.map((id) => [id, null])),
+    ),
+  );
+  const weekMapStops = mapStops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
   const weekSummary = aggregateWeek(weekDays);
   const weekPunctuality: PunctualityBreakdown = {
     on_time_pct: weekSummary?.on_time_pct ?? null,
@@ -683,6 +704,14 @@ export default async function RoutePage({
             </div>
           </section>
 
+          {/* The week figures come from per-route daily summaries, which do not
+              split by direction, so say so rather than imply they are filtered. */}
+          {activeDir != null && (
+            <p className="text-xs text-at-muted">
+              The week&apos;s figures cover both directions; the map and diagram show this one.
+            </p>
+          )}
+
           <RouteWeekSummary days={weekDays} mode={routeMode} label={weekPeriodLabel} />
 
           {/* Map and diagram with neutral stop coloring in week mode */}
@@ -692,6 +721,7 @@ export default async function RoutePage({
             routeId={slug}
             live={isLiveView}
             mode={routeMode}
+            filterDirectionIds={activeDirIds ?? undefined}
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
@@ -703,8 +733,8 @@ export default async function RoutePage({
                 live={isLiveView}
                 slug={slug}
                 rawToCanon={view.rawToCanon}
-                directions={view.directions}
-                delayByStop={{}}
+                directions={diagramDirections}
+                delayByStop={weekDiagramDelays}
                 nameByStop={nameByStop}
                 mode={routeMode}
               />
@@ -773,16 +803,7 @@ export default async function RoutePage({
               routeId={slug}
               live={isLiveView}
               mode={routeMode}
-              filterDirectionIds={
-                activeDir == null
-                  ? undefined
-                  : [
-                      activeDir,
-                      ...[...view.directionIdAliases.entries()]
-                        .filter(([, primary]) => primary === activeDir)
-                        .map(([alias]) => alias),
-                    ]
-              }
+              filterDirectionIds={activeDirIds ?? undefined}
             />
           </div>
 

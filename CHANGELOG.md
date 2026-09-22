@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.4] - 2026-09-22
+
+### Fixed
+
+- Picking a direction on a route's week view now narrows the map's stops, line and live buses and
+  the line diagram to that direction, as the day view already did, with a note that the week's
+  figures still cover both. The week view's line diagram draws again instead of saying no trips were
+  observed.
+
 ## [1.41.3] - 2026-09-22
 
 ### Fixed
