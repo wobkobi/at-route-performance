@@ -27,6 +27,8 @@ export type ShameNav =
       nextHref?: string;
       /** Whether the shown day is the archive's first, so the absent chevron reads as a fact. */
       atFloor?: boolean;
+      /** Whether the next day is today and has not opened yet. */
+      nextPending?: boolean;
     }
   | {
       kind: "week";
@@ -151,6 +153,7 @@ export function ShameHeader({
               hasNext={nav.hasNext}
               nextHref={nav.nextHref}
               atFloor={nav.atFloor}
+              nextPending={nav.nextPending}
             />
           </>
         ) : (

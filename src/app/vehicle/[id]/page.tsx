@@ -30,7 +30,7 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   parseRangeWindow,
@@ -38,7 +38,6 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import {
   nzClockTime,
@@ -147,22 +146,11 @@ export default async function VehiclePage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    range = day.range;
     days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    // Early morning, before today's first runs, show yesterday rather than nothing.
-    const fallbackDay = await maybeFallbackDay(
-      requestedDay,
-      days.every((d) => d.rows.length === 0),
-      MIN_BOARD_EVENTS,
-    );
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    }
-    const serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
-    dayParam = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+    nav = dayRangeNav(day, earliest);
+    dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
       basePath,

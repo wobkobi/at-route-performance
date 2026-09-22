@@ -18,20 +18,18 @@ import {
   SHAME_MIN_STOPS,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
   filterLiveHours,
-  maybeFallbackDay,
   resolveRangeView,
   resolveRequestedDay,
+  resolveShownDay,
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -43,15 +41,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import {
-  nzClockTime,
-  nzHourLabel,
-  nzServiceDayRange,
-  nzServiceDayString,
-  shiftWeek,
-  weekdayShort,
-  type DateRange,
-} from "@/lib/time";
+import { nzClockTime, nzHourLabel, weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -253,45 +243,26 @@ export default async function TripShamePage({
   }
 
   // Day view (default): worst trip per hour.
-  const requestedDay = resolveRequestedDay(sp.day);
-  const initialRange = nzServiceDayRange(requestedDay ?? new Date());
-  const [initialShame, earliestDay] = await Promise.all([
-    getShameOfDay(initialRange, filter, TODAY_REVALIDATE),
+  const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+  const { range, serviceDate } = shown;
+  const [shame, earliestDay, dayHours] = await Promise.all([
+    getShameOfDay(range, filter, TODAY_REVALIDATE),
     getEarliestDataDay(1),
+    getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
-  let range = initialRange;
-  let serviceDate = nzServiceDayString(range.start);
-  let shame = initialShame;
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    shame.hours.length === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    shame = await getShameOfDay(range, filter, TODAY_REVALIDATE);
-  }
-
-  const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
-  const daySpan = serviceHourSpan(await getShameDayHours(range, filter, TODAY_REVALIDATE));
+  const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countById(visibleHours, (h) => h.route_id);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
     range,
     filter,
   );
-  const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
-  // Only drop `?day` onto today when today is the day that was asked for: after
-  // a fallback the bare link falls back to this same day again, so the arrow
-  // would do nothing. An explicit `?day` is never fallen back from.
-  const nextDayHref =
-    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? buildShameHref(BASE, {}, filter)
-      : undefined;
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // Stepping onto today drops `?day` so the URL stays canonical.
+  const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.trip_id}` : null;
@@ -410,10 +381,11 @@ export default async function TripShamePage({
           basePath: BASE,
           serviceDate,
           preserved,
-          hasPrev: hasPrevDay,
-          atFloor: serviceDate === DATA_START_DAY,
-          hasNext: hasNextDay,
+          hasPrev: dayNav.hasPrev,
+          atFloor: dayNav.atFloor,
+          hasNext: dayNav.hasNext,
           nextHref: nextDayHref,
+          nextPending: dayNav.nextPending,
         }}
       />
       <ShameBoard

@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.2] - 2026-09-23
+
+### Fixed
+
+- Every day page and its shared-link card now opens on the same day. Before today has 2,000 arrivals
+  due (about 5:45am), the home page, the shame boards, Routes, Cancellations, the vehicle pages and
+  each route and stop page all show yesterday, where each page used to decide for itself and a quiet
+  stop could show a different day from the home page. Yesterday's next-day arrow is replaced by
+  "today still starting" until today opens, so it no longer leads back to yesterday.
+
 ## [1.49.1] - 2026-09-23
 
 ### Fixed

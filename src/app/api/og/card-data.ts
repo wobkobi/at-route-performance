@@ -1,7 +1,7 @@
 // src/app/api/og/card-data.ts
 // What each card shows, resolved the way its page resolves it: the same
-// queries, the same thresholds and the same early-morning fallback to the
-// latest full day, so a card never prints a figure its page would not.
+// queries, the same thresholds and the same shown day (see resolveShownDay),
+// so a card never prints a figure its page would not.
 
 import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/cancellation";
 import type { NetworkCancelledTrip } from "@/lib/data";
@@ -46,9 +46,9 @@ import {
   type TripCard,
 } from "@/lib/og";
 import { earlyToleranceFor, isOnTime, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { filterLiveHours, maybeFallbackDay, resolveRangeView } from "@/lib/page-nav";
+import { filterLiveHours, resolveRangeView, resolveShownDay } from "@/lib/page-nav";
 import { periodRangeNav } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS, summariseRows, visibleRows } from "@/lib/rankings";
+import { summariseRows, visibleRows } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import { aggregateWeek } from "@/lib/route-week";
 import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/shame-page";
@@ -98,9 +98,9 @@ function arrivals(n: number): string {
 }
 
 /**
- * Resolve a home card's view the way the home page does: the requested day, or
- * today falling back to the latest full day while today is still too sparse;
- * a week or month anchored on the latest day with data.
+ * Resolve a home card's view the way the home page does: the shown day (see
+ * {@link resolveShownDay}), or a week or month anchored on the latest day with
+ * data.
  * @param card - The card state.
  * @returns The period label, the figures and whether the period is over.
  */
@@ -108,22 +108,12 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
   const today = nzServiceDayString();
   const filter = { mode: card.mode, includeSchool: card.includeSchool };
   if (card.window === "day") {
-    let range = nzServiceDayRange(card.day ?? new Date());
-    let rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
-    const fallback = await maybeFallbackDay(
-      card.day,
-      !rows.some((r) => r.events >= MIN_BOARD_EVENTS),
-      MIN_BOARD_EVENTS,
-    );
-    if (fallback) {
-      range = nzServiceDayRange(fallback);
-      rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
-    }
-    const date = nzServiceDayString(range.start);
+    const { range, serviceDate } = await resolveShownDay(card.day, today);
+    const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
     return {
-      when: serviceDayLabel(date),
+      when: serviceDayLabel(serviceDate),
       summary: summariseRows(visibleRows(rows, filter)),
-      complete: date < today,
+      complete: serviceDate < today,
     };
   }
   const period = await resolvePeriod(card.window, card.period);
@@ -177,7 +167,7 @@ function onTimeHero(pct: number | null | undefined): SubjectBodyProps["hero"] {
 }
 
 /**
- * Resolve a route card as the route page does: the day view with its fallback,
+ * Resolve a route card as the route page does: the day view on the shown day,
  * or the week folded from the route's daily summaries.
  * @param card - The card state.
  * @returns The card, or null when no such route exists.
@@ -190,8 +180,8 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
   const slug = (await findSuccessorRouteSlug(canon)) ?? canon;
   const today = nzServiceDayString();
 
-  let range = nzServiceDayRange(card.day ?? new Date());
-  let stats = await getRouteStats({
+  const { range, serviceDate: date } = await resolveShownDay(card.day, today);
+  const stats = await getRouteStats({
     routeId: slug,
     from: range.start,
     to: range.end,
@@ -231,21 +221,6 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
     };
   }
 
-  const fallback = await maybeFallbackDay(
-    card.day,
-    (stats.summary?.events ?? 0) === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallback) {
-    range = nzServiceDayRange(fallback);
-    stats = await getRouteStats({
-      routeId: slug,
-      from: range.start,
-      to: range.end,
-      thresholdSec: ON_TIME_LATE_SEC,
-    });
-  }
-  const date = nzServiceDayString(range.start);
   const summary = stats.summary;
   return {
     eyebrow: `Route - ${serviceDayLabel(date)}`,
@@ -341,25 +316,15 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
 }
 
 /**
- * Resolve a stop's card as the stop page does, fallback included. A stop mixes
+ * Resolve a stop's card as the stop page does, on the shown day. A stop mixes
  * modes, so its hero is the plain distance off schedule with no on-time colour.
  * @param card - The card state.
  * @returns The card, or null when no such stop exists.
  */
 export async function stopCardData(card: StopCard): Promise<SubjectCardData | null> {
-  let range = nzServiceDayRange(card.day ?? new Date());
-  let stats = await getStopStats(card.id, range, ON_TIME_LATE_SEC, STOP_REVALIDATE);
+  const { range, serviceDate: date } = await resolveShownDay(card.day);
+  const stats = await getStopStats(card.id, range, ON_TIME_LATE_SEC, STOP_REVALIDATE);
   if (!stats) return null;
-  const fallback = await maybeFallbackDay(
-    card.day,
-    (stats.summary?.events ?? 0) === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallback) {
-    range = nzServiceDayRange(fallback);
-    stats = (await getStopStats(card.id, range, ON_TIME_LATE_SEC, STOP_REVALIDATE)) ?? stats;
-  }
-  const date = nzServiceDayString(range.start);
   const { summary } = stats;
   const abs = summary?.avg_abs_delay_sec;
   return {
@@ -464,8 +429,8 @@ const NOTHING_RANKED: SubjectBodyProps = {
 };
 
 /**
- * Resolve a shame day the way the shame pages do: the requested day, or today
- * falling back to the latest full day while today has no rows yet.
+ * Resolve a shame day the way the shame pages do: the shown day (see
+ * {@link resolveShownDay}) and its rows.
  * @param card - The card state.
  * @param fetch - The board's day query.
  * @returns The service day shown and its rows.
@@ -474,14 +439,8 @@ async function shameDay<T extends { hours: unknown[] }>(
   card: ShameCard,
   fetch: (range: DateRange) => Promise<T>,
 ): Promise<{ date: string; data: T }> {
-  let range = nzServiceDayRange(card.day ?? new Date());
-  let data = await fetch(range);
-  const fallback = await maybeFallbackDay(card.day, data.hours.length === 0, MIN_BOARD_EVENTS);
-  if (fallback) {
-    range = nzServiceDayRange(fallback);
-    data = await fetch(range);
-  }
-  return { date: nzServiceDayString(range.start), data };
+  const { range, serviceDate } = await resolveShownDay(card.day);
+  return { date: serviceDate, data: await fetch(range) };
 }
 
 /**
@@ -714,22 +673,10 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
   let complete: boolean;
   let data: Awaited<ReturnType<typeof fetch>>;
   if (card.window === "day") {
-    let range = nzServiceDayRange(card.day ?? new Date());
+    const { range, serviceDate } = await resolveShownDay(card.day, today);
     data = await fetch(range);
-    // Each page falls back on its own emptiness test, before any filter.
-    const empty = isRoutes
-      ? !(await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE)).some(
-          (r) => r.events >= MIN_BOARD_EVENTS,
-        )
-      : (await getNetworkCancelledTrips(range)).length === 0;
-    const fallback = await maybeFallbackDay(card.day, empty, MIN_BOARD_EVENTS);
-    if (fallback) {
-      range = nzServiceDayRange(fallback);
-      data = await fetch(range);
-    }
-    const date = nzServiceDayString(range.start);
-    when = serviceDayLabel(date);
-    complete = date < today;
+    when = serviceDayLabel(serviceDate);
+    complete = serviceDate < today;
   } else {
     const period = await resolvePeriod(card.window, card.period);
     data = await fetch(period.range);

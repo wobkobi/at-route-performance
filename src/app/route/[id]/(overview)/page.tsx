@@ -1,8 +1,8 @@
 // src/app/route/[id]/(overview)/page.tsx
 // Route detail page with a day view (worst trips and route map) and
 // a week view of aggregated stats, toggled in the header. Version-stripped and
-// case-canonical slugs are enforced up front via redirects; the day view falls
-// back to the most recent populated service day when the requested one is empty.
+// case-canonical slugs are enforced up front via redirects; the day view opens
+// on the same day as every other day page (see resolveShownDay).
 // The live AT calls (service alerts, live vehicles) start without awaiting so
 // they overlap the day's queries. The diagram's alerted-stop rings and the
 // board's LIVE badges still stream in through Suspense; the alert banner is
@@ -38,15 +38,13 @@ import {
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
-import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
+import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildStrip, type StripSide } from "@/lib/route-strip";
@@ -54,14 +52,7 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
-import {
-  nzServiceDayRange,
-  nzServiceDayString,
-  nzWeekRange,
-  shiftWeek,
-  weekRangeLabel,
-  type DateRange,
-} from "@/lib/time";
+import { nzServiceDayString, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
@@ -307,34 +298,19 @@ export default async function RoutePage({
     : "off";
   const isReversed = sp.trev === "1";
 
-  // Service day from ?day (or the current one). In week view the day stats are
-  // not displayed but the route metadata from getRouteStats is still needed.
+  // Service day from ?day, or the one every day page opens on. In week view the
+  // day stats are not displayed but the route metadata from getRouteStats is
+  // still needed.
+  const today = nzServiceDayString();
   const requestedDay = resolveRequestedDay(sp.day);
-  let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
-  let serviceDate = nzServiceDayString(range.start);
-  let stats = await getRouteStats({
+  const shown = await resolveShownDay(requestedDay, today);
+  const { range, serviceDate } = shown;
+  const stats = await getRouteStats({
     routeId: slug,
     from: range.start,
     to: range.end,
     thresholdSec,
   });
-  // Day view: fall back to the most recent day with data when today is empty.
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    !isWeekView && (stats.summary?.events ?? 0) === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    stats = await getRouteStats({
-      routeId: slug,
-      from: range.start,
-      to: range.end,
-      thresholdSec,
-    });
-  }
-  const hasNextDay = serviceDate < nzServiceDayString();
   const { route, summary, byStop } = stats;
   const routeMode = route?.mode ?? "BUS";
   const punctuality: PunctualityBreakdown = {
@@ -362,7 +338,7 @@ export default async function RoutePage({
   // rolling week ending today. On a past day the map would show where vehicles
   // are now, and since AT reuses trip ids every day, a past run would pick up
   // today's LIVE badge.
-  const isLiveView = isWeekView ? periodParam === null : serviceDate === nzServiceDayString();
+  const isLiveView = isWeekView ? periodParam === null : serviceDate === today;
   const vehiclesPromise =
     isWeekView || !isLiveView
       ? Promise.resolve<LiveVehicle[]>([])
@@ -429,8 +405,8 @@ export default async function RoutePage({
     }));
   }
 
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
-  const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+  const dayNav = dayRangeNav(shown, earliestDay, today);
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -455,14 +431,11 @@ export default async function RoutePage({
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
   };
-  // Stepping onto today drops `?day` so the URL stays canonical - but that link
-  // must still carry the filters, and it is only safe when today is the day that
-  // was asked for: after a fallback it re-enters the same empty today and falls
-  // back again, leaving an arrow that does nothing.
-  const nextDayHref =
-    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
-      : undefined;
+  // Stepping onto today drops `?day` so the URL stays canonical, but that link
+  // must still carry the filters.
+  const nextDayHref = dayNav.nextIsToday
+    ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
+    : undefined;
   // The chosen direction's GTFS ids: its own plus any merged into it, so a
   // shape or vehicle filed under an alias id stays with its direction.
   const activeDirIds =
@@ -629,10 +602,11 @@ export default async function RoutePage({
                 basePath={`/route/${encodeURIComponent(slug)}`}
                 serviceDate={serviceDate}
                 preservedParams={viewParams}
-                hasPrev={hasPrevDay}
-                atFloor={serviceDate === DATA_START_DAY}
-                hasNext={hasNextDay}
+                hasPrev={dayNav.hasPrev}
+                atFloor={dayNav.atFloor}
+                hasNext={dayNav.hasNext}
                 nextHref={nextDayHref}
+                nextPending={dayNav.nextPending}
               />
             )}
           </div>

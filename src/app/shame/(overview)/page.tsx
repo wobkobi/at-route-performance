@@ -15,14 +15,11 @@ import {
   getWorstStops,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
-import { hasEarlierDay } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { dayRangeNav } from "@/lib/range-page";
 import { buildShameHref, parseShameParams, type ShameSearchParams } from "@/lib/shame-page";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import type { Metadata } from "next";
 import type { JSX } from "react";
 
@@ -62,54 +59,22 @@ export default async function ShameDashboard({
   dropTodayParam("/shame", sp);
   const { filter, mode, includeSchool, preserved, subtitle } = parseShameParams(sp);
 
-  const requestedDay = resolveRequestedDay(sp.day);
-  let range = nzServiceDayRange(requestedDay ?? new Date());
-  let serviceDate = nzServiceDayString(range.start);
-
-  const [initialTrip, initialRoute, initialStops, earliestDay] = await Promise.all([
-    getShameOfDay(range, filter, TODAY_REVALIDATE),
-    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
-    getWorstStops(range, filter, 1, TODAY_REVALIDATE),
-    getEarliestDataDay(1),
-  ]);
-
-  let tripShame = initialTrip;
-  let routeShame = initialRoute;
-  let stops = initialStops;
-
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    tripShame.hours.length === 0 && routeShame.hours.length === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    [tripShame, routeShame, stops] = await Promise.all([
+  const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+  const { range, serviceDate } = shown;
+  const [tripShame, routeShame, stops, earliestDay, cancelledTotal, cancelledRoutes] =
+    await Promise.all([
       getShameOfDay(range, filter, TODAY_REVALIDATE),
       getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
       getWorstStops(range, filter, 1, TODAY_REVALIDATE),
+      getEarliestDataDay(1),
+      getCancelledCount(range, filter, TODAY_REVALIDATE),
+      getCancelledRoutes(range, filter, 10, TODAY_REVALIDATE),
     ]);
-  }
 
-  const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
-  const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
-  // Stepping onto today drops `?day` so the URL stays canonical, but only when
-  // the shown day was the one asked for. After a fallback a bare link re-enters
-  // the same empty today and falls back again, leaving an arrow that does
-  // nothing; an explicit `?day` is never fallen back from.
-  const nextDayHref =
-    hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? buildShameHref("/shame", {}, filter)
-      : undefined;
-
-  // Cancellations are resolved after any day fallback, so the board matches the
-  // day the rest of the dashboard settled on.
-  const [cancelledTotal, cancelledRoutes] = await Promise.all([
-    getCancelledCount(range, filter, TODAY_REVALIDATE),
-    getCancelledRoutes(range, filter, 10, TODAY_REVALIDATE),
-  ]);
+  const dayNav = dayRangeNav(shown, earliestDay);
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // Stepping onto today drops `?day` so the URL stays canonical.
+  const nextDayHref = dayNav.nextIsToday ? buildShameHref("/shame", {}, filter) : undefined;
 
   // The boards behind the tabs read the same filter this page now does, so a
   // reader who narrows to trains here stays on trains when they open one.
@@ -130,10 +95,11 @@ export default async function ShameDashboard({
           basePath: "/shame",
           serviceDate,
           preserved,
-          hasPrev: hasPrevDay,
-          atFloor: serviceDate === DATA_START_DAY,
-          hasNext: hasNextDay,
+          hasPrev: dayNav.hasPrev,
+          atFloor: dayNav.atFloor,
+          hasNext: dayNav.hasNext,
           nextHref: nextDayHref,
+          nextPending: dayNav.nextPending,
         }}
       />
 

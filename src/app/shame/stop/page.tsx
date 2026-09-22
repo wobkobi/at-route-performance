@@ -14,21 +14,19 @@ import {
   MIN_STOP_EVENTS_HOUR,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
   filterLiveHours,
-  maybeFallbackDay,
   resolveRangeView,
   resolveRequestedDay,
+  resolveShownDay,
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import {
   buildShameHref,
   countById,
@@ -39,14 +37,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import {
-  nzHourLabel,
-  nzServiceDayRange,
-  nzServiceDayString,
-  shiftWeek,
-  weekdayShort,
-  type DateRange,
-} from "@/lib/time";
+import { nzHourLabel, weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -236,37 +227,21 @@ export default async function StopShamePage({
   }
 
   // Day view: worst stop per hour.
-  const requestedDay = resolveRequestedDay(sp.day);
-  const initialRange = nzServiceDayRange(requestedDay ?? new Date());
-  const [initialShame, earliestDay] = await Promise.all([
-    getWorstStopsOfDay(initialRange, filter, TODAY_REVALIDATE),
+  const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+  const { range, serviceDate } = shown;
+  const [shame, earliestDay, dayHours] = await Promise.all([
+    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
     getEarliestDataDay(1),
+    getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
-  let range = initialRange;
-  let serviceDate = nzServiceDayString(range.start);
-  let shame = initialShame;
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    shame.hours.length === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    shame = await getWorstStopsOfDay(range, filter, TODAY_REVALIDATE);
-  }
-
-  const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
-  const daySpan = serviceHourSpan(await getShameDayHours(range, filter, TODAY_REVALIDATE));
+  const daySpan = serviceHourSpan(dayHours);
   const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
-  const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
-  const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? buildShameHref(BASE, {}, filter)
-      : undefined;
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // Stepping onto today drops `?day` so the URL stays canonical.
+  const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
   const worst = pickWorst(visibleHours);
   const worstId = worst && isCrownable(worst) ? worst.stop_id : null;
@@ -357,10 +332,11 @@ export default async function StopShamePage({
           basePath: BASE,
           serviceDate,
           preserved,
-          hasPrev: hasPrevDay,
-          atFloor: serviceDate === DATA_START_DAY,
-          hasNext: hasNextDay,
+          hasPrev: dayNav.hasPrev,
+          atFloor: dayNav.atFloor,
+          hasNext: dayNav.hasNext,
           nextHref: nextDayHref,
+          nextPending: dayNav.nextPending,
         }}
       />
       <ShameBoard

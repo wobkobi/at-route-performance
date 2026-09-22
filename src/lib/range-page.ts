@@ -37,9 +37,13 @@ export type RangeNav =
       window: "day";
       /** The shown service date (`YYYY-MM-DD`). */
       serviceDate: string;
+      /** Whether the shown day is the current service day. */
+      isToday: boolean;
+      /** Whether the next day is today and has not opened yet. */
+      nextPending: boolean;
       /** Whether an earlier day has data. */
       hasPrev: boolean;
-      /** Whether a later day exists (false on today). */
+      /** Whether a later day can be shown (false on today, and while today is pending). */
       hasNext: boolean;
       /** Whether the next day is today, so its link drops `?day`. */
       nextIsToday: boolean;
@@ -88,22 +92,27 @@ export function hasEarlierDay(serviceDate: string, earliestDay: Date | null): bo
 
 /**
  * The day stepper for a shown service date, bounded by the earliest day with
- * data and today.
- * @param serviceDate - The shown service date (`YYYY-MM-DD`).
+ * data and today. Before today opens there is no next day from yesterday: the
+ * bare URL would fall back to yesterday again.
+ * @param shown - The shown day (see `resolveShownDay`).
+ * @param shown.serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param shown.nextPending - Whether the next day is today and not yet open.
  * @param earliestDay - The earliest service day with data, or null when unknown.
  * @param today - Today's service date (injectable for tests).
  * @returns The day stepper state.
  */
 export function dayRangeNav(
-  serviceDate: string,
+  { serviceDate, nextPending }: { serviceDate: string; nextPending: boolean },
   earliestDay: Date | null,
   today: string = nzServiceDayString(),
 ): Extract<RangeNav, { window: "day" }> {
   return {
     window: "day",
     serviceDate,
+    isToday: serviceDate === today,
+    nextPending,
     hasPrev: hasEarlierDay(serviceDate, earliestDay),
-    hasNext: serviceDate < today,
+    hasNext: serviceDate < today && !nextPending,
     nextIsToday: shiftWeek(serviceDate, 1) === today,
     atFloor: serviceDate === DATA_START_DAY,
     tabs: rangeTabPeriods(serviceDate, today),
@@ -239,7 +248,7 @@ export function rangeTabPeriods(
  */
 export function overviewHeading(nav: RangeNav, period: string | null): string {
   if (nav.window === "day")
-    return nav.hasNext ? "How bad was it that day?" : "How bad was it today?";
+    return nav.isToday ? "How bad was it today?" : "How bad was it that day?";
   return `How bad was ${period === null ? "this" : "that"} ${nav.window}?`;
 }
 

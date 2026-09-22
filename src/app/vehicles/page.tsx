@@ -19,7 +19,7 @@ import {
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   parseRangeWindow,
@@ -27,8 +27,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import {
   parseVehicleSort,
@@ -111,22 +110,11 @@ export default async function VehiclesPage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    range = day.range;
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
-    // Early morning, before today's first runs, show yesterday rather than nothing.
-    const fallbackDay = await maybeFallbackDay(
-      requestedDay,
-      vehicles.length === 0,
-      MIN_BOARD_EVENTS,
-    );
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
-    }
-    const serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
-    dayParam = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+    nav = dayRangeNav(day, earliest);
+    dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/vehicles",

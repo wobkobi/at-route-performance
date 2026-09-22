@@ -26,6 +26,8 @@ export interface DayNavProps {
   nextHref?: string;
   /** Whether the shown day is the archive's first, so the absent chevron reads as a fact. */
   atFloor?: boolean;
+  /** Whether the next day is today and has not opened, so the absent next chevron gets a reason. */
+  nextPending?: boolean;
 }
 
 /**
@@ -60,6 +62,7 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * @param props.hasNext - Whether to offer a next-day link.
  * @param props.nextHref - Override href for the next-day link; pass the clean base URL when the next day is today to skip the server redirect.
  * @param props.atFloor - Whether the shown day is the archive's first, so the missing previous chevron gets a reason.
+ * @param props.nextPending - Whether the next day is today and not yet open, so the missing next chevron gets a reason.
  * @returns The day navigation element.
  */
 export function DayNav({
@@ -70,6 +73,7 @@ export function DayNav({
   hasNext,
   nextHref,
   atFloor = false,
+  nextPending = false,
 }: DayNavProps): JSX.Element {
   return (
     <div className="flex items-center gap-1">
@@ -102,6 +106,14 @@ export function DayNav({
             <ChevronRight />
           </StepPending>
         </Link>
+      )}
+      {!hasNext && nextPending && (
+        <span
+          className="px-1 text-xs text-at-muted"
+          title="Today began at 4am but has too few arrivals so far, so this shows the day before"
+        >
+          today still starting
+        </span>
       )}
     </div>
   );

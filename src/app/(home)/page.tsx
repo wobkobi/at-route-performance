@@ -55,7 +55,7 @@ import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   overviewHeading,
@@ -77,7 +77,6 @@ import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref } from "@/lib/shame-page";
 import {
   monthRangeLabel,
-  nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
   serviceDayLabel,
@@ -331,23 +330,12 @@ export default async function Home({
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
-  // Service day from ?day (or the current one). When no day is requested and the
-  // current service day is too sparse to fill the boards (early morning, or
-  // ingest catching up), fall back to the most recent service day that does.
+  // Service day from ?day, or the one every day page opens on (the current day
+  // once it has opened, else the day before).
   const requestedDay = resolveRequestedDay(sp.day);
-  let range = nzServiceDayRange(requestedDay ?? new Date());
-  let serviceDate = nzServiceDayString(range.start);
-  let rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    !rows.some((r) => r.events >= MIN_BOARD_EVENTS),
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  }
+  const shown = await resolveShownDay(requestedDay);
+  const { range, serviceDate } = shown;
+  const rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
   const includeSchool = sp.school === "1";
   // Kick the alerts fetch off early so it overlaps the queries below; it is
@@ -391,7 +379,7 @@ export default async function Home({
     dir: dirPreserved,
   } = preservedFor({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
-  const nav = dayRangeNav(serviceDate, earliestDay);
+  const nav = dayRangeNav(shown, earliestDay);
 
   // Three bands: the day's verdict, its shame, and the route rankings. Mode and
   // school sit in the first band because they filter all three; the direction

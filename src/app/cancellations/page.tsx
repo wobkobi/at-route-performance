@@ -4,8 +4,7 @@
 // the routes with the most, and the trips themselves linking to their trip
 // pages. The KPI strip, board and list all come from one list of flagged trips,
 // so the mode and school-bus filters flow through all three alike. The day view
-// falls back to the most recent day with data when the current one has no
-// cancellations yet, as the home page does for arrivals.
+// opens on the same day as every other day page (see resolveShownDay).
 
 import { CancellationSummary } from "@/components/CancellationSummary";
 import { CancelledBoard } from "@/components/CancelledBoard";
@@ -23,10 +22,9 @@ import {
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -98,17 +96,11 @@ export default async function CancellationsPage({
   let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+    range = shown.range;
     trips = await getNetworkCancelledTrips(range);
-    const fallbackDay = await maybeFallbackDay(requestedDay, trips.length === 0, MIN_BOARD_EVENTS);
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      trips = await getNetworkCancelledTrips(range);
-    }
-    const serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
-    linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+    nav = dayRangeNav(shown, earliest);
+    linkDay = nav.isToday ? undefined : shown.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/cancellations",
