@@ -9,6 +9,7 @@
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
+import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
 import type * as Leaflet from "leaflet";
@@ -97,9 +98,10 @@ export default function LiveMap({
     void (async () => {
       const L = (await import("leaflet")) as typeof import("leaflet");
       if (dead || !divRef.current) return;
-      // Wheel zoom and one-finger drag off, as on the route maps, so the page
-      // still scrolls past a map that fills a phone screen.
+      // One-finger drag off and the wheel only on a settled mouse, as on the
+      // route maps, so the page still scrolls past a map that fills a screen.
       const map = L.map(divRef.current, { scrollWheelZoom: false, dragging: !L.Browser.mobile });
+      wheelZoomOnHover(map);
       map.setView(AUCKLAND, 11);
       L.tileLayer(
         cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),
