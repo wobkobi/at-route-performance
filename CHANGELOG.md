@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.2] - 2026-09-22
+
+### Fixed
+
+- The line diagram is one tab stop per direction, with the arrow keys stepping along its stops, and
+  each stop is announced by name and delay. Tapping a stop on a phone shows its name, and tapping
+  elsewhere closes it. Desktop no longer shows two tooltips at once.
+
 ## [1.41.1] - 2026-09-22
 
 ### Fixed

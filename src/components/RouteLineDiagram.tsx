@@ -34,10 +34,6 @@ export interface RouteLineDiagramProps {
   nameByStop: Map<string, string>;
   /** Route mode, for the per-mode on-time colour banding. */
   mode: string;
-  /** Stop id currently focused on the map (emphasised in the diagram). */
-  selectedStopId?: string;
-  /** Called with a stop id when its node is clicked, to focus it on the map. */
-  onSelectStop?: (stopId: string) => void;
   /** Stop IDs named in an active service alert; those nodes get a dashed disruption ring. */
   alertStopIds?: Set<string>;
   /** True when there is an active DETOUR alert for this route - dashes the SVG route lines. */
@@ -163,15 +159,13 @@ function toViews(
  * rounded trunk line that snake-wraps to stay on-screen, trip variants that end
  * differently forking off at 45deg, and white stations ringed by average delay.
  * Variants that share no origin with the trunk render as their own labelled
- * line. Every diagram is drawn at the same fixed scale; hovering a stop shows
+ * line. Every diagram is drawn at the same fixed scale; hovering, tapping or focusing a stop shows
  * its name and delay.
  * @param props - Diagram props.
  * @param props.directions - Stopping patterns grouped by direction.
  * @param props.delayByStop - Average delay per stop id.
  * @param props.nameByStop - Stop id to display name.
  * @param props.mode - Route mode (drives the early/late colour banding).
- * @param props.selectedStopId - Stop id focused on the map (emphasised here).
- * @param props.onSelectStop - Called with a stop id when its node is clicked.
  * @param props.alertStopIds - Stop ids with active alerts (drawn with a warning badge).
  * @param props.hasDetour - When true, dashes the route lines to indicate a detour.
  * @returns The diagram element, or an empty note when no pattern is available.
@@ -181,8 +175,6 @@ export function RouteLineDiagram({
   delayByStop,
   nameByStop,
   mode,
-  selectedStopId,
-  onSelectStop,
   alertStopIds,
   hasDetour,
 }: RouteLineDiagramProps): JSX.Element {
@@ -289,7 +281,9 @@ export function RouteLineDiagram({
     <section className="border border-at-border bg-at-surface p-4">
       <h2 className="mb-1 text-lg font-ultra tracking-zero">Line diagram</h2>
       {!singlePanel && blocks.length > 0 && (
-        <p className="mb-3 text-xs text-at-muted">Hover a stop for its name.</p>
+        <p className="mb-3 text-xs text-at-muted">
+          Hover or tap a stop for its name, or tab in and step along with the arrow keys.
+        </p>
       )}
       {blocks.length === 0 && emptyDirs.length === 0 ? (
         <p className="text-sm text-at-muted">No schedule pattern available for this route.</p>
@@ -310,8 +304,6 @@ export function RouteLineDiagram({
                 mode={mode}
                 closed={p.layout.closed}
                 ariaLabel={p.heading}
-                selectedStopId={selectedStopId}
-                onSelectStop={onSelectStop}
                 alertStopIds={alertStopIds}
                 hasDetour={hasDetour}
               />
@@ -346,8 +338,6 @@ export function RouteLineDiagram({
                 mode={mode}
                 closed={b.main.closed}
                 ariaLabel={b.heading}
-                selectedStopId={selectedStopId}
-                onSelectStop={onSelectStop}
                 alertStopIds={alertStopIds}
                 hasDetour={hasDetour}
               />
@@ -365,8 +355,6 @@ export function RouteLineDiagram({
                     mode={mode}
                     closed={s.layout.closed}
                     ariaLabel={s.heading}
-                    selectedStopId={selectedStopId}
-                    onSelectStop={onSelectStop}
                     alertStopIds={alertStopIds}
                     hasDetour={hasDetour}
                   />

@@ -14,7 +14,7 @@ import { delayColour } from "@/lib/delay-colour";
 import { formatDelay } from "@/lib/format";
 import { labelWidth } from "@/lib/label-width";
 import type { BranchLabel, DiagramEdge, LabelDir } from "@/lib/route-graph";
-import { useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from "react";
 
 /** Max characters of a branch headsign before truncating. */
 const BRANCH_LABEL_MAX = 20;
@@ -48,10 +48,6 @@ export interface DiagramSvgProps {
   ariaLabel: string;
   /** Direction name, drawn next to the line's start node (origin). */
   lineLabel?: string;
-  /** Stop id currently focused on the map, emphasised here with a halo. */
-  selectedStopId?: string;
-  /** Called with a stop id when its node is clicked, to focus it on the map. */
-  onSelectStop?: (stopId: string) => void;
   /** Stop IDs with an active service alert; those nodes get a dashed disruption ring. */
   alertStopIds?: Set<string>;
   /** True when there is an active DETOUR alert for this route - dashes the trunk and branch lines. */
@@ -195,8 +191,6 @@ function offsetPlacement(cx: number, cy: number, dir: LabelDir, dist: number): P
  * @param props.mode - Route mode (drives the early/late colour banding).
  * @param props.closed - Draw the trunk as a closed loop.
  * @param props.ariaLabel - Accessible label for the SVG.
- * @param props.selectedStopId - Stop id focused on the map (emphasised here).
- * @param props.onSelectStop - Called with a stop id when its node is clicked.
  * @param props.alertStopIds - Stop ids with active alerts (drawn with a warning badge).
  * @param props.hasDetour - When true, dashes the route lines to indicate a detour.
  * @param props.minViewWidth - Minimum viewBox width (default 1040); pass lower in grid mode.
@@ -211,13 +205,67 @@ export function DiagramSvg({
   mode,
   closed,
   ariaLabel,
-  selectedStopId,
-  onSelectStop,
   alertStopIds,
   hasDetour,
   minViewWidth = 1040,
 }: DiagramSvgProps): JSX.Element {
+  // The stop whose tooltip is showing, from a hover, a focus or a tap.
   const [hovered, setHovered] = useState<number | null>(null);
+  // The one stop in the tab order (roving tabindex), so a 40-stop route is a
+  // single tab stop rather than forty.
+  const [active, setActive] = useState(0);
+  const hitRefs = useRef<(SVGCircleElement | null)[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  // A tap has no leave event, so a tap anywhere outside the diagram closes the
+  // tooltip it opened.
+  useEffect(() => {
+    if (hovered == null) return;
+    /**
+     * Close the tooltip when a pointer goes down outside this diagram.
+     * @param e - The pointer event.
+     */
+    const close = (e: PointerEvent): void => {
+      if (!rootRef.current?.contains(e.target as Node)) setHovered(null);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [hovered]);
+
+  /**
+   * A stop's delay in words, for its tooltip and its accessible name.
+   * @param delay - Average delay (seconds), or null.
+   * @returns The delay text.
+   */
+  const delayText = (delay: number | null): string =>
+    delay == null ? "no data" : formatDelay(delay, { mode });
+
+  /**
+   * Arrow keys step along the stops, Home and End jump to either end, Escape
+   * closes the tooltip.
+   * @param e - The key event.
+   * @param idx - The focused stop's index.
+   */
+  const onStopKey = (e: KeyboardEvent<SVGCircleElement>, idx: number): void => {
+    const lastIdx = nodes.length - 1;
+    const to =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? Math.min(idx + 1, lastIdx)
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? Math.max(idx - 1, 0)
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? lastIdx
+              : null;
+    if (e.key === "Escape") {
+      setHovered(null);
+      return;
+    }
+    if (to == null) return;
+    e.preventDefault();
+    hitRefs.current[to]?.focus();
+  };
 
   const trunk = nodes.filter((n) => n.branch === 0);
   const first = trunk[0];
@@ -425,12 +473,12 @@ export function DiagramSvg({
   const vx = (xs.length ? minX - PAD : 0) - (vw - contentW) / 2;
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <div className="relative">
         <svg
           viewBox={`${vx} 0 ${vw} ${height}`}
           preserveAspectRatio="xMinYMid meet"
-          role="img"
+          role="group"
           aria-label={ariaLabel}
           className="block h-auto w-full"
         >
@@ -465,7 +513,6 @@ export function DiagramSvg({
           {nodeLabels.map(({ node: n, value, lp, halo }, idx) => {
             const terminus = n.branch === 0 && (n === first || n === last);
             const r = terminus ? TERMINUS_R : NODE_R;
-            const selected = selectedStopId != null && n.stopId === selectedStopId;
             return (
               <g key={`${n.branch}-${idx}`}>
                 {value && lp && (
@@ -497,17 +544,6 @@ export function DiagramSvg({
                     strokeDasharray="4 2"
                   />
                 )}
-                {/* Halo behind the focused stop, so the diagram click and the map
-                    pan visibly point at the same station. */}
-                {selected && (
-                  <circle
-                    cx={n.cx}
-                    cy={n.cy}
-                    r={r + 5}
-                    strokeWidth={2}
-                    className="fill-none stroke-at-ink"
-                  />
-                )}
                 <circle
                   cx={n.cx}
                   cy={n.cy}
@@ -516,31 +552,34 @@ export function DiagramSvg({
                   stroke={delayColour(n.delay, mode)}
                   className="fill-at-surface"
                 />
-                {/* Transparent hit area: larger target for hover/focus/click. */}
+                {/* Transparent hit area: a larger target for mouse, touch and keyboard.
+                    One stop per diagram is in the tab order; the arrows move along it. */}
                 <circle
+                  ref={(el) => {
+                    hitRefs.current[idx] = el;
+                  }}
                   cx={n.cx}
                   cy={n.cy}
                   r={14}
                   fill="transparent"
-                  tabIndex={0}
-                  role={onSelectStop ? "button" : undefined}
+                  tabIndex={idx === active ? 0 : -1}
+                  role="button"
+                  aria-label={`${n.name}, ${delayText(n.delay)}`}
                   className="cursor-pointer"
-                  onMouseEnter={() => setHovered(idx)}
-                  onMouseLeave={() => setHovered((h) => (h === idx ? null : h))}
-                  onFocus={() => setHovered(idx)}
-                  onBlur={() => setHovered((h) => (h === idx ? null : h))}
-                  onClick={() => onSelectStop?.(n.stopId)}
-                  onKeyDown={(e) => {
-                    if (onSelectStop && (e.key === "Enter" || e.key === " ")) {
-                      e.preventDefault();
-                      onSelectStop(n.stopId);
-                    }
+                  onPointerEnter={(e) => {
+                    if (e.pointerType === "mouse") setHovered(idx);
                   }}
-                >
-                  <title>
-                    {`${n.name}${n.delay == null ? " · no data" : ` · ${formatDelay(n.delay, { mode })}`}`}
-                  </title>
-                </circle>
+                  onPointerLeave={(e) => {
+                    if (e.pointerType === "mouse") setHovered((h) => (h === idx ? null : h));
+                  }}
+                  onFocus={() => {
+                    setActive(idx);
+                    setHovered(idx);
+                  }}
+                  onBlur={() => setHovered((h) => (h === idx ? null : h))}
+                  onClick={() => setHovered(idx)}
+                  onKeyDown={(e) => onStopKey(e, idx)}
+                />
               </g>
             );
           })}
@@ -570,9 +609,7 @@ export function DiagramSvg({
             }}
           >
             <span className="font-semibold text-at-ink">{tip.name}</span>
-            <span className="ml-1 text-at-muted">
-              {tip.delay == null ? "no data" : formatDelay(tip.delay, { mode })}
-            </span>
+            <span className="ml-1 text-at-muted">{delayText(tip.delay)}</span>
           </div>
         )}
       </div>
