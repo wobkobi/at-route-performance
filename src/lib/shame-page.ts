@@ -132,6 +132,30 @@ export function isCrownable(worst: { avg_abs_delay_sec: number } | null): boolea
   return worst != null && worst.avg_abs_delay_sec > ON_TIME_LATE_SEC;
 }
 
+/** What a board crowns, for the home card that names the same thing. */
+export interface CrownedRow<T> {
+  /** The crowned row, or null when nothing was bad enough to crown. */
+  row: T | null;
+  /**
+   * Whether the board ranked anything at all, which keeps "nothing was bad" and
+   * "nothing recorded" apart on the card.
+   */
+  ranked: boolean;
+}
+
+/**
+ * The row a day board crowns, from the rows it shows: its worst, and only when
+ * that clears the late bound, which is the test the board's own badge uses. A
+ * home card takes its subject from here so it never names a run, route or stop
+ * the board it opens does not crown.
+ * @param rows - The rows the board shows (past `filterLiveHours` on a live day).
+ * @returns The crowned row and whether anything ranked.
+ */
+export function crownedRow<T extends { avg_abs_delay_sec: number }>(rows: T[]): CrownedRow<T> {
+  const worst = pickWorst(rows);
+  return { row: isCrownable(worst) ? worst : null, ranked: rows.length > 0 };
+}
+
 /**
  * Count rows by a derived key (e.g. how many hourly slots a route appears in).
  * @param rows - The rows to tally.

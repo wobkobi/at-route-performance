@@ -3,7 +3,6 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { earlyToleranceFor, isOnTime } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
@@ -12,8 +11,10 @@ import type { JSX } from "react";
 
 /** Props for {@link ShameOfDay}. */
 export interface ShameOfDayProps {
-  /** The day's most off-schedule run, or null when the day has no qualifying runs. */
+  /** The run the board crowns, or null when no run was bad enough to crown. */
   trip: ShameTrip | null;
+  /** Whether the board ranked any run, which tells a clean day from an empty one. */
+  ranked?: boolean;
   /** Override the card's link target; defaults to the run's own page. */
   href?: string;
   /**
@@ -28,13 +29,14 @@ export interface ShameOfDayProps {
 }
 
 /**
- * Home banner naming the day's most off-schedule run, linking to that run.
+ * Home banner naming the run the worst-trips board crowns, linking to that run.
  * Three states, not two: a quiet "nothing to rank" card when no run qualified,
- * a green "no shame" card when runs happened and the worst was still on time,
- * and the run card itself otherwise. The first two stay apart so a day that
- * recorded nothing never reads as a clean one.
+ * a green "no shame" card when runs ranked and none was bad enough for the
+ * board to crown, and the run card itself otherwise. The first two stay apart so
+ * a day that recorded nothing never reads as a clean one.
  * @param props - Component props.
- * @param props.trip - The day's worst run (or null).
+ * @param props.trip - The crowned run (or null).
+ * @param props.ranked - Whether the board ranked any run.
  * @param props.href - Override link target (optional).
  * @param props.when - The shown window as words for the empty-state copy ("today" by default).
  * @param props.hours - All hourly entries for the day, used to count this route's appearances.
@@ -43,17 +45,16 @@ export interface ShameOfDayProps {
  */
 export function ShameOfDay({
   trip,
+  ranked = false,
   href: hrefProp,
   when = "today",
   hours,
   routeStreakDays = 0,
 }: ShameOfDayProps): JSX.Element {
-  // Nothing qualified, which is not good news and must not read as the green
-  // all-clear below. `worst` is the reduce over the per-hour (or per-day) list,
-  // so a null trip means that list was empty: no run cleared SHAME_MIN_STOPS
-  // under the active filters. Same quiet state the worst-route and worst-stop
-  // cards beside this one already use.
-  if (!trip) {
+  // Nothing ranked, which is not good news and must not read as the green
+  // all-clear below: no run cleared SHAME_MIN_STOPS under the active filters.
+  // Same quiet state the worst-route and worst-stop cards beside this one use.
+  if (!ranked) {
     return (
       <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
         <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst trip</p>
@@ -62,11 +63,8 @@ export function ShameOfDay({
       </div>
     );
   }
-  // Runs were ranked and the worst of them was still inside the on-time window.
-  if (
-    trip.avg_abs_delay_sec <= earlyToleranceFor(trip.mode) ||
-    isOnTime(trip.avg_delay_sec ?? 0, trip.mode)
-  ) {
+  // Runs ranked and none was past the late bound, so the board crowns nothing.
+  if (!trip) {
     return (
       <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
         <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst trip</p>

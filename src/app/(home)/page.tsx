@@ -19,6 +19,7 @@ import {
   loadPeriodBatch,
   PeriodBoards,
   PeriodModeFilter,
+  PeriodRouteCard,
   PeriodStopCard,
   PeriodTripCard,
   PeriodVerdict,
@@ -32,12 +33,13 @@ import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import {
-  FeatureCardPairSkeleton,
+  FeatureCardRowSkeleton,
   FeatureCardSkeleton,
   KpiStripSkeleton,
   VehicleCardsSkeleton,
 } from "@/components/SkeletonParts";
 import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/VehiclesSection";
+import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -47,15 +49,16 @@ import {
   getLatestEventDate,
   getRankings,
   getShameOfDay,
+  getShameRouteOfDay,
   getShameRouteStreak,
-  getWorstStops,
+  getWorstStopsOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   overviewHeading,
@@ -76,7 +79,7 @@ import {
 import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
-import { buildShameHref } from "@/lib/shame-page";
+import { buildShameHref, crownedRow } from "@/lib/shame-page";
 import {
   monthRangeLabel,
   nzServiceDayString,
@@ -275,15 +278,15 @@ async function PeriodHome({
           title={`Shame of the ${window}`}
           href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
-        <div className="grid gap-4 md:grid-cols-2">
-          <Suspense fallback={<FeatureCardSkeleton withHeadsign />}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Suspense fallback={<FeatureCardSkeleton withHeadsign narrow />}>
             <PeriodTripCard batch={batch} when={windowPhrase(nav, period)} />
           </Suspense>
           <Suspense fallback={<FeatureCardSkeleton />}>
-            <PeriodStopCard
-              batch={batch}
-              href={buildShameHref("/shame/stop", shameNav, shameFilter)}
-            />
+            <PeriodRouteCard batch={batch} when={windowPhrase(nav, period)} />
+          </Suspense>
+          <Suspense fallback={<FeatureCardSkeleton />}>
+            <PeriodStopCard batch={batch} when={windowPhrase(nav, period)} />
           </Suspense>
         </div>
       </section>
@@ -430,10 +433,14 @@ export default async function Home({
       </section>
 
       <section className="space-y-4">
-        <SectionLink title="Shame of the day" href={buildHref("/shame", { day: linkDay })} />
-        <Suspense fallback={<FeatureCardPairSkeleton />}>
+        <SectionLink
+          title="Shame of the day"
+          href={buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool })}
+        />
+        <Suspense fallback={<FeatureCardRowSkeleton />}>
           <HomeShameCards
             range={range}
+            serviceDate={serviceDate}
             mode={mode}
             includeSchool={includeSchool}
             linkDay={linkDay}
@@ -520,48 +527,62 @@ export default async function Home({
 }
 
 /**
- * Streamed "of the day" cards: the worst run and the worst stop. Awaits the two
- * heavy day aggregations (and the streak, which needs the worst run's route)
- * off the critical path so the dashboard shell renders immediately.
+ * Streamed "of the day" cards: the worst run, route and stop. Each runs its own
+ * board's day query and crowns it the way that board does ({@link crownedRow}
+ * over the hours the board shows), so a card never names something the board it
+ * sits above would not crown. The three aggregations (and the streak, which
+ * needs the crowned run's route) are awaited off the critical path, so the
+ * dashboard shell renders immediately.
  * @param root0 - Props.
  * @param root0.range - The resolved service-day window.
+ * @param root0.serviceDate - The shown service date, for dropping hours still under way.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.includeSchool - Whether school services are included.
  * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
  * @param root0.when - The shown day as words ("today" or "that day").
- * @returns The two-card grid.
+ * @returns The three-card grid.
  */
 async function HomeShameCards({
   range,
+  serviceDate,
   mode,
   includeSchool,
   linkDay,
   when,
 }: {
   range: DateRange;
+  serviceDate: string;
   mode: ModeFilterValue;
   includeSchool: boolean;
   linkDay: string | undefined;
   when: string;
 }): Promise<JSX.Element> {
-  const [shame, worstStops] = await Promise.all([
-    getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
-    getWorstStops(range, { mode, includeSchool }, 1, TODAY_REVALIDATE),
+  const filter = { mode, includeSchool };
+  const [shameTrips, shameRoutes, shameStops] = await Promise.all([
+    getShameOfDay(range, filter, TODAY_REVALIDATE),
+    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
   ]);
-  // Needs shame.worst.route_id, so runs after the parallel pair.
-  const routeStreakDays = shame.worst
-    ? await getShameRouteStreak(shame.worst.route_id, range, TODAY_REVALIDATE)
+  const tripHours = filterLiveHours(shameTrips.hours, serviceDate);
+  const trip = crownedRow(tripHours);
+  const route = crownedRow(filterLiveHours(shameRoutes.hours, serviceDate));
+  const stop = crownedRow(filterLiveHours(shameStops.hours, serviceDate));
+  // Needs the crowned run's route_id, so it runs after the parallel three.
+  const routeStreakDays = trip.row
+    ? await getShameRouteStreak(trip.row.route_id, range, TODAY_REVALIDATE)
     : 0;
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {/* Both cards open what they name; the section heading owns the board link. */}
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Each card opens what it names; the boards are a heading or a nav tab away. */}
       <ShameOfDay
-        trip={shame.worst}
-        hours={shame.hours}
+        trip={trip.row}
+        ranked={trip.ranked}
+        hours={tripHours}
         routeStreakDays={routeStreakDays}
         when={when}
       />
-      <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
+      <WorstRouteCard route={route.row} ranked={route.ranked} when={when} day={linkDay} />
+      <WorstStopCard stop={stop.row} ranked={stop.ranked} when={when} day={linkDay} />
     </div>
   );
 }

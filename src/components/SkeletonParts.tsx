@@ -138,13 +138,15 @@ export function FeatureCardSkeleton({
 }
 
 /**
- * Mirrors the home page's pair of highlight cards.
- * @returns The two-card grid placeholder.
+ * Mirrors the home page's row of highlight cards: the trip, route and stop the
+ * shame boards crown, in the same grid they sit in.
+ * @returns The three-card grid placeholder.
  */
-export function FeatureCardPairSkeleton(): JSX.Element {
+export function FeatureCardRowSkeleton(): JSX.Element {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <FeatureCardSkeleton withHeadsign />
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <FeatureCardSkeleton withHeadsign narrow />
+      <FeatureCardSkeleton />
       <FeatureCardSkeleton />
     </div>
   );

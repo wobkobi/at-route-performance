@@ -8,8 +8,15 @@ import type { JSX } from "react";
 
 /** Props for {@link WorstStopCard}. */
 export interface WorstStopCardProps {
-  /** The window's worst-performing stop, or null when none qualifies. */
+  /** The stop the board crowns, or null when no stop was bad enough to crown. */
   stop: WorstStop | null;
+  /** Whether the board ranked any stop, which tells a clean window from an empty one. */
+  ranked?: boolean;
+  /**
+   * The shown window as words for the clean-window copy ("today", "that day",
+   * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
+   */
+  when?: string;
   /** Service day (`YYYY-MM-DD`) to pin on the stop link; omit for today. */
   day?: string;
   /** Override the card's link target; defaults to the stop's own page. */
@@ -17,23 +24,43 @@ export interface WorstStopCardProps {
 }
 
 /**
- * Home card naming the stop whose services ran furthest off schedule on
- * average, across every route, linking to its detail page. Sits beside the
- * Shame of the Day run card. When no stop has enough arrivals to rank it keeps
- * its slot with a quiet state, so the card grid never shows a hole.
+ * Home card naming the stop the worst-stops board crowns, linking to its
+ * detail page. Sits beside the worst-trip and worst-route cards, and reads
+ * through the same three states they do, so the card grid never shows a hole.
  * @param props - Component props.
- * @param props.stop - The worst stop (or null).
+ * @param props.stop - The crowned stop (or null).
+ * @param props.ranked - Whether the board ranked any stop.
+ * @param props.when - The shown window as words for the clean-window copy ("today" by default).
  * @param props.day - Service day to pin on the link (optional).
  * @param props.href - Override link target (optional).
  * @returns The card.
  */
-export function WorstStopCard({ stop, day, href: hrefProp }: WorstStopCardProps): JSX.Element {
-  if (!stop) {
+export function WorstStopCard({
+  stop,
+  ranked = false,
+  when = "today",
+  day,
+  href: hrefProp,
+}: WorstStopCardProps): JSX.Element {
+  // Nothing ranked at all, which is not the green all-clear below.
+  if (!ranked) {
     return (
       <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
         <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst stop</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
         <p className="text-sm text-at-muted">No stop has enough arrivals in this period.</p>
+      </div>
+    );
+  }
+  // Stops ranked and none was past the late bound, so the board crowns nothing.
+  if (!stop) {
+    return (
+      <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
+        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst stop</p>
+        <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
+        <p className="text-sm text-at-muted">
+          No stop stood out {when}, so there is nothing to call out.
+        </p>
       </div>
     );
   }

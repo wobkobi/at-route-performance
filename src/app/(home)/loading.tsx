@@ -4,7 +4,7 @@
 import {
   ChipBone,
   DayNavSkeleton,
-  FeatureCardPairSkeleton,
+  FeatureCardRowSkeleton,
   HomeFiltersSkeleton,
   KpiStripSkeleton,
   RankBoardSkeleton,
@@ -44,7 +44,7 @@ export default function Loading(): JSX.Element {
       <section className="space-y-4">
         {/* "Shame of the day" heading: text-lg, 28px */}
         <Bone className="h-7 w-44" />
-        <FeatureCardPairSkeleton />
+        <FeatureCardRowSkeleton />
       </section>
 
       <section className="space-y-4">

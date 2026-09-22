@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.51.0] - 2026-09-23
+
+### Added
+
+- The home page now shows a worst trip, a worst route and a worst stop for whichever window is open,
+  each taken from that board's own ranking so the card and the board it names never disagree. The
+  route and stop cards gained the trip card's clean-window state, so a window with nothing bad
+  enough to crown reads green instead of blank.
+
 ## [1.50.2] - 2026-09-23
 
 ### Changed
