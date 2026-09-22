@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.45.0] - 2026-09-23
+
+### Added
+
+- Each stop's figures on a route can now be read per direction and per version (runs with the same
+  two termini), joined through each run's trip record. The route diagram v2 draws from them.
+
 ## [1.44.0] - 2026-09-22
 
 ### Added

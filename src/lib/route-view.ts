@@ -225,6 +225,8 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
       const existing = merged.get(key);
       if (existing) {
         existing.tripCount += v.tripCount;
+        if (v.shapeId && !existing.shapeIds?.includes(v.shapeId))
+          existing.shapeIds = [...(existing.shapeIds ?? []), v.shapeId];
       } else {
         merged.set(key, {
           headsign: mode === "TRAIN" ? normaliseHeadsign(v.headsign) : v.headsign,
@@ -232,17 +234,22 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
           tripCount: v.tripCount,
           stopIds: seq,
           shapeId: v.shapeId,
+          shapeIds: v.shapeId ? [v.shapeId] : [],
         });
       }
     }
     // Drop variants that run only an interior part of a longer one (entering and
     // leaving mid-line) - the full line already shows those stops. Short-workings
     // that share an end (an early terminus or a different origin) are kept; the
-    // diagram forks them off. Fold a dropped variant's trips into its container.
+    // diagram forks them off. Fold a dropped variant's trips and shapes into its
+    // container, so a run on the dropped shape still finds its version.
     const all = [...merged.values()];
     const variants = all.filter((v) => {
       const container = all.find((o) => o !== v && isInteriorSub(v.stopIds, o.stopIds));
-      if (container) container.tripCount += v.tripCount;
+      if (container) {
+        container.tripCount += v.tripCount;
+        container.shapeIds = [...(container.shapeIds ?? []), ...(v.shapeIds ?? [])];
+      }
       return !container;
     });
     if (variants.length > 0) directions[Number(dir)] = { variants };

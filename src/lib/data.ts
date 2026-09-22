@@ -29,6 +29,7 @@ export type { DayRiderWait } from "@/lib/data/rider-wait";
 export { getRouteAreas } from "@/lib/data/route-areas";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";
+export { getRouteStopSplit } from "@/lib/data/route-stop-split";
 export {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
