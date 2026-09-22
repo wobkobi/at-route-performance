@@ -13,6 +13,7 @@ export const DAY_PAGES = [
   "/shame/route",
   "/shame/stop",
   "/routes",
+  "/vehicles",
   "/cancellations",
 ] as const;
 

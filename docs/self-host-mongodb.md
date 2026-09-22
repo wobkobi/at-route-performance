@@ -316,6 +316,30 @@ so), then retire it in favour of the ZFS snapshots plus replication of `mongodb-
 pool or off-box target - snapshot restore is the recovery path, and it restores the whole dataset at
 a point in time.
 
+## When the box goes down
+
+Data is **dropped, not queued**. AT's realtime feed is a snapshot of where the vehicles are at that
+instant, nothing re-fetches it, and the app has nowhere to spool a write to, so an arrival that
+cannot be written is gone. What softens it is the feed itself: a vehicle's remaining stop visits are
+re-reported on later polls, so a short outage usually costs precision on the stops already passed
+rather than whole trips. A long one is a hole in the archive, and the archive is the only copy.
+
+What the app does about it:
+
+- **Writes wait.** `runWriteCommand` (`src/lib/db.ts`) retries an unreachable server at 1/3/8/15s,
+  about 27 seconds over five attempts, then gives up. That covers a restart or a failover, not a box
+  that is off. `isDatabaseUnreachableError` is kept separate from `isTransientConnectionError`
+  because a dropped socket is fixed by reconnecting and an outage only by waiting.
+- **Reads fail fast**, so a reader meets a page's error boundary instead of a minute of nothing.
+- **The site stays up.** Every page keeps its masthead, nav and footer; the footer's freshness line
+  reads "Last update unknown" rather than claiming the site is awaiting its first data.
+- **`/api/health` answers `database: "up" | "down"`** on a five-second bound. Watch that, not `ok` -
+  `ok` says the build is serving, which stays true through an outage.
+
+So the practical rule: a restart of a few minutes is survivable and mostly invisible. Anything
+longer should be planned for a gap in the service day (after 01:30 NZ, before 04:30), because
+nothing will backfill it.
+
 ## Verification checklist
 
 1. `db.ArrivalEvent.getIndexes()` shows the unique index plus the three compounds from

@@ -10,6 +10,8 @@ describe("pageWarmPaths", () => {
     expect(paths[0]).toBe("/?day=2026-09-30");
     expect(paths.at(-1)).toBe("/cancellations?day=2026-09-24");
     expect(paths).toContain("/shame/stop?day=2026-09-27");
+    // Every page with a day stepper belongs here, /vehicles included.
+    expect(paths).toContain("/vehicles?day=2026-09-27");
   });
 
   it("stops at the archive's first day", () => {

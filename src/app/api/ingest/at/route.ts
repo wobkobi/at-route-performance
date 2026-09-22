@@ -38,8 +38,9 @@ const INSERT_BATCH = 1000;
 
 /**
  * A poll already this long skips the closure step rather than run longer. Polls
- * take 8s at the median and 22s at p90, so only the slowest few skip, and each
- * closure row carries its own evidence, so the next poll makes a skip up.
+ * take 2.6s at the median and 12s at p90 (8,617 runs to 22 Sep 2026), so about
+ * one in 250 skips, and each closure row carries its own evidence, so the next
+ * poll makes a skip up.
  */
 const CLOSURE_STEP_CUTOFF_MS = 60_000;
 

@@ -32,6 +32,18 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.52.1] - 2026-09-23
+
+### Fixed
+
+- The nightly pre-warm now covers the hardest-worked-vehicles page. It has a day stepper like the
+  other warmed pages, so until now its first reader each day paid for the cold render. Three
+  documented claims were corrected against measurement: the realtime ingest's cadence is not a free
+  knob (three constants are pinned to it, and a slower poll degrades every delay figure), a poll
+  takes 2.6s at the median and 12s at p90 rather than the 8s and 22s a code comment claimed, and a
+  cron-job.org failure notice on that job is usually the scheduler's 30s drop rather than a real
+  failure - none of 8,617 polls failed server-side.
+
 ## [1.52.0] - 2026-09-23
 
 ### Added
