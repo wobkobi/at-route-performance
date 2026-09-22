@@ -125,10 +125,10 @@ export interface StopCard {
   day: string | null;
 }
 
-/** Which shame page a card is for: the three-card overview or one of its boards. */
-export type ShameBoard = "overview" | "trip" | "route" | "stop";
+/** Which shame board a card is for. */
+export type ShameBoard = "trip" | "route" | "stop";
 
-/** What a shame page's card describes. The overview has only a day view. */
+/** What a shame board's card describes. */
 export interface ShameCard {
   kind: "shame";
   board: ShameBoard;
@@ -202,16 +202,14 @@ export function parseStopCard(id: string, sp: { day?: string }): StopCard {
 }
 
 /**
- * Validate a shame page's query into its card. The boards read `window` as
- * week, month or (anything else) day, as `parseShameParams` does; the overview
- * is a day page only.
- * @param board - Which shame page.
+ * Validate a shame board's query into its card. The boards read `window` as
+ * week, month or (anything else) day, as `parseShameParams` does.
+ * @param board - Which shame board.
  * @param sp - The page's raw query.
  * @returns The card state.
  */
 export function parseShameCard(board: ShameBoard, sp: HomeCardParams): ShameCard {
-  const window: RangeWindow =
-    board !== "overview" && (sp.window === "week" || sp.window === "month") ? sp.window : "day";
+  const window: RangeWindow = sp.window === "week" || sp.window === "month" ? sp.window : "day";
   let period: string | null = null;
   if (window === "week") period = resolveRequestedDay(sp.period);
   if (window === "month") period = resolveRequestedMonth(sp.period);
@@ -305,7 +303,7 @@ export function parseHomeCardQuery(query: URLSearchParams): HomeCard {
 }
 
 /** Shame pages a card URL may name. */
-const SHAME_BOARDS: readonly ShameBoard[] = ["overview", "trip", "route", "stop"];
+const SHAME_BOARDS: readonly ShameBoard[] = ["trip", "route", "stop"];
 
 /**
  * Parse any card URL's query back into its state. A card missing its id, or
@@ -407,7 +405,6 @@ export function cardWhenSuffix(card: SubjectCard | ShameCard | ListCard): string
 
 /** Each shame page's heading, by board, before its window's noun. */
 const SHAME_HEADS: Record<ShameBoard, string> = {
-  overview: "Shame of the",
   trip: "Worst trips of the",
   route: "Worst routes of the",
   stop: "Worst stops of the",

@@ -13,7 +13,9 @@ import { Suspense, type JSX } from "react";
 const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },
   { href: "/routes", label: "Routes" },
-  { href: "/shame", label: "Shame of the day" },
+  { href: "/shame/trip", label: "Worst trips" },
+  { href: "/shame/route", label: "Worst routes" },
+  { href: "/shame/stop", label: "Worst stops" },
   { href: "/cancellations", label: "Cancellations" },
 ];
 

@@ -149,10 +149,10 @@ describe("parseCardQuery", () => {
 });
 
 describe("shame cards", () => {
-  it("keeps the overview on the day, whatever the window says", () => {
-    const card = parseShameCard("overview", { window: "week", day: "2026-09-20", mode: "TRAIN" });
+  it("reads a board's day and filter", () => {
+    const card = parseShameCard("trip", { day: "2026-09-20", mode: "TRAIN" });
     expect(card).toMatchObject({ window: "day", day: "2026-09-20", period: null, mode: "TRAIN" });
-    expect(listCardTitle(card)).toBe("Shame of the day, Sun 20 Sep (Trains)");
+    expect(listCardTitle(card)).toBe("Worst trips of the day, Sun 20 Sep (Trains)");
   });
 
   it("reads a board's week and month, and titles them", () => {

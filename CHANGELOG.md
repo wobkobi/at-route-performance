@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.50.0] - 2026-09-23
+
+### Added
+
+- The three shame boards now have their own top-bar tab and footer links, and /shame opens the trips
+  board with whatever day, window and filter you arrived with.
+
 ## [1.49.9] - 2026-09-23
 
 ### Fixed

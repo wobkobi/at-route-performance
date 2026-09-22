@@ -3,7 +3,8 @@
 import { isNavActive, NAV_SECTIONS, navHref } from "@/lib/site-nav";
 import { describe, expect, it } from "vitest";
 
-const [overview, routes, live, cancellations] = NAV_SECTIONS as [
+const [overview, routes, live, shame, cancellations] = NAV_SECTIONS as [
+  (typeof NAV_SECTIONS)[number],
   (typeof NAV_SECTIONS)[number],
   (typeof NAV_SECTIONS)[number],
   (typeof NAV_SECTIONS)[number],
@@ -11,9 +12,12 @@ const [overview, routes, live, cancellations] = NAV_SECTIONS as [
 ];
 
 describe("isNavActive", () => {
-  it("puts the shame boards under Overview, and route and stop pages under Routes", () => {
+  it("puts the shame boards under Shame, and route and stop pages under Routes", () => {
     expect(isNavActive(overview, "/")).toBe(true);
-    expect(isNavActive(overview, "/shame/trip")).toBe(true);
+    expect(isNavActive(overview, "/shame/trip")).toBe(false);
+    expect(isNavActive(shame, "/shame")).toBe(true);
+    expect(isNavActive(shame, "/shame/stop")).toBe(true);
+    expect(isNavActive(shame, "/")).toBe(false);
     expect(isNavActive(overview, "/days")).toBe(true);
     expect(isNavActive(overview, "/vehicles")).toBe(true);
     expect(isNavActive(overview, "/vehicle/59018")).toBe(true);

@@ -1,13 +1,13 @@
 // src/lib/site-nav.ts
 // Top-bar sections: which one a path belongs to, and the link to each that keeps
-// the reader's day, window and mode filter, which the Overview, Routes and
-// Cancellations pages (and the route, stop and shame pages under them) read the same way.
+// the reader's day, window and mode filter, which the Overview, Routes, Shame and
+// Cancellations pages (and the route and stop pages under them) read the same way.
 import { nzServiceDayString } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */
 export interface NavSection {
-  href: "/" | "/routes" | "/live" | "/cancellations";
+  href: "/" | "/routes" | "/live" | "/shame/trip" | "/cancellations";
   label: string;
   /** Path prefixes that belong to the section besides its own page. */
   under: readonly string[];
@@ -20,9 +20,11 @@ export interface NavSection {
 
 export const NAV_SECTIONS: readonly NavSection[] = [
   // `/vehicle/` too: a vehicle's page is not a prefix match of the list it opens from.
-  { href: "/", label: "Overview", under: ["/shame", "/days", "/vehicles", "/vehicle/"] },
+  { href: "/", label: "Overview", under: ["/days", "/vehicles", "/vehicle/"] },
   { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
   { href: "/live", label: "Live", under: [], carries: ["mode"] },
+  // The section's own tab: /shame redirects here, and the other two boards sit beside it.
+  { href: "/shame/trip", label: "Shame", under: ["/shame"] },
   { href: "/cancellations", label: "Cancellations", under: [] },
 ];
 

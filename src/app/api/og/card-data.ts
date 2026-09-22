@@ -23,7 +23,6 @@ import {
   getTripCancellation,
   getTripScheduledStops,
   getTripTimeline,
-  getWorstStops,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
   TODAY_REVALIDATE,
@@ -45,7 +44,7 @@ import {
   type StopCard,
   type TripCard,
 } from "@/lib/og";
-import { earlyToleranceFor, isOnTime, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveRangeView, resolveShownDay } from "@/lib/page-nav";
 import { periodRangeNav } from "@/lib/range-page";
 import { summariseRows, visibleRows } from "@/lib/rankings";
@@ -398,7 +397,6 @@ function offHero(signed: number, abs: number, mode: string): SubjectBodyProps["h
 
 /** Each shame card's heading and the noun its empty state uses. */
 const SHAME_HEADINGS = {
-  overview: { head: "Shame of the day", noun: "run" },
   trip: { head: "Worst trip", noun: "run" },
   route: { head: "Worst route", noun: "route" },
   stop: { head: "Worst stop", noun: "stop" },
@@ -493,10 +491,9 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
 }
 
 /**
- * Resolve the card for `/shame` or one of its boards. Each names what its page
- * crowns: the run, route or stop, with the figure its row prints. On a day the
- * boards crown only a row past the late bound, and the overview's run card uses
- * its own on-time test, so a quiet day reads "Nothing stood out" on both.
+ * Resolve a shame board's card. Each names what its board crowns: the run, route
+ * or stop, with the figure its row prints. On a day a board crowns only a row
+ * past the late bound, so a quiet day reads "Nothing stood out".
  * @param card - The card state.
  * @returns The card.
  */
@@ -505,37 +502,6 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
   const filter = { mode: card.mode, includeSchool: card.includeSchool };
   const filterLabel = cardFilterLabel(card.mode, card.includeSchool);
   const today = nzServiceDayString();
-
-  if (card.board === "overview") {
-    const { date, data } = await shameDay(card, async (range) => {
-      const [trip, route, stops] = await Promise.all([
-        getShameOfDay(range, filter, TODAY_REVALIDATE),
-        getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
-        getWorstStops(range, filter, 1, TODAY_REVALIDATE),
-      ]);
-      // The page falls back only when both hourly boards are empty.
-      return { trip, route, stop: stops[0] ?? null, hours: [...trip.hours, ...route.hours] };
-    });
-    const t = data.trip.worst;
-    let body: SubjectBodyProps;
-    if (!t) body = NOTHING_RANKED;
-    else if (t.avg_abs_delay_sec <= earlyToleranceFor(t.mode) || isOnTime(t.avg_delay_sec, t.mode))
-      body = nothingStoodOut(noun);
-    else body = runBody(t, false);
-    // The page's other two cards, one line each, under the run.
-    const r = data.route.worst;
-    const extra = [
-      r
-        ? `Worst route: ${routeNameOf(r)}, ${offScheduleValue(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode).text}`
-        : null,
-      data.stop ? `Worst stop: ${data.stop.name}` : null,
-    ].filter((l): l is string => l !== null);
-    return {
-      eyebrow: eyebrowOf(head, serviceDayLabel(date), filterLabel),
-      body: body.hero ? { ...body, lines: [...body.lines.slice(0, 1), ...extra] } : body,
-      complete: date < today,
-    };
-  }
 
   if (card.window === "week" || card.window === "month") {
     const period = await shameRange(card, card.window);
