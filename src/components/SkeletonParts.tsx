@@ -438,7 +438,7 @@ export function TripBoardSkeleton(): JSX.Element {
 
 /**
  * Mirrors the head of RouteLineDiagram: the `text-lg` heading (`mb-1`), the
- * `text-xs` hover hint (`mb-3`), then the diagram, whose real height depends on
+ * `text-xs` hint (`mb-3`), then the diagram, whose real height depends on
  * the route's branches, so its box is only a typical size.
  * @returns The diagram placeholder.
  */
@@ -446,8 +446,11 @@ export function LineDiagramSkeleton(): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface p-4">
       <Bone className="mb-1 h-7 w-32" />
-      <Bone className="mb-3 h-4 w-40" />
-      <Bone className="h-96" />
+      {/* The hint wraps to two lines on a phone. */}
+      <Bone className="mb-3 h-8 w-full sm:h-4 sm:w-96" />
+      {/* A typical two-direction route: about 1,000px of 6-column snake on a
+          phone, about 480px of 20-column line from sm up. */}
+      <Bone className="h-240 sm:h-120" />
     </div>
   );
 }

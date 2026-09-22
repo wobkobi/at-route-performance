@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.3] - 2026-09-22
+
+### Fixed
+
+- On a phone the line diagram is laid out six stops to a row and drawn close to full size, instead
+  of a desktop-width line shrunk to a third, and short lines stack one per row. The stop tooltip
+  stays inside the diagram at both edges and drops below a stop near the top. The loading
+  placeholder is sized for each width.
+
 ## [1.41.2] - 2026-09-22
 
 ### Fixed

@@ -14,7 +14,7 @@ import { delayColour } from "@/lib/delay-colour";
 import { formatDelay } from "@/lib/format";
 import { labelWidth } from "@/lib/label-width";
 import type { BranchLabel, DiagramEdge, LabelDir } from "@/lib/route-graph";
-import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type JSX, type KeyboardEvent } from "react";
 
 /** Max characters of a branch headsign before truncating. */
 const BRANCH_LABEL_MAX = 20;
@@ -216,6 +216,7 @@ export function DiagramSvg({
   const [active, setActive] = useState(0);
   const hitRefs = useRef<(SVGCircleElement | null)[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const tipRef = useRef<HTMLDivElement | null>(null);
 
   // A tap has no leave event, so a tap anywhere outside the diagram closes the
   // tooltip it opened.
@@ -472,6 +473,25 @@ export function DiagramSvg({
   const vw = Math.max(contentW, viewWidth, minViewWidth);
   const vx = (xs.length ? minX - PAD : 0) - (vw - contentW) / 2;
 
+  // Place the tooltip once it has a size: centred over the stop but clamped
+  // inside the diagram, and below the stop when there is no room above it. Set
+  // on the element directly, before paint, since the width is only known then.
+  useLayoutEffect(() => {
+    const el = tipRef.current;
+    const box = el?.parentElement;
+    const n = hovered == null ? undefined : nodes[hovered];
+    if (!el || !box || !n) return;
+    const scale = box.clientWidth / vw;
+    const x = (n.cx - vx) * scale;
+    const y = n.cy * scale;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    // Clear of the largest node ring, plus a small gap.
+    const gap = (TERMINUS_R + TERMINUS_STROKE) * scale + 4;
+    el.style.left = `${Math.min(Math.max(x - w / 2, 0), Math.max(box.clientWidth - w, 0))}px`;
+    el.style.top = `${y - gap - h >= 0 ? y - gap - h : y + gap}px`;
+  }, [hovered, nodes, vx, vw]);
+
   return (
     <div ref={rootRef} className="relative">
       <div className="relative">
@@ -602,11 +622,8 @@ export function DiagramSvg({
         </svg>
         {tip && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-at-border bg-at-surface px-2 py-1 text-xs whitespace-nowrap shadow-md"
-            style={{
-              left: `${((tip.cx - vx) / vw) * 100}%`,
-              top: `${(tip.cy / height) * 100}%`,
-            }}
+            ref={tipRef}
+            className="pointer-events-none absolute top-0 left-0 z-10 w-max max-w-64 rounded-md border border-at-border bg-at-surface px-2 py-1 text-xs shadow-md"
           >
             <span className="font-semibold text-at-ink">{tip.name}</span>
             <span className="ml-1 text-at-muted">{delayText(tip.delay)}</span>
