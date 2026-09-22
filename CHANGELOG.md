@@ -32,19 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
-## [1.41.7] - 2026-09-22
+## [1.41.8] - 2026-09-22
 
 ### Fixed
 
-- Maps on a branch's preview link (the git-dev address) can draw clean tiles once the key is allowed
-  there, rather than always showing the watermarked ones.
-
-## [1.41.6] - 2026-09-22
-
-### Fixed
-
-- A live vehicle's page now says it is on a run now, rather than on the road, which never fitted a
-  train or ferry.
+- A preview deployment's own address can also send the map key, so every preview link, not just the
+  branch one, can draw clean tiles once CARTO allows it.
 
 ## [1.41.5] - 2026-09-22
 
