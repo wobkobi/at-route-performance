@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.52.0] - 2026-09-23
+
+### Added
+
+- A database outage no longer takes every page to an unstyled error screen. The footer's freshness
+  line now reads "Last update unknown" instead of claiming the site is awaiting its first data, and
+  each page fails through its own error boundary, so the masthead, nav and footer survive an outage.
+  /api/health gained a database field, probed with a five-second bound, so a monitor can watch the
+  database separately from the build - the two fail independently.
+
 ## [1.51.2] - 2026-09-23
 
 ### Fixed
