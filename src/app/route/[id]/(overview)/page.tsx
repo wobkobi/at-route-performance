@@ -20,6 +20,7 @@ import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { LineDiagramSkeleton } from "@/components/SkeletonParts";
 import { StepPending } from "@/components/StepPending";
+import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { cn } from "@/lib/cn";
@@ -52,7 +53,20 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
-import { nzServiceDayString, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
+import {
+  nzLocalHour,
+  nzServiceDayString,
+  nzWeekRange,
+  weekRangeLabel,
+  type DateRange,
+} from "@/lib/time";
+import {
+  hourRangeParam,
+  isHourInRange,
+  parseHourRange,
+  TIME_PRESETS,
+  type HourRange,
+} from "@/lib/time-of-day";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
@@ -81,6 +95,8 @@ interface StatsSearchParams {
   window?: string;
   /** Week start (`YYYY-MM-DD` Monday) when stepping back through the week view. */
   period?: string;
+  /** Part of the service day to narrow to, e.g. `7-9`; absent covers all of it. */
+  hours?: string;
 }
 
 /** Valid trip-sort values. */
@@ -297,6 +313,10 @@ export default async function RoutePage({
     ? (sp.tsort as TripSort)
     : "off";
   const isReversed = sp.trev === "1";
+  const hours = parseHourRange(sp.hours);
+  // Re-derived rather than passed through, so an unreadable `hours` param drops
+  // out of every link instead of being carried around the site.
+  const hoursParam = hourRangeParam(hours);
 
   // Service day from ?day, or the one every day page opens on. In week view the
   // day stats are not displayed but the route metadata from getRouteStats is
@@ -310,6 +330,7 @@ export default async function RoutePage({
     from: range.start,
     to: range.end,
     thresholdSec,
+    hours,
   });
   const { route, summary, byStop } = stats;
   const routeMode = route?.mode ?? "BUS";
@@ -430,6 +451,7 @@ export default async function RoutePage({
     ...(sp.thresholdSec ? { thresholdSec: sp.thresholdSec } : {}),
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
+    ...(hoursParam ? { hours: hoursParam } : {}),
   };
   // Stepping onto today drops `?day` so the URL stays canonical, but that link
   // must still carry the filters.
@@ -491,6 +513,24 @@ export default async function RoutePage({
   } else if (requestedDay) dirBase.set("day", requestedDay);
   for (const [k, v] of Object.entries(viewParams)) if (k !== "dir") dirBase.set(k, v);
 
+  // The time chips set `hours` themselves, so everything else about the view
+  // carries - the same trick the direction chips use with `dir`.
+  const hoursBase = new URLSearchParams(dirBase);
+  hoursBase.delete("hours");
+  if (activeDir != null) hoursBase.set("dir", String(activeDir));
+  /**
+   * Link to this view with a different part of the day.
+   * @param range - The range, or null for all day.
+   * @returns The href.
+   */
+  const hoursHref = (range: HourRange | null): string => {
+    const p = new URLSearchParams(hoursBase);
+    const value = hourRangeParam(range);
+    if (value) p.set("hours", value);
+    const qs = p.toString();
+    return `/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`;
+  };
+
   const dirHeadsigns =
     activeVariants == null
       ? null
@@ -527,10 +567,22 @@ export default async function RoutePage({
     }
     return true;
   };
-  const dirTrips = sortedTrips.filter(inActiveDir);
+  // The board has to honour the time chips too: a reader who picked the morning
+  // peak and got a board of evening buses would read the summary as wrong. A run
+  // is placed by when it was due to leave, so a trip that starts inside the
+  // range stays whole even where it runs past the end of it. A cancellation with
+  // no known start cannot be placed, so it is left out of a narrowed view.
+  /**
+   * Whether a run belongs to the chosen part of the day.
+   * @param startedAt - ISO instant the run was due to leave, or null when unknown.
+   * @returns True when no range is set, or the run starts inside it.
+   */
+  const inHours = (startedAt: string | null): boolean =>
+    hours == null || (startedAt != null && isHourInRange(nzLocalHour(new Date(startedAt)), hours));
+  const dirTrips = sortedTrips.filter((t) => inActiveDir(t) && inHours(t.scheduled_start));
   const boardRows = buildTripBoardRows(
     dirTrips,
-    cancelledTrips.filter(inActiveDir),
+    cancelledTrips.filter((c) => inActiveDir(c) && inHours(c.scheduled_start)),
     tripSort,
     isReversed,
     cancelledWaits,
@@ -586,11 +638,13 @@ export default async function RoutePage({
                 day: (isWeekView ? periodParam : requestedDay) ?? undefined,
                 dir: activeDir == null ? undefined : String(activeDir),
                 thresholdSec: sp.thresholdSec,
+                hours: hoursParam,
               }}
               weekQuery={{
                 period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
                 dir: activeDir == null ? undefined : String(activeDir),
                 thresholdSec: sp.thresholdSec,
+                hours: hoursParam,
               }}
             />
             {isWeekView ? (
@@ -636,6 +690,13 @@ export default async function RoutePage({
             }}
           />
         )}
+        <TimeOfDayFilter
+          active={hours}
+          hrefs={{
+            all: hoursHref(null),
+            ...Object.fromEntries(TIME_PRESETS.map((p) => [p.key, hoursHref(p.range)])),
+          }}
+        />
       </header>
 
       <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} live={isLiveView} />

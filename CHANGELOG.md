@@ -32,6 +32,18 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.53.0] - 2026-09-23
+
+### Added
+
+- A route page can now be narrowed to a part of the service day - Early, Morning peak, Midday,
+  Evening peak or Night - with All day as the default. The five presets partition the 4am-4am day
+  exactly once, and Night wraps past midnight, so a bus leaving at 11:30pm counts in the same band
+  as the rest of that evening. Every figure moves together: the summary, the per-stop table, the
+  route map and the buses-of-the-day board, which would otherwise have shown evening runs under a
+  morning-peak heading. A narrowed view stays on measured arrivals alone, because a cancellation is
+  counted per service day and cannot be placed in one hour of it.
+
 ## [1.52.1] - 2026-09-23
 
 ### Fixed
