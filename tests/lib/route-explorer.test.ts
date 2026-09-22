@@ -91,6 +91,13 @@ describe("filterRoutes", () => {
     const thin = route("thin", { events: MIN_BOARD_EVENTS - 1 });
     expect(slugs(filterRoutes([thin], filters({ enoughData: true })))).toEqual([]);
   });
+
+  it("keeps the routes running now, and every route until the feed answers", () => {
+    const on = filters({ runningNow: true });
+    expect(slugs(filterRoutes(rows, on, new Set(["S-C"])))).toEqual(["S-C"]);
+    expect(slugs(filterRoutes(rows, on, null))).toEqual(["NX1", "70", "S-C"]);
+    expect(slugs(filterRoutes(rows, DEFAULT_FILTERS, new Set(["S-C"])))).toHaveLength(3);
+  });
 });
 
 describe("sortRoutes", () => {

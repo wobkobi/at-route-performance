@@ -45,6 +45,11 @@ export interface RouteExplorerProps {
   initialShown: number;
   /** Query (with its `?`) each route link carries, so the route opens on the same window. */
   routeQuery: string;
+  /**
+   * Slugs of the routes with a vehicle on a run now, or null when AT's feed
+   * could not be read. Unresolved, so the list never waits on the feed.
+   */
+  running: Promise<string[] | null>;
 }
 
 /**
@@ -129,6 +134,7 @@ function Figure({
  * @param props.initialFilters - The filters parsed from the query string.
  * @param props.initialShown - How many rows to show, parsed from the query string.
  * @param props.routeQuery - Query each route link carries.
+ * @param props.running - Slugs of the routes running now, unresolved.
  * @returns The explorer.
  */
 export function RouteExplorer({
@@ -136,11 +142,31 @@ export function RouteExplorer({
   initialFilters,
   initialShown,
   routeQuery,
+  running,
 }: RouteExplorerProps): JSX.Element {
   const [filters, setFilters] = useState<ExplorerFilters>(initialFilters);
   const [shown, setShown] = useState(initialShown);
+  // undefined while the feed is answering, null when it could not be read.
+  const [runningSet, setRunningSet] = useState<ReadonlySet<string> | null | undefined>(undefined);
+  useEffect(() => {
+    let dead = false;
+    running.then(
+      (slugs) => {
+        if (!dead) setRunningSet(slugs ? new Set(slugs) : null);
+      },
+      () => {
+        if (!dead) setRunningSet(null);
+      },
+    );
+    return () => {
+      dead = true;
+    };
+  }, [running]);
 
-  const matching = useMemo(() => filterRoutes(rows, filters), [rows, filters]);
+  const matching = useMemo(
+    () => filterRoutes(rows, filters, runningSet ?? null),
+    [rows, filters, runningSet],
+  );
   const sorted = useMemo(
     () => sortRoutes(matching, filters.sort, filters.dir),
     [matching, filters.sort, filters.dir],
@@ -282,7 +308,17 @@ export function RouteExplorer({
           <Chip on={filters.school} onClick={() => update({ school: !filters.school })}>
             Include school buses
           </Chip>
+          <Chip on={filters.runningNow} onClick={() => update({ runningNow: !filters.runningNow })}>
+            Running now
+          </Chip>
         </FilterRow>
+        {filters.runningNow && !runningSet && (
+          <p role="status" className="text-xs text-at-muted">
+            {runningSet === undefined
+              ? "Checking AT's live feed for what is running now."
+              : "AT's live feed could not be read just now, so every route is listed."}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 border-t border-at-border pt-3">
           <label className="flex items-center gap-2 text-sm">
             <span className="text-xs font-semibold tracking-zero text-at-muted uppercase">

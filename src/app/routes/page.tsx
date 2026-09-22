@@ -1,6 +1,7 @@
 // src/app/routes/page.tsx
 // Routes page: every route with arrivals in a day, week or month, with filters
-// (mode, area, late or early, enough data, cancellations, school services),
+// (mode, area, late or early, enough data, cancellations, school services,
+// running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
 // RouteExplorer. The day view falls back to the most recent day with data when
@@ -17,6 +18,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
@@ -33,6 +35,7 @@ import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import { getLiveVehicles } from "@/lib/vehicles";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import type { JSX } from "react";
@@ -180,6 +183,9 @@ export default async function RoutesPage({
         initialFilters={parseExplorerFilters(sp)}
         initialShown={parseShown(sp.show)}
         routeQuery={routeLinkQuery(window, serviceDate, period)}
+        running={getLiveVehicles()
+          .then(liveRouteSlugs)
+          .catch(() => null)}
       />
 
       <p className="text-xs text-at-muted">

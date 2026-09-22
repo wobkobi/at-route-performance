@@ -58,6 +58,8 @@ export interface ExplorerFilters {
   enoughData: boolean;
   /** Only routes with at least one cancellation. */
   cancelledOnly: boolean;
+  /** Only routes with a vehicle on a run now, from AT's live feed. */
+  runningNow: boolean;
   sort: ExplorerSort;
   dir: SortDir;
 }
@@ -71,6 +73,7 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
   lean: null,
   enoughData: false,
   cancelledOnly: false,
+  runningNow: false,
   sort: "route",
   dir: "asc",
 };
@@ -103,6 +106,7 @@ export function parseExplorerFilters(sp: Record<string, string | undefined>): Ex
     lean: sp.lean === "late" || sp.lean === "early" ? sp.lean : null,
     enoughData: sp.data === "1",
     cancelledOnly: sp.cancelled === "1",
+    runningNow: sp.live === "1",
     sort,
     dir,
   };
@@ -122,6 +126,7 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   if (f.lean) out.lean = f.lean;
   if (f.enoughData) out.data = "1";
   if (f.cancelledOnly) out.cancelled = "1";
+  if (f.runningNow) out.live = "1";
   if (f.sort !== DEFAULT_FILTERS.sort) out.sort = f.sort;
   if (f.dir !== defaultDir(f.sort)) out.dir = f.dir;
   return out;
@@ -156,6 +161,7 @@ export const EXPLORER_PARAMS = [
   "lean",
   "data",
   "cancelled",
+  "live",
   "sort",
   "dir",
 ];
@@ -163,11 +169,20 @@ export const EXPLORER_PARAMS = [
 /**
  * Keep the routes that pass every active filter. The enough-data bar is the
  * boards' own: lower for a single mode, so ferries can pass it.
+ * The running-now filter needs the live set, which streams in after the list:
+ * until it arrives (null) that one filter is not applied, so the list is never
+ * emptied by a feed that has not answered yet.
  * @param rows - Every route in the window.
  * @param f - The filters.
+ * @param running - Slugs of the routes with a vehicle on a run now, or null
+ *   while the live feed has not answered.
  * @returns The matching routes, in their original order.
  */
-export function filterRoutes(rows: readonly ExplorerRoute[], f: ExplorerFilters): ExplorerRoute[] {
+export function filterRoutes(
+  rows: readonly ExplorerRoute[],
+  f: ExplorerFilters,
+  running: ReadonlySet<string> | null = null,
+): ExplorerRoute[] {
   const q = f.q.trim().toLowerCase();
   const minEvents = f.mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   return rows.filter((r) => {
@@ -181,6 +196,7 @@ export function filterRoutes(rows: readonly ExplorerRoute[], f: ExplorerFilters)
     if (f.lean === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
     if (f.enoughData && r.events < minEvents) return false;
     if (f.cancelledOnly && r.cancelled === 0) return false;
+    if (f.runningNow && running && !running.has(r.slug)) return false;
     return true;
   });
 }
