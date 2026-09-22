@@ -18,7 +18,7 @@ import {
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav } from "@/lib/range-page";
+import { dayRangeNav, windowPhrase } from "@/lib/range-page";
 import { buildShameHref, parseShameParams, type ShameSearchParams } from "@/lib/shame-page";
 import type { Metadata } from "next";
 import type { JSX } from "react";
@@ -106,7 +106,11 @@ export default async function ShameDashboard({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Each card names one run, route or stop and opens it. The boards those
             three come from are the header's tabs, right above. */}
-        <ShameOfDay trip={tripShame.worst} hours={tripShame.hours} />
+        <ShameOfDay
+          trip={tripShame.worst}
+          hours={tripShame.hours}
+          when={windowPhrase(dayNav, null)}
+        />
         <WorstRouteCard route={routeShame.worst} day={linkDay} />
         <WorstStopCard stop={stops[0] ?? null} day={linkDay} />
       </div>

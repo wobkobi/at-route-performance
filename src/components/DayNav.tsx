@@ -2,7 +2,7 @@
 // Date label with previous/next day stepper links for the shame views.
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
-import { serviceDayLabel, shiftWeek } from "@/lib/time";
+import { serviceDayLabel, serviceDayWindowText, shiftWeek } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -92,7 +92,12 @@ export function DayNav({
         </Link>
       )}
       {!hasPrev && atFloor && <span className="px-1 text-xs text-at-muted">first day</span>}
-      <span className="px-2 text-sm font-semibold tabular-nums">
+      {/* Every day page shows a day through this label, so the window it covers
+          is said here once rather than on each page. */}
+      <span
+        className="cursor-help px-2 text-sm font-semibold tabular-nums"
+        title={serviceDayWindowText(serviceDate)}
+      >
         {serviceDayLabel(serviceDate)}
       </span>
       {hasNext && (

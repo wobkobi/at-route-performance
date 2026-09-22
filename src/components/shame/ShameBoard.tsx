@@ -2,6 +2,7 @@
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
 import { cn } from "@/lib/cn";
+import { afterMidnightNote, nzHourLabel, SERVICE_START_HOUR } from "@/lib/time";
 import type { JSX } from "react";
 
 /** Anchor classes for a single-column row (mobile day list + week list). */
@@ -20,32 +21,63 @@ export interface ShameRowContext {
 }
 
 /**
+ * A day-board row's hour, such as "9am". The hours after midnight close the
+ * board rather than open it, so each carries a tooltip naming the service day
+ * it counts toward.
+ * @param props - Component props.
+ * @param props.hour - Hour of day, 0-23.
+ * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @returns The label element.
+ */
+export function ShameHourLabel({
+  hour,
+  serviceDate,
+}: {
+  hour: number;
+  serviceDate: string;
+}): JSX.Element {
+  const afterMidnight = hour < SERVICE_START_HOUR;
+  return (
+    <span
+      className={cn(
+        "w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums",
+        afterMidnight && "cursor-help",
+      )}
+      title={afterMidnight ? afterMidnightNote(serviceDate) : undefined}
+    >
+      {nzHourLabel(hour)}
+    </span>
+  );
+}
+
+/**
  * A day-board hour where nothing met the board's minimum sample, so the board
  * still covers the whole day. Not a link: there is nothing to open. The hover
  * tint is cancelled for the same reason.
  * @param props - Component props.
- * @param props.label - The hour, as the other rows print it.
+ * @param props.hour - Hour of day, 0-23.
+ * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
  * @param props.title - What did not fit, e.g. "No route fits this hour".
  * @param props.reason - The minimum it missed, e.g. "No route had 30 arrivals".
  * @param props.ctx - Surface context from the board.
  * @returns The row element.
  */
 export function ShameEmptyHourRow({
-  label,
+  hour,
+  serviceDate,
   title,
   reason,
   ctx,
 }: {
-  label: string;
+  hour: number;
+  serviceDate: string;
   title: string;
   reason: string;
   ctx: ShameRowContext;
 }): JSX.Element {
   return (
     <div className={cn(ctx.anchorClass, "hover:bg-transparent")}>
-      <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-        {label}
-      </span>
+      <ShameHourLabel hour={hour} serviceDate={serviceDate} />
       <span className="min-w-0 flex-1">
         <span className="block text-at-muted">{title}</span>
         <span className="block text-xs text-at-muted">{reason}</span>

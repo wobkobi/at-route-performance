@@ -370,9 +370,9 @@ export function monthLabel(ym: string): string {
 }
 
 /**
- * The page title a home card's link unfurls with, from the query alone: no
- * data read, so metadata never waits on the database. The card image carries
- * the figures.
+ * The page title a home card's link unfurls with, worded like the page's own
+ * heading. The card image carries the figures. A day of null is today; the
+ * page resolves a bare link that opens on another day into that day first.
  * @param c - The card state.
  * @returns The title.
  */
@@ -381,7 +381,7 @@ export function homeCardTitle(c: HomeCard): string {
   let when: string;
   if (c.window === "day") when = c.day ? `on ${serviceDayLabel(c.day)}` : "today";
   else if (c.window === "week")
-    when = c.period ? `the week of ${serviceDayLabel(c.period)}` : "this week";
+    when = c.period ? `the week of ${serviceDayLabel(c.period)}` : "over the last 7 days";
   else when = c.period ? `in ${monthLabel(c.period)}` : "this month";
   return `How bad was it ${when}?${filter ? ` (${filter})` : ""}`;
 }

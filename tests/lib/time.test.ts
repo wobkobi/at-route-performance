@@ -1,9 +1,13 @@
 // tests/lib/time.test.ts
 // Unit tests for the Auckland-timezone day, week and month range helpers in time.ts.
 import {
+  afterMidnightNote,
+  gtfsServiceSeconds,
+  isAfterMidnight,
   monthRangeLabel,
   NZ_TZ,
   nzLast7DaysRange,
+  nzLocalHour,
   nzMonthKey,
   nzMonthRange,
   nzServiceDayRange,
@@ -17,6 +21,7 @@ import {
   serviceDayLabel,
   serviceDayNoon,
   serviceDayScanRange,
+  serviceDayWindowText,
   shiftMonth,
   weekdayShort,
 } from "@/lib/time";
@@ -305,5 +310,43 @@ describe("serviceDayLabel", () => {
   it("names the weekday, day and month of the date itself", () => {
     expect(serviceDayLabel("2026-09-13")).toBe("Sun 13 Sep");
     expect(serviceDayLabel("2027-01-01")).toBe("Fri 1 Jan");
+  });
+});
+
+describe("nzLocalHour and isAfterMidnight", () => {
+  it("reads the Auckland hour, midnight as 0", () => {
+    // 23 Sep 00:15 NZST.
+    expect(nzLocalHour(new Date("2026-09-22T12:15:00Z"))).toBe(0);
+    expect(nzLocalHour(new Date("2026-09-22T23:00:00Z"))).toBe(11);
+  });
+
+  it("puts midnight to 4am after midnight, and 4am on the new day", () => {
+    expect(isAfterMidnight(new Date("2026-09-22T12:15:00Z"))).toBe(true);
+    expect(isAfterMidnight(new Date("2026-09-22T15:59:00Z"))).toBe(true);
+    expect(isAfterMidnight(new Date("2026-09-22T16:00:00Z"))).toBe(false);
+    expect(isAfterMidnight(new Date("2026-09-22T11:59:00Z"))).toBe(false);
+  });
+});
+
+describe("gtfsServiceSeconds", () => {
+  it("moves a time before the start hour past 24h, whichever way AT writes it", () => {
+    expect(gtfsServiceSeconds("04:00:00")).toBe(4 * 3600);
+    expect(gtfsServiceSeconds("23:50:30")).toBe(23 * 3600 + 50 * 60 + 30);
+    expect(gtfsServiceSeconds("00:30:00")).toBe(24.5 * 3600);
+    expect(gtfsServiceSeconds("24:30:00")).toBe(24.5 * 3600);
+  });
+
+  it("is null for a time that does not parse", () => {
+    expect(gtfsServiceSeconds("")).toBeNull();
+    expect(gtfsServiceSeconds("soon")).toBeNull();
+  });
+});
+
+describe("serviceDayWindowText and afterMidnightNote", () => {
+  it("says the 4am-to-4am window and the day a late run counts toward", () => {
+    expect(serviceDayWindowText("2026-09-22")).toBe(
+      "Tue 22 Sep runs from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it.",
+    );
+    expect(afterMidnightNote("2026-09-22")).toBe("After midnight, still counted in Tue 22 Sep");
   });
 });

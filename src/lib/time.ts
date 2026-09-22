@@ -414,6 +414,69 @@ export function nzHourLabel(hour: number): string {
 }
 
 /**
+ * The Auckland-local hour of day (0-23) of an instant. Some engines print
+ * midnight as "24" under `hour12: false`, so that reads back as 0.
+ * @param at - The instant.
+ * @returns The local hour.
+ */
+export function nzLocalHour(at: Date): number {
+  const hour = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: NZ_TZ,
+    hour: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(at)
+    .find((p) => p.type === "hour")?.value;
+  return hour === "24" ? 0 : Number(hour);
+}
+
+/**
+ * Whether an instant falls between midnight and the {@link SERVICE_START_HOUR}
+ * start, so it counts toward the service day before its calendar date.
+ * @param at - The instant.
+ * @returns True for a post-midnight instant.
+ */
+export function isAfterMidnight(at: Date): boolean {
+  return nzLocalHour(at) < SERVICE_START_HOUR;
+}
+
+/**
+ * Seconds into a service day's GTFS clock for a schedule time ("HH:MM:SS"),
+ * for ordering a day's departures. AT writes a post-midnight run both as
+ * "24:30:00" and as "00:30:00" (see {@link serviceDayClockInstant}), so a time
+ * before the start hour moves past 24h and sorts after "23:50:00".
+ * @param hms - The GTFS time.
+ * @returns The seconds, or null when the time does not parse.
+ */
+export function gtfsServiceSeconds(hms: string): number | null {
+  const [h, m, s] = hms.split(":").map(Number);
+  if (h === undefined || m === undefined || Number.isNaN(h) || Number.isNaN(m)) return null;
+  const seconds = h * 3600 + m * 60 + (s && !Number.isNaN(s) ? s : 0);
+  return h < SERVICE_START_HOUR ? seconds + 86_400 : seconds;
+}
+
+/**
+ * What a service day covers, for the day stepper's tooltip: "Tue 22 Sep runs
+ * from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it."
+ * @param ymd - Service date as `YYYY-MM-DD`.
+ * @returns The sentence.
+ */
+export function serviceDayWindowText(ymd: string): string {
+  const start = nzHourLabel(SERVICE_START_HOUR);
+  return `${serviceDayLabel(ymd)} runs from ${start} to ${start} ${serviceDayLabel(shiftWeek(ymd, 1))}, so a run after midnight still counts toward it.`;
+}
+
+/**
+ * The note an after-midnight time carries, naming the service day it counts
+ * toward: "After midnight, still counted in Tue 22 Sep".
+ * @param ymd - The service date the time belongs to.
+ * @returns The note.
+ */
+export function afterMidnightNote(ymd: string): string {
+  return `After midnight, still counted in ${serviceDayLabel(ymd)}`;
+}
+
+/**
  * Shift a `YYYY-MM-DD` date string by whole days (UTC arithmetic). Shared
  * across the shame and route pages for week stepping.
  * @param ymd - Source date.

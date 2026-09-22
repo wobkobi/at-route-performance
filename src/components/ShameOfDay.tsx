@@ -17,10 +17,10 @@ export interface ShameOfDayProps {
   /** Override the card's link target; defaults to the run's own page. */
   href?: string;
   /**
-   * The time period being shown - controls empty-state copy. Defaults to `"day"`.
-   * Use `"week"` or `"month"` on the home page's week or month view.
+   * The shown window as words for the empty-state copy ("today", "that day",
+   * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
    */
-  period?: "day" | "week" | "month";
+  when?: string;
   /** All hourly shame entries for the day, used to count this route's appearances. */
   hours?: ShameTrip[];
   /** Consecutive days this route has been featured as worst shame trip. */
@@ -31,12 +31,12 @@ export interface ShameOfDayProps {
  * Home banner naming the day's most off-schedule run, linking to that run.
  * Three states, not two: a quiet "nothing to rank" card when no run qualified,
  * a green "no shame" card when runs happened and the worst was still on time,
- * and the run card itself otherwise. The first two used to share the green card,
- * which claimed a clean day on days that recorded nothing.
+ * and the run card itself otherwise. The first two stay apart so a day that
+ * recorded nothing never reads as a clean one.
  * @param props - Component props.
  * @param props.trip - The day's worst run (or null).
  * @param props.href - Override link target (optional).
- * @param props.period - Time period for empty-state copy (`"day"` by default).
+ * @param props.when - The shown window as words for the empty-state copy ("today" by default).
  * @param props.hours - All hourly entries for the day, used to count this route's appearances.
  * @param props.routeStreakDays - Consecutive days this route has been the worst shame trip.
  * @returns The banner element.
@@ -44,11 +44,10 @@ export interface ShameOfDayProps {
 export function ShameOfDay({
   trip,
   href: hrefProp,
-  period = "day",
+  when = "today",
   hours,
   routeStreakDays = 0,
 }: ShameOfDayProps): JSX.Element {
-  const isDay = period === "day";
   // Nothing qualified, which is not good news and must not read as the green
   // all-clear below. `worst` is the reduce over the per-hour (or per-day) list,
   // so a null trip means that list was empty: no run cleared SHAME_MIN_STOPS
@@ -71,13 +70,9 @@ export function ShameOfDay({
     return (
       <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
         <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst trip</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">
-          {isDay ? "No shame today" : `No shame this ${period}`}
-        </span>
+        <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
         <p className="text-sm text-at-muted">
-          {isDay
-            ? "No trip stood out today — nothing to call out."
-            : `No trip stood out this ${period} — nothing to call out.`}
+          No trip stood out {when}, so there is nothing to call out.
         </p>
       </div>
     );
@@ -118,7 +113,7 @@ export function ShameOfDay({
       />
       {routeHourCount > 1 && (
         <p className="text-xs text-at-muted">
-          worst trip in {routeHourCount} of today&apos;s hours
+          worst trip in {routeHourCount} of the day&apos;s hours
         </p>
       )}
       {routeStreakDays >= 4 && (

@@ -62,6 +62,7 @@ import {
   parseRangeWindow,
   periodRangeNav,
   routeLinkQuery,
+  windowPhrase,
 } from "@/lib/range-page";
 import {
   deriveBoards,
@@ -105,7 +106,9 @@ interface HomeSearchParams {
 /**
  * The shared-link card for this view: its day or period and filters go into
  * the card URL, so a link to an archived day unfurls with that day, not today.
- * Built from the query alone, so the metadata never waits on the database.
+ * A bare day link is titled with the day the page opens on, which before today
+ * has opened is the day before; that one cached lookup is the page's own, so
+ * the metadata adds no query.
  * @param root0 - Page props.
  * @param root0.searchParams - The page's query params.
  * @returns The Open Graph and Twitter metadata.
@@ -116,8 +119,14 @@ export async function generateMetadata({
   searchParams?: Promise<HomeSearchParams>;
 }): Promise<Metadata> {
   const sp = (await searchParams) ?? {};
+  const card = parseHomeCard(sp);
+  if (card.window === "day" && card.day === null) {
+    const today = nzServiceDayString();
+    const { serviceDate } = await resolveShownDay(null, today);
+    if (serviceDate !== today) card.day = serviceDate;
+  }
   return cardMetadata(
-    homeCardTitle(parseHomeCard(sp)),
+    homeCardTitle(card),
     "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
     homeCardPath(sp),
   );
@@ -267,7 +276,7 @@ async function PeriodHome({
         />
         <div className="grid gap-4 md:grid-cols-2">
           <Suspense fallback={<FeatureCardSkeleton withHeadsign />}>
-            <PeriodTripCard batch={batch} window={window} />
+            <PeriodTripCard batch={batch} when={windowPhrase(nav, period)} />
           </Suspense>
           <Suspense fallback={<FeatureCardSkeleton />}>
             <PeriodStopCard
@@ -427,6 +436,7 @@ export default async function Home({
             mode={mode}
             includeSchool={includeSchool}
             linkDay={linkDay}
+            when={windowPhrase(nav, null)}
           />
         </Suspense>
       </section>
@@ -514,6 +524,7 @@ export default async function Home({
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.includeSchool - Whether school services are included.
  * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
+ * @param root0.when - The shown day as words ("today" or "that day").
  * @returns The two-card grid.
  */
 async function HomeShameCards({
@@ -521,11 +532,13 @@ async function HomeShameCards({
   mode,
   includeSchool,
   linkDay,
+  when,
 }: {
   range: DateRange;
   mode: ModeFilterValue;
   includeSchool: boolean;
   linkDay: string | undefined;
+  when: string;
 }): Promise<JSX.Element> {
   const [shame, worstStops] = await Promise.all([
     getShameOfDay(range, { mode, includeSchool }, TODAY_REVALIDATE),
@@ -538,7 +551,12 @@ async function HomeShameCards({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {/* Both cards open what they name; the section heading owns the board link. */}
-      <ShameOfDay trip={shame.worst} hours={shame.hours} routeStreakDays={routeStreakDays} />
+      <ShameOfDay
+        trip={shame.worst}
+        hours={shame.hours}
+        routeStreakDays={routeStreakDays}
+        when={when}
+      />
       <WorstStopCard stop={worstStops[0] ?? null} day={linkDay} />
     </div>
   );

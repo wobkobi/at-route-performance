@@ -1,9 +1,38 @@
 // tests/lib/at-stop-trips.test.ts
-// Unit tests for the stop-departures cache TTL rule.
-import { stopTripsTtl } from "@/lib/at-stop-trips";
+// Unit tests for the stop-departures cache TTL rule and the departure order.
+import { byServiceDeparture, stopTripsTtl, type ScheduledDeparture } from "@/lib/at-stop-trips";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/at-static", () => ({ getJson: vi.fn() }));
+
+/**
+ * A departure at a GTFS time, the rest filler.
+ * @param departureTime - "HH:MM:SS", or null for an untimed trip.
+ * @returns The departure.
+ */
+const dep = (departureTime: string | null): ScheduledDeparture => ({
+  tripId: `t-${departureTime}`,
+  routeId: "r",
+  headsign: null,
+  directionId: null,
+  departureTime,
+});
+
+describe("byServiceDeparture", () => {
+  it("runs 4am to 4am, so a post-midnight run closes the list in either spelling", () => {
+    const order = [
+      dep(null),
+      dep("00:30:00"),
+      dep("23:50:00"),
+      dep("24:45:00"),
+      dep("04:10:00"),
+      dep("9:05:00"),
+    ]
+      .sort(byServiceDeparture)
+      .map((d) => d.departureTime);
+    expect(order).toEqual(["04:10:00", "9:05:00", "23:50:00", "00:30:00", "24:45:00", null]);
+  });
+});
 
 describe("stopTripsTtl", () => {
   // 2026-09-12 20:00 UTC is 13 Sep 08:00 NZST: service date 2026-09-13, UTC date 2026-09-12.

@@ -27,7 +27,7 @@ import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
-import { nzClockTime } from "@/lib/time";
+import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time";
 import type { TripBoardRow } from "@/lib/trip-board";
 import Link from "next/link";
 import { type JSX, Suspense } from "react";
@@ -91,6 +91,17 @@ export interface WorstTripsBoardProps {
   liveTripIds?: Promise<ReadonlySet<string>>;
   /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
   detouredTripIds?: ReadonlySet<string>;
+}
+
+/**
+ * Tooltip for a run's start time when it falls after midnight, naming the
+ * service day the run counts toward.
+ * @param iso - The run's scheduled start.
+ * @param serviceDate - The board's service day.
+ * @returns The tooltip, or undefined before midnight.
+ */
+function lateNightTitle(iso: string, serviceDate: string): string | undefined {
+  return isAfterMidnight(new Date(iso)) ? afterMidnightNote(serviceDate) : undefined;
 }
 
 /**
@@ -300,7 +311,10 @@ export function WorstTripsBoard({
                     <span className={NAME_GROUP_CLASS}>
                       <span className={cn(NAME_CLASS, "text-at-muted line-through")}>
                         {c.scheduled_start && (
-                          <span className="font-semibold tabular-nums">
+                          <span
+                            className="font-semibold tabular-nums"
+                            title={lateNightTitle(c.scheduled_start, serviceDate)}
+                          >
                             {nzClockTime(c.scheduled_start)}{" "}
                           </span>
                         )}
@@ -342,7 +356,10 @@ export function WorstTripsBoard({
                   </span>
                   <span className={NAME_GROUP_CLASS}>
                     <span className={NAME_CLASS}>
-                      <span className="font-semibold text-at-shore tabular-nums">
+                      <span
+                        className="font-semibold text-at-shore tabular-nums"
+                        title={lateNightTitle(t.scheduled_start, serviceDate)}
+                      >
                         {nzClockTime(t.scheduled_start)}
                       </span>
                       <span className="text-at-muted">

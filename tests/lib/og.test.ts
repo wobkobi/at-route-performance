@@ -62,9 +62,9 @@ describe("homeCardTitle", () => {
     );
   });
 
-  it("names the filter", () => {
+  it("names the filter, and the rolling week as the last 7 days", () => {
     expect(homeCardTitle(parseHomeCard({ window: "week", mode: "TRAIN" }))).toBe(
-      "How bad was it this week? (Trains)",
+      "How bad was it over the last 7 days? (Trains)",
     );
   });
 });

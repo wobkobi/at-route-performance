@@ -27,7 +27,15 @@ import { formatGtfsTime } from "@/lib/format";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
-import { nzClockTime, nzServiceDayRange, nzServiceDayString, serviceDayLabel } from "@/lib/time";
+import {
+  afterMidnightNote,
+  gtfsServiceSeconds,
+  isAfterMidnight,
+  nzClockTime,
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDayLabel,
+} from "@/lib/time";
 import { buildTripLine } from "@/lib/trip-line";
 import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
@@ -195,11 +203,16 @@ export default async function TripPage({
 
   const title = route?.shortName ?? slug;
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
+  const firstDeparture = scheduledStops[0]?.departure_time;
   const departing = firstServed
     ? nzClockTime(firstServed.scheduled_at)
-    : scheduledStops[0]?.departure_time
-      ? formatGtfsTime(scheduledStops[0].departure_time)
+    : firstDeparture
+      ? formatGtfsTime(firstDeparture)
       : null;
+  // A 12:30am run counts toward the day before, which the date beside it names.
+  const departsAfterMidnight = firstServed
+    ? isAfterMidnight(new Date(firstServed.scheduled_at))
+    : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= 86_400;
 
   const lastServed = recordedStops.reduce<TripStop | null>(
     (last, s) => (last === null || actualAt(s) > actualAt(last) ? s : last),
@@ -234,6 +247,12 @@ export default async function TripPage({
         <p className="text-at-muted">
           {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
           {departing ? `Trip departing ${departing}` : "Trip"}
+          {departing && departsAfterMidnight && serviceDate && (
+            <span className="cursor-help" title={afterMidnightNote(serviceDate)}>
+              {" "}
+              (after midnight)
+            </span>
+          )}
           {vehicle_id && ` · ${vehicle_id}`}
         </p>
       </header>

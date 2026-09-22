@@ -218,17 +218,17 @@ export async function PeriodModeFilter({
  * The period's worst-run card. It opens that run.
  * @param props - Component props.
  * @param props.batch - The period's reads.
- * @param props.window - The active window, for the empty-state copy.
+ * @param props.when - The shown window as words, for the empty-state copy.
  * @returns The card.
  */
 export async function PeriodTripCard({
   batch,
-  window,
+  when,
 }: {
   batch: PeriodBatch;
-  window: RankWindow;
+  when: string;
 }): Promise<JSX.Element> {
-  return <ShameOfDay trip={(await batch.shame).worst} period={window} />;
+  return <ShameOfDay trip={(await batch.shame).worst} when={when} />;
 }
 
 /**

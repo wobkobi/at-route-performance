@@ -15,7 +15,7 @@ import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
-import { getStopTrips } from "@/lib/at-stop-trips";
+import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
@@ -23,7 +23,6 @@ import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og"
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
-import { nzServiceDayRange } from "@/lib/time";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
@@ -40,7 +39,8 @@ interface StopSearchParams {
 /**
  * Per-stop page title, so a tab and a shared link name the stop rather than
  * repeating the site title. The shared link's card and title name the day the
- * link carries.
+ * link carries. The name comes from the same stats read as the page's, on the
+ * same shown day, so the two share one cached query.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id }`.
  * @param root0.searchParams - Optional query params (`day`).
@@ -60,11 +60,12 @@ export async function generateMetadata({
   } catch {
     id = raw;
   }
-  const range = nzServiceDayRange(new Date());
+  const sp = (await searchParams) ?? {};
+  const { range } = await resolveShownDay(resolveRequestedDay(sp.day));
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(() => null);
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
-  const card = parseStopCard(id, (await searchParams) ?? {});
+  const card = parseStopCard(id, sp);
   const description = `On-time performance at ${name} against Auckland Transport's published schedule.`;
   return {
     title: name,
@@ -263,11 +264,7 @@ async function StopScheduleSection({
   );
   const byTrip = new Map<string, (typeof perStop)[number][number]>();
   for (const d of perStop.flat()) if (!byTrip.has(d.tripId)) byTrip.set(d.tripId, d);
-  const departures = [...byTrip.values()].sort((a, b) => {
-    if (!a.departureTime) return 1;
-    if (!b.departureTime) return -1;
-    return a.departureTime < b.departureTime ? -1 : a.departureTime > b.departureTime ? 1 : 0;
-  });
+  const departures = [...byTrip.values()].sort(byServiceDeparture);
   return <StopSchedule departures={departures} routeNames={routeNames} serviceDate={serviceDate} />;
 }
 

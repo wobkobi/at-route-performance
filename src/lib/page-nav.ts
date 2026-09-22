@@ -11,8 +11,8 @@ import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/data-start";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
   monthRangeLabel,
-  NZ_TZ,
   nzLast7DaysRange,
+  nzLocalHour,
   nzMonthKey,
   nzMonthRange,
   nzServiceDayRange,
@@ -79,14 +79,7 @@ export function filterLiveHours<H extends { hour: number }>(
   now: Date = new Date(),
 ): H[] {
   if (serviceDate !== nzServiceDayString(now)) return hours;
-  const nowHourNZ = parseInt(
-    new Intl.DateTimeFormat("en-NZ", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: NZ_TZ,
-    }).format(now),
-    10,
-  );
+  const nowHourNZ = nzLocalHour(now);
   // The constant, not a literal 4, so the next move needs no second sweep.
   return hours.filter((h) =>
     nowHourNZ < SERVICE_START_HOUR

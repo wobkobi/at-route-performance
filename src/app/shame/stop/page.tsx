@@ -1,7 +1,12 @@
 // src/app/shame/stop/page.tsx
 // Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
 
-import { ShameBoard, ShameEmptyHourRow, type ShameRowContext } from "@/components/shame/ShameBoard";
+import {
+  ShameBoard,
+  ShameEmptyHourRow,
+  ShameHourLabel,
+  type ShameRowContext,
+} from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
@@ -26,7 +31,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import {
   buildShameHref,
   countById,
@@ -37,7 +42,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzHourLabel, weekdayShort, type DateRange } from "@/lib/time";
+import { weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -240,6 +245,7 @@ export default async function StopShamePage({
   const daySpan = serviceHourSpan(dayHours);
   const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const dayWhen = windowPhrase(dayNav, null);
   // Stepping onto today drops `?day` so the URL stays canonical.
   const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
@@ -261,9 +267,7 @@ export default async function StopShamePage({
         href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
-        <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-          {nzHourLabel(s.hour)}
-        </span>
+        <ShameHourLabel hour={s.hour} serviceDate={serviceDate} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="font-semibold text-at-ink">{s.name}</span>
@@ -272,7 +276,7 @@ export default async function StopShamePage({
           <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {hourCount > 1 && (
             <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(hourCount)} today
+              {s.name} was bad {badTimes(hourCount)} {dayWhen}
             </span>
           )}
         </span>
@@ -298,7 +302,8 @@ export default async function StopShamePage({
       renderDayRow(slot.row, ctx)
     ) : (
       <ShameEmptyHourRow
-        label={nzHourLabel(slot.hour)}
+        hour={slot.hour}
+        serviceDate={serviceDate}
         title="No stop fits this hour"
         reason={`No stop had ${MIN_STOP_EVENTS_HOUR} arrivals this hour`}
         ctx={ctx}

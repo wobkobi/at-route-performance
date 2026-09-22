@@ -3,7 +3,12 @@
 
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
-import { ShameBoard, ShameEmptyHourRow, type ShameRowContext } from "@/components/shame/ShameBoard";
+import {
+  ShameBoard,
+  ShameEmptyHourRow,
+  ShameHourLabel,
+  type ShameRowContext,
+} from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
@@ -29,7 +34,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -41,7 +46,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzClockTime, nzHourLabel, weekdayShort, type DateRange } from "@/lib/time";
+import { nzClockTime, weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -261,6 +266,7 @@ export default async function TripShamePage({
     filter,
   );
   const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const dayWhen = windowPhrase(dayNav, null);
   // Stepping onto today drops `?day` so the URL stays canonical.
   const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
@@ -284,9 +290,7 @@ export default async function TripShamePage({
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
       <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
-        <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-          {nzHourLabel(t.hour)}
-        </span>
+        <ShameHourLabel hour={t.hour} serviceDate={serviceDate} />
         <ModeIcon
           mode={t.mode}
           shortName={t.short_name}
@@ -317,7 +321,7 @@ export default async function TripShamePage({
                 tier="day"
                 count={hourCount}
                 worst={isWorst}
-                label={`${name} appeared in ${hourCount} hourly slots today`}
+                label={`${name} appeared in ${hourCount} hourly slots ${dayWhen}`}
               />
             ) : null}
           </span>
@@ -347,7 +351,8 @@ export default async function TripShamePage({
       renderDayRow(slot.row, ctx)
     ) : (
       <ShameEmptyHourRow
-        label={nzHourLabel(slot.hour)}
+        hour={slot.hour}
+        serviceDate={serviceDate}
         title="No run fits this hour"
         reason={`No run starting this hour recorded ${SHAME_MIN_STOPS} stops`}
         ctx={ctx}

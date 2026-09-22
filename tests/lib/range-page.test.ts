@@ -11,6 +11,7 @@ import {
   rangeTabPeriods,
   routeLinkQuery,
   weekPeriodOf,
+  windowPhrase,
 } from "@/lib/range-page";
 import { nzServiceDayRange } from "@/lib/time";
 import { describe, expect, it } from "vitest";
@@ -190,11 +191,36 @@ describe("overviewHeading", () => {
     ).toBe("How bad was it that day?");
   });
 
-  it("tells the current week or month from a stepped-back one", () => {
-    expect(overviewHeading(week, null)).toBe("How bad was this week?");
+  it("tells the rolling week and the current month from a stepped-back one", () => {
+    expect(overviewHeading(week, null)).toBe("How bad was it over the last 7 days?");
+    expect(overviewHeading(week, "2026-09-07")).toBe("How bad was it that week?");
+    expect(overviewHeading({ ...week, window: "month" }, null)).toBe("How bad was it this month?");
     expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
-      "How bad was that month?",
+      "How bad was it that month?",
     );
+  });
+});
+
+describe("windowPhrase", () => {
+  const tabs = { day: null, week: null, month: null } as const;
+
+  it("says today only on today, so a past day's shame rows say that day", () => {
+    const today = dayRangeNav({ serviceDate: TODAY, nextPending: false }, null, TODAY);
+    const past = dayRangeNav({ serviceDate: "2026-09-12", nextPending: false }, null, TODAY);
+    expect(windowPhrase(today, null)).toBe("today");
+    expect(windowPhrase(past, null)).toBe("that day");
+  });
+
+  it("names the rolling week as the last 7 days, since it is not the calendar week", () => {
+    const week = {
+      window: "week",
+      label: "Last 7 days",
+      prevHref: null,
+      nextHref: null,
+      partial: false,
+      tabs,
+    } as const;
+    expect(windowPhrase(week, null)).toBe("over the last 7 days");
   });
 });
 

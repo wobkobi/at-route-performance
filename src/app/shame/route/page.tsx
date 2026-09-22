@@ -3,7 +3,12 @@
 
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
-import { ShameBoard, ShameEmptyHourRow, type ShameRowContext } from "@/components/shame/ShameBoard";
+import {
+  ShameBoard,
+  ShameEmptyHourRow,
+  ShameHourLabel,
+  type ShameRowContext,
+} from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
@@ -29,7 +34,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -41,7 +46,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzHourLabel, weekdayShort, type DateRange } from "@/lib/time";
+import { weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -255,6 +260,7 @@ export default async function RoutesShamePage({
     filter,
   );
   const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const dayWhen = windowPhrase(dayNav, null);
   // Stepping onto today drops `?day` so the URL stays canonical.
   const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
@@ -282,9 +288,7 @@ export default async function RoutesShamePage({
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
       <Link href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
-        <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-          {nzHourLabel(r.hour)}
-        </span>
+        <ShameHourLabel hour={r.hour} serviceDate={serviceDate} />
         <ModeIcon
           mode={r.mode}
           shortName={r.short_name}
@@ -318,7 +322,7 @@ export default async function RoutesShamePage({
                 label={
                   isWorst
                     ? `${name}: worst route of the day · worst in ${hourCount} hours`
-                    : `${name}: worst route in ${hourCount} hours today`
+                    : `${name}: worst route in ${hourCount} hours ${dayWhen}`
                 }
               />
             ) : null}
@@ -346,7 +350,8 @@ export default async function RoutesShamePage({
       renderDayRow(slot.row, ctx)
     ) : (
       <ShameEmptyHourRow
-        label={nzHourLabel(slot.hour)}
+        hour={slot.hour}
+        serviceDate={serviceDate}
         title="No route fits this hour"
         reason={`No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting this hour`}
         ctx={ctx}

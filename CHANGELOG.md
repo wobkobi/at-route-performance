@@ -32,6 +32,19 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.3] - 2026-09-23
+
+### Fixed
+
+- Pages now say which day they mean. On a past day the shame boards and the home page's worst-trip
+  card say "that day" instead of "today", and the week tab's default reads "over the last 7 days",
+  since it is not the calendar week. The home page's shared-link title names the day the page opens
+  on, and a stop page's title reads the same day as the page. Hovering the date on any day stepper
+  shows the 4am-to-4am window it covers. A run after midnight now says it counts toward the day
+  before: a note on the trip page, a tooltip on the 12am to 3am rows of the shame boards and on the
+  route's trip list, and a line above the late departures in a stop's schedule, which now lists them
+  last instead of first.
+
 ## [1.49.2] - 2026-09-23
 
 ### Fixed

@@ -3,7 +3,7 @@
 
 import { getJson } from "@/lib/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
-import { nzServiceDayString } from "@/lib/time";
+import { gtfsServiceSeconds, nzServiceDayString } from "@/lib/time";
 
 // Raw GTFS trip attributes from AT v3 /stops/{id}/trips.
 export interface StopTripAttr {
@@ -25,10 +25,25 @@ export interface ScheduledDeparture {
 }
 
 /**
+ * Order departures through the service day, 4am first: by
+ * {@link gtfsServiceSeconds}, so a post-midnight "00:30:00" follows "23:50:00"
+ * rather than opening the list. Departures with no time go last.
+ * @param a - One departure.
+ * @param b - The other.
+ * @returns Negative, zero or positive, for `Array.prototype.sort`.
+ */
+export function byServiceDeparture(a: ScheduledDeparture, b: ScheduledDeparture): number {
+  const at = a.departureTime ? gtfsServiceSeconds(a.departureTime) : null;
+  const bt = b.departureTime ? gtfsServiceSeconds(b.departureTime) : null;
+  if (at === null) return bt === null ? 0 : 1;
+  if (bt === null) return -1;
+  return at - bt;
+}
+
+/**
  * Fetch scheduled departures at a stop for a given service date.
  * AT path: /stops/{stopId}/trips with filter[date]=YYYY-MM-DD.
- * Sorted by departure_time ascending; zero-padded HH:MM:SS strings sort
- * correctly as plain strings, including GTFS extended times (e.g. "25:30:00").
+ * Sorted through the service day (see {@link byServiceDeparture}).
  * AT stop IDs carry a hex version suffix (e.g. "7143-d5592a9b"); the trips
  * endpoint only recognises the base id, so the suffix is stripped before the call.
  * @param stopId - AT stop ID (with or without version suffix).
@@ -57,11 +72,7 @@ async function queryStopTrips(stopId: string, date: string): Promise<ScheduledDe
       directionId: d.attributes.direction_id ?? null,
       departureTime: d.attributes.departure_time ?? null,
     }))
-    .sort((a, b) => {
-      if (!a.departureTime) return 1;
-      if (!b.departureTime) return -1;
-      return a.departureTime < b.departureTime ? -1 : a.departureTime > b.departureTime ? 1 : 0;
-    });
+    .sort(byServiceDeparture);
 }
 
 /**

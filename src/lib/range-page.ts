@@ -240,16 +240,29 @@ export function rangeTabPeriods(
 }
 
 /**
- * The home page heading for a window. The stepper beside it names the date, so
- * the heading only says whether the window is the current one.
+ * The shown window as the words that end "How bad was it ..." or "No shame
+ * ...": "today" or "that day", "over the last 7 days" for the rolling week (the
+ * week tab's default is seven days back from today, not the calendar week),
+ * "that week", "this month" or "that month". The stepper beside it names the
+ * date, so the words only say whether the window is the current one.
+ * @param nav - The stepper state for the shown window.
+ * @param period - The shown week or month, or null for the current one.
+ * @returns The phrase.
+ */
+export function windowPhrase(nav: RangeNav, period: string | null): string {
+  if (nav.window === "day") return nav.isToday ? "today" : "that day";
+  if (period !== null) return `that ${nav.window}`;
+  return nav.window === "week" ? "over the last 7 days" : "this month";
+}
+
+/**
+ * The home page heading for a window (see {@link windowPhrase}).
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.
  * @returns The heading text.
  */
 export function overviewHeading(nav: RangeNav, period: string | null): string {
-  if (nav.window === "day")
-    return nav.isToday ? "How bad was it today?" : "How bad was it that day?";
-  return `How bad was ${period === null ? "this" : "that"} ${nav.window}?`;
+  return `How bad was it ${windowPhrase(nav, period)}?`;
 }
 
 /**
