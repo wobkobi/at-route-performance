@@ -37,16 +37,24 @@ export {
   routeIdsForSlug,
 } from "@/lib/data/routes";
 export type { DirectoryRoute } from "@/lib/data/routes";
+export { getShameDayHours } from "@/lib/data/shame-day-hours";
 export type { ShameFilter } from "@/lib/data/shame-filter";
 export {
+  MIN_ROUTE_EVENTS_HOUR,
   cachedWorstRoutesOfDay,
   getShameRouteOfDay,
   getShameRouteOfWeek,
   getShameRouteStreak,
   getShameRouteStreaksBatch,
 } from "@/lib/data/shame-routes";
-export { cachedWorstTripsOfDay, getShameOfDay, getShameOfWeek } from "@/lib/data/shame-trips";
 export {
+  SHAME_MIN_STOPS,
+  cachedWorstTripsOfDay,
+  getShameOfDay,
+  getShameOfWeek,
+} from "@/lib/data/shame-trips";
+export {
+  MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,
   findCurrentStationId,
   getStopStats,
@@ -62,3 +70,5 @@ export {
   getWorstTripsOfDay,
 } from "@/lib/data/trips";
 export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";
+export { getVehicleRunsOfDay, getVehicleWork, getVehicleWorkByDay } from "@/lib/data/vehicle-rank";
+export { getVehicleCounts, getVehicleCountsAllTime } from "@/lib/data/vehicles-seen";

@@ -236,6 +236,46 @@ export function RankingsHeaderSkeleton(): JSX.Element {
 }
 
 /**
+ * Mirrors VehicleCards: two bordered cards, each a `text-xs` eyebrow over a
+ * figure per mode (a 16px label line and a `text-2xl sm:text-3xl` number), then
+ * the one-line train note.
+ * @param root0 - Props.
+ * @param root0.modes - How many mode figures each card shows (1 or 3).
+ * @param root0.trainNote - Whether the train note line follows.
+ * @returns The cards placeholder.
+ */
+export function VehicleCardsSkeleton({
+  modes = 3,
+  trainNote = true,
+}: {
+  modes?: number;
+  trainNote?: boolean;
+}): JSX.Element {
+  const card = (
+    <div className="flex flex-col gap-4 border border-at-border bg-at-surface px-6 py-5">
+      <Bone className="h-4 w-32" />
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: modes }, (_, i) => (
+          <div key={i} className="flex flex-col gap-1">
+            <Bone className="h-4 w-14" />
+            <Bone className="h-8 w-16 sm:h-9" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2">
+        {card}
+        {card}
+      </div>
+      {trainNote && <Bone className="h-8 w-full max-w-xl sm:h-4" />}
+    </>
+  );
+}
+
+/**
  * Mirrors ShameHeader: the red title over its `mt-0.5 text-sm` subtitle, then the
  * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, the
  * day stepper, and the mode/school row on its own line.
@@ -398,7 +438,7 @@ export function TripBoardSkeleton(): JSX.Element {
 
 /**
  * Mirrors the head of RouteLineDiagram: the `text-lg` heading (`mb-1`), the
- * `text-xs` hover hint (`mb-3`), then the diagram, whose real height depends on
+ * `text-xs` hint (`mb-3`), then the diagram, whose real height depends on
  * the route's branches, so its box is only a typical size.
  * @returns The diagram placeholder.
  */
@@ -406,8 +446,11 @@ export function LineDiagramSkeleton(): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface p-4">
       <Bone className="mb-1 h-7 w-32" />
-      <Bone className="mb-3 h-4 w-40" />
-      <Bone className="h-96" />
+      {/* The hint wraps to two lines on a phone. */}
+      <Bone className="mb-3 h-8 w-full sm:h-4 sm:w-96" />
+      {/* A typical two-direction route: about 1,000px of 6-column snake on a
+          phone, about 480px of 20-column line from sm up. */}
+      <Bone className="h-240 sm:h-120" />
     </div>
   );
 }

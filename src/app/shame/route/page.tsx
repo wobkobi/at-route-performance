@@ -3,7 +3,7 @@
 
 import { FlameCount } from "@/components/FlameCount";
 import { ModeIcon } from "@/components/ModeIcon";
-import { ShameBoard, type ShameRowContext } from "@/components/shame/ShameBoard";
+import { ShameBoard, ShameEmptyHourRow, type ShameRowContext } from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
@@ -11,18 +11,24 @@ import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
+  getShameDayHours,
   getShameRouteOfDay,
   getShameRouteOfWeek,
   getShameRouteStreaksBatch,
+  MIN_ROUTE_EVENTS_HOUR,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
+  fillServiceHours,
   filterLiveHours,
   maybeFallbackDay,
   resolveRangeView,
   resolveRequestedDay,
+  serviceHourSpan,
+  type HourSlot,
 } from "@/lib/page-nav";
 import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -46,8 +52,28 @@ import {
   type DateRange,
 } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<Metadata> {
+  const card = parseShameCard("route", (await searchParams) ?? {});
+  const title = listCardTitle(card);
+  const description =
+    "The most off-schedule route of each hour or day on Auckland's buses, trains and ferries.";
+  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+}
 
 const BASE = "/shame/route";
 
@@ -244,6 +270,7 @@ export default async function RoutesShamePage({
   const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
 
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
+  const daySpan = serviceHourSpan(await getShameDayHours(range, filter, TODAY_REVALIDATE));
   const routeHourCounts = countById(visibleHours, (h) => h.route_id);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
@@ -332,6 +359,25 @@ export default async function RoutesShamePage({
     );
   };
 
+  /**
+   * Render one hour of the day board: its worst route, or a line saying no
+   * route met the minimum sample that hour.
+   * @param slot - The hour and its row, if any.
+   * @param ctx - Surface context from the board.
+   * @returns The row element.
+   */
+  const renderHourSlot = (slot: HourSlot<ShameRouteRow>, ctx: ShameRowContext): JSX.Element =>
+    slot.row ? (
+      renderDayRow(slot.row, ctx)
+    ) : (
+      <ShameEmptyHourRow
+        label={nzHourLabel(slot.hour)}
+        title="No route fits this hour"
+        reason={`No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting this hour`}
+        ctx={ctx}
+      />
+    );
+
   return (
     <main className="space-y-6">
       <ShameHeader
@@ -367,12 +413,12 @@ export default async function RoutesShamePage({
       />
       <ShameBoard
         layout="day"
-        items={visibleHours}
-        keyOf={(r) => `${r.hour}-${r.route_id}`}
+        items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
+        keyOf={(slot) => String(slot.hour)}
         emptyMessage="No route data recorded for this day."
         footerMessage="No routes were notably off-schedule during these hours."
         showFooter={noneNotablyBad}
-        renderRow={renderDayRow}
+        renderRow={renderHourSlot}
       />
     </main>
   );

@@ -7,15 +7,21 @@ import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */
 export interface NavSection {
-  href: "/" | "/routes" | "/cancellations";
+  href: "/" | "/routes" | "/live" | "/cancellations";
   label: string;
   /** Path prefixes that belong to the section besides its own page. */
   under: readonly string[];
+  /**
+   * Params the link carries, when not the usual day, window, period and mode:
+   * the live page is always now, so a day or window would mean nothing there.
+   */
+  carries?: readonly string[];
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
-  { href: "/", label: "Overview", under: ["/shame"] },
+  { href: "/", label: "Overview", under: ["/shame", "/days", "/vehicles"] },
   { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
+  { href: "/live", label: "Live", under: [], carries: ["mode"] },
   { href: "/cancellations", label: "Cancellations", under: [] },
 ];
 
@@ -79,5 +85,10 @@ export function carriedHref(path: string, params: URLSearchParams): string {
  * @returns The href.
  */
 export function navHref(section: NavSection, params: URLSearchParams): string {
-  return carriedHref(section.href, params);
+  if (!section.carries) return carriedHref(section.href, params);
+  const carried = carriedParams(params);
+  return buildHref(
+    section.href,
+    Object.fromEntries(section.carries.map((k) => [k, carried[k] ?? null])),
+  );
 }

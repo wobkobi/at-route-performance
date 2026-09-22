@@ -10,14 +10,28 @@ const CARTO_TILES = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /**
+ * The Vercel hosts the key may go out from: the production domain, and the
+ * branch's stable preview alias (at-route-performance-git-dev-...), so a shared
+ * preview link draws clean tiles. Per-deployment URLs
+ * (at-route-performance-<hash>-...) are left out: CARTO's allow-list takes one
+ * whole-label wildcard, so the only pattern matching them is *.vercel.app,
+ * which would let any Vercel site spend the key's quota.
+ */
+export const VERCEL_KEY_HOSTS = [
+  process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
+  process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL,
+] as const;
+
+/**
  * The CARTO tile URL for a page served from `host`. CARTO stamps "API KEY
  * REQUIRED" across every tile requested without `?key=`, so the key (free, from
  * carto.com/basemaps/apikey) is appended when set; it ships to the browser in
  * each tile URL, so it is restricted to the site's host in the CARTO dashboard.
  * A restricted key answers 403 - a blank map - from any other host, and every
  * Vercel deployment also answers on its own URL (the one the post-deploy smoke
- * visits), so on Vercel the key only goes out from the project's production
- * domain and other hosts get the watermarked tiles.
+ * visits), so on Vercel the key only goes out from the hosts in
+ * {@link VERCEL_KEY_HOSTS} and other hosts get the watermarked tiles. Each of
+ * those hosts must be on the key's allow-list in the CARTO dashboard.
  *
  * Off Vercel there is no production domain to compare, so the key goes out from
  * anywhere it could plausibly be accepted - but never from loopback, which
@@ -26,15 +40,16 @@ const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
  * failed pages.
  * @param host - The page's host (`window.location.host`).
  * @param key - The CARTO key, when set.
- * @param productionHost - The Vercel project's production domain, when known.
+ * @param keyHosts - The hosts allowed to send the key; none known means off Vercel.
  * @returns The Leaflet tile URL template.
  */
 export function cartoTileUrl(
   host: string,
   key: string | undefined,
-  productionHost: string | undefined,
+  keyHosts: readonly (string | undefined)[],
 ): string {
-  if (!key || LOOPBACK_HOST.test(host) || (productionHost && host !== productionHost)) {
+  const known = keyHosts.filter((h): h is string => !!h);
+  if (!key || LOOPBACK_HOST.test(host) || (known.length > 0 && !known.includes(host))) {
     return CARTO_TILES;
   }
   return `${CARTO_TILES}?key=${encodeURIComponent(key)}`;

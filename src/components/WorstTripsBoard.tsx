@@ -348,6 +348,7 @@ export function WorstTripsBoard({
                       <span className="text-at-muted">
                         {t.headsign ? ` to ${t.headsign}` : ""}
                         {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
+                        {t.cars ? ` · ${t.cars} cars` : ""}
                         {" · "}
                         {t.stops} stops
                       </span>

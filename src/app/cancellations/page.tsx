@@ -22,6 +22,7 @@ import {
   type NetworkCancelledTrip,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
@@ -31,11 +32,30 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { JSX } from "react";
 
-export const metadata: Metadata = {
-  title: "Cancellations",
-  description:
-    "Every Auckland Transport trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.",
-};
+/** What a shared link to this page says under its title. */
+const DESCRIPTION =
+  "Every Auckland Transport trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database. The tab keeps the plain title; the shared
+ * link names the period and filter.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<CancellationsSearchParams>;
+}): Promise<Metadata> {
+  const card = parseListCard("cancellations", (await searchParams) ?? {});
+  return {
+    title: "Cancellations",
+    description: DESCRIPTION,
+    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
+  };
+}
 
 /** Routes listed on the Most cancelled board before the link to the Routes page. */
 const BOARD_ROUTES = 15;

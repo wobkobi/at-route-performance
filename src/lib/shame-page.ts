@@ -11,10 +11,10 @@ import { buildHref } from "@/lib/utils";
 /** Cache TTL for the week boards (seconds). */
 export const WEEK_REVALIDATE = 3600;
 /**
- * Rows per column the day-board skeleton draws. The real board splits its rows
- * evenly across the two columns, so its height depends on how many hours have data.
+ * Rows per column the day-board skeleton draws. The real board lists every
+ * started hour of the service day, so a past day fills 12 rows per column.
  */
-export const ITEMS_PER_COL = 10;
+export const ITEMS_PER_COL = 12;
 
 /** A transport mode the boards can filter by, or null for every mode. */
 export type ShameMode = "BUS" | "TRAIN" | "FERRY" | null;

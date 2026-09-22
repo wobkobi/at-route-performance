@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 // Root layout - AT-branded masthead, page container, and footer wrapping every route.
 
+import { DevHostRedirect } from "@/components/DevHostRedirect";
 import { FooterFreshness } from "@/components/FooterFreshness";
 import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
@@ -15,7 +16,13 @@ import { Suspense } from "react";
 import { gothamNarrow } from "./fonts";
 import "./globals.css";
 
+// The production origin Vercel provides, so card and page URLs in metadata
+// resolve absolute. Unset locally, where Next falls back to localhost; a preview
+// deployment's own URL still wins for its cards.
+const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+
 export const metadata: Metadata = {
+  metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
   title: "Auckland Transport Route Performance",
   description: "Auckland Transport route and stop performance analytics.",
 };
@@ -44,6 +51,7 @@ export default function RootLayout({
           "flex min-h-screen flex-col bg-at-bg font-brand text-at-ink antialiased",
         )}
       >
+        {process.env.NODE_ENV === "development" && <DevHostRedirect />}
         <a
           href="#main"
           className="sr-only z-50 bg-at-surface px-4 py-2 text-at-shore focus:not-sr-only focus:fixed focus:top-2 focus:left-2"

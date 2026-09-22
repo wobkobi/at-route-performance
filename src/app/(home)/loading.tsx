@@ -10,6 +10,7 @@ import {
   RankBoardSkeleton,
   RankingsHeaderSkeleton,
   TitleBone,
+  VehicleCardsSkeleton,
 } from "@/components/SkeletonParts";
 import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
@@ -52,6 +53,12 @@ export default function Loading(): JSX.Element {
           <RankBoardSkeleton colourKey />
           <RankBoardSkeleton />
         </div>
+      </section>
+
+      <section className="space-y-4">
+        {/* "Vehicles on the routes" heading: text-lg, 28px */}
+        <Bone className="h-7 w-52" />
+        <VehicleCardsSkeleton />
       </section>
     </main>
   );

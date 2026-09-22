@@ -94,6 +94,69 @@ export function filterLiveHours<H extends { hour: number }>(
   );
 }
 
+/** One hour of a day board: the hour of day and its row, or null when nothing qualified. */
+export interface HourSlot<H> {
+  hour: number;
+  row: H | null;
+}
+
+/** The first and last hour of day a set of boards covers, in service order. */
+export interface HourSpan {
+  first: number;
+  last: number;
+}
+
+/**
+ * Position of an hour of day within the service day: 4am is 0, 3am is 23.
+ * @param hour - Hour of day, 0-23.
+ * @returns The hour's service-order index.
+ */
+function serviceOrder(hour: number): number {
+  return (hour - SERVICE_START_HOUR + 24) % 24;
+}
+
+/**
+ * The span of hours covered by any of the given hours, earliest and latest in
+ * service order, so 1am counts as later than 11pm.
+ * @param hours - Hours of day holding a row on any board.
+ * @returns The span, or null when there are no hours.
+ */
+export function serviceHourSpan(hours: number[]): HourSpan | null {
+  if (hours.length === 0) return null;
+  const sorted = [...hours].sort((a, b) => serviceOrder(a) - serviceOrder(b));
+  return { first: sorted[0] ?? SERVICE_START_HOUR, last: sorted.at(-1) ?? SERVICE_START_HOUR };
+}
+
+/**
+ * Every started hour of the span, in service order, each paired with its row or
+ * null. The span comes from all three day boards, so the trips, routes and stops
+ * boards cover the same hours and a board with a gap says so rather than
+ * skipping the hour or ending early.
+ * @param rows - The day's hourly rows, at most one per hour.
+ * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
+ * @param span - The hours to cover; null falls back to the rows' own span.
+ * @param now - The current instant (injectable for tests).
+ * @returns One slot per started hour of the span, in service order.
+ */
+export function fillServiceHours<H extends { hour: number }>(
+  rows: H[],
+  serviceDate: string,
+  span: HourSpan | null,
+  now: Date = new Date(),
+): HourSlot<H>[] {
+  const cover = span ?? serviceHourSpan(rows.map((r) => r.hour));
+  if (!cover) return [];
+  const byHour = new Map(rows.map((r) => [r.hour, r]));
+  const start = serviceOrder(cover.first);
+  const dayHours = Array.from({ length: serviceOrder(cover.last) - start + 1 }, (_, i) => ({
+    hour: (SERVICE_START_HOUR + start + i) % 24,
+  }));
+  return filterLiveHours(dayHours, serviceDate, now).map(({ hour }) => ({
+    hour,
+    row: byHour.get(hour) ?? null,
+  }));
+}
+
 /**
  * Resolve the active week window: a fixed calendar week when `?period=` is set,
  * else the rolling last seven service days.

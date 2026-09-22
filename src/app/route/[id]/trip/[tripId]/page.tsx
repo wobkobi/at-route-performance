@@ -2,6 +2,7 @@
 // Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
 
 import { ChevronLeft } from "@/components/icons";
+import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
 import { ModeIcon } from "@/components/ModeIcon";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { TripCancellationNote } from "@/components/TripCancellationNote";
@@ -18,6 +19,7 @@ import {
   type ScheduledStop,
 } from "@/lib/data";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
+import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
@@ -36,7 +38,7 @@ import type { JSX } from "react";
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id, tripId }`.
  * @param root0.searchParams - Optional query params (`d` = the run's instant).
- * @returns Title metadata for the trip.
+ * @returns Title, description and card metadata for the trip.
  */
 export async function generateMetadata({
   params,
@@ -50,9 +52,12 @@ export async function generateMetadata({
   const dAt = d ? new Date(d) : null;
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
+  const title = `Trip ${tripId} on ${routeSlug(id)}${dayPart}`;
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`;
   return {
-    title: `Trip ${tripId} on ${routeSlug(id)}${dayPart}`,
-    description: `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`,
+    title,
+    description,
+    ...cardMetadata(title, description, cardPath(parseTripCard(id, tripId, d))),
   };
 }
 
@@ -267,17 +272,7 @@ export default async function TripPage({
         <section className="border border-at-border bg-at-surface p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
-            <span className="flex items-center gap-3 text-xs text-at-muted">
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
-              </span>
-            </span>
+            <StopDotKey />
           </div>
           <StopMapWrapper
             stops={tripMapStops}
@@ -293,6 +288,7 @@ export default async function TripPage({
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
             className="h-100"
           />
+          <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
         </section>
       )}
 
@@ -319,7 +315,7 @@ export default async function TripPage({
                 : stopBand === "late"
                   ? "text-at-late"
                   : stopBand === "early"
-                    ? "text-at-early"
+                    ? "text-at-early-strong"
                     : "text-at-ink";
               const dotColour = isFuture
                 ? "bg-at-border"

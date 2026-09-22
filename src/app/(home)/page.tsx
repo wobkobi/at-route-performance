@@ -35,7 +35,9 @@ import {
   FeatureCardPairSkeleton,
   FeatureCardSkeleton,
   KpiStripSkeleton,
+  VehicleCardsSkeleton,
 } from "@/components/SkeletonParts";
+import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/VehiclesSection";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -51,6 +53,7 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
@@ -72,8 +75,16 @@ import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref } from "@/lib/shame-page";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import {
+  monthRangeLabel,
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDatesInRange,
+  serviceDayLabel,
+  type DateRange,
+} from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
@@ -90,6 +101,27 @@ interface HomeSearchParams {
   school?: string;
   dir?: string;
   day?: string;
+}
+
+/**
+ * The shared-link card for this view: its day or period and filters go into
+ * the card URL, so a link to an archived day unfurls with that day, not today.
+ * Built from the query alone, so the metadata never waits on the database.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The Open Graph and Twitter metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<HomeSearchParams>;
+}): Promise<Metadata> {
+  const sp = (await searchParams) ?? {};
+  return cardMetadata(
+    homeCardTitle(parseHomeCard(sp)),
+    "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
+    homeCardPath(sp),
+  );
 }
 
 /**
@@ -123,6 +155,32 @@ function preservedFor(
       Object.entries(all).filter((e): e is [string, string] => e[0] !== key && e[1] !== undefined),
     );
   return { mode: without("mode"), school: without("school"), dir: without("dir") };
+}
+
+/**
+ * Name a week or month for the vehicles card: the month's name, or a week's
+ * first and last day.
+ * @param window - "week" or "month".
+ * @param range - The window's range.
+ * @returns The label.
+ */
+function periodLabel(window: "week" | "month", range: DateRange): string {
+  if (window === "month") return monthRangeLabel(range);
+  const days = serviceDatesInRange(range);
+  const first = days[0];
+  const last = days.at(-1);
+  return first && last ? `${serviceDayLabel(first)} to ${serviceDayLabel(last)}` : "This week";
+}
+
+/**
+ * The vehicles band's fallback, sized to the modes the cards will show.
+ * @param root0 - Props.
+ * @param root0.mode - Mode filter, or null for every mode.
+ * @returns The skeleton.
+ */
+function VehicleCardsFallback({ mode }: { mode: ModeFilterValue }): JSX.Element {
+  const modes = vehicleModesShown(mode);
+  return <VehicleCardsSkeleton modes={modes.length} trainNote={modes.includes("TRAIN")} />;
 }
 
 /**
@@ -185,6 +243,17 @@ async function PeriodHome({
             <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
           </Suspense>
           <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+          <Link
+            href={buildHref("/days", {
+              window,
+              period: view.period,
+              mode: mode ?? undefined,
+              school: includeSchool ? "1" : undefined,
+            })}
+            className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+          >
+            Day by day
+          </Link>
         </div>
 
         <Suspense fallback={<KpiStripSkeleton verdict />}>
@@ -216,6 +285,25 @@ async function PeriodHome({
         </RankingsHeader>
         <Suspense fallback={<RankingsBodySkeleton />}>
           <PeriodBoards batch={batch} view={view} />
+        </Suspense>
+      </section>
+
+      <section className="space-y-4">
+        <VehiclesHeading
+          href={buildHref("/vehicles", {
+            window,
+            period: view.period,
+            mode: mode ?? undefined,
+            school: includeSchool ? "1" : undefined,
+          })}
+        />
+        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+          <VehicleCards
+            range={range}
+            label={periodLabel(window, range)}
+            mode={mode}
+            includeSchool={includeSchool}
+          />
         </Suspense>
       </section>
     </main>
@@ -406,6 +494,24 @@ export default async function Home({
             })}
           />
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <VehiclesHeading
+          href={buildHref("/vehicles", {
+            day: linkDay,
+            mode: mode ?? undefined,
+            school: includeSchool ? "1" : undefined,
+          })}
+        />
+        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+          <VehicleCards
+            range={range}
+            label={linkDay ? serviceDayLabel(serviceDate) : "Today"}
+            mode={mode}
+            includeSchool={includeSchool}
+          />
+        </Suspense>
       </section>
     </main>
   );

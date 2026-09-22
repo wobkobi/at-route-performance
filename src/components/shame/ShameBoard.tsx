@@ -19,6 +19,41 @@ export interface ShameRowContext {
   anchorClass: string;
 }
 
+/**
+ * A day-board hour where nothing met the board's minimum sample, so the board
+ * still covers the whole day. Not a link: there is nothing to open. The hover
+ * tint is cancelled for the same reason.
+ * @param props - Component props.
+ * @param props.label - The hour, as the other rows print it.
+ * @param props.title - What did not fit, e.g. "No route fits this hour".
+ * @param props.reason - The minimum it missed, e.g. "No route had 30 arrivals".
+ * @param props.ctx - Surface context from the board.
+ * @returns The row element.
+ */
+export function ShameEmptyHourRow({
+  label,
+  title,
+  reason,
+  ctx,
+}: {
+  label: string;
+  title: string;
+  reason: string;
+  ctx: ShameRowContext;
+}): JSX.Element {
+  return (
+    <div className={cn(ctx.anchorClass, "hover:bg-transparent")}>
+      <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
+        {label}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-at-muted">{title}</span>
+        <span className="block text-xs text-at-muted">{reason}</span>
+      </span>
+    </div>
+  );
+}
+
 /** Props for {@link ShameBoard}. */
 export interface ShameBoardProps<T> {
   /** "day" = responsive two-column hour grid; "week" = single-column day list. */
@@ -106,12 +141,16 @@ export function ShameBoard<T>({
             const perCol = Math.ceil(items.length / 2);
             const isRight = i >= perCol;
             const rowIdx = isRight ? i - perCol : i;
+            // An odd count leaves the right column one short; its last cell
+            // then has no row below to draw the divider, so it draws its own.
+            const closesShortColumn = isRight && i === items.length - 1 && items.length % 2 === 1;
             return (
               <li
                 key={keyOf(item, i)}
                 className={cn(
                   rowIdx > 0 && "border-t border-at-border",
                   isRight && "border-l border-at-border",
+                  closesShortColumn && "border-b border-at-border",
                 )}
                 style={{ gridColumn: isRight ? 2 : 1, gridRow: rowIdx + 1 }}
               >

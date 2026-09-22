@@ -1,6 +1,7 @@
 // src/app/routes/page.tsx
 // Routes page: every route with arrivals in a day, week or month, with filters
-// (mode, area, late or early, enough data, cancellations, school services),
+// (mode, area, late or early, enough data, cancellations, school services,
+// running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
 // RouteExplorer. The day view falls back to the most recent day with data when
@@ -17,6 +18,8 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { liveRouteSlugs } from "@/lib/live-routes";
+import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import {
@@ -32,15 +35,35 @@ import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import { getLiveVehicles } from "@/lib/vehicles";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import type { JSX } from "react";
 
-export const metadata: Metadata = {
-  title: "Routes",
-  description:
-    "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.",
-};
+/** What a shared link to this page says under its title. */
+const DESCRIPTION =
+  "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.";
+
+/**
+ * Title and shared-link card, built from the query alone so the metadata
+ * never waits on the database. The tab keeps the plain title; the shared
+ * link names the period and filter.
+ * @param root0 - Page props.
+ * @param root0.searchParams - The page's query params.
+ * @returns The page metadata.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>;
+}): Promise<Metadata> {
+  const card = parseListCard("routes", (await searchParams) ?? {});
+  return {
+    title: "Routes",
+    description: DESCRIPTION,
+    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
+  };
+}
 
 /** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
 const PERIOD_REVALIDATE = 3600;
@@ -160,6 +183,9 @@ export default async function RoutesPage({
         initialFilters={parseExplorerFilters(sp)}
         initialShown={parseShown(sp.show)}
         routeQuery={routeLinkQuery(window, serviceDate, period)}
+        running={getLiveVehicles()
+          .then(liveRouteSlugs)
+          .catch(() => null)}
       />
 
       <p className="text-xs text-at-muted">

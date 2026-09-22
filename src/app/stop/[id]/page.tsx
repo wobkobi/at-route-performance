@@ -20,6 +20,7 @@ import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/da
 import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
+import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
 import { hasEarlierDay, routeLinkQuery } from "@/lib/range-page";
@@ -40,15 +41,19 @@ interface StopSearchParams {
 
 /**
  * Per-stop page title, so a tab and a shared link name the stop rather than
- * repeating the site title.
+ * repeating the site title. The shared link's card and title name the day the
+ * link carries.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id }`.
- * @returns Title and description metadata for the stop.
+ * @param root0.searchParams - Optional query params (`day`).
+ * @returns Title, description and card metadata for the stop.
  */
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<StopSearchParams>;
 }): Promise<Metadata> {
   const raw = (await params).id;
   let id: string;
@@ -61,9 +66,12 @@ export async function generateMetadata({
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(() => null);
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
+  const card = parseStopCard(id, (await searchParams) ?? {});
+  const description = `On-time performance at ${name} against Auckland Transport's published schedule.`;
   return {
     title: name,
-    description: `On-time performance at ${name} against Auckland Transport's published schedule.`,
+    description,
+    ...cardMetadata(`${name}${cardWhenSuffix(card)}`, description, cardPath(card)),
   };
 }
 

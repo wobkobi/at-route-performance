@@ -38,7 +38,7 @@ export function cachedWorstTripsOfDay(
 }
 
 /** Fewest stops a run must have to qualify for the Shame board (drops flukes). */
-const SHAME_MIN_STOPS = 5;
+export const SHAME_MIN_STOPS = 5;
 
 /** Raw Shame row before its `scheduled_start` date is normalised. */
 interface ShameTripRaw extends Omit<

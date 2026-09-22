@@ -67,13 +67,25 @@ export function formatDuration(sec: number): string {
   return parts.join(" ");
 }
 
+/**
+ * Seconds as hours and minutes ("16h 6m"), the way a shift is read.
+ * @param sec - Seconds.
+ * @returns The label.
+ */
+export function formatHours(sec: number): string {
+  const mins = Math.round(sec / 60);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 /** How an {@link offScheduleValue} reads at a glance: its colour band, or mixed. */
 export type OffScheduleTone = "ontime" | "early" | "late" | "mixed" | "unknown";
 
 /** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
 export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
   ontime: "text-at-ontime",
-  early: "text-at-early",
+  early: "text-at-early-strong",
   late: "text-at-late",
   mixed: "text-at-ink",
   unknown: "text-at-muted",

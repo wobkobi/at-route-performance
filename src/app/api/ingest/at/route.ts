@@ -7,7 +7,8 @@
 // worst genuine delays along with the noise. Cancellations are recorded once per
 // trip per service day, and the vehicle feed is joined best-effort so a feed
 // outage leaves rows unnamed rather than failing. The same vehicle read feeds
-// the off-route check (lib/off-route.ts), also best-effort.
+// the off-route check (lib/off-route.ts) and the fleet register
+// (lib/fleet-store.ts), both best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
@@ -15,6 +16,7 @@ import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { type ArrivalWrite, arrivalWriteStages, NO_DELAY_SOURCE } from "@/lib/deviation";
+import { recordFleet } from "@/lib/fleet-store";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
@@ -193,7 +195,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     // or the feed failing) just leaves rows without a vehicle, never fails ingest.
     const vehicles = await fetchVehicleSnapshot().catch((): VehicleSnapshot => ({
       byTrip: new Map(),
+      carsByTrip: new Map(),
       readings: [],
+      fleet: [],
     }));
     const vehicleByTrip = vehicles.byTrip;
 
@@ -250,6 +254,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       const vehicleId =
         (typeof tu.vehicle?.id === "string" ? tu.vehicle.id : undefined) ??
         vehicleByTrip.get(tu.trip.trip_id);
+      const cars = vehicles.carsByTrip.get(tu.trip.trip_id);
 
       for (const stu of stuList) {
         withSTU++;
@@ -275,6 +280,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           actualAt,
           deviationSec: delay,
           vehicleId,
+          ...(cars != null ? { cars } : {}),
           source: hasDelay ? "AT_GTFSRT" : NO_DELAY_SOURCE,
         });
       }
@@ -334,6 +340,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           actualAtMs: new Date(r.actualAt).getTime(),
           deviationSec: r.deviationSec,
           vehicleId: r.vehicleId ?? undefined,
+          cars: r.cars ?? undefined,
           source: r.source ?? undefined,
           serviceDate: r.serviceDate ?? undefined,
         },
@@ -377,6 +384,15 @@ export async function POST(req: Request): Promise<NextResponse> {
       },
     );
 
+    // The fleet register is best-effort too: a missed write only leaves a label
+    // one poll stale.
+    const fleetCount = await recordFleet(vehicles.fleet).catch((err: unknown) => {
+      console.warn("[INGEST] Fleet register write failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return 0;
+    });
+
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
 
@@ -388,6 +404,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledInserted: cancelledCount,
       cancelledTried: cancelledRows.length,
       offRouteInserted: offRouteCount,
+      fleetWritten: fleetCount,
     } as {
       inserted: number;
       tried: number;
@@ -396,6 +413,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledInserted: number;
       cancelledTried: number;
       offRouteInserted: number;
+      fleetWritten: number;
       debug?: DebugStats;
       sample?: StopRow | TripRow | null;
     };

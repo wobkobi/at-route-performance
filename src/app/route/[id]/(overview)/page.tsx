@@ -40,6 +40,7 @@ import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
+import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { maybeFallbackDay, resolveRequestedDay, resolveWeekNav } from "@/lib/page-nav";
 import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
@@ -47,6 +48,7 @@ import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView } from "@/lib/route-view";
+import { aggregateWeek } from "@/lib/route-week";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -59,7 +61,7 @@ import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
-import type { RouteDay, RouteVariant } from "@/types/api";
+import type { RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -87,29 +89,6 @@ interface StatsSearchParams {
 
 /** Valid trip-sort values. */
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
-
-/**
- * Event-weighted aggregate of per-day route stats from `DailyRouteSummary`.
- * Returns null when there are no days or no events.
- * @param days - Per-day stats, any order.
- * @returns Event-weighted summary, or null when there are no events.
- */
-function aggregateWeek(days: RouteDay[]): {
-  events: number;
-  avg_delay_sec: number;
-  avg_abs_delay_sec: number;
-  on_time_pct: number;
-} | null {
-  const totalEvents = days.reduce((s, d) => s + d.events, 0);
-  if (totalEvents === 0) return null;
-  return {
-    events: totalEvents,
-    avg_delay_sec: days.reduce((s, d) => s + (d.avg_delay_sec ?? 0) * d.events, 0) / totalEvents,
-    avg_abs_delay_sec:
-      days.reduce((s, d) => s + (d.avg_abs_delay_sec ?? 0) * d.events, 0) / totalEvents,
-    on_time_pct: days.reduce((s, d) => s + (d.on_time_pct ?? 0) * d.events, 0) / totalEvents,
-  };
-}
 
 /**
  * Full headsign label for a direction chip, taken from the busiest variant.
@@ -234,26 +213,34 @@ function ViewToggle({
  * Per-route page title, so a tab and a shared link name the line rather than
  * repeating the site title. Uses the published line name where there is one
  * (AT's `route_long_name` for a train is just the bare code).
+ * The shared link's card and title name the day or week the link carries.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic route params `{ id }`.
- * @returns Title and description metadata for the route.
+ * @param root0.searchParams - Optional query params (the day or week).
+ * @returns Title, description and card metadata for the route.
  */
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<StatsSearchParams>;
 }): Promise<Metadata> {
-  const slug = routeSlug((await params).id);
+  const { id } = await params;
+  const slug = routeSlug(id);
+  const card = parseRouteCard(id, (await searchParams) ?? {});
   const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
     () => null,
   );
   const route = stats?.route;
-  if (!route) return { title: `Route ${slug}` };
-  const name = lineName(route.mode, route.shortName);
-  const label = route.shortName ?? slug;
+  const name = route ? lineName(route.mode, route.shortName) : null;
+  const label = route?.shortName ?? slug;
+  const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
+  const description = `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`;
   return {
-    title: name ? `${label} - ${name}` : label,
-    description: `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`,
+    title,
+    description,
+    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, cardPath(card)),
   };
 }
 
@@ -473,8 +460,21 @@ export default async function RoutePage({
     hasNextDay && !fallbackDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
       ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
       : undefined;
+  // The chosen direction's GTFS ids: its own plus any merged into it, so a
+  // shape or vehicle filed under an alias id stays with its direction.
+  const activeDirIds =
+    activeDir == null
+      ? null
+      : [
+          activeDir,
+          ...[...view.directionIdAliases.entries()]
+            .filter(([, primary]) => primary === activeDir)
+            .map(([alias]) => alias),
+        ];
   const mapLines = (
-    activeDir == null ? view.routeLines : view.routeLines.filter((l) => l.directionId === activeDir)
+    activeDirIds == null
+      ? view.routeLines
+      : view.routeLines.filter((l) => l.directionId != null && activeDirIds.includes(l.directionId))
   ).map((l) => l.points);
   const dirStopIds =
     activeVariants == null ? null : new Set(activeVariants.flatMap((v) => v.stopIds));
@@ -498,7 +498,15 @@ export default async function RoutePage({
   );
 
   // Week view: use neutral stop coloring (no day-specific delay data on the map).
-  const weekMapStops = view.stops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
+  // The week has no per-stop delays either, but the diagram reads a stop missing
+  // from its map as a direction with no trips yet. A null for every stop draws
+  // the line in neutral colours instead.
+  const weekDiagramDelays: Record<string, null> = Object.fromEntries(
+    Object.values(diagramDirections).flatMap((d) =>
+      d.variants.flatMap((v) => v.stopIds.map((id) => [id, null])),
+    ),
+  );
+  const weekMapStops = mapStops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
   const weekSummary = aggregateWeek(weekDays);
   const weekPunctuality: PunctualityBreakdown = {
     on_time_pct: weekSummary?.on_time_pct ?? null,
@@ -696,6 +704,14 @@ export default async function RoutePage({
             </div>
           </section>
 
+          {/* The week figures come from per-route daily summaries, which do not
+              split by direction, so say so rather than imply they are filtered. */}
+          {activeDir != null && (
+            <p className="text-xs text-at-muted">
+              The week&apos;s figures cover both directions; the map and diagram show this one.
+            </p>
+          )}
+
           <RouteWeekSummary days={weekDays} mode={routeMode} label={weekPeriodLabel} />
 
           {/* Map and diagram with neutral stop coloring in week mode */}
@@ -705,6 +721,7 @@ export default async function RoutePage({
             routeId={slug}
             live={isLiveView}
             mode={routeMode}
+            filterDirectionIds={activeDirIds ?? undefined}
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
@@ -716,8 +733,8 @@ export default async function RoutePage({
                 live={isLiveView}
                 slug={slug}
                 rawToCanon={view.rawToCanon}
-                directions={view.directions}
-                delayByStop={{}}
+                directions={diagramDirections}
+                delayByStop={weekDiagramDelays}
                 nameByStop={nameByStop}
                 mode={routeMode}
               />
@@ -786,16 +803,7 @@ export default async function RoutePage({
               routeId={slug}
               live={isLiveView}
               mode={routeMode}
-              filterDirectionIds={
-                activeDir == null
-                  ? undefined
-                  : [
-                      activeDir,
-                      ...[...view.directionIdAliases.entries()]
-                        .filter(([, primary]) => primary === activeDir)
-                        .map(([alias]) => alias),
-                    ]
-              }
+              filterDirectionIds={activeDirIds ?? undefined}
             />
           </div>
 

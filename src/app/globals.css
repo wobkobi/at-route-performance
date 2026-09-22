@@ -35,6 +35,10 @@
   --color-at-ontime: #0073bd;
   --color-at-late: #de0a2b;
   --color-at-early: #95c11f;
+  /* Early darkened for text and thin marks: #95c11f is about 2.1:1 on white,
+     this is about 5:1, level with late and on time. Fills and swatches keep
+     the brand green. */
+  --color-at-early-strong: #5b7a12;
 
   /* Link bus service colours (sampled from bus-services guide p8 swatches) */
   --color-link-city: #ff0328;
@@ -178,18 +182,17 @@
 }
 
 /* Compact, box-less delay labels for live buses on the route map. */
+/* A solid backing rather than a text halo: a halo is thin over roads and park fill. */
 .leaflet-tooltip.bus-delay-label {
-  background: transparent;
-  border: 0;
+  background: var(--color-at-surface);
+  border: 1px solid var(--color-at-border);
+  border-radius: 2px;
   box-shadow: none;
-  padding: 0;
-  font-size: 10px;
+  padding: 1px 4px;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--color-at-ink);
-  text-shadow:
-    0 0 2px #fff,
-    0 0 2px #fff,
-    0 0 3px #fff;
 }
 .leaflet-tooltip.bus-delay-label::before {
   display: none; /* hide the tooltip pointer */
@@ -198,6 +201,16 @@
 /* Live-vehicle marker: glyph + delay-coloured ring + heading arrow (inline SVG). */
 .vehicle-marker {
   line-height: 0;
+}
+/* The focus ring follows the disc rather than the square the icon sits in. */
+.vehicle-marker:focus-visible {
+  border-radius: 50%;
+  outline-offset: -3px;
+}
+
+/* A vehicle and its label sliding to a new polled position; see glide() in StopMap. */
+.vehicle-gliding {
+  transition: transform 1s linear;
 }
 
 /*
@@ -213,5 +226,8 @@
   .step-pending {
     animation: none;
     opacity: 0.4;
+  }
+  .vehicle-gliding {
+    transition: none;
   }
 }

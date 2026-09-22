@@ -91,6 +91,9 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                 _delays: { $push: { $cond: [real, "$deviationSec", null] } },
                 _stops: { $addToSet: { $cond: [real, "$stopId", null] } },
                 _vehicles: { $push: { $cond: [real, { $ifNull: ["$vehicleId", null] }, null] } },
+                // The longest consist seen: a reading taken while a coupled
+                // unit's GPS had dropped out would otherwise read short.
+                cars: { $max: { $cond: [real, "$cars", null] } },
               },
             },
             {
@@ -148,6 +151,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
                 _id: 0,
                 trip_id: { $toString: "$_id" },
                 vehicle_id: 1,
+                cars: { $ifNull: ["$cars", null] },
                 scheduled_start: 1,
                 stops: 1,
                 avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
