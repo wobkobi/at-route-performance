@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.51.2] - 2026-09-23
+
+### Fixed
+
+- The ingest now waits out a database that is unreachable, retrying a write over about 27 seconds
+  instead of giving up at once. AT's feed is a snapshot of where the buses are at that moment and
+  nothing re-fetches it, so a write abandoned during a restart was a permanent hole in the record;
+  only dropped sockets were retried before.
+
 ## [1.51.1] - 2026-09-23
 
 ### Fixed

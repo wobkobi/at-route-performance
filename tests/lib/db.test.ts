@@ -3,11 +3,17 @@
 // bulk write-error check. The Prisma client itself is never touched.
 import {
   DUPLICATE_KEY,
+  isDatabaseUnreachableError,
   isTransientConnectionError,
   runCommand,
+  runWriteCommand,
   throwOnWriteErrors,
 } from "@/lib/db";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("runCommand", () => {
   it("retries once after a transient connection error", async () => {
@@ -38,6 +44,63 @@ describe("runCommand", () => {
     }
     expect(isTransientConnectionError(new Error("Invalid `prisma.route.findMany()`"))).toBe(false);
     expect(isTransientConnectionError("ECONNRESET")).toBe(false);
+  });
+});
+
+describe("isDatabaseUnreachableError", () => {
+  it("recognises a database that is not answering", () => {
+    for (const msg of [
+      "Can't reach database server at `nas.local:27019`",
+      "Server selection timeout: No available servers",
+      "connect ECONNREFUSED 192.168.1.10:27019",
+      "getaddrinfo ENOTFOUND nas.local",
+      "connect ETIMEDOUT 192.168.1.10:27019",
+    ]) {
+      expect(isDatabaseUnreachableError(new Error(msg))).toBe(true);
+    }
+  });
+
+  it("keeps an outage apart from a dropped socket", () => {
+    // The two get different retries, so neither predicate may claim the other's
+    // errors: a reset socket is fixed by reconnecting, an outage only by waiting.
+    expect(isDatabaseUnreachableError(new Error("read ECONNRESET"))).toBe(false);
+    expect(isTransientConnectionError(new Error("connect ECONNREFUSED 10.0.0.1:27019"))).toBe(
+      false,
+    );
+    expect(isDatabaseUnreachableError("ECONNREFUSED")).toBe(false);
+  });
+});
+
+describe("runWriteCommand", () => {
+  it("waits out an unreachable database and keeps the write", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("Can't reach database server at `nas.local:27019`"))
+      .mockRejectedValueOnce(new Error("Server selection timeout: No available servers"))
+      .mockResolvedValueOnce("ok");
+    const run = runWriteCommand(fn);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(run).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up once the waits run out", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValue(new Error("connect ECONNREFUSED 10.0.0.1:27019"));
+    const settled = expect(runWriteCommand(fn)).rejects.toThrow("ECONNREFUSED");
+    await vi.advanceTimersByTimeAsync(60_000);
+    await settled;
+    // Four waits, so five attempts in all.
+    expect(fn).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not retry a write that failed on its own merits", async () => {
+    const fn = vi.fn<() => Promise<string>>().mockRejectedValue(new Error("E11000 duplicate key"));
+    await expect(runWriteCommand(fn)).rejects.toThrow("duplicate key");
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
 

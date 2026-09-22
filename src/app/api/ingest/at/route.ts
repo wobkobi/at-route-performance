@@ -15,7 +15,7 @@
 
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
-import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
+import { DUPLICATE_KEY, prisma, runWriteCommand, throwOnWriteErrors } from "@/lib/db";
 import { type ArrivalWrite, arrivalWriteStages, NO_DELAY_SOURCE } from "@/lib/deviation";
 import { recordFleet } from "@/lib/fleet-store";
 import { recordIngestRun } from "@/lib/ingest-run";
@@ -48,8 +48,8 @@ const CLOSURE_STEP_CUTOFF_MS = 60_000;
  * (ordered: false) in a single round-trip per batch - no per-document fallback
  * and no multi-document transaction. A duplicate key is the expected outcome of
  * a repeated poll; any other per-entry error fails the run, since the command
- * itself resolves even when entries were rejected. Each batch goes through the
- * connection-reset retry.
+ * itself resolves even when entries were rejected. Each batch waits out an
+ * unreachable database, since these rows are point-in-time too.
  * @param collection - Target collection name.
  * @param docs - Extended-JSON documents (dates as `{ $date }`).
  * @returns Count actually inserted (duplicates excluded).
@@ -57,7 +57,7 @@ const CLOSURE_STEP_CUTOFF_MS = 60_000;
 async function bulkInsert(collection: string, docs: Record<string, unknown>[]): Promise<number> {
   let inserted = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await runCommand(() =>
+    const res = (await runWriteCommand(() =>
       prisma.$runCommandRaw({
         insert: collection,
         documents: docs.slice(i, i + INSERT_BATCH) as never,
@@ -91,7 +91,9 @@ interface ArrivalUpsert {
 async function bulkUpsertArrivals(docs: ArrivalUpsert[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await runCommand(() =>
+    // The feed is a snapshot of where the buses are now; nothing re-fetches it,
+    // so this write waits out a database that is down rather than dropping it.
+    const res = (await runWriteCommand(() =>
       prisma.$runCommandRaw({
         update: "ArrivalEvent",
         updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({

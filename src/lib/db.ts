@@ -33,6 +33,34 @@ export function isTransientConnectionError(err: unknown): boolean {
 }
 
 /**
+ * Messages of a database that is not answering at all: the host is down, the
+ * port is closed, or the driver gave up choosing a server. These read very
+ * differently from a reset socket, and none of them match
+ * {@link TRANSIENT_MESSAGE}, so before this existed an outage got no retry at
+ * all - the one case where a retry is worth most, because the feed behind it is
+ * a snapshot that cannot be fetched again.
+ */
+const UNREACHABLE_MESSAGE =
+  /can'?t reach database server|server selection timeout|ECONNREFUSED|connection refused|ENOTFOUND|ETIMEDOUT/i;
+
+/**
+ * Whether an error means the database is unreachable rather than the socket
+ * having dropped. Only waiting fixes these, so they are retried on a backoff.
+ * @param err - The thrown value.
+ * @returns True when the server could not be reached or selected.
+ */
+export function isDatabaseUnreachableError(err: unknown): boolean {
+  return err instanceof Error && UNREACHABLE_MESSAGE.test(err.message);
+}
+
+/**
+ * Waits between write retries. Four attempts spread over about 27 seconds,
+ * which covers a mongod restart or a certificate rotation while still finishing
+ * inside the two-minute ingest cycle, so a retry never runs into the next poll.
+ */
+const WRITE_RETRY_WAITS = [1_000, 3_000, 8_000, 15_000];
+
+/**
  * Run a raw MongoDB command with one automatic retry on transient connection
  * resets. Prisma does not retry `$runCommandRaw` the way it retries model
  * operations; on the next attempt the driver opens a fresh socket from the pool.
@@ -48,6 +76,30 @@ export async function runCommand<T>(fn: () => Promise<T>): Promise<T> {
       return fn();
     }
     throw err;
+  }
+}
+
+/**
+ * Run a raw MongoDB write with retries that cover an unreachable database, not
+ * just a dropped socket. For writes only: a page read fails fast instead, so a
+ * reader meets the error boundary rather than a minute of nothing. What is
+ * being protected is the ingest, where the payload is a snapshot of where the
+ * buses are right now - nothing re-fetches it, so a write that gives up
+ * immediately is data lost for good.
+ * @param fn - Thunk returning the raw command promise. Must be idempotent: it
+ *   is re-run whole, which the arrival upsert's keys already guarantee.
+ * @returns The command result.
+ */
+export async function runWriteCommand<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const wait = WRITE_RETRY_WAITS[attempt];
+      const worthRetrying = isTransientConnectionError(err) || isDatabaseUnreachableError(err);
+      if (wait === undefined || !worthRetrying) throw err;
+      await new Promise<void>((r) => setTimeout(r, wait));
+    }
   }
 }
 
