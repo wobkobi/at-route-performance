@@ -236,6 +236,46 @@ export function RankingsHeaderSkeleton(): JSX.Element {
 }
 
 /**
+ * Mirrors VehicleCards: two bordered cards, each a `text-xs` eyebrow over a
+ * figure per mode (a 16px label line and a `text-2xl sm:text-3xl` number), then
+ * the one-line train note.
+ * @param root0 - Props.
+ * @param root0.modes - How many mode figures each card shows (1 or 3).
+ * @param root0.trainNote - Whether the train note line follows.
+ * @returns The cards placeholder.
+ */
+export function VehicleCardsSkeleton({
+  modes = 3,
+  trainNote = true,
+}: {
+  modes?: number;
+  trainNote?: boolean;
+}): JSX.Element {
+  const card = (
+    <div className="flex flex-col gap-4 border border-at-border bg-at-surface px-6 py-5">
+      <Bone className="h-4 w-32" />
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: modes }, (_, i) => (
+          <div key={i} className="flex flex-col gap-1">
+            <Bone className="h-4 w-14" />
+            <Bone className="h-8 w-16 sm:h-9" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2">
+        {card}
+        {card}
+      </div>
+      {trainNote && <Bone className="h-8 w-full max-w-xl sm:h-4" />}
+    </>
+  );
+}
+
+/**
  * Mirrors ShameHeader: the red title over its `mt-0.5 text-sm` subtitle, then the
  * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, the
  * day stepper, and the mode/school row on its own line.

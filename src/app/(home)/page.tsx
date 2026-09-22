@@ -35,7 +35,9 @@ import {
   FeatureCardPairSkeleton,
   FeatureCardSkeleton,
   KpiStripSkeleton,
+  VehicleCardsSkeleton,
 } from "@/components/SkeletonParts";
+import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/VehiclesSection";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import {
@@ -73,7 +75,14 @@ import { parseRankingsParams } from "@/lib/rankings-page";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref } from "@/lib/shame-page";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import {
+  monthRangeLabel,
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDatesInRange,
+  serviceDayLabel,
+  type DateRange,
+} from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -146,6 +155,32 @@ function preservedFor(
       Object.entries(all).filter((e): e is [string, string] => e[0] !== key && e[1] !== undefined),
     );
   return { mode: without("mode"), school: without("school"), dir: without("dir") };
+}
+
+/**
+ * Name a week or month for the vehicles card: the month's name, or a week's
+ * first and last day.
+ * @param window - "week" or "month".
+ * @param range - The window's range.
+ * @returns The label.
+ */
+function periodLabel(window: "week" | "month", range: DateRange): string {
+  if (window === "month") return monthRangeLabel(range);
+  const days = serviceDatesInRange(range);
+  const first = days[0];
+  const last = days.at(-1);
+  return first && last ? `${serviceDayLabel(first)} to ${serviceDayLabel(last)}` : "This week";
+}
+
+/**
+ * The vehicles band's fallback, sized to the modes the cards will show.
+ * @param root0 - Props.
+ * @param root0.mode - Mode filter, or null for every mode.
+ * @returns The skeleton.
+ */
+function VehicleCardsFallback({ mode }: { mode: ModeFilterValue }): JSX.Element {
+  const modes = vehicleModesShown(mode);
+  return <VehicleCardsSkeleton modes={modes.length} trainNote={modes.includes("TRAIN")} />;
 }
 
 /**
@@ -250,6 +285,25 @@ async function PeriodHome({
         </RankingsHeader>
         <Suspense fallback={<RankingsBodySkeleton />}>
           <PeriodBoards batch={batch} view={view} />
+        </Suspense>
+      </section>
+
+      <section className="space-y-4">
+        <VehiclesHeading
+          href={buildHref("/vehicles", {
+            window,
+            period: view.period,
+            mode: mode ?? undefined,
+            school: includeSchool ? "1" : undefined,
+          })}
+        />
+        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+          <VehicleCards
+            range={range}
+            label={periodLabel(window, range)}
+            mode={mode}
+            includeSchool={includeSchool}
+          />
         </Suspense>
       </section>
     </main>
@@ -440,6 +494,24 @@ export default async function Home({
             })}
           />
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <VehiclesHeading
+          href={buildHref("/vehicles", {
+            day: linkDay,
+            mode: mode ?? undefined,
+            school: includeSchool ? "1" : undefined,
+          })}
+        />
+        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+          <VehicleCards
+            range={range}
+            label={linkDay ? serviceDayLabel(serviceDate) : "Today"}
+            mode={mode}
+            includeSchool={includeSchool}
+          />
+        </Suspense>
       </section>
     </main>
   );

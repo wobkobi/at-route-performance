@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.38.0] - 2026-09-22
+
+### Added
+
+- The home page has a Vehicles on the routes section, counting the buses, trains and ferries seen on
+  the chosen day and since records began.
+
 ## [1.37.0] - 2026-09-22
 
 ### Added
