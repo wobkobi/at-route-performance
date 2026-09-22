@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.6] - 2026-09-22
+
+### Fixed
+
+- Speed Insights now only loads on the live site, so local builds and the CI smoke test no longer
+  fail looking for its script.
+
 ## [1.32.5] - 2026-09-22
 
 ### Changed

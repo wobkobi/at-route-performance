@@ -120,7 +120,9 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
-        <SpeedInsights />
+        {/* The script is served from /_vercel/speed-insights on a Vercel deployment only,
+            so anywhere else (local builds, the CI smoke) it would 404 as text/plain. */}
+        {process.env.VERCEL && <SpeedInsights />}
       </body>
     </html>
   );
