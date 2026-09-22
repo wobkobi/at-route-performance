@@ -9,15 +9,19 @@
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import {
+  BYPASS_OFF,
+  bypassSpan,
   layoutStrip,
   pickBreaks,
   STRIP_LANE,
   STRIP_ROW,
+  type SegmentMark,
   type StripColumn,
   type RouteStrip as StripData,
   type StripSide,
 } from "@/lib/route-strip";
 import type { StopSplit } from "@/lib/stop-split";
+import type { StripMarks } from "@/lib/strip-marks";
 import { stripView, type HalfTone, type StripView } from "@/lib/strip-view";
 import { useMemo, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
@@ -41,6 +45,7 @@ const HALF_STROKE: Record<HalfTone, string> = {
   ontime: "stroke-at-ontime",
   none: "stroke-at-border",
   unserved: "stroke-at-muted/60",
+  closed: "stroke-at-muted/60",
 };
 /** Text class for each figure tone: only the stops off time stand out. */
 const FIGURE_TEXT: Record<HalfTone, string> = {
@@ -49,7 +54,45 @@ const FIGURE_TEXT: Record<HalfTone, string> = {
   ontime: "text-at-muted",
   none: "text-at-muted",
   unserved: "text-at-muted",
+  closed: "text-at-muted",
 };
+/** Width and dash of a strand, stub or overlay; the plain line is {@link LINE_W} and solid. */
+const MARK_STROKE: Record<SegmentMark, { w: number; dash?: string }> = {
+  closed: { w: 4 },
+  detour: { w: 4 },
+  suspect: { w: 4, dash: "6 4" },
+  stub: { w: 3, dash: "3 5" },
+  announced: { w: 3, dash: "4 4" },
+};
+/** The detour orange's hue, in degrees. */
+const DETOUR_HUE = 32;
+
+/**
+ * The detour marks' stroke class: the detour orange, or ink on a route whose own colour is near
+ * that orange (the Outer Link), where an orange strand beside an orange line reads as the line.
+ * Near means a hue within 25 degrees of it on a colour that isn't washed out, so a red line keeps
+ * the orange.
+ * @param hex - The route's colour as `#rrggbb`, or null for the site's blue.
+ * @returns The class.
+ */
+function detourClass(hex: string | null): string {
+  if (!hex) return "stroke-at-commercial";
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
+    number,
+    number,
+    number,
+  ];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d < 0.25) return "stroke-at-commercial";
+  const hue =
+    max === r
+      ? (((g - b) / d + 6) % 6) * 60
+      : max === g
+        ? ((b - r) / d + 2) * 60
+        : ((r - g) / d + 4) * 60;
+  return Math.abs(hue - DETOUR_HUE) < 25 ? "stroke-at-ink" : "stroke-at-commercial";
+}
 /** One direction picked: the other direction's half of every ring, heading and figure recedes. */
 const DIM_HALF = {
   down: "group-data-[dir=up]/strip:stroke-at-border group-data-[dir=up]/strip:[stroke-dasharray:none]",
@@ -94,6 +137,8 @@ export interface RouteStripProps {
   side: StripSide | null;
   /** Keys of the rows a live service alert names. */
   alertRows: string[];
+  /** The day's closures and detours placed on the strip, or null where none are read (the week). */
+  marks: StripMarks | null;
 }
 
 /**
@@ -101,14 +146,16 @@ export interface RouteStripProps {
  * (switched by CSS, so the server HTML is right for the width and nothing re-lays out on
  * hydration), the key, and the minor versions listed underneath. The page's direction chip dims
  * the other direction through `data-dir`, so nothing is redrawn and no stop moves; a version chip
- * swaps in that version's figures and greys out what it doesn't use.
+ * swaps in that version's figures and greys out what it doesn't use. The day's closures and
+ * detours bend strands round the stops they touch, and are named in notes under the key.
  * @param props - See {@link RouteStripProps}.
  * @param props.strip - The strip.
  * @param props.split - The day's figures, or null.
  * @param props.mode - The route's mode.
  * @param props.colour - The route's colour.
  * @param props.side - The direction picked.
- * @param props.alertRows - Rows named in an alert.
+ * @param props.alertRows - Rows named in a live alert.
+ * @param props.marks - The day's closures and detours, or null.
  * @returns The diagram section.
  */
 export function RouteStrip({
@@ -118,6 +165,7 @@ export function RouteStrip({
   colour,
   side,
   alertRows,
+  marks,
 }: RouteStripProps): JSX.Element {
   const [version, setVersion] = useState<string | null>(null);
   // The one row in the tab order (roving tabindex), so a 60-stop route is one tab stop.
@@ -125,17 +173,25 @@ export function RouteStrip({
   const refs = useRef<Record<"one" | "two", Array<HTMLLIElement | null>>>({ one: [], two: [] });
 
   const view = useMemo(
-    () => stripView({ strip, split, version, mode }),
-    [strip, split, version, mode],
+    () => stripView({ strip, split, version, mode, marks }),
+    [strip, split, version, mode, marks],
   );
   const layouts = useMemo(() => {
-    const breaks = strip.rows.length >= WIDE_MIN_ROWS ? pickBreaks(strip, 2) : [];
+    // A column break never falls inside a strand, so a strand is always drawn whole.
+    const noBreak = (marks?.bypasses ?? []).map((b): [number, number] => {
+      const s = bypassSpan(b);
+      return [Math.floor(s.top), Math.ceil(s.bottom)];
+    });
+    const breaks = strip.rows.length >= WIDE_MIN_ROWS ? pickBreaks(strip, 2, noBreak) : [];
     return {
-      one: layoutStrip(strip, [], DIMS),
-      two: breaks.length > 0 ? layoutStrip(strip, breaks, DIMS) : null,
+      one: layoutStrip(strip, [], DIMS, marks),
+      two: breaks.length > 0 ? layoutStrip(strip, breaks, DIMS, marks) : null,
     };
-  }, [strip]);
-  const alerts = useMemo(() => new Set(alertRows), [alertRows]);
+  }, [strip, marks]);
+  const alerts = useMemo(
+    () => new Set([...alertRows, ...(marks?.alertRows ?? []).map((i) => strip.rows[i]!.key)]),
+    [alertRows, marks, strip],
+  );
 
   if (strip.rows.length === 0) {
     return (
@@ -151,7 +207,15 @@ export function RouteStrip({
   const chips = strip.versions.filter((v) => !v.minor);
   const minor = strip.versions.filter((v) => v.minor);
   const twoWay = strip.down.length > 0 && strip.up.length > 0;
-  const nameX = DIMS.left + Math.max(0, ...strip.rows.map((r) => r.reach)) * STRIP_LANE + NAME_GAP;
+  // A strand for the second column runs out right of its lane, so the names start clear of it too.
+  const reach = Math.max(
+    0,
+    ...strip.rows.map((r) => r.reach * STRIP_LANE),
+    ...(marks?.bypasses ?? [])
+      .filter((b) => b.side === "up")
+      .map((b) => b.lane * STRIP_LANE + BYPASS_OFF),
+  );
+  const nameX = DIMS.left + reach + NAME_GAP;
   const hasAlert = strip.rows.some((r) => alerts.has(r.key));
 
   /**
@@ -252,6 +316,18 @@ export function RouteStrip({
           colour={colour}
         />
       </div>
+      {view.notes.length > 0 && (
+        <div className="mt-3 border-t border-at-border pt-2 text-xs text-at-muted">
+          <p className="font-semibold text-at-ink">
+            Closures and detours{view.present.starred ? " (* on a figure)" : ""}
+          </p>
+          <ul className="mt-1 space-y-1">
+            {view.notes.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {minor.length > 0 && (
         <p className="mt-3 border-t border-at-border pt-2 text-xs text-at-muted">
           <span className="font-semibold text-at-ink">Also runs, on a few trips:</span>{" "}
@@ -312,13 +388,16 @@ function Column({
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
 }): JSX.Element {
   const lineHex = brandColour(colour);
+  const detour = detourClass(lineHex);
   const rowsH = col.rows.length * STRIP_ROW;
   const drawH = Math.max(rowsH, col.bottom + TERMINUS_R + RING_W);
-  // Pieces off the picked version go first, so the line it runs along is drawn over their ends.
+  // Pieces off the picked version go first, so the line it runs along is drawn over their ends;
+  // an announced stretch goes last, since it is drawn over the line it names.
   const pieces = [...col.pieces].sort(
     (a, b) =>
+      Number(a.mark === "announced") - Number(b.mark === "announced") ||
       Number(version == null || a.versions.includes(version)) -
-      Number(version == null || b.versions.includes(version)),
+        Number(version == null || b.versions.includes(version)),
   );
   return (
     <div
@@ -361,16 +440,23 @@ function Column({
         >
           {pieces.map((p, i) => {
             const on = version == null || p.versions.includes(version);
+            const stroke = p.mark ? MARK_STROKE[p.mark] : { w: LINE_W };
+            // The line and a closed stop's strand take the route's colour; the rest their own.
+            const own =
+              p.mark === "stub" ? "stroke-at-muted" : p.mark && p.mark !== "closed" ? detour : null;
             return (
               <path
                 key={i}
                 d={p.d}
                 fill="none"
-                strokeWidth={LINE_W}
+                strokeWidth={stroke.w}
+                strokeDasharray={stroke.dash}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={on ? (lineHex ? undefined : "stroke-at-shore") : "stroke-at-border"}
-                style={on && lineHex ? { stroke: lineHex } : undefined}
+                className={
+                  !on ? "stroke-at-border" : (own ?? (lineHex ? undefined : "stroke-at-shore"))
+                }
+                style={on && !own && lineHex ? { stroke: lineHex } : undefined}
               />
             );
           })}
@@ -427,6 +513,7 @@ function Column({
                         ? "font-medium text-at-ink"
                         : "text-at-muted",
                     row.terminus && "font-bold",
+                    row.struck && "line-through",
                   )}
                 >
                   {breakable(row.name)}
@@ -500,6 +587,13 @@ function Ring({
       />
     );
   }
+  /**
+   * A half's dash: dashed where runs that way didn't stop, as timetabled or on the day.
+   * @param tone - The half's tone.
+   * @returns The dash pattern, or none.
+   */
+  const dash = (tone: HalfTone): string | undefined =>
+    tone === "unserved" || tone === "closed" ? "3 3" : undefined;
   if (!twoWay) {
     const tone = row.down.tone === "unserved" ? row.up.tone : row.down.tone;
     return (
@@ -508,6 +602,7 @@ function Ring({
         cy={y}
         r={r}
         strokeWidth={RING_W}
+        strokeDasharray={tone === "closed" ? "3 3" : undefined}
         className={cn("fill-at-surface", HALF_STROKE[tone])}
       />
     );
@@ -520,14 +615,14 @@ function Ring({
         d={`M ${x} ${y + r} A ${r} ${r} 0 0 1 ${x} ${y - r}`}
         fill="none"
         strokeWidth={RING_W}
-        strokeDasharray={row.down.tone === "unserved" ? "3 3" : undefined}
+        strokeDasharray={dash(row.down.tone)}
         className={cn(HALF_STROKE[row.down.tone], DIM_HALF.down)}
       />
       <path
         d={`M ${x} ${y - r} A ${r} ${r} 0 0 1 ${x} ${y + r}`}
         fill="none"
         strokeWidth={RING_W}
-        strokeDasharray={row.up.tone === "unserved" ? "3 3" : undefined}
+        strokeDasharray={dash(row.up.tone)}
         className={cn(HALF_STROKE[row.up.tone], DIM_HALF.up)}
       />
     </>
@@ -559,6 +654,7 @@ function StripKey({
   colour: string | null;
 }): JSX.Element | null {
   const lineHex = brandColour(colour);
+  const detour = detourClass(lineHex);
   const entries: Array<{ key: string; swatch: JSX.Element; label: string }> = [];
   /**
    * A half-ring swatch: the given halves on a white ring.
@@ -657,6 +753,85 @@ function StripKey({
         </>
       ),
       label: "Passed without stopping",
+    });
+  }
+  /**
+   * A short horizontal stroke, for the strands and stretches.
+   * @param cls - Its stroke class, or none for the route's colour.
+   * @param w - Its width.
+   * @param dash - Its dash pattern, if any.
+   * @returns The line.
+   */
+  const stroke = (cls: string | null, w: number, dash?: string): JSX.Element => (
+    <line
+      x1={2}
+      x2={18}
+      y1={10}
+      y2={10}
+      strokeWidth={w}
+      strokeDasharray={dash}
+      strokeLinecap="round"
+      className={cls ?? (lineHex ? undefined : "stroke-at-shore")}
+      style={!cls && lineHex ? { stroke: lineHex } : undefined}
+    />
+  );
+  if (view.present.closed) {
+    entries.push({
+      key: "closed",
+      swatch: (
+        <>
+          <path
+            d="M 7 1 L 7 19 M 7 3 L 14 10 L 7 17"
+            fill="none"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            className={lineHex ? undefined : "stroke-at-shore"}
+            style={lineHex ? { stroke: lineHex } : undefined}
+          />
+          <circle
+            cx={7}
+            cy={10}
+            r={3.5}
+            strokeWidth={2}
+            strokeDasharray="2 2"
+            className="fill-at-surface stroke-at-muted/60"
+          />
+        </>
+      ),
+      label: "Runs that way go round a closed stop",
+    });
+  }
+  if (view.present.stub) {
+    entries.push({
+      key: "stub",
+      swatch: stroke("stroke-at-muted", 3, "3 5"),
+      label: "No run used this stretch",
+    });
+  }
+  if (view.present.detour) {
+    entries.push({
+      key: "detour",
+      swatch: stroke(detour, 4),
+      label: "Detour the runs took",
+    });
+  }
+  if (view.present.suspect) {
+    entries.push({
+      key: "suspect",
+      swatch: stroke(detour, 4, "6 4"),
+      label: "Detour seen on one or two runs",
+    });
+  }
+  if (view.present.announced) {
+    entries.push({
+      key: "announced",
+      swatch: (
+        <>
+          {stroke(null, 6)}
+          {stroke(detour, 3, "4 4")}
+        </>
+      ),
+      label: "Detour announced, not yet seen on the runs",
     });
   }
   if (alert) {

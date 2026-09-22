@@ -1,6 +1,7 @@
 // tests/lib/strip-view.test.ts
 import { buildStrip, type RouteStrip } from "@/lib/route-strip";
 import type { StopSplit } from "@/lib/stop-split";
+import { stripMarks, type DayClosure } from "@/lib/strip-marks";
 import { stripView } from "@/lib/strip-view";
 import type { RouteVariant } from "@/types/api";
 import { describe, expect, it } from "vitest";
@@ -71,7 +72,7 @@ describe("stripView: route 65, three versions into Glen Innes", () => {
     const v = stripView({ strip: s, split: null, version: null, mode: "BUS" });
     const potters = v.rows[rowOf(s, "Potters Park")]!;
     expect(potters.down.tone).toBe("none");
-    expect(potters.up).toEqual({ tone: "unserved", text: "-" });
+    expect(potters.up).toEqual({ tone: "unserved", text: "-", mark: null });
     expect(potters.bothWays).toBe(false);
     expect(potters.sentence).toBe(
       "Potters Park: To Glen Innes Station, stops here; To the start, doesn't stop.",
@@ -173,5 +174,127 @@ describe("stripView: a one-way route", () => {
     expect(v.rows.map((r) => r.bothWays)).toEqual([true, true]);
     expect(v.rows.map((r) => r.sentence)).toEqual(["A, terminus: stops here.", "B: stops here."]);
     expect(v.present.unserved).toBe(false);
+  });
+});
+
+describe("stripView: the day's closures and detours on OUT", () => {
+  const s = strip("OUT");
+  const directions = Object.fromEntries(
+    Object.entries(views.OUT!.directions).map(([d, x]) => [Number(d), x]),
+  );
+  const day = {
+    start: Date.parse("2026-09-22T16:00:00Z"),
+    end: Date.parse("2026-09-23T16:00:00Z"),
+  };
+  const benfield = rowOf(s, "Benfield Avenue");
+  const [downId, upId] = [0, 1].map((dir) =>
+    s.rows[benfield]!.stopIds.find((id) =>
+      directions[dir]!.variants.some((v) => v.stopIds.includes(id)),
+    )!,
+  );
+
+  /**
+   * A closure, closed by an alert and held all day unless told otherwise.
+   * @param over - The fields to set.
+   * @returns The closure.
+   */
+  function closure(over: Partial<DayClosure>): DayClosure {
+    return {
+      kind: "closed",
+      source: "alert",
+      directionId: null,
+      stopIds: [],
+      fromStopId: null,
+      toStopId: null,
+      alert: null,
+      runs: 0,
+      confirmed: false,
+      disputed: false,
+      from: day.start - 3_600_000,
+      to: null,
+      ...over,
+    };
+  }
+
+  /**
+   * The strip's view with closures placed on it.
+   * @param closures - The closures.
+   * @param split - The day's figures, or null.
+   * @returns The view.
+   */
+  function viewWith(
+    closures: DayClosure[],
+    split: StopSplit | null = null,
+  ): ReturnType<typeof stripView> {
+    const marks = stripMarks({
+      strip: s,
+      directions,
+      closures,
+      rawToCanon: new Map(),
+      directionIdAliases: new Map(),
+      day,
+    });
+    return stripView({ strip: s, split, version: null, mode: "BUS", marks });
+  }
+
+  it("says closed in the column of the way it closed, and names the alert in the notes", () => {
+    const v = viewWith([closure({ stopIds: [downId!], alert: "Benfield Ave stop closed" })]);
+    const row = v.rows[benfield]!;
+    expect(row.down).toEqual({ tone: "closed", text: "closed", mark: "closed" });
+    expect(row.up.tone).toBe("none");
+    expect(row.struck).toBe(false);
+    expect(row.sentence).toBe(
+      "Benfield Avenue: To Westfield Newmarket, closed; To St Lukes, stops here.",
+    );
+    expect(v.notes).toEqual([
+      'Benfield Avenue, to Westfield Newmarket: closed all day. AT alert: "Benfield Ave stop closed".',
+    ]);
+    expect(v.present).toMatchObject({ closed: true, stub: false, unserved: true });
+  });
+
+  it("strikes a stop closed all day every way it is served", () => {
+    const v = viewWith([closure({ stopIds: [downId!, upId!] })]);
+    expect(v.rows[benfield]!.struck).toBe(true);
+    expect(v.present.stub).toBe(true);
+  });
+
+  it("keeps a part-day closure's figure with a star, and its hours in the note", () => {
+    const split: StopSplit = {
+      all: { [downId!]: { 0: { events: 4, avg_delay_sec: 600, on_time_pct: 25 } } },
+      byVersion: {},
+    };
+    const v = viewWith([closure({ stopIds: [downId!], from: day.start + 17 * 3_600_000 })], split);
+    const row = v.rows[benfield]!;
+    expect(row.down.tone).toBe("late");
+    expect(row.down.text).toMatch(/late\*$/);
+    expect(row.sentence).toContain("late, with a closure or detour in the notes");
+    expect(row.struck).toBe(false);
+    expect(v.present).toMatchObject({ starred: true, closed: false });
+    expect(v.notes[0]).toMatch(/^Benfield Avenue, to Westfield Newmarket: closed from 9:00\spm\.$/);
+  });
+
+  it("words a seen detour, and one too few runs took", () => {
+    const seen = closure({
+      kind: "detour",
+      source: "seen",
+      directionId: 0,
+      fromStopId: s.rows[rowOf(s, "Ferndale House")]!.stopIds.find((id) =>
+        directions[0]!.variants.some((v) => v.stopIds.includes(id)),
+      )!,
+      toStopId: s.rows[rowOf(s, "Gladstone Primary")]!.stopIds.find((id) =>
+        directions[0]!.variants.some((v) => v.stopIds.includes(id)),
+      )!,
+      runs: 5,
+      confirmed: true,
+    });
+    const v = viewWith([seen]);
+    expect(v.rows[benfield]!.down).toEqual({ tone: "closed", text: "detour", mark: "detour" });
+    expect(v.rows[benfield]!.sentence).toContain("To Westfield Newmarket, gone round on a detour");
+    expect(v.notes).toEqual([
+      "Between Ferndale House and Gladstone Primary, to Westfield Newmarket: runs went round it, all day. No alert announced it.",
+    ]);
+    const once = viewWith([{ ...seen, runs: 1, confirmed: false }]);
+    expect(once.notes[0]).toContain("1 run went round it, all day, too few in two hours");
+    expect(once.present).toMatchObject({ suspect: true, detour: false });
   });
 });

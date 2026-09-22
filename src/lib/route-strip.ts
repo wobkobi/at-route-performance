@@ -5,6 +5,7 @@
 // is partly a client component. The line's geometry is built here too, once: every piece is drawn
 // exactly once, carries the versions that run along it, and meets its neighbours exactly.
 import type { StopFigure, StopFigures, VersionVariant } from "@/lib/stop-split";
+import type { StripBypass, StripMarks, StripSpan } from "@/lib/strip-marks";
 import type { RouteVariant } from "@/types/api";
 
 /** Height of one stop's row (px). */
@@ -16,6 +17,11 @@ export const STRIP_ROW = 32;
 export const STRIP_LANE = 24;
 /** How far a loop's line runs on past its last stop before it turns back (px). */
 export const LOOP_STUB = 6;
+/**
+ * How far a strand going round a closed stop or a detour runs out from the line (px): its 4px
+ * stroke clears a stop's ring, and on the right it stays clear of a track a lane over.
+ */
+export const BYPASS_OFF = 14;
 /** A version carrying less than this share of the route's runs is minor: listed, with no chip. */
 export const MINOR_SHARE = 0.05;
 /** Stops sharing a name this close together are one stop, one on each side of the road (metres). */
@@ -126,6 +132,16 @@ export interface RouteStrip {
   lanes: number;
 }
 
+/**
+ * What a piece of line shows beyond the timetabled road (rule 29):
+ * - `closed`: a strand going round a stop closed that way;
+ * - `detour`, `suspect`: a strand going round stops a detour skipped, on enough runs to count or
+ *   on one or two;
+ * - `stub`: the line where no run went, under strands going round it both ways;
+ * - `announced`: the stretch an announced detour names, over the line.
+ */
+export type SegmentMark = "closed" | "detour" | "suspect" | "stub" | "announced";
+
 /** One piece of line in the strip's own frame: x from the lane, y from the row. */
 export interface StripSegment {
   /** A straight line from (x1, y1) to (x2, y2), y1 < y2, or a half circle turning a loop back. */
@@ -137,6 +153,8 @@ export interface StripSegment {
   /** An arc's radius and SVG sweep flag, for a half circle drawn from (x1, y1) to (x2, y2). */
   arc?: { r: number; sweep: 0 | 1 };
   versions: string[];
+  /** What it shows beyond the timetabled road; absent on the line itself. */
+  mark?: SegmentMark;
 }
 
 /** One drawable piece of a column's line: an SVG path and the versions that run along it. */
@@ -146,7 +164,11 @@ export interface StripPiece {
   /** Where the path starts and ends, in the column's frame. */
   from: [number, number];
   to: [number, number];
+  mark?: SegmentMark;
 }
+
+/** The day's closures and detours as the geometry draws them, from `stripMarks`. */
+export type StripOverlay = Pick<StripMarks, "bypasses" | "stubs" | "announced">;
 
 /** One column of a laid-out strip, in its own frame. */
 export interface StripColumn {
@@ -868,7 +890,8 @@ function lineKey(s: StripSegment): string {
 /**
  * Merge overlapping segments so each stretch of line is drawn once. Segments on one line are cut
  * at every end, each piece takes the union of the versions over it, and neighbours carrying the
- * same versions join up again. Identical arcs merge the same way.
+ * same versions join up again. Identical arcs merge the same way. Segments with different marks
+ * never merge: a strand stepping back in can lie along a track's join, and stays its own piece.
  * @param raw - Segments per stretch, each with that stretch's versions.
  * @param rank - Each version's place in the strip's list, to keep version lists in one order.
  * @returns Segments that never overlap, top first.
@@ -895,13 +918,14 @@ function unionSegments(
     }
     // Every straight segment runs downward: y1 < y2.
     const down = s.y1 < s.y2 ? s : { ...s, x1: s.x2, y1: s.y2, x2: s.x1, y2: s.y1 };
-    const key = lineKey(down);
+    const key = `${down.mark ?? ""}:${lineKey(down)}`;
     lines.set(key, [...(lines.get(key) ?? []), down]);
   }
 
   const out: StripSegment[] = [...arcs.values()];
   for (const segs of lines.values()) {
     const ref = segs[0]!;
+    const mark = ref.mark ? { mark: ref.mark } : {};
     /**
      * The line's x at a height.
      * @param y - The height.
@@ -922,7 +946,9 @@ function unionSegments(
       }
       if (open) out.push(open);
       open =
-        vs.length > 0 ? { kind: "line", x1: xAt(p), y1: p, x2: xAt(q), y2: q, versions: vs } : null;
+        vs.length > 0
+          ? { kind: "line", x1: xAt(p), y1: p, x2: xAt(q), y2: q, versions: vs, ...mark }
+          : null;
     }
     if (open) out.push(open);
   }
@@ -930,18 +956,148 @@ function unionSegments(
 }
 
 /**
- * The strip's line as segments in its own frame (x = lane * {@link STRIP_LANE}, y = row *
- * {@link STRIP_ROW}), every stretch of line exactly once, each knowing the versions along it.
+ * The versions whose line runs along a stretch of one lane, for a strand or an overlay there to
+ * dim with. Every version when none does, so a mark is never left carrying nothing.
  * @param strip - The strip.
+ * @param span - The stretch.
+ * @returns The version keys.
+ */
+function versionsAlong(
+  strip: Pick<RouteStrip, "rows" | "edges" | "versions">,
+  span: StripSpan,
+): string[] {
+  const vs = strip.edges
+    .filter(
+      (e) =>
+        e.loopLane === null &&
+        strip.rows[e.from]!.lane === span.lane &&
+        strip.rows[e.to]!.lane === span.lane &&
+        Math.min(e.to, span.bottom) > Math.max(e.from, span.top),
+    )
+    .flatMap((e) => e.versions);
+  return vs.length > 0 ? [...new Set(vs)] : strip.versions.map((v) => v.key);
+}
+
+/**
+ * The stretch of line a strand leaves: from the row it steps off at to the row it rejoins, or half
+ * a row past the rows it goes round where it has no such row.
+ * @param b - The strand.
+ * @returns Its span, in row units.
+ */
+export function bypassSpan(b: StripBypass): StripSpan {
+  return { lane: b.lane, top: b.above ?? b.lo - 0.5, bottom: b.below ?? b.hi + 0.5 };
+}
+
+/**
+ * A strand going round rows one direction doesn't stop at (rules 21 and 27): 45 degrees out of the
+ * row above to {@link BYPASS_OFF} on that direction's side (left for the first column, right for
+ * the second), straight down past the rows, and 45 degrees back into the row below. With no row
+ * to leave or rejoin at, it starts or ends half a row past the rows it goes round.
+ * @param b - The strand.
+ * @param versions - The versions whose line it leaves.
+ * @returns Its segments.
+ */
+function bypassSegments(b: StripBypass, versions: string[]): StripSegment[] {
+  const xl = b.lane * STRIP_LANE;
+  const xs = xl + (b.side === "down" ? -BYPASS_OFF : BYPASS_OFF);
+  const top = b.above != null ? b.above * STRIP_ROW + BYPASS_OFF : (b.lo - 0.5) * STRIP_ROW;
+  const bottom = b.below != null ? b.below * STRIP_ROW - BYPASS_OFF : (b.hi + 0.5) * STRIP_ROW;
+  const mark = b.kind;
+  return [
+    ...(b.above != null
+      ? [
+          {
+            kind: "line" as const,
+            x1: xl,
+            y1: b.above * STRIP_ROW,
+            x2: xs,
+            y2: top,
+            versions,
+            mark,
+          },
+        ]
+      : []),
+    { kind: "line", x1: xs, y1: top, x2: xs, y2: bottom, versions, mark },
+    ...(b.below != null
+      ? [
+          {
+            kind: "line" as const,
+            x1: xs,
+            y1: bottom,
+            x2: xl,
+            y2: b.below * STRIP_ROW,
+            versions,
+            mark,
+          },
+        ]
+      : []),
+  ];
+}
+
+/**
+ * Mark the stretches of the line no run used as stubs: each straight piece crossing one is cut
+ * there, and the middle carries the stub mark instead of being drawn twice.
+ * @param segs - The line, merged.
+ * @param stubs - The stretches.
+ * @returns The line with the stubs cut in.
+ */
+function cutStubs(segs: StripSegment[], stubs: readonly StripSpan[]): StripSegment[] {
+  let out = segs;
+  for (const s of stubs) {
+    const x = s.lane * STRIP_LANE;
+    const top = s.top * STRIP_ROW;
+    const bottom = s.bottom * STRIP_ROW;
+    out = out.flatMap((g): StripSegment[] => {
+      if (g.kind !== "line" || g.mark || g.x1 !== x || g.x2 !== x) return [g];
+      const lo = Math.max(g.y1, top);
+      const hi = Math.min(g.y2, bottom);
+      if (hi <= lo) return [g];
+      return [
+        ...(g.y1 < lo ? [{ ...g, y2: lo }] : []),
+        { ...g, y1: lo, y2: hi, mark: "stub" },
+        ...(hi < g.y2 ? [{ ...g, y1: hi }] : []),
+      ];
+    });
+  }
+  return out;
+}
+
+/**
+ * The strip's line as segments in its own frame (x = lane * {@link STRIP_LANE}, y = row *
+ * {@link STRIP_ROW}), every stretch of line exactly once, each knowing the versions along it. With
+ * the day's closures and detours, the stretches no run used are cut in as stubs, and the strands
+ * round them and the announced stretches are added, merged the same way among themselves.
+ * @param strip - The strip.
+ * @param overlay - The day's closures and detours, or null for the line alone.
  * @returns The segments, top first.
  */
 export function stripSegments(
   strip: Pick<RouteStrip, "rows" | "edges" | "versions">,
+  overlay: StripOverlay | null = null,
 ): StripSegment[] {
   const rank = new Map(strip.versions.map((v, i) => [v.key, i]));
-  return unionSegments(
+  const line = unionSegments(
     strip.edges.flatMap((e) => edgeSegments(e, strip.rows)),
     rank,
+  );
+  if (!overlay) return line;
+  const marks = unionSegments(
+    [
+      ...overlay.bypasses.flatMap((b) => bypassSegments(b, versionsAlong(strip, bypassSpan(b)))),
+      ...overlay.announced.map((s): StripSegment => ({
+        kind: "line",
+        x1: s.lane * STRIP_LANE,
+        y1: s.top * STRIP_ROW,
+        x2: s.lane * STRIP_LANE,
+        y2: s.bottom * STRIP_ROW,
+        versions: versionsAlong(strip, s),
+        mark: "announced",
+      })),
+    ],
+    rank,
+  );
+  return [...cutStubs(line, overlay.stubs), ...marks].sort(
+    (a, b) => a.y1 - b.y1 || a.x1 - b.x1 || a.y2 - b.y2 || a.x2 - b.x2,
   );
 }
 
@@ -1380,7 +1536,7 @@ function chainPieces(segs: readonly StripSegment[]): StripPiece[] {
    * @param i - The segment.
    * @returns The key.
    */
-  const setOf = (i: number): string => segs[i]!.versions.join("|");
+  const setOf = (i: number): string => `${segs[i]!.mark ?? ""}:${segs[i]!.versions.join("|")}`;
   /**
    * The segment a path runs on into from one end of another, if it can.
    * @param i - The segment.
@@ -1423,7 +1579,8 @@ function chainPieces(segs: readonly StripSegment[]): StripPiece[] {
       s = next.seg;
       enter = next.end;
     }
-    pieces.push({ d, versions: [...segs[start]!.versions], from, to });
+    const mark = segs[start]!.mark;
+    pieces.push({ d, versions: [...segs[start]!.versions], from, to, ...(mark ? { mark } : {}) });
   };
 
   const starts = segs
@@ -1446,16 +1603,19 @@ function chainPieces(segs: readonly StripSegment[]): StripPiece[] {
 /**
  * Lay a strip out in columns, each in its own frame: its rows' ring centres, and its line as SVG
  * paths with the versions each carries. A stretch of straight line crossing a break becomes a tail
- * at the foot of one column and a tail at the head of the next.
+ * at the foot of one column and a tail at the head of the next. A strand round a closure never
+ * crosses a break, since the breaks are picked clear of them.
  * @param strip - The strip.
  * @param breaks - The first row of each column after the first, as {@link pickBreaks} gives.
  * @param dims - Where the drawing sits in each column.
+ * @param overlay - The day's closures and detours, or null for the line alone.
  * @returns The columns.
  */
 export function layoutStrip(
   strip: RouteStrip,
   breaks: readonly number[],
   dims: StripDims,
+  overlay: StripOverlay | null = null,
 ): StripColumn[] {
   const n = strip.rows.length;
   if (n === 0) return [];
@@ -1464,7 +1624,7 @@ export function layoutStrip(
     ...[...new Set(breaks)].filter((b) => b > 0 && b < n).sort((a, b) => a - b),
     n,
   ];
-  const segs = stripSegments(strip);
+  const segs = stripSegments(strip, overlay);
   /**
    * A row's ring height in the strip's frame.
    * @param r - The row.

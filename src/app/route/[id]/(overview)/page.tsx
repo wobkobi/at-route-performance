@@ -29,6 +29,7 @@ import {
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
+  getRouteClosures,
   getRouteDailyStats,
   getRouteNames,
   getRouteStats,
@@ -52,6 +53,7 @@ import { buildStrip, type StripSide } from "@/lib/route-strip";
 import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
+import { stripMarks } from "@/lib/strip-marks";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -906,14 +908,15 @@ async function RouteAlertBannerSection({
 
 /**
  * Streamed line diagram: lays the route out as one strip, and awaits the day's
- * figures per stop and the shared alerts feed off the critical path, so neither
- * holds up the shell. The strip always carries both directions; the page's
+ * figures per stop, its closures and detours, and the shared alerts feed off
+ * the critical path, so none of them holds up the shell. The strip always carries both directions; the page's
  * direction chip dims the other one rather than dropping it, so no stop moves.
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.slug - This route's slug, to filter the alerts and read its figures.
  * @param root0.view - The route's directions, stop names and positions.
- * @param root0.range - The day to read figures per stop for, or null for the week, which has none.
+ * @param root0.range - The day to read figures, closures and detours per stop for, or null for the
+ *   week, which has none.
  * @param root0.mode - The route's mode.
  * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
@@ -947,11 +950,24 @@ async function RouteDiagramSection({
   // The alerts feed is a snapshot of right now, with no history, so its stop
   // rings describe today whatever day the page is showing. The banner can say
   // so in words; a ring on a stop cannot, so on an archived day the diagram
-  // simply goes unmarked.
-  const [routeAlerts, splitRows] = await Promise.all([
+  // simply goes unmarked. The closures recorded as they happened carry their
+  // own alerts, so those mark any day.
+  const [routeAlerts, splitRows, closures] = await Promise.all([
     live ? alertsPromise.then((a) => alertsForRoute(a, [slug])) : Promise.resolve([]),
-    range ? getRouteStopSplit(slug, range, mode) : Promise.resolve(null),
+    range ? getRouteStopSplit(slug, range, mode, view.rawToCanon) : Promise.resolve(null),
+    range ? getRouteClosures(slug, range) : Promise.resolve(null),
   ]);
+  const marks =
+    range && closures && closures.length > 0
+      ? stripMarks({
+          strip,
+          directions: view.directions,
+          closures,
+          rawToCanon: view.rawToCanon,
+          directionIdAliases: view.directionIdAliases,
+          day: { start: range.start.getTime(), end: range.end.getTime() },
+        })
+      : null;
   const split = splitRows
     ? splitStopFigures(splitRows, {
         versions: strip.versions,
@@ -985,6 +1001,7 @@ async function RouteDiagramSection({
       colour={colour}
       side={side}
       alertRows={alertRows}
+      marks={marks}
     />
   );
 }

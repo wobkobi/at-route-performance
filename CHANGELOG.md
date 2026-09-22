@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.0] - 2026-09-23
+
+### Added
+
+- The route diagram marks the day's recorded stop closures and detours: a strand bends round a stop
+  closed all day on the side of the way it closed, a grey dashed stub marks line no run used,
+  detours the runs took step off in orange (dashed for one or two runs), and an announced detour is
+  dashed along the line. A part-day closure keeps its figure with a star, and notes under the
+  diagram say where, which way, when and what said so. Arrivals timed at a stop while it was closed
+  are left out of its figures.
+
 ## [1.48.0] - 2026-09-23
 
 ### Added

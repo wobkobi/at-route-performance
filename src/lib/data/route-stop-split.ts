@@ -1,7 +1,10 @@
 // A route's per-stop arrival sums split by the direction, shape and headsign of each run, for the
 // route diagram's two figure columns and its version chips. ArrivalEvent carries none of those,
 // so each reading is joined to its run's TripMeta row. Folded into figures by lib/stop-split.ts.
+// Arrivals timed at a stop while it was closed that way are left out (rule 26): the feed keeps
+// timing buses past closed stops.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { closedArrivalsMatch, queryRouteClosures } from "@/lib/data/route-closures";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
@@ -17,6 +20,8 @@ import type { DateRange } from "@/lib/time";
  * @param range - The window.
  * @param mode - The route's mode, for its on-time window.
  * @param classified - Whether every day in the window has been through the ghost pass.
+ * @param rawToCanon - Raw stop id > the station the diagram draws it as, so a closed station
+ *   drops every platform's arrivals.
  * @returns One row per stop, direction, shape and headsign.
  */
 async function queryRouteStopSplit(
@@ -24,8 +29,10 @@ async function queryRouteStopSplit(
   range: DateRange,
   mode: string,
   classified: boolean,
+  rawToCanon: ReadonlyMap<string, string>,
 ): Promise<StopSplitRow[]> {
   const routeIds = await routeIdsForSlug(slug);
+  const closed = closedArrivalsMatch(await queryRouteClosures(routeIds, range), rawToCanon);
   const result = (await runCommand(() =>
     prisma.$runCommandRaw({
       aggregate: "ArrivalEvent",
@@ -47,6 +54,7 @@ async function queryRouteStopSplit(
           },
         },
         { $set: { meta: { $first: "$meta" } } },
+        ...(closed ? [{ $match: closed }] : []),
         {
           $group: {
             _id: {
@@ -85,15 +93,18 @@ async function queryRouteStopSplit(
  * @param slug - Route slug.
  * @param range - The window, one service day on the route page.
  * @param mode - The route's mode.
+ * @param rawToCanon - Raw stop id > the station the diagram draws it as. Fixed per route, so it
+ *   stays out of the key.
  * @returns The rows, for `splitStopFigures`.
  */
 export function getRouteStopSplit(
   slug: string,
   range: DateRange,
   mode: string,
+  rawToCanon: ReadonlyMap<string, string>,
 ): Promise<StopSplitRow[]> {
   return cachedForRange(
-    (classified) => queryRouteStopSplit(slug, range, mode, classified),
+    (classified) => queryRouteStopSplit(slug, range, mode, classified, rawToCanon),
     ["route-stop-split", slug, range.start.toISOString(), range.end.toISOString(), mode],
     range,
     300,
