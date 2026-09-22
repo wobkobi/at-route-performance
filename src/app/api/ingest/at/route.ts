@@ -15,10 +15,17 @@
 
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
-import { DUPLICATE_KEY, prisma, runWriteCommand, throwOnWriteErrors } from "@/lib/db";
-import { type ArrivalWrite, arrivalWriteStages, NO_DELAY_SOURCE } from "@/lib/deviation";
+import {
+  DUPLICATE_KEY,
+  isDatabaseUnreachableError,
+  prisma,
+  runWriteCommand,
+  throwOnWriteErrors,
+} from "@/lib/db";
+import { arrivalWriteStages, NO_DELAY_SOURCE, type ArrivalWrite } from "@/lib/deviation";
 import { recordFleet } from "@/lib/fleet-store";
 import { recordIngestRun } from "@/lib/ingest-run";
+import { drainSpool, spoolEnabled, spoolWrites, type SpooledWrite } from "@/lib/ingest-spool";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
 import { recordStopClosures } from "@/lib/stop-closure-store";
@@ -69,6 +76,48 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
     inserted += res.n ?? 0;
   }
   return inserted;
+}
+
+/**
+ * Run a write, or hold it back for a later run when the database is
+ * unreachable. Only an outage is held: a write that failed on its own merits
+ * (a bad document, a failed validation) would fail the same way on replay, so
+ * it still fails the run and gets seen.
+ * @param attempt - Issues the write.
+ * @param held - The same write in the shape the replay re-issues it.
+ * @param heldBack - Collects what this poll could not write.
+ * @returns Rows written, or 0 when the write was held.
+ */
+async function writeOrHold(
+  attempt: () => Promise<number>,
+  held: SpooledWrite,
+  heldBack: SpooledWrite[],
+): Promise<number> {
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!spoolEnabled() || !isDatabaseUnreachableError(err)) throw err;
+    heldBack.push(held);
+    return 0;
+  }
+}
+
+/**
+ * Re-issue one spooled batch's writes. Safe to run over a batch that partly
+ * landed before the outage: the inserts ignore duplicate keys and the arrival
+ * writes are upserts keyed on the stop visit.
+ * @param writes - The batch, in the order it was held.
+ * @returns Rows written.
+ */
+async function replaySpooled(writes: SpooledWrite[]): Promise<number> {
+  let rows = 0;
+  for (const write of writes) {
+    rows +=
+      write.kind === "arrivals"
+        ? await bulkUpsertArrivals(write.docs as ArrivalUpsert[])
+        : await bulkInsert(write.collection, write.docs);
+  }
+  return rows;
 }
 
 /** One stop visit as the upsert takes it: the key fields, then the values. */
@@ -163,7 +212,23 @@ export async function POST(req: Request): Promise<NextResponse> {
   const wantDebug = url.searchParams.has("debug");
   const wantPeek = url.searchParams.get("peek") === "1";
 
+  /** Writes this poll could not make because the database was unreachable. */
+  const heldBack: SpooledWrite[] = [];
+
   try {
+    // Replay what earlier polls could not write, before adding this poll's own.
+    // A drain that fails leaves its batches in place, so nothing is lost by
+    // trying while the database is still down.
+    const drained = await drainSpool(replaySpooled).catch((err: unknown) => {
+      console.error("[SPOOL] Drain failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    });
+    if (drained && (drained.replayed > 0 || drained.dropped > 0)) {
+      console.log("[SPOOL] Drained", drained);
+    }
+
     const feed = await fetchATTripUpdates();
 
     if (wantPeek) {
@@ -342,47 +407,54 @@ export async function POST(req: Request): Promise<NextResponse> {
     // rather than inserting a duplicate alongside it. The key fields stay
     // extended JSON in the query; the value fields become the ArrivalWrite the
     // update pipeline reads.
-    const stopCount = await bulkUpsertArrivals(
-      stopRows.map((r) => ({
-        tripId: r.tripId,
-        stopId: r.stopId,
-        scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
-        write: {
-          routeId: r.routeId,
-          actualAtMs: new Date(r.actualAt).getTime(),
-          deviationSec: r.deviationSec,
-          vehicleId: r.vehicleId ?? undefined,
-          cars: r.cars ?? undefined,
-          source: r.source ?? undefined,
-          serviceDate: r.serviceDate ?? undefined,
-        },
-      })),
-    );
-    const tripCount = await bulkInsert(
-      "TripDelay",
-      tripRows.map((r) => ({
-        tripId: r.tripId,
+    const arrivalDocs = stopRows.map((r) => ({
+      tripId: r.tripId,
+      stopId: r.stopId,
+      scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
+      write: {
         routeId: r.routeId,
-        ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
-        timestamp: { $date: new Date(r.timestamp).toISOString() },
-        delaySec: r.delaySec,
-        ...(r.source ? { source: r.source } : {}),
-      })),
+        actualAtMs: new Date(r.actualAt).getTime(),
+        deviationSec: r.deviationSec,
+        vehicleId: r.vehicleId ?? undefined,
+        cars: r.cars ?? undefined,
+        source: r.source ?? undefined,
+        serviceDate: r.serviceDate ?? undefined,
+      },
+    }));
+    const stopCount = await writeOrHold(
+      () => bulkUpsertArrivals(arrivalDocs),
+      { kind: "arrivals", docs: arrivalDocs },
+      heldBack,
+    );
+    const tripDocs = tripRows.map((r) => ({
+      tripId: r.tripId,
+      routeId: r.routeId,
+      ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
+      timestamp: { $date: new Date(r.timestamp).toISOString() },
+      delaySec: r.delaySec,
+      ...(r.source ? { source: r.source } : {}),
+    }));
+    const tripCount = await writeOrHold(
+      () => bulkInsert("TripDelay", tripDocs),
+      { kind: "insert", collection: "TripDelay", docs: tripDocs },
+      heldBack,
     );
 
     // Idempotent: the @@unique([tripId, serviceDate]) index drops repeat polls of
     // the same cancellation (ordered: false), so this stays one row per trip per
     // run - including the 04:45 run that used to land on two days, because the
     // date now comes from the run rather than from when the poll happened to fire.
-    const cancelledCount = await bulkInsert(
-      "CancelledTrip",
-      cancelledRows.map((r) => ({
-        tripId: r.tripId,
-        routeId: r.routeId,
-        serviceDate: r.serviceDate,
-        ...(r.startTime ? { startTime: r.startTime } : {}),
-        detectedAt: { $date: new Date().toISOString() },
-      })),
+    const cancelledDocs = cancelledRows.map((r) => ({
+      tripId: r.tripId,
+      routeId: r.routeId,
+      serviceDate: r.serviceDate,
+      ...(r.startTime ? { startTime: r.startTime } : {}),
+      detectedAt: { $date: new Date().toISOString() },
+    }));
+    const cancelledCount = await writeOrHold(
+      () => bulkInsert("CancelledTrip", cancelledDocs),
+      { kind: "insert", collection: "CancelledTrip", docs: cancelledDocs },
+      heldBack,
     );
 
     // Off-route readings never fail the poll: the arrival events above are the
@@ -417,6 +489,16 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
+
+    // Held rows go to the spool once, as one batch, so a replay re-issues this
+    // poll's writes in the order they were meant to happen.
+    const spooled = heldBack.length > 0 && (await spoolWrites(heldBack));
+    if (heldBack.length > 0) {
+      console.warn("[SPOOL] Database unreachable, batch held", {
+        writes: heldBack.length,
+        stored: spooled,
+      });
+    }
 
     const body = {
       inserted: stopResult.count,

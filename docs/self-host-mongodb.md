@@ -318,27 +318,48 @@ a point in time.
 
 ## When the box goes down
 
-Data is **dropped, not queued**. AT's realtime feed is a snapshot of where the vehicles are at that
-instant, nothing re-fetches it, and the app has nowhere to spool a write to, so an arrival that
-cannot be written is gone. What softens it is the feed itself: a vehicle's remaining stop visits are
-re-reported on later polls, so a short outage usually costs precision on the stops already passed
-rather than whole trips. A long one is a hole in the archive, and the archive is the only copy.
+Writes are **held and replayed**, not dropped - provided the spool is configured. AT's realtime feed
+is a snapshot of where the vehicles are at that instant and nothing re-fetches it, so a write that
+cannot be made now is gone unless it is kept somewhere that is not the database. That somewhere is a
+Vercel Blob store.
 
-What the app does about it:
+What the app does about it, outermost first:
 
 - **Writes wait.** `runWriteCommand` (`src/lib/db.ts`) retries an unreachable server at 1/3/8/15s,
-  about 27 seconds over five attempts, then gives up. That covers a restart or a failover, not a box
-  that is off. `isDatabaseUnreachableError` is kept separate from `isTransientConnectionError`
-  because a dropped socket is fixed by reconnecting and an outage only by waiting.
+  about 27 seconds over five attempts. That alone covers a restart or a failover.
+  `isDatabaseUnreachableError` is kept separate from `isTransientConnectionError` because a dropped
+  socket is fixed by reconnecting and an outage only by waiting.
+- **Then the poll's writes are spooled.** When the retries run out, `src/lib/ingest-spool.ts` gzips
+  the batch into the blob store under `ingest-spool/` and the run reports success rather than
+  failing. Every later poll drains the spool oldest-first before fetching AT, and deletes each batch
+  once it lands. Replay is safe by construction: the inserts run `ordered: false` with duplicate
+  keys ignored, and the arrivals are upserts keyed on the stop visit, so a batch that partly landed
+  before the outage no-ops on the second attempt.
+- **Two caps stop the spool becoming its own problem.** At most 8 batches replay per run, because
+  the scheduler fires every two minutes and an unbounded catch-up would collide with the next poll.
+  A batch older than 24 hours is dropped unread - an outage measured in days is a hole either way,
+  and replaying stale predictions over what the nightly aggregate has since settled is worse than
+  the gap.
 - **Reads fail fast**, so a reader meets a page's error boundary instead of a minute of nothing.
 - **The site stays up.** Every page keeps its masthead, nav and footer; the footer's freshness line
   reads "Last update unknown" rather than claiming the site is awaiting its first data.
 - **`/api/health` answers `database: "up" | "down"`** on a five-second bound. Watch that, not `ok` -
   `ok` says the build is serving, which stays true through an outage.
 
-So the practical rule: a restart of a few minutes is survivable and mostly invisible. Anything
-longer should be planned for a gap in the service day (after 01:30 NZ, before 04:30), because
-nothing will backfill it.
+**The spool needs `BLOB_READ_WRITE_TOKEN`.** Create a Blob store in the Vercel dashboard (Storage >
+Create > Blob), connect it to the project, and the token is set for you. Without it `spoolEnabled()`
+is false, every spool call is a no-op, and the ingest behaves as it did before: the rows are lost
+and the run fails loudly. That is deliberate, so the code is safe to deploy before the store exists
+
+- but until you create it, there is no spool.
+
+Watch for `[SPOOL]` lines in the Vercel function logs: `Drained` after a recovery,
+`Database unreachable, batch held` during an outage, and `Could not hold the batch` if the blob
+store is failing too, which is the one case where rows are still lost.
+
+So the practical rule: with the spool configured, an outage of up to a day costs nothing but
+freshness. Without it, a restart of a few minutes is survivable and anything longer should be
+planned for a gap in the service day (after 01:30 NZ, before 04:30).
 
 ## Verification checklist
 

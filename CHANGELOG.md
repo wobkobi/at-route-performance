@@ -32,6 +32,19 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.0] - 2026-09-23
+
+### Added
+
+- A poll that cannot reach the database no longer loses its arrivals. Once the retries run out, the
+  batch is gzipped into a Vercel Blob store, and every later poll replays the spool oldest-first
+  before fetching AT, deleting each batch as it lands. Replay is safe to repeat: the inserts already
+  ignore duplicate keys and the arrivals are upserts keyed on the stop visit, so a batch that partly
+  landed before the outage does nothing the second time. At most 8 batches replay per run so a
+  catch-up cannot collide with the next poll, and a batch older than a day is dropped rather than
+  written over what the nightly aggregate has since settled. The spool needs a Blob store connected
+  to the project; without the token it is off and the ingest behaves as before.
+
 ## [1.53.0] - 2026-09-23
 
 ### Added
