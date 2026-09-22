@@ -173,7 +173,8 @@ export default function LiveMap({
     layer.clearLayers();
     const colour = {
       late: cssVar("--color-at-late"),
-      early: cssVar("--color-at-early"),
+      // Small dots over a pale basemap, so early takes the darker green.
+      early: cssVar("--color-at-early-strong"),
       ontime: cssVar("--color-at-ontime"),
       unknown: cssVar("--color-at-muted"),
     };

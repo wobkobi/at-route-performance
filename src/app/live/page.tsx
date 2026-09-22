@@ -378,7 +378,7 @@ function DotKey(): JSX.Element {
   const dots: Array<[string, string]> = [
     ["bg-at-late", "late"],
     ["bg-at-ontime", "on time"],
-    ["bg-at-early", "early"],
+    ["bg-at-early-strong", "early"],
     ["bg-at-muted", "no delay"],
   ];
   return (

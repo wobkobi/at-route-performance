@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.11] - 2026-09-22
+
+### Fixed
+
+- Early vehicles on the maps, and the early dots on the live map, use a darker green. The brand
+  green was hard to see on white, about 2.1:1; the darker one is about 5:1, like late and on time.
+
 ## [1.41.10] - 2026-09-22
 
 ### Fixed

@@ -35,6 +35,10 @@
   --color-at-ontime: #0073bd;
   --color-at-late: #de0a2b;
   --color-at-early: #95c11f;
+  /* Early darkened for text and thin marks: #95c11f is about 2.1:1 on white,
+     this is about 5:1, level with late and on time. Fills and swatches keep
+     the brand green. */
+  --color-at-early-strong: #5b7a12;
 
   /* Link bus service colours (sampled from bus-services guide p8 swatches) */
   --color-link-city: #ff0328;

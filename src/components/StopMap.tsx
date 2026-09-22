@@ -237,7 +237,9 @@ interface MapColours {
 function readColours(): MapColours {
   return {
     late: cssVar("--color-at-late") || "#de0a2b",
-    early: cssVar("--color-at-early") || "#95c11f",
+    // The vehicle ring, glyph and arrow are thin marks on white, so they take
+    // the darker early; the brand green is about 2.1:1 there.
+    early: cssVar("--color-at-early-strong") || "#5b7a12",
     ontime: cssVar("--color-at-ontime") || "#0073bd",
     muted: cssVar("--color-at-muted") || "#667583",
     ink: cssVar("--color-at-ink") || "#001930",
