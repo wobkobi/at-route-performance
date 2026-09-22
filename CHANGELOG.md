@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.5] - 2026-09-23
+
+### Fixed
+
+- Links keep what you were looking at: the home page's week link opens the viewed day's week,
+  cancellations and the shame route board open a route's week on a week or month, live's mode chips
+  keep the full list, the route's day and week toggle keeps its threshold, and vehicle route links
+  go straight to the route
+
 ## [1.49.4] - 2026-09-23
 
 ### Fixed

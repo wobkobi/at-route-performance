@@ -34,7 +34,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf, windowPhrase } from "@/lib/range-page";
+import { dayRangeNav, routeLinkQuery, weekPeriodOf, windowPhrase } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -110,12 +110,11 @@ async function RouteRangeBoard({
     const isWorst = r.date === worstKey;
     const name = r.short_name || r.long_name || routeSlug(r.route_id);
     const slug = routeSlug(r.route_id);
-    // Keep the drill-down on the same fixed week (the route page's week view
-    // reads ?period=, not ?day=); month rows open the route's day view for
-    // that date since the route page has no month window.
-    const href = isMonth
-      ? `/route/${encodeURIComponent(slug)}?day=${r.date}`
-      : `/route/${encodeURIComponent(slug)}?window=week${periodParam ? `&period=${periodParam}` : ""}`;
+    // Open the route's week view either way: a week row keeps the board's week
+    // (rolling or fixed), and a month row opens the week holding its day, since
+    // the route page has no month window.
+    const weekPeriod = isMonth && r.date ? weekPeriodOf(r.date) : periodParam;
+    const href = `/route/${encodeURIComponent(slug)}${routeLinkQuery("week", null, weekPeriod)}`;
     const [, m, d] = r.date ? r.date.split("-") : [];
     const dayLabel = r.date ? weekdayShort(r.date) : "";
     const dayCount = routeDayCounts.get(r.route_id) ?? 0;

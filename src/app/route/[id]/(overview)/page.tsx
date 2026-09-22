@@ -585,10 +585,12 @@ export default async function RoutePage({
               dayQuery={{
                 day: (isWeekView ? periodParam : requestedDay) ?? undefined,
                 dir: activeDir == null ? undefined : String(activeDir),
+                thresholdSec: sp.thresholdSec,
               }}
               weekQuery={{
                 period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
                 dir: activeDir == null ? undefined : String(activeDir),
+                thresholdSec: sp.thresholdSec,
               }}
             />
             {isWeekView ? (

@@ -16,8 +16,11 @@ export interface CancelledBoardProps {
   rows: CancelledRouteRow[];
   /** Total cancellations in the window, including routes below the cut. */
   total: number;
-  /** `?day=` value for past-day route links, or undefined for today. */
-  routeDay?: string;
+  /**
+   * Query each route link carries so the route opens on the window being
+   * viewed, built by `routeLinkQuery`. Omit for the route's default view.
+   */
+  routeQuery?: string;
 }
 
 /**
@@ -25,10 +28,10 @@ export interface CancelledBoardProps {
  * @param props - Component props.
  * @param props.rows - Routes with cancellations, most first.
  * @param props.total - Total cancellations in the window.
- * @param props.routeDay - `?day=` value for past-day route links.
+ * @param props.routeQuery - Query each route link carries (optional).
  * @returns The board element.
  */
-export function CancelledBoard({ rows, total, routeDay }: CancelledBoardProps): JSX.Element {
+export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps): JSX.Element {
   return (
     <section className="border border-at-border bg-at-surface">
       <header className="flex items-baseline justify-between gap-3 border-b border-at-border px-4 py-3">
@@ -51,7 +54,7 @@ export function CancelledBoard({ rows, total, routeDay }: CancelledBoardProps): 
             return (
               <li key={r.route_id}>
                 <Link
-                  href={`/route/${encodeURIComponent(r.route_id)}${routeDay ? `?day=${routeDay}` : ""}`}
+                  href={`/route/${encodeURIComponent(r.route_id)}${routeQuery ?? ""}`}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
                   <span className="w-5 shrink-0 text-sm text-at-muted tabular-nums">{i + 1}</span>

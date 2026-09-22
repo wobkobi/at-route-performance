@@ -62,6 +62,7 @@ import {
   parseRangeWindow,
   periodRangeNav,
   routeLinkQuery,
+  weekPeriodOf,
   windowPhrase,
 } from "@/lib/range-page";
 import {
@@ -452,8 +453,11 @@ export default async function Home({
             <Link
               href={buildHref("/", {
                 window: "week",
+                // The week this day sits in, not the running one.
+                period: weekPeriodOf(serviceDate),
                 mode,
                 school: includeSchool ? "1" : undefined,
+                dir,
               })}
               className="underline"
             >

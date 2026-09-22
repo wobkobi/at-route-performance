@@ -18,7 +18,7 @@ import {
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, windowPhrase } from "@/lib/range-page";
+import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
 import { buildShameHref, parseShameParams, type ShameSearchParams } from "@/lib/shame-page";
 import type { Metadata } from "next";
 import type { JSX } from "react";
@@ -115,7 +115,11 @@ export default async function ShameDashboard({
         <WorstStopCard stop={stops[0] ?? null} day={linkDay} />
       </div>
 
-      <CancelledBoard rows={cancelledRoutes} total={cancelledTotal} routeDay={linkDay} />
+      <CancelledBoard
+        rows={cancelledRoutes}
+        total={cancelledTotal}
+        routeQuery={routeLinkQuery("day", linkDay, null)}
+      />
     </main>
   );
 }

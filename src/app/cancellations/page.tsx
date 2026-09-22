@@ -23,7 +23,13 @@ import {
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
+import {
+  dayRangeNav,
+  parseRangeWindow,
+  periodRangeNav,
+  routeLinkQuery,
+  type RangeNav,
+} from "@/lib/range-page";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
@@ -178,7 +184,7 @@ export default async function CancellationsPage({
           <CancelledBoard
             rows={boardRows.slice(0, BOARD_ROUTES)}
             total={visible.length}
-            routeDay={linkDay}
+            routeQuery={routeLinkQuery(window, linkDay, period)}
           />
           {boardRows.length > BOARD_ROUTES && (
             <Link

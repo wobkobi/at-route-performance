@@ -27,6 +27,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
+import { routeSlug } from "@/lib/route-slug";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import {
@@ -341,13 +342,19 @@ function RouteLinks({
   names: Record<string, string>;
   query: string;
 }): JSX.Element {
-  const unique = [...new Set(ids.map((id) => names[id] ?? id))];
+  // One link per name, pointed at the route's slug: a short name is not a
+  // route id, so linking by it costs every click the canonical redirect.
+  const slugByName = new Map<string, string>();
+  for (const id of ids) {
+    const name = names[id] ?? id;
+    if (!slugByName.has(name)) slugByName.set(name, routeSlug(id));
+  }
   return (
     <span className="flex flex-wrap gap-x-2 gap-y-1">
-      {unique.map((name) => (
+      {[...slugByName].map(([name, slug]) => (
         <Link
           key={name}
-          href={`/route/${encodeURIComponent(name)}${query}`}
+          href={`/route/${encodeURIComponent(slug)}${query}`}
           className="font-semibold text-at-shore hover:underline"
         >
           {name}

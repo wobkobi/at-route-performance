@@ -400,7 +400,7 @@ function LiveCard({
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
             <Link
-              href={`/route/${encodeURIComponent(route)}`}
+              href={`/route/${encodeURIComponent(routeSlug(now.routeId))}`}
               className="text-at-shore hover:underline"
             >
               {route}
@@ -508,7 +508,7 @@ function RunsTable({
                   </th>
                   <td className="p-3">
                     <Link
-                      href={`/route/${encodeURIComponent(route)}${routeQuery}`}
+                      href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery}`}
                       className="font-semibold text-at-shore hover:underline"
                     >
                       {route}
