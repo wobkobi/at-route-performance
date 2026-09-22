@@ -5,7 +5,7 @@
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { cartoTileUrl } from "@/lib/map-tiles";
+import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
@@ -619,7 +619,7 @@ export default function StopMap({
       const tiles = cartoTileUrl(
         window.location.host,
         process.env.NEXT_PUBLIC_CARTO_API_KEY,
-        process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
+        VERCEL_KEY_HOSTS,
       );
       L.tileLayer(tiles, {
         maxZoom: 19,

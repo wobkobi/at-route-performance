@@ -8,7 +8,7 @@
 
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
-import { cartoTileUrl } from "@/lib/map-tiles";
+import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
 import type * as Leaflet from "leaflet";
@@ -102,11 +102,7 @@ export default function LiveMap({
       const map = L.map(divRef.current, { scrollWheelZoom: false, dragging: !L.Browser.mobile });
       map.setView(AUCKLAND, 11);
       L.tileLayer(
-        cartoTileUrl(
-          window.location.host,
-          process.env.NEXT_PUBLIC_CARTO_API_KEY,
-          process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
-        ),
+        cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),
         {
           maxZoom: 19,
           subdomains: "abcd",

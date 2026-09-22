@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.7] - 2026-09-22
+
+### Fixed
+
+- Maps on a branch's preview link (the git-dev address) can draw clean tiles once the key is allowed
+  there, rather than always showing the watermarked ones.
+
 ## [1.41.6] - 2026-09-22
 
 ### Fixed
