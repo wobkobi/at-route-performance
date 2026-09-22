@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.36.8] - 2026-09-22
+
+### Fixed
+
+- Behind the scenes only: when the site runs on a developer's own computer, a page opened at
+  localhost now moves itself to at.localhost. The map provider (CARTO) will not accept its key from
+  localhost, but does from at.localhost, so local maps load without the "API KEY REQUIRED"
+  watermark. The live site is unaffected.
+
 ## [1.36.7] - 2026-09-22
 
 ### Changed

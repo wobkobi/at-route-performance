@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 // Root layout - AT-branded masthead, page container, and footer wrapping every route.
 
+import { DevHostRedirect } from "@/components/DevHostRedirect";
 import { FooterFreshness } from "@/components/FooterFreshness";
 import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
@@ -49,6 +50,7 @@ export default function RootLayout({
           "flex min-h-screen flex-col bg-at-bg font-brand text-at-ink antialiased",
         )}
       >
+        {process.env.NODE_ENV === "development" && <DevHostRedirect />}
         <a
           href="#main"
           className="sr-only z-50 bg-at-surface px-4 py-2 text-at-shore focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
