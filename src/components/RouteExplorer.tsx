@@ -423,9 +423,11 @@ export function RouteExplorer({
                     className={
                       delay === null
                         ? undefined
-                        : { late: "text-at-late", early: "text-at-early", ontime: undefined }[
-                            delayBand(delay, r.mode)
-                          ]
+                        : {
+                            late: "text-at-late",
+                            early: "text-at-early-strong",
+                            ontime: undefined,
+                          }[delayBand(delay, r.mode)]
                     }
                   >
                     {delay === null ? "—" : formatDelay(delay, { mode: r.mode })}

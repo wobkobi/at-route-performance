@@ -71,7 +71,7 @@ const MODE_NAME: Record<VehicleMode, string> = { BUS: "Bus", TRAIN: "Train", FER
 /** Text colour for a live status band; no live delay stays muted. */
 const STATUS_CLASS = {
   late: "text-at-late",
-  early: "text-at-early",
+  early: "text-at-early-strong",
   ontime: "text-at-ontime",
   unknown: "text-at-muted",
 } as const;

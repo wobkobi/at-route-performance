@@ -85,7 +85,7 @@ export type OffScheduleTone = "ontime" | "early" | "late" | "mixed" | "unknown";
 /** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
 export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
   ontime: "text-at-ontime",
-  early: "text-at-early",
+  early: "text-at-early-strong",
   late: "text-at-late",
   mixed: "text-at-ink",
   unknown: "text-at-muted",

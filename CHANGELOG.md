@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.41.12] - 2026-09-22
+
+### Fixed
+
+- Early figures and labels across the site (the boards, the trip page, the live and vehicle pages)
+  use the darker green, so they read on white. Swatches and chips keep the brand green.
+
 ## [1.41.11] - 2026-09-22
 
 ### Fixed

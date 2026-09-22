@@ -19,14 +19,14 @@ const SHORE = "#0073bd";
 
 /**
  * Each text or fill class a card figure can carry, as the hex it stands for.
- * Early is darkened from the site's `#95c11f`, which is about 1.9:1 on white;
+ * Early is darkened from the site's `#95c11f`, which is about 2.1:1 on white, to the site's text green;
  * the figure always carries its word ("2m early"), so the colour only adds.
  */
 const TONE_HEX: Record<string, string> = {
   "text-at-ontime": "#0073bd",
   "text-at-ink": INK,
   "text-at-late": "#de0a2b",
-  "text-at-early": "#5b7a12",
+  "text-at-early-strong": "#5b7a12",
   "text-at-muted": MUTED,
   "bg-at-ontime": "#0073bd",
   "bg-at-ink": INK,

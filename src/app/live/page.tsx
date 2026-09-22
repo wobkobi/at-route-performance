@@ -197,7 +197,7 @@ async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Ele
       label: "Early",
       value: t.early.toLocaleString("en-NZ"),
       note: pct(t.early, timed),
-      tone: "text-at-early",
+      tone: "text-at-early-strong",
     },
   ];
   return (

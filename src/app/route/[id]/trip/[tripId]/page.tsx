@@ -315,7 +315,7 @@ export default async function TripPage({
                 : stopBand === "late"
                   ? "text-at-late"
                   : stopBand === "early"
-                    ? "text-at-early"
+                    ? "text-at-early-strong"
                     : "text-at-ink";
               const dotColour = isFuture
                 ? "bg-at-border"
