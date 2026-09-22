@@ -16,6 +16,7 @@ import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
+  getLatestEventDate,
   getShameDayHours,
   getShameOfDay,
   getShameOfWeek,
@@ -28,13 +29,12 @@ import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og"
 import {
   fillServiceHours,
   filterLiveHours,
-  resolveRangeView,
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { dayRangeNav, periodInPhrase, weekPeriodOf, windowPhrase } from "@/lib/range-page";
+import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -188,21 +188,20 @@ export default async function TripShamePage({
   const sp = (await searchParams) ?? {};
   clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
-  const { filter, view, preserved, subtitle } = parseShameParams(sp);
+  const { filter, view, subtitle } = parseShameParams(sp);
 
   if (view !== "day") {
-    /**
-     * Build a link to this view for a period, preserving the active filter.
-     * @param period - ISO week-start date or `YYYY-MM` month key, or null for the rolling default.
-     * @returns The href.
-     */
-    const rangeHref = (period: string | null): string =>
-      buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
-    // Cheap cached bound for the stepper; the heavy per-day fan-out streams in
-    // behind the header via Suspense.
-    const earliestDay = await getEarliestDataDay(1);
-    const { isMonth, periodNoun, periodParam, activeRange, periodLabel, prevHref, nextHref } =
-      resolveRangeView(view, sp.period, earliestDay, rangeHref);
+    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
+    // behind the header via Suspense. The window is anchored to the latest day
+    // with data, as the home page anchors its own, so this board and the home
+    // card that opens it cover the same days.
+    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+    const {
+      range: activeRange,
+      period: periodParam,
+      nav: rangeControls,
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    const periodNoun = view;
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
@@ -216,24 +215,12 @@ export default async function TripShamePage({
             route: buildShameHref("/shame/route", rangeNav, filter),
             stop: buildShameHref("/shame/stop", rangeNav, filter),
           }}
+          basePath={BASE}
+          nav={rangeControls}
           filter={{
-            basePath: BASE,
             mode: filter.mode,
             includeSchool: filter.includeSchool,
             nav: rangeNav,
-          }}
-          nav={{
-            kind: "week",
-            unit: periodNoun,
-            // A stepped-back week's Day opens its Monday; a month opens today.
-            dayToggleHref: buildShameHref(
-              BASE,
-              { day: isMonth ? undefined : (periodParam ?? undefined) },
-              filter,
-            ),
-            periodLabel,
-            prevHref,
-            nextHref,
           }}
         />
         <Suspense
@@ -275,8 +262,6 @@ export default async function TripShamePage({
   );
   const linkDay = dayNav.isToday ? undefined : serviceDate;
   const dayWhen = windowPhrase(dayNav, null);
-  // Stepping onto today drops `?day` so the URL stays canonical.
-  const nextDayHref = dayNav.nextIsToday ? buildShameHref(BASE, {}, filter) : undefined;
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.trip_id}` : null;
@@ -378,27 +363,12 @@ export default async function TripShamePage({
           route: buildShameHref("/shame/route", { day: linkDay }, filter),
           stop: buildShameHref("/shame/stop", { day: linkDay }, filter),
         }}
+        basePath={BASE}
+        nav={dayNav}
         filter={{
-          basePath: BASE,
           mode: filter.mode,
           includeSchool: filter.includeSchool,
           nav: { day: linkDay },
-        }}
-        nav={{
-          kind: "day",
-          weekToggleHref: buildShameHref(
-            BASE,
-            { window: "week", period: weekPeriodOf(serviceDate) ?? undefined },
-            filter,
-          ),
-          basePath: BASE,
-          serviceDate,
-          preserved,
-          hasPrev: dayNav.hasPrev,
-          atFloor: dayNav.atFloor,
-          hasNext: dayNav.hasNext,
-          nextHref: nextDayHref,
-          nextPending: dayNav.nextPending,
         }}
       />
       <ShameBoard

@@ -276,50 +276,49 @@ export function VehicleCardsSkeleton({
 }
 
 /**
- * Mirrors ShameHeader: the red title over its `mt-0.5 text-sm` subtitle, then the
- * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, the
- * day stepper, and the mode/school row on its own line.
+ * Mirrors ShameHeader's three rows: the red title over its `mt-0.5 text-sm`
+ * subtitle beside the Day/Week/Month chips and the day stepper, then the
+ * Trips/Routes/Stops tabs, then the mode and school chips.
  * @param root0 - Props.
- * @param root0.toggle - Whether the header carries the Day/Week toggle chip.
  * @param root0.twoLineSubtitle - Whether the subtitle wraps to two lines below `sm`.
- * @param root0.filters - Whether the header carries the mode and school chips.
  * @returns The header placeholder.
  */
 export function ShameHeaderSkeleton({
-  toggle = false,
   twoLineSubtitle = false,
-  filters = false,
 }: {
-  toggle?: boolean;
   twoLineSubtitle?: boolean;
-  filters?: boolean;
 }): JSX.Element {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <TitleBone className="w-64" />
-        <Bone className={cn("mt-0.5 w-80 max-w-full", twoLineSubtitle ? "h-10 sm:h-5" : "h-5")} />
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
-          <ChipBone className="w-15" />
-          <ChipBone className="w-17" />
-          <ChipBone className="w-15" />
+    <header className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <TitleBone className="w-64" />
+          <Bone className={cn("mt-0.5 w-80 max-w-full", twoLineSubtitle ? "h-10 sm:h-5" : "h-5")} />
         </div>
-        {toggle && <ChipBone className="w-15" />}
-        <DayNavSkeleton />
-      </div>
-      {filters && (
-        <div className="flex w-full flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-2">
-            <ChipBone className="w-12" />
+        {/* The window controls, drawn as the home page draws its own. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
             <ChipBone className="w-13" />
             <ChipBone className="w-16" />
-            <ChipBone className="w-16" />
+            <ChipBone className="w-18" />
           </div>
-          <ChipBone className="w-28" />
+          <DayNavSkeleton />
         </div>
-      )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <ChipBone className="w-15" />
+        <ChipBone className="w-17" />
+        <ChipBone className="w-15" />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-2">
+          <ChipBone className="w-12" />
+          <ChipBone className="w-13" />
+          <ChipBone className="w-16" />
+          <ChipBone className="w-16" />
+        </div>
+        <ChipBone className="w-28" />
+      </div>
     </header>
   );
 }

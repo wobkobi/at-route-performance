@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.50.1] - 2026-09-23
+
+### Fixed
+
+- The shame boards now carry the Day / Week / Month controls the rest of the site uses, so a window
+  switch stays on the day you were reading, and the board tabs say which one you are on.
+
 ## [1.50.0] - 2026-09-23
 
 ### Added

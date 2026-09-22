@@ -6,7 +6,7 @@ import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Shame stop page loading skeleton: the ShameHeader with its Day/Week toggle and
+ * Shame stop page loading skeleton: the ShameHeader with its window controls and
  * the hourly board. Stop rows have no mode icon, and under the arrivals line they
  * commonly carry "was bad N times today".
  * @returns Skeleton layout matching the shame stop page structure.
@@ -14,7 +14,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton toggle filters />
+      <ShameHeaderSkeleton />
       <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
     </main>
   );

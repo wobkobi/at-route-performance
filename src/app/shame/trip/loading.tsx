@@ -6,7 +6,7 @@ import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Shame trip page loading skeleton: the ShameHeader with its Day/Week toggle and
+ * Shame trip page loading skeleton: the ShameHeader with its window controls and
  * the hourly board. Trip rows carry the headsign, start time and stop count,
  * which wrap to two lines in a desktop cell and four on a phone.
  * @returns Skeleton layout matching the shame trip page structure.
@@ -14,7 +14,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton toggle twoLineSubtitle filters />
+      <ShameHeaderSkeleton twoLineSubtitle />
       <ShameBoardSkeleton layout="day" shape={{ icon: true, mobileLines: 4, gridLines: 2 }} />
     </main>
   );

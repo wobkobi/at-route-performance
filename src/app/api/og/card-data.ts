@@ -45,7 +45,7 @@ import {
   type TripCard,
 } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { filterLiveHours, resolveRangeView, resolveShownDay } from "@/lib/page-nav";
+import { filterLiveHours, resolveShownDay } from "@/lib/page-nav";
 import { periodRangeNav } from "@/lib/range-page";
 import { summariseRows, visibleRows } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
@@ -125,8 +125,9 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
 }
 
 /**
- * Resolve a week or month the way the home, Routes and Cancellations pages do:
- * anchored on the latest day with data, and named by the days it covers.
+ * Resolve a week or month the way every range page does: anchored on the latest
+ * day with data, and named by the days it covers rather than in the shame
+ * boards' compact "14/09" form.
  * @param window - The week or month window.
  * @param rawPeriod - The validated period, or null for the current one.
  * @returns The range, its label and whether it is over.
@@ -442,34 +443,6 @@ async function shameDay<T extends { hours: unknown[] }>(
 }
 
 /**
- * Resolve a shame board's week or month as its page does, named the way every
- * other card names a period rather than in the board's compact "14/09" form.
- * @param card - The card state, on a week or month window.
- * @param window - The window.
- * @returns The range, its label, and whether it is over.
- */
-async function shameRange(
-  card: ShameCard,
-  window: "week" | "month",
-): Promise<{ range: DateRange; when: string; complete: boolean }> {
-  const today = nzServiceDayString();
-  const earliest = await getEarliestDataDay(1);
-  const { activeRange } = resolveRangeView(window, card.period ?? undefined, earliest, () => "");
-  const dates = serviceDatesInRange(activeRange);
-  const shown = dates.filter((d) => d <= today);
-  const first = shown[0] ?? dates[0] ?? today;
-  const last = shown.at(-1) ?? today;
-  return {
-    range: activeRange,
-    when:
-      window === "month"
-        ? monthLabel(first.slice(0, 7))
-        : `${serviceDayLabel(first)} to ${serviceDayLabel(last)}`,
-    complete: (dates.at(-1) ?? today) < today,
-  };
-}
-
-/**
  * The body naming one run, as the worst-run board's row and the Shame of the
  * day card name it.
  * @param t - The run.
@@ -504,7 +477,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
   const today = nzServiceDayString();
 
   if (card.window === "week" || card.window === "month") {
-    const period = await shameRange(card, card.window);
+    const period = await resolvePeriod(card.window, card.period);
     let body: SubjectBodyProps = NOTHING_RANKED;
     if (card.board === "trip") {
       const t = (await getShameOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
