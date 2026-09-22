@@ -17,6 +17,7 @@ function run(id: string, start: string, abs = 60): PerTripStat {
   return {
     trip_id: id,
     vehicle_id: null,
+    cars: null,
     scheduled_start: start,
     stops: 10,
     avg_delay_sec: abs,

@@ -75,6 +75,12 @@ describe("vehiclesOnMap", () => {
     delaySec: 0,
     bearing: null,
     directionId: 0,
+    cars: null,
+    plate: null,
+    occupancy: null,
+    speedKmh: null,
+    odometerKm: null,
+    seenAt: null,
     ...extra,
   });
   // Papakura to Pukekohe, roughly: two stations about 18km apart.

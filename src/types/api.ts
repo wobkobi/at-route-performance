@@ -69,6 +69,8 @@ export interface StopStats {
 export interface PerTripStat {
   trip_id: string;
   vehicle_id: string | null;
+  /** Carriages (3, 6 or 9) for a train run recorded with them, else null. */
+  cars: number | null;
   /** ISO instant of the run's earliest scheduled stop. */
   scheduled_start: string;
   stops: number;

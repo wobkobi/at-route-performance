@@ -307,10 +307,20 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
     const colour = status.band === "unknown" ? colours.muted : colours[status.band];
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
-    const popup = `<strong>${esc(veh.label ?? veh.vehicleId)}</strong><br>${esc(status.detail)}`;
+    const cars = veh.cars ? `${veh.cars} cars` : null;
+    const popup =
+      `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
+      (cars ? ` &middot; ${cars}` : "") +
+      `<br>${esc(status.detail)}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
-    const name = `${MODE_WORD[mode] ?? "Vehicle"} ${veh.label ?? veh.vehicleId}, ${status.detail}`;
+    const name = [
+      `${MODE_WORD[mode] ?? "Vehicle"} ${veh.label ?? veh.vehicleId}`,
+      cars,
+      status.detail,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     const entry = state.vehicles.get(veh.vehicleId);
     if (!entry) {
@@ -482,34 +492,14 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
 }
 
 /**
- * Set the initial map viewport: restore from sessionStorage when the user has
- * previously panned/zoomed this route, otherwise fit all stops and route lines.
+ * Set the initial map viewport: fit all stops and route lines, or a single stop
+ * at neighbourhood zoom, or central Auckland when there is nothing to frame.
  * @param state - Live map state.
  * @param stops - Route stops (lat/lon bounds).
  * @param routeLines - Route path bounds.
- * @param storageKey - sessionStorage key for this route's viewport, or null.
- * @param hasSelectedStop - Skip storage restore when a specific stop is focused.
  */
-function setInitialViewport(
-  state: MapState,
-  stops: StopPoint[],
-  routeLines: RouteLine[],
-  storageKey: string | null,
-  hasSelectedStop: boolean,
-): void {
+function setInitialViewport(state: MapState, stops: StopPoint[], routeLines: RouteLine[]): void {
   const { L, map } = state;
-  if (storageKey && !hasSelectedStop) {
-    const saved = sessionStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        const { lat, lng, zoom } = JSON.parse(saved) as { lat: number; lng: number; zoom: number };
-        map.setView([lat, lng], zoom);
-        return;
-      } catch {
-        // Malformed entry; fall through to default framing.
-      }
-    }
-  }
   const pts: Leaflet.LatLngExpression[] = [
     ...stops.map((s) => [s.lat, s.lon] as [number, number]),
     ...routeLines.flat(),
@@ -532,7 +522,7 @@ function setInitialViewport(
  * @param root0 - Props object.
  * @param root0.stops - Stops to plot.
  * @param root0.routeLines - Per-variant stop-coordinate sequences for the path.
- * @param root0.routeId - Route id, keying the saved viewport and the live-vehicle poll.
+ * @param root0.routeId - Route id, keying the live-vehicle poll.
  * @param root0.live - Poll and plot live vehicles; only for a view that covers now.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
@@ -655,29 +645,14 @@ export default function StopMap({
       stateRef.current = state;
 
       // Draw initial content from the current prop values.
-      const { stops: s0, routeLines: rl0, routeId: rId, mode: m0 } = latestRef.current;
+      const { stops: s0, routeLines: rl0, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
       drawOffRouteLayer(state, latestRef.current.offRoute);
       drawStopLayer(state, s0, m0);
 
-      /*
-        Only a whole-route map remembers where it was left. The trip page passes the
-        route's own slug as `routeId`, so both maps used to share one key and panning
-        a trip map overwrote the route map's saved view. A trip map has one right
-        framing anyway - the trip - so it saves nothing and always fits its own path.
-      */
-      const storageKey = rId && !latestRef.current.filterTripId ? `map-viewport:${rId}` : null;
-      setInitialViewport(state, s0, rl0, storageKey, !!latestRef.current.selectedStopId);
-
-      if (storageKey) {
-        map.on("moveend", () => {
-          const c = map.getCenter();
-          sessionStorage.setItem(
-            storageKey,
-            JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }),
-          );
-        });
-      }
+      // No saved view: every visit frames the route afresh, so a zoom left on one
+      // visit never carries into the next.
+      setInitialViewport(state, s0, rl0);
 
       /*
         Focus a stop the caller actually asked for. This used to key on

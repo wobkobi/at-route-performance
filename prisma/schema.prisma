@@ -91,6 +91,10 @@ model ArrivalEvent {
   actualAt     DateTime
   deviationSec Int
   vehicleId    String?
+  /// Carriages (3, 6 or 9) of the train making the visit, read at ingest from
+  /// the coupled units in the vehicle feed (see lib/train-consist.ts). Absent for
+  /// buses and ferries, and for rows written before it was recorded.
+  cars         Int?
   source       String?
   /// The run's own NZ service date (`YYYY-MM-DD`), set at ingest from the trip
   /// descriptor, so every reading of one run carries one day even when the run
@@ -168,6 +172,17 @@ model Setting {
   value String
 
   @@map("setting")
+}
+
+// One row per vehicle the feed has ever named, keyed by its feed id and upserted
+// on every realtime poll. Arrival rows carry only the id, so this is where a
+// vehicle page finds its fleet label and plate when it is off the road.
+model Vehicle {
+  id          String   @id @map("_id") // Feed vehicle id ("47206")
+  label       String? // Fleet label ("RT7206", "AMP 904")
+  plate       String? // Number plate; buses only
+  firstSeenAt DateTime
+  lastSeenAt  DateTime
 }
 
 /// One reading of a vehicle well off its own trip's road path, written by the

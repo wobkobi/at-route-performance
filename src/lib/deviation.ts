@@ -31,6 +31,8 @@ export interface ArrivalWrite {
   actualAtMs: number;
   deviationSec: number;
   vehicleId?: string | undefined;
+  /** Carriages of the train, when the vehicle feed showed them. */
+  cars?: number | undefined;
   source?: string | undefined;
   /** The run's own NZ service date (`YYYY-MM-DD`). */
   serviceDate?: string | undefined;
@@ -91,6 +93,7 @@ export function arrivalWriteStages(doc: ArrivalWrite): Prisma.InputJsonObject[] 
         // the blanket `$set` left an absent key alone, and these keep that.
         source: { $cond: ["$_take", doc.source || "$source", "$source"] },
         vehicleId: { $cond: ["$_take", vehicle ?? "$vehicleId", "$vehicleId"] },
+        cars: { $cond: ["$_take", doc.cars ?? "$cars", "$cars"] },
         // The run's own day, on the take side only: a refused reading belongs to
         // a different run, so taking its date would file the stored row under
         // the wrong day.

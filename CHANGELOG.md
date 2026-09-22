@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.37.0] - 2026-09-22
+
+### Added
+
+- A train on the live map and on the trips board now says how many carriages it has. Every live-feed
+  check also records each vehicle's fleet label and number plate, so vehicles can be named later.
+  The map no longer remembers its zoom, so each visit shows the whole route again.
+
 ## [1.36.9] - 2026-09-22
 
 ### Fixed

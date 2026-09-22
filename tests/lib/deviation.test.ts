@@ -166,6 +166,7 @@ describe("arrivalWriteStages", () => {
         deviationSec: { $cond: ["$_take", 3646, "$deviationSec"] },
         source: { $cond: ["$_take", "AT_GTFSRT", "$source"] },
         vehicleId: { $cond: ["$_take", "22097", "$vehicleId"] },
+        cars: { $cond: ["$_take", "$cars", "$cars"] },
         serviceDate: { $cond: ["$_take", "2026-09-14", "$serviceDate"] },
         blockReuse: { $cond: ["$_reuse", true, "$blockReuse"] },
       },
