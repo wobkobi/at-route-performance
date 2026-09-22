@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.7] - 2026-09-23
+
+### Fixed
+
+- Back from a trip, a vehicle or anywhere off the Cancellations list lands where you left it: the
+  route's trip board keeps its sort, page and direction, the vehicles list its filters, sort and
+  length, the cancellations list its stage and how far it was opened, and the line diagram its
+  version.
+
 ## [1.49.6] - 2026-09-23
 
 ### Fixed

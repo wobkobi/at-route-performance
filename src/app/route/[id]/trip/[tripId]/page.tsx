@@ -36,6 +36,7 @@ import {
   nzServiceDayString,
   serviceDayLabel,
 } from "@/lib/time";
+import { tripBoardView } from "@/lib/trip-board";
 import { buildTripLine } from "@/lib/trip-line";
 import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
@@ -80,7 +81,8 @@ export async function generateMetadata({
  * is a 404 rather than an empty page.
  * @param root0 - Page props.
  * @param root0.params - Dynamic route params `{ id, tripId }`.
- * @param root0.searchParams - Optional query params (`d` = the run's instant).
+ * @param root0.searchParams - Optional query params (`d` = the run's instant, plus the
+ *   route trip board's view to return to).
  * @returns Page markup.
  */
 export default async function TripPage({
@@ -88,11 +90,12 @@ export default async function TripPage({
   searchParams,
 }: {
   params: Promise<{ id: string; tripId: string }>;
-  searchParams?: Promise<{ d?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<JSX.Element> {
   const { id, tripId } = await params;
   const slug = routeSlug(id);
-  const { d } = (await searchParams) ?? {};
+  const sp = (await searchParams) ?? {};
+  const d = typeof sp.d === "string" ? sp.d : undefined;
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
   // do not interleave; falls back to the trip's latest day when `d` is absent
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange). The
@@ -223,7 +226,11 @@ export default async function TripPage({
     <main className={cn("space-y-6")}>
       <Link
         href={buildHref(`/route/${encodeURIComponent(slug)}`, {
-          day: day && !isLiveRun ? nzServiceDayString(day.start) : undefined,
+          // Today's day is left off, since the route page redirects it away.
+          day:
+            serviceDate && !isLiveRun && serviceDate !== nzServiceDayString() ? serviceDate : null,
+          // The board's sort, page and filters, as the run's link brought them.
+          ...tripBoardView(sp),
         })}
         className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
       >

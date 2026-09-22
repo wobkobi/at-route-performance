@@ -80,6 +80,11 @@ interface VehicleSearchParams {
   window?: string;
   day?: string;
   period?: string;
+  /** The vehicles list's filters, sort and length, handed back by the back link. */
+  mode?: string;
+  school?: string;
+  sort?: string;
+  show?: string;
 }
 
 /**
@@ -110,7 +115,8 @@ export async function generateMetadata({
  * Vehicle page.
  * @param root0 - Page props.
  * @param root0.params - Route params (`id`, the feed vehicle id).
- * @param root0.searchParams - Window (`window`, `day`, `period`).
+ * @param root0.searchParams - Window (`window`, `day`, `period`), and the vehicles list's
+ *   `mode`, `school`, `sort` and `show` for the back link.
  * @returns Page markup.
  */
 export default async function VehiclePage({
@@ -197,7 +203,13 @@ export default async function VehiclePage({
   return (
     <main className="space-y-6">
       <Link
-        href={buildHref("/vehicles", view)}
+        href={buildHref("/vehicles", {
+          ...view,
+          mode: sp.mode,
+          school: sp.school,
+          sort: sp.sort,
+          show: sp.show,
+        })}
         className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
       >
         <ChevronLeft className="h-3.5 w-3.5" />

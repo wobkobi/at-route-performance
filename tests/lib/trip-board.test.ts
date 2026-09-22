@@ -1,8 +1,8 @@
 // tests/lib/trip-board.test.ts
-// Unit tests for placing cancelled trips on the route trip board.
+// Unit tests for placing cancelled trips on the route trip board, and the board view params.
 import type { CancellationStage } from "@/lib/cancellation";
 import type { CancelledTripRow } from "@/lib/data/cancelled";
-import { buildTripBoardRows, sortRuns, type TripBoardRow } from "@/lib/trip-board";
+import { buildTripBoardRows, sortRuns, tripBoardView, type TripBoardRow } from "@/lib/trip-board";
 import type { PerTripStat } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
@@ -195,5 +195,25 @@ describe("sortRuns", () => {
     expect(sortRuns(runs, "off", false).map((r) => r.trip_id)).toEqual(["big", "mid", "none"]);
     expect(sortRuns(runs, "early", false).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
     expect(sortRuns(runs, "late", true).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
+  });
+});
+
+describe("tripBoardView", () => {
+  it("keeps only the set board params", () => {
+    expect(
+      tripBoardView({
+        d: "2026-09-20T01:00:00.000Z",
+        dir: "1",
+        thresholdSec: "",
+        tsort: "late",
+        trev: undefined,
+        tpage: "2",
+        mode: "BUS",
+      }),
+    ).toEqual({ dir: "1", tsort: "late", tpage: "2" });
+  });
+
+  it("skips a repeated param rather than guessing which value", () => {
+    expect(tripBoardView({ tsort: ["late", "off"] })).toEqual({});
   });
 });

@@ -23,6 +23,8 @@ import {
 import type { StopSplit } from "@/lib/stop-split";
 import type { StripMarks } from "@/lib/strip-marks";
 import { stripView, type HalfTone, type StripView } from "@/lib/strip-view";
+import { useUrlParam } from "@/lib/use-url-param";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 /** Where a column's drawing sits: the first ring centred in the first row, the line in from the left. */
@@ -146,8 +148,9 @@ export interface RouteStripProps {
  * (switched by CSS, so the server HTML is right for the width and nothing re-lays out on
  * hydration), the key, and the minor versions listed underneath. The page's direction chip dims
  * the other direction through `data-dir`, so nothing is redrawn and no stop moves; a version chip
- * swaps in that version's figures and greys out what it doesn't use. The day's closures and
- * detours bend strands round the stops they touch, and are named in notes under the key.
+ * swaps in that version's figures and greys out what it doesn't use. The picked version is kept
+ * in the URL as `ver`, so Back from a page opened off the route returns to it. The day's closures and detours
+ * bend strands round the stops they touch, and are named in notes under the key.
  * @param props - See {@link RouteStripProps}.
  * @param props.strip - The strip.
  * @param props.split - The day's figures, or null.
@@ -167,7 +170,16 @@ export function RouteStrip({
   alertRows,
   marks,
 }: RouteStripProps): JSX.Element {
-  const [version, setVersion] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // Seeded from the live URL, since Back restores a page rendered before `ver` was written.
+  // Only a key with a chip on screen counts: a minor version has none, and neither does a route
+  // with a single version.
+  const [version, setVersion] = useState<string | null>(() => {
+    const ver = searchParams.get("ver");
+    const majors = strip.versions.filter((v) => !v.minor);
+    return majors.length > 1 && majors.some((v) => v.key === ver) ? ver : null;
+  });
+  useUrlParam("ver", version);
   // The one row in the tab order (roving tabindex), so a 60-stop route is one tab stop.
   const [active, setActive] = useState(0);
   const refs = useRef<Record<"one" | "two", Array<HTMLLIElement | null>>>({ one: [], two: [] });

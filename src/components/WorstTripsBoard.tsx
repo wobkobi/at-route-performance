@@ -28,7 +28,8 @@ import type { TripSort } from "@/lib/data";
 import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time";
-import type { TripBoardRow } from "@/lib/trip-board";
+import { type TripBoardRow, tripBoardView } from "@/lib/trip-board";
+import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { type JSX, Suspense } from "react";
 
@@ -254,6 +255,23 @@ export function WorstTripsBoard({
   detouredTripIds,
 }: WorstTripsBoardProps): JSX.Element {
   const noun = (mode && MODE_NOUN[mode]) ?? "Services";
+  // The board as it stands, for a run's link to hand back to this page.
+  const view = tripBoardView({
+    ...preservedParams,
+    tsort: sort === "off" ? undefined : sort,
+    tpage: page > 1 ? String(page) : undefined,
+  });
+  /**
+   * A run's trip page, carrying the board's view for the way back.
+   * @param tripId - The run's trip id.
+   * @param at - The run's instant, or its service day when it has none.
+   * @returns The href.
+   */
+  const tripHref = (tripId: string, at: string): string =>
+    buildHref(`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(tripId)}`, {
+      d: at,
+      ...view,
+    });
   return (
     <section className="min-w-0 border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -302,7 +320,7 @@ export function WorstTripsBoard({
                       start, so the board's own day stands in; without it the trip page falls
                       back to the run's latest day and opens a different day's run. */}
                   <Link
-                    href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(c.trip_id)}?d=${encodeURIComponent(c.scheduled_start ?? serviceDate)}`}
+                    href={tripHref(c.trip_id, c.scheduled_start ?? serviceDate)}
                     className={ROW_LINK_CLASS}
                   >
                     <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
@@ -347,10 +365,7 @@ export function WorstTripsBoard({
             const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
             return (
               <li key={t.trip_id} className={ROW_CLASS}>
-                <Link
-                  href={`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(t.scheduled_start)}`}
-                  className={ROW_LINK_CLASS}
-                >
+                <Link href={tripHref(t.trip_id, t.scheduled_start)} className={ROW_LINK_CLASS}>
                   <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
                     {row.rank}
                   </span>

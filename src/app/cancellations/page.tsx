@@ -13,6 +13,7 @@ import { ChevronRight } from "@/components/icons";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { CANCELLATION_STAGES } from "@/lib/cancellation";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -71,12 +72,13 @@ interface CancellationsSearchParams {
   period?: string;
   mode?: string;
   school?: string;
+  stage?: string;
 }
 
 /**
  * Cancellations page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `day`, `period`) and filter (`mode`, `school`) params.
+ * @param root0.searchParams - Window (`window`, `day`, `period`) and filter (`mode`, `school`, `stage`) params.
  * @returns Page markup.
  */
 export default async function CancellationsPage({
@@ -94,6 +96,7 @@ export default async function CancellationsPage({
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
+  const stage = CANCELLATION_STAGES.find((s) => s === sp.stage) ?? null;
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
@@ -147,8 +150,18 @@ export default async function CancellationsPage({
   if (window !== "day") windowParams.window = window;
   if (window === "day" && linkDay && sp.day) windowParams.day = linkDay;
   if (period) windowParams.period = period;
-  const modePreserved = { ...windowParams, ...(includeSchool ? { school: "1" } : {}) };
-  const schoolPreserved = { ...windowParams, ...(mode ? { mode } : {}) };
+  const stageParam: Record<string, string> = stage ? { stage } : {};
+  const modePreserved = {
+    ...windowParams,
+    ...(includeSchool ? { school: "1" } : {}),
+    ...stageParam,
+  };
+  const schoolPreserved = { ...windowParams, ...(mode ? { mode } : {}), ...stageParam };
+  const stagePreserved = {
+    ...windowParams,
+    ...(mode ? { mode } : {}),
+    ...(includeSchool ? { school: "1" } : {}),
+  };
 
   return (
     <main className="space-y-6">
@@ -202,7 +215,15 @@ export default async function CancellationsPage({
             </Link>
           )}
         </div>
-        <CancelledTripList trips={visible} multiDay={window !== "day"} />
+        {/* Keyed by what the list shows, so a new window or filter opens it at the first page. */}
+        <CancelledTripList
+          key={buildHref("", { ...stagePreserved, ...stageParam })}
+          trips={visible}
+          multiDay={window !== "day"}
+          stage={stage}
+          basePath="/cancellations"
+          preservedParams={stagePreserved}
+        />
       </div>
 
       <p className="text-xs text-at-muted">

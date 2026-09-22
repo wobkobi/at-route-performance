@@ -32,6 +32,30 @@ export type TripBoardRow =
 type RunRow = Extract<TripBoardRow, { kind: "run" }>;
 
 /**
+ * The route page params that say how its trip board is being read: the travel
+ * direction, the on-time threshold, and the board's sort, sort direction and
+ * page. A run's link carries them and the trip page's back link hands them
+ * back, so returning from a run lands on the board as it was left.
+ */
+export const TRIP_BOARD_VIEW_PARAMS = ["dir", "thresholdSec", "tsort", "trev", "tpage"] as const;
+
+/**
+ * The trip board's view params that are set in a query, and nothing else.
+ * @param params - Query params, as a page receives them.
+ * @returns The set board params.
+ */
+export function tripBoardView(
+  params: Readonly<Record<string, string | string[] | undefined>>,
+): Record<string, string> {
+  const view: Record<string, string> = {};
+  for (const key of TRIP_BOARD_VIEW_PARAMS) {
+    const value = params[key];
+    if (typeof value === "string" && value !== "") view[key] = value;
+  }
+  return view;
+}
+
+/**
  * Compare two optional ISO instants, earliest first, with unknown times last.
  * @param a - First instant, or null.
  * @param b - Second instant, or null.

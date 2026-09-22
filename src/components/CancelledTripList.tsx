@@ -3,7 +3,9 @@
 // The Cancellations page's trip list: every flagged trip in the window with its
 // route, destination and stage, filterable by stage and linking to the trip
 // page. A week or month runs to thousands of trips, so the list shows a page at
-// a time behind a "Show more" button.
+// a time behind a "Show more" button. The stage is a URL param the chips link
+// to; how far the list is opened is client state mirrored into `show`, so Back
+// from a trip returns to the same stretch of the list.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChevronRight } from "@/components/icons";
@@ -13,12 +15,16 @@ import {
   CANCELLATION_BADGE_CLASS,
   CANCELLATION_BADGE_MEANING,
   CANCELLATION_BADGE_SHORT,
+  CANCELLATION_STAGES,
   type CancellationStage,
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
+import { useUrlParam } from "@/lib/use-url-param";
+import { buildHref } from "@/lib/utils";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState, type JSX } from "react";
 
 /** Trips shown before "Show more", and how many each press adds. */
@@ -30,6 +36,12 @@ export interface CancelledTripListProps {
   trips: NetworkCancelledTrip[];
   /** Whether the window spans several days, so each row names its day. */
   multiDay: boolean;
+  /** The stage the list is filtered to, or null for every stage. */
+  stage: CancellationStage | null;
+  /** The page path the stage chips link to. */
+  basePath: string;
+  /** The page's other params (window and filters), carried on the stage chips. */
+  preservedParams: Readonly<Record<string, string>>;
 }
 
 const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = [
@@ -40,16 +52,39 @@ const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = 
 ];
 
 /**
+ * How many rows a `show` param opens the list to: a whole number above the
+ * first page, or the first page for anything else.
+ * @param raw - The param, or null when absent.
+ * @returns Rows to show.
+ */
+function parseShown(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > PAGE_SIZE ? n : PAGE_SIZE;
+}
+
+/**
  * List a window's flagged trips, filterable by stage. A single day reads in
  * departure order; a week or month puts the most recent first.
  * @param props - Component props.
  * @param props.trips - The flagged trips.
  * @param props.multiDay - Whether each row names its day.
+ * @param props.stage - The stage filtered to, or null for all.
+ * @param props.basePath - The page path the stage chips link to.
+ * @param props.preservedParams - The page's other params, carried on the chips.
  * @returns The list section.
  */
-export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): JSX.Element {
-  const [stage, setStage] = useState<CancellationStage | null>(null);
-  const [shown, setShown] = useState(PAGE_SIZE);
+export function CancelledTripList({
+  trips,
+  multiDay,
+  stage,
+  basePath,
+  preservedParams,
+}: CancelledTripListProps): JSX.Element {
+  // Seeded from the live URL rather than a server prop: Back restores the page
+  // from the router cache, rendered before `show` was written into the URL.
+  const searchParams = useSearchParams();
+  const [shown, setShown] = useState(() => parseShown(searchParams.get("show")));
+  useUrlParam("show", shown > PAGE_SIZE ? String(shown) : null);
   const ordered = useMemo(() => (multiDay ? [...trips].reverse() : trips), [trips, multiDay]);
   const visible = stage ? ordered.filter((t) => t.stage === stage) : ordered;
   // Key entries for the stages on screen, so no badge is explained in a hover a
@@ -58,14 +93,12 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
   // which is not the same vocabulary as the badges.
   const keyItems: BadgeKeyItem[] = useMemo(() => {
     const shownStages = new Set(visible.slice(0, shown).map((t) => t.stage));
-    return (["before", "mid-trip", "ran"] as const)
-      .filter((s) => shownStages.has(s))
-      .map((s) => ({
-        label: CANCELLATION_BADGE[s],
-        shortLabel: CANCELLATION_BADGE_SHORT[s],
-        className: CANCELLATION_BADGE_CLASS[s],
-        meaning: CANCELLATION_BADGE_MEANING[s],
-      }));
+    return CANCELLATION_STAGES.filter((s) => shownStages.has(s)).map((s) => ({
+      label: CANCELLATION_BADGE[s],
+      shortLabel: CANCELLATION_BADGE_SHORT[s],
+      className: CANCELLATION_BADGE_CLASS[s],
+      meaning: CANCELLATION_BADGE_MEANING[s],
+    }));
   }, [visible, shown]);
   const counts = useMemo(() => {
     const c: Record<CancellationStage, number> = { before: 0, "mid-trip": 0, ran: 0 };
@@ -79,21 +112,18 @@ export function CancelledTripList({ trips, multiDay }: CancelledTripListProps): 
         <h2 className="font-ultra tracking-zero text-at-ink">Cancelled trips</h2>
         <div className="flex flex-wrap gap-1">
           {STAGES.map((s) => (
-            <button
+            <Link
               key={s.label}
-              type="button"
-              aria-pressed={stage === s.key}
-              onClick={() => {
-                setStage(s.key);
-                setShown(PAGE_SIZE);
-              }}
+              href={buildHref(basePath, { ...preservedParams, stage: s.key })}
+              scroll={false}
+              aria-current={stage === s.key ? "true" : undefined}
               className={cn("chip text-xs", stage === s.key ? "chip-on" : "chip-off")}
             >
               {s.label}
               <span className="ml-1 tabular-nums opacity-70">
                 {s.key ? counts[s.key] : trips.length}
               </span>
-            </button>
+            </Link>
           ))}
         </div>
       </div>

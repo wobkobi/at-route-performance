@@ -145,6 +145,12 @@ export default async function VehiclesPage({
   };
   const filters = { mode: mode ?? undefined, school: includeSchool ? "1" : undefined };
   const sortParam = sort === "hours" ? undefined : sort;
+  // How the list is being read, for a vehicle's link to hand back on its way out.
+  const listState = stripUnset({
+    ...filters,
+    sort: sortParam,
+    show: shown > PAGE_SIZE ? String(shown) : undefined,
+  });
   const modePreserved = stripUnset({ ...view, school: filters.school, sort: sortParam });
   const schoolPreserved = stripUnset({ ...view, mode: filters.mode, sort: sortParam });
   const showsTrains = mode === null || mode === "TRAIN";
@@ -227,7 +233,7 @@ export default async function VehiclesPage({
                     <span className="flex items-center gap-2">
                       <ModeIcon mode={v.mode} className="h-4 w-4" />
                       <Link
-                        href={buildHref(`/vehicle/${v.vehicleId}`, view)}
+                        href={buildHref(`/vehicle/${v.vehicleId}`, { ...view, ...listState })}
                         className="text-at-shore hover:underline"
                       >
                         {fleet.get(v.vehicleId)?.label ?? (
