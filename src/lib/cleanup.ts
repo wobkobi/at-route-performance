@@ -53,6 +53,8 @@ export interface CleanupStore {
   deleteSummaries(before: Date): Promise<number>;
   /** Delete off-route sightings taken before the instant; resolves to the count. */
   deleteSightings(before: Date): Promise<number>;
+  /** Delete stop closures that ended before the instant; resolves to the count. */
+  deleteClosures(before: Date): Promise<number>;
   /** On-disk size of data and indexes in MB, and the document count. */
   storage(): Promise<{ dataMB: number; indexMB: number; objects: number }>;
 }
@@ -127,6 +129,16 @@ async function deleteSightings(before: Date): Promise<number> {
 }
 
 /**
+ * Delete stop closures that ended before an instant. One still open stays
+ * however old it is: the closure is still in force.
+ * @param before - The cutoff.
+ * @returns The count deleted.
+ */
+async function deleteClosures(before: Date): Promise<number> {
+  return (await prisma.stopClosure.deleteMany({ where: { to: { lt: before } } })).count;
+}
+
+/**
  * Real on-disk sizes from dbStats (compressed data plus indexes); a per-event
  * byte estimate overstated usage by about 2x.
  * @returns Data and index sizes in MB and the document count.
@@ -153,6 +165,7 @@ export const prismaCleanupStore: CleanupStore = {
   deleteTrips,
   deleteSummaries,
   deleteSightings,
+  deleteClosures,
   storage,
 };
 
@@ -369,7 +382,13 @@ export interface CleanupRunDetail {
   dryRun: boolean;
   /** Why a guard refused, or null. */
   refused: string | null;
-  deleted?: { events: number; trips: number; summaries: number; sightings: number };
+  deleted?: {
+    events: number;
+    trips: number;
+    summaries: number;
+    sightings: number;
+    closures: number;
+  };
   storage?: { usedMB: number; limitMB: number };
 }
 
@@ -408,9 +427,16 @@ export interface CleanupOutcome {
   deletedTrips: number;
   deletedSummaries: number;
   deletedSightings: number;
+  deletedClosures: number;
   /** The first failure among the deletes, or null when all succeeded. */
   firstError: string | null;
-  errors: { events?: string; trips?: string; summaries?: string; sightings?: string };
+  errors: {
+    events?: string;
+    trips?: string;
+    summaries?: string;
+    sightings?: string;
+    closures?: string;
+  };
   /** Storage after the run, and whether it sits past 80% of the allowance. */
   storage: { usedMB: number; dataMB: number; indexMB: number; objects: number; limitMB: number };
   storageWarning: boolean;
@@ -461,6 +487,9 @@ export async function runCleanup(
   const deletedSightings = await attemptDelete(errors, "sightings", () =>
     store.deleteSightings(cutoff),
   );
+  const deletedClosures = await attemptDelete(errors, "closures", () =>
+    store.deleteClosures(cutoff),
+  );
   const deletedSummaries =
     summaryDays === null
       ? 0
@@ -475,7 +504,14 @@ export async function runCleanup(
     deletedTrips,
     deletedSummaries,
     deletedSightings,
-    firstError: errors.events ?? errors.trips ?? errors.summaries ?? errors.sightings ?? null,
+    deletedClosures,
+    firstError:
+      errors.events ??
+      errors.trips ??
+      errors.summaries ??
+      errors.sightings ??
+      errors.closures ??
+      null,
     errors,
     storage: { usedMB, dataMB, indexMB, objects, limitMB },
     storageWarning: usedMB > limitMB * 0.8,

@@ -10,6 +10,7 @@ import {
   cleanAlertHeader,
   extractText,
   getServiceAlerts,
+  REROUTE_EFFECTS,
   type ServiceAlert,
 } from "@/lib/at-alerts";
 import { getRouteModeMap } from "@/lib/data/routes";
@@ -25,9 +26,6 @@ import {
 
 /** A road path as stored, `[lon, lat]` pairs. */
 type Path = [number, number][];
-
-/** Alert effects that mean a route is running somewhere other than its usual path. */
-const REROUTE_EFFECTS = new Set(["DETOUR", "STOP_MOVED", "NO_SERVICE", "MODIFIED_SERVICE"]);
 
 /**
  * Every stored shape by id and by trip-id prefix, held in process for six hours.

@@ -8,7 +8,8 @@
 // trip per service day, and the vehicle feed is joined best-effort so a feed
 // outage leaves rows unnamed rather than failing. The same vehicle read feeds
 // the off-route check (lib/off-route.ts) and the fleet register
-// (lib/fleet-store.ts), both best-effort.
+// (lib/fleet-store.ts), and the stop closures (lib/stop-closures.ts) are recorded
+// last; all three are best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
@@ -20,6 +21,7 @@ import { recordFleet } from "@/lib/fleet-store";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
+import { recordStopClosures } from "@/lib/stop-closure-store";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -33,6 +35,13 @@ type TripRow = Prisma.TripDelayCreateManyInput;
 
 /** Max documents per bulk insert command (well under Mongo's limits). */
 const INSERT_BATCH = 1000;
+
+/**
+ * A poll already this long skips the closure step rather than run longer. Polls
+ * take 8s at the median and 22s at p90, so only the slowest few skip, and each
+ * closure row carries its own evidence, so the next poll makes a skip up.
+ */
+const CLOSURE_STEP_CUTOFF_MS = 60_000;
 
 /**
  * Insert documents into a collection in batches, skipping duplicate-key rows
@@ -393,6 +402,16 @@ export async function POST(req: Request): Promise<NextResponse> {
       return 0;
     });
 
+    const closureCount =
+      Date.now() - startTime > CLOSURE_STEP_CUTOFF_MS
+        ? 0
+        : await recordStopClosures(feed).catch((err: unknown) => {
+            console.warn("[INGEST] Stop closure step failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return 0;
+          });
+
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
 
@@ -405,6 +424,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledTried: cancelledRows.length,
       offRouteInserted: offRouteCount,
       fleetWritten: fleetCount,
+      closuresWritten: closureCount,
     } as {
       inserted: number;
       tried: number;
@@ -414,6 +434,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledTried: number;
       offRouteInserted: number;
       fleetWritten: number;
+      closuresWritten: number;
       debug?: DebugStats;
       sample?: StopRow | TripRow | null;
     };
@@ -441,6 +462,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
       offRouteInserted: offRouteCount,
+      closuresWritten: closureCount,
       duration_ms: duration,
       source: "cron",
     });

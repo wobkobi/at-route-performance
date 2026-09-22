@@ -32,6 +32,20 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.48.0] - 2026-09-23
+
+### Added
+
+- The realtime ingest now keeps a record of stop closures and detours as they happen, for the route
+  diagram to show. A record opens from any of three signs: an AT alert naming a stop as skipped,
+  moved or detoured on a route; AT's feed marking a stop skipped on a run already under way; or a
+  run seen off its road between two stops it did serve. A detour the buses show counts once three
+  runs take it within two hours, and ends once three runs pass through those stops again; one AT
+  announced but three runs drove straight through is marked as disputed. Each record keeps the runs
+  that showed it, so a poll that misses the step is made up by the next one. Nothing on the site
+  shows these yet. The cleanup cron deletes ended records past the retention window, the same as the
+  other collections.
+
 ## [1.47.0] - 2026-09-23
 
 ### Added

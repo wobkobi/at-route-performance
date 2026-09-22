@@ -19,6 +19,11 @@ export interface StopTimeUpdate {
   stop_sequence?: number;
   arrival?: DelayTime;
   departure?: DelayTime;
+  /**
+   * GTFS-RT stop schedule relationship: 0=SCHEDULED, 1=SKIPPED, 2=NO_DATA. AT sends
+   * a SKIPPED stop with no times, sometimes on a trip hours before it starts.
+   */
+  schedule_relationship?: number;
 }
 export interface Trip {
   trip_id: string;
@@ -29,6 +34,8 @@ export interface Trip {
   start_date?: string;
   /** GTFS-RT schedule relationship: 0=SCHEDULED, 1=ADDED, 2=UNSCHEDULED, 3=CANCELED. */
   schedule_relationship?: number;
+  /** GTFS `direction_id`, 0 or 1. */
+  direction_id?: number;
 }
 export interface TripUpdate {
   trip: Trip;
