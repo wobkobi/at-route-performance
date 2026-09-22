@@ -22,7 +22,8 @@ describe("resolveRange", () => {
   });
   it("leaves a window that already starts after the floor alone", () => {
     const { range } = resolveRange("week", "2026-09-14", anchor);
-    expect(range.start.toISOString()).toBe("2026-09-13T12:00:00.000Z");
+    // Mon 14 Sep 2026 04:00 NZST, the week's first service day.
+    expect(range.start.toISOString()).toBe("2026-09-13T16:00:00.000Z");
   });
 });
 

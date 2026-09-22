@@ -222,6 +222,37 @@ describe("resolveWeekNav", () => {
     });
     expect(nav.prevHref).toBeNull();
   });
+  it("keeps 1am on a Monday in the week still running, so prev is the week before it", () => {
+    // Mon 15 Jun 01:00 NZST: Sunday's service day, so this week is still 8 Jun's.
+    const nav = resolveWeekNav({
+      periodParam: null,
+      earliestDay: oldEarliest,
+      makeHref,
+      now: new Date("2026-06-14T13:00:00Z"),
+    });
+    expect(nav.prevHref).toBe("week:2026-06-01");
+  });
+});
+
+describe("resolveMonthNav on the 1st before 4am", () => {
+  /**
+   * Test stub encoding a month period as a recognisable href.
+   * @param period - The month period, or null for the current month.
+   * @returns A stub href like "month:2026-05" or "month:current".
+   */
+  const monthHref = (period: string | null): string => `month:${period ?? "current"}`;
+
+  it("stays on the month still running", () => {
+    // Wed 1 Jul 01:00 NZST: 30 June's service day.
+    const nav = resolveMonthNav({
+      periodParam: null,
+      earliestDay: new Date("2026-01-01T00:00:00Z"),
+      makeHref: monthHref,
+      now: new Date("2026-06-30T13:00:00Z"),
+    });
+    expect(nav.periodLabel).toBe("June 2026");
+    expect(nav.prevHref).toBe("month:2026-05");
+  });
 });
 
 describe("partial periods at the archive floor", () => {

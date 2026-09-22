@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.1] - 2026-09-23
+
+### Fixed
+
+- Weeks and months now run from 4am to 4am like days, so between midnight and 4am on a Monday or the
+  1st the week and month views stay on the one still running, and a week is no longer treated as
+  finished while its Sunday is.
+
 ## [1.49.0] - 2026-09-23
 
 ### Added

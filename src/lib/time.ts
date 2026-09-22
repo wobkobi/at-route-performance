@@ -1,12 +1,12 @@
 // src/lib/time.ts
-// Auckland-timezone date helpers returning UTC half-open windows
-// for calendar days, service days, weeks and months. Offsets are derived per
-// instant via Intl so NZST/NZDT transitions are handled correctly rather than
-// with a fixed offset. The key domain concept is the service day: a transit day
-// runs from 4am to 4am, so a post-midnight run counts under the day it started,
-// and a `YYYY-MM-DD` string is treated as a service date directly (for `?day=`).
-// Rolling windows quantise to service-day boundaries so they cache by day rather
-// than by the instant.
+// Auckland-timezone date helpers returning UTC half-open windows for service
+// days, weeks and months. Offsets are derived per instant via Intl so NZST/NZDT
+// transitions are handled correctly rather than with a fixed offset. The key
+// domain concept is the service day: a transit day runs from 4am to 4am, so a
+// post-midnight run counts under the day it started, and a `YYYY-MM-DD` string
+// is treated as a service date directly (for `?day=`). Weeks and months are
+// runs of whole service days, and rolling windows quantise to service-day
+// boundaries so they cache by day rather than by the instant.
 import { dmY } from "@/lib/format";
 import { NZ_TZ } from "@/lib/nz-tz";
 
@@ -62,21 +62,6 @@ function parseYm(ym: string): Pick<Ymd, "y" | "mo"> {
 }
 
 /**
- * The Auckland-local calendar date of an instant (en-CA formats in ISO order).
- * @param at - The instant to convert.
- * @returns The local year, month (1-12) and day of month.
- */
-function nzLocalYmd(at: Date): Ymd {
-  const ymd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: NZ_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(at);
-  return parseYmd(ymd);
-}
-
-/**
  * Auckland's UTC offset, in minutes, at a given instant (handles NZST/NZDT).
  * @param at - The instant to evaluate.
  * @returns Offset in minutes that, added to UTC, gives Auckland local time.
@@ -102,31 +87,6 @@ function nzOffsetMinutes(at: Date): number {
     Number(parts.second),
   );
   return Math.round((asUTC - at.getTime()) / 60000);
-}
-
-/**
- * Convert an Auckland-local wall-clock date (midnight) to the UTC instant.
- * Midnight is exactly the case a single offset sample gets wrong on a DST-switch
- * day, so this shares {@link nzLocalToUtcAtHour}'s two-pass resolution.
- * @param y - Local full year.
- * @param mo - Local month (1-12).
- * @param d - Local day of month.
- * @returns The UTC Date for that Auckland local midnight.
- */
-function nzLocalToUtc(y: number, mo: number, d: number): Date {
-  return nzLocalToUtcAtHour(y, mo, d, 0);
-}
-
-/**
- * The Auckland-local calendar-day window containing an instant.
- * @param at - Any instant within the target day (defaults to now).
- * @returns UTC `{ start, end }` for that local day.
- */
-export function nzDayRange(at: Date = new Date()): DateRange {
-  const { y, mo, d } = nzLocalYmd(at);
-  const start = nzLocalToUtc(y, mo, d);
-  const end = nzLocalToUtc(y, mo, d + 1);
-  return { start, end };
 }
 
 /** Hour the transit service day starts (Auckland local). */
@@ -304,13 +264,13 @@ export function serviceDayNoon(day: string): Date {
 }
 
 /**
- * The Monday that starts the Auckland-local week containing an instant.
- * Weeks reset on Monday (ISO).
+ * The Monday that starts the week containing an instant's service day. Weeks
+ * reset on Monday (ISO) at 4am, so 1am on a Monday is still the week before.
  * @param at - The instant to label.
  * @returns The week's Monday as `YYYY-MM-DD`.
  */
 export function nzWeekStart(at: Date): string {
-  const { y, mo, d } = nzLocalYmd(at);
+  const { y, mo, d } = parseYmd(nzServiceDayString(at));
   const date = new Date(Date.UTC(y, mo - 1, d));
   // getUTCDay 0 = Sunday; shift so Monday is the week start.
   date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
@@ -318,58 +278,49 @@ export function nzWeekStart(at: Date): string {
 }
 
 /**
- * The Auckland-local week window (Monday 00:00 to the next Monday 00:00).
- * Any date snaps to its week's Monday; defaults to the week containing now.
+ * A week of service days: Monday 4am to the next Monday 4am, so a week holds
+ * exactly the runs of its seven service days. Any date snaps to its week's
+ * Monday; defaults to the week holding the current service day.
  * @param weekStart - The week's Monday as `YYYY-MM-DD` (optional).
- * @returns UTC `{ start, end }` spanning that local week.
+ * @returns UTC `{ start, end }` spanning that week.
  */
 export function nzWeekRange(weekStart?: string): DateRange {
-  let base: Date;
   const m = weekStart?.match(YMD_RE);
-  if (m) {
-    base = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  } else {
-    const { y, mo, d } = nzLocalYmd(new Date());
-    base = new Date(Date.UTC(y, mo - 1, d));
-  }
+  const base = m
+    ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+    : new Date(`${nzServiceDayString()}T00:00:00Z`);
   base.setUTCDate(base.getUTCDate() - ((base.getUTCDay() + 6) % 7)); // snap back to Monday
   const y = base.getUTCFullYear();
   const mo = base.getUTCMonth() + 1;
   const d = base.getUTCDate();
-  return { start: nzLocalToUtc(y, mo, d), end: nzLocalToUtc(y, mo, d + 7) };
+  return {
+    start: nzLocalToUtcAtHour(y, mo, d, SERVICE_START_HOUR),
+    end: nzLocalToUtcAtHour(y, mo, d + 7, SERVICE_START_HOUR),
+  };
 }
 
 /**
- * The Auckland-local calendar-month window. Defaults to the current month.
+ * A month of service days: the 1st's 4am to the next month's 1st at 4am.
+ * Defaults to the month holding the current service day.
  * @param ym - Month like `2026-06` (optional).
- * @returns UTC `{ start, end }` spanning that local month.
+ * @returns UTC `{ start, end }` spanning that month.
  */
 export function nzMonthRange(ym?: string): DateRange {
-  let y: number;
-  let mo: number;
-  const m = ym?.match(YM_RE);
-  if (m) {
-    y = Number(m[1]);
-    mo = Number(m[2]);
-  } else {
-    ({ y, mo } = parseYm(nzMonthKey()));
-  }
-  const start = nzLocalToUtc(y, mo, 1);
-  const end = nzLocalToUtc(mo === 12 ? y + 1 : y, mo === 12 ? 1 : mo + 1, 1);
-  return { start, end };
+  const { y, mo } = parseYm(ym?.match(YM_RE) ? ym : nzMonthKey());
+  return {
+    start: nzLocalToUtcAtHour(y, mo, 1, SERVICE_START_HOUR),
+    end: nzLocalToUtcAtHour(mo === 12 ? y + 1 : y, mo === 12 ? 1 : mo + 1, 1, SERVICE_START_HOUR),
+  };
 }
 
 /**
- * Month key like `2026-06` for an instant, in Auckland local time.
+ * Month key like `2026-06` for an instant's service day, so 1am on the 1st is
+ * still the month before.
  * @param at - The instant to label (default now).
  * @returns The month as `YYYY-MM`.
  */
 export function nzMonthKey(at: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: NZ_TZ,
-    year: "numeric",
-    month: "2-digit",
-  }).format(at);
+  return nzServiceDayString(at).slice(0, 7);
 }
 
 /**
@@ -390,8 +341,8 @@ export function shiftMonth(ym: string, months: number): string {
  * @returns The formatted label.
  */
 export function monthRangeLabel(range: DateRange): string {
-  // The start instant is local midnight on the 1st; nudge a day in so the
-  // formatter can never land in the previous month.
+  // The start instant is 4am on the 1st; nudge a day in so the formatter can
+  // never land in the previous month.
   return new Intl.DateTimeFormat("en-NZ", {
     timeZone: NZ_TZ,
     month: "long",
@@ -417,18 +368,16 @@ export function nzLast7DaysRange(at: Date = new Date()): DateRange {
 
 /**
  * The Auckland service dates (`YYYY-MM-DD`) whose service days start inside a
- * half-open window, earliest first. Handles both midnight-aligned calendar
- * ranges ({@link nzWeekRange}, {@link nzMonthRange}) and 4am service-day-aligned
- * ranges ({@link nzLast7DaysRange}): a service day is included only when its
- * 4am start lies inside `[start, end)`, so a midnight week start no longer
- * drags in the previous service day. Lets the week boards resolve one day at
- * a time.
+ * half-open window, earliest first. A service day is included only when its
+ * 4am start lies inside `[start, end)`, so a window that does not sit on a
+ * service-day edge (a caller's own `from`/`to`) never drags in the day its
+ * start falls in. Lets the week boards resolve one day at a time.
  * @param range - A half-open UTC window.
  * @returns The service dates in the window, earliest first.
  */
 export function serviceDatesInRange(range: DateRange): string[] {
   // The service day containing range.start; when its 4am start precedes the
-  // window (a midnight-aligned range), it belongs to the previous window > skip.
+  // window, it belongs to the previous window > skip.
   let date = nzServiceDayString(range.start);
   if (nzServiceDayRange(date).start < range.start) date = shiftWeek(date, 1);
   const last = nzServiceDayString(new Date(range.end.getTime() - 1));

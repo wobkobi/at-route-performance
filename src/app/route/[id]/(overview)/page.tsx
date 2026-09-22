@@ -346,8 +346,8 @@ export default async function RoutePage({
     mode: routeMode,
   };
 
-  // Week view period: explicit ?period snaps to that calendar week; rolling
-  // default (no param) fetches the 7 most recent records regardless of date.
+  // Week view period: an explicit ?period snaps to that week's seven service
+  // days; the rolling default (no param) covers the last seven, today included.
   const periodParam = isWeekView ? resolveRequestedDay(sp.period) : null;
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
   const weekPeriodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
@@ -396,7 +396,7 @@ export default async function RoutePage({
       buildRouteView(slug, byStop, routeMode),
       getEarliestDataDay(1),
       // Rolling default covers the last seven service days, today included;
-      // a fixed period uses its calendar week.
+      // a fixed period uses its week, Monday 4am to Monday 4am.
       getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
       isWeekView
         ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)

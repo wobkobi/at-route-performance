@@ -222,9 +222,9 @@ export async function getWorstStops(
   revalidate: number,
 ): Promise<WorstStop[]> {
   const { mode = null, includeSchool = false } = filter;
-  // Align midnight-aligned week/month windows to service-day edges so the
-  // worst-stops card counts the same events as the per-day shame boards. A
-  // service-day-aligned range maps to itself, so day callers are unaffected.
+  // Snap the window to whole service days so the worst-stops card counts the
+  // same events as the per-day shame boards. Weeks, months and days already sit
+  // on those edges and map to themselves.
   const days = serviceDatesInRange(range);
   const aligned =
     days.length > 0
