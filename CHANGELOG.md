@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.49.8] - 2026-09-23
+
+### Fixed
+
+- A run or vehicle opened from a live map popup loads like any other link, instead of reloading the
+  whole site.
+
 ## [1.49.7] - 2026-09-23
 
 ### Fixed
