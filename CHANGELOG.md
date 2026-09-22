@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.44.0] - 2026-09-22
+
+### Added
+
+- The trip page's stop list is now a transit map drawn in the route's colour. Stops the run made off
+  its timetable sit on an orange spur where they came in time, not at the end. Stops a detour went
+  around are marked skipped only where GPS put the vehicle off route. A live run greys the legs it
+  has not reached, and the key names only what is on screen.
+
 ## [1.43.0] - 2026-09-22
 
 ### Added

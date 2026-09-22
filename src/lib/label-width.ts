@@ -39,3 +39,19 @@ export function labelWidth(text: string, px: number): number {
   }
   return (em / 1000) * px;
 }
+
+/**
+ * Shorten a label to fit a width, ending it in an ellipsis, since SVG text has
+ * no overflow of its own. Measured in Ultra, which is the widest face the site
+ * loads, so a label drawn in a lighter weight fits with room to spare.
+ * @param text - The label text.
+ * @param px - Font size (px).
+ * @param max - The width it must fit (px).
+ * @returns The text, or its longest prefix that fits with an ellipsis.
+ */
+export function fitLabel(text: string, px: number, max: number): string {
+  if (labelWidth(text, px) <= max) return text;
+  const chars = [...text];
+  while (chars.length > 0 && labelWidth(`${chars.join("").trimEnd()}…`, px) > max) chars.pop();
+  return chars.length > 0 ? `${chars.join("").trimEnd()}…` : "";
+}
