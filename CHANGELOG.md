@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.40.0] - 2026-09-22
+
+### Added
+
+- New Live page (in the top bar): every bus, train and ferry on a run right now on one map, coloured
+  by how late it is, with counts of how many are late, on time or early, and a table of the routes
+  running. Tap a dot to open its run or the vehicle.
+
 ## [1.39.0] - 2026-09-22
 
 ### Added
