@@ -67,7 +67,7 @@ export function cachedWorstStopsOfDay(
  * directly as five services in the hour - the per-stop thresholds need none of
  * the scaling the per-route ones do.
  */
-const MIN_STOP_EVENTS_HOUR = 5;
+export const MIN_STOP_EVENTS_HOUR = 5;
 
 /** Fewest events - so, calling services - a stop needs to qualify for the worst-stops ranking. */
 const MIN_STOP_EVENTS = 20;

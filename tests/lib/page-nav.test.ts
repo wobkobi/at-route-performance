@@ -4,6 +4,7 @@
 import { getMostRecentDataDay } from "@/lib/data";
 import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/data-start";
 import {
+  fillServiceHours,
   filterLiveHours,
   maybeFallbackDay,
   resolveActiveWeekRange,
@@ -12,6 +13,7 @@ import {
   resolveRequestedDay,
   resolveRequestedMonth,
   resolveWeekNav,
+  serviceHourSpan,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { nzServiceDayRange } from "@/lib/time";
@@ -46,6 +48,48 @@ describe("resolveRequestedDay", () => {
     // Leap-day handling: 2024 is a leap year, 2026 is not.
     expect(resolveRequestedDay("2024-02-29")).toBe("2024-02-29");
     expect(resolveRequestedDay("2026-02-29")).toBeNull();
+  });
+});
+
+describe("serviceHourSpan", () => {
+  it("orders post-midnight hours after the evening", () => {
+    expect(serviceHourSpan([23, 6, 1, 12])).toEqual({ first: 6, last: 1 });
+  });
+  it("is null with no hours", () => {
+    expect(serviceHourSpan([])).toBeNull();
+  });
+});
+
+describe("fillServiceHours", () => {
+  // 2026-06-15T22:30Z == 2026-06-16 10:30 NZST: service day 2026-06-16, hour 10.
+  const now = new Date("2026-06-15T22:30:00Z");
+  const rows = [
+    { hour: 6, id: "a" },
+    { hour: 1, id: "b" },
+  ];
+
+  it("covers the shared span in service order, empty where this board had nothing", () => {
+    const slots = fillServiceHours(rows, "2026-06-10", { first: 5, last: 2 }, now);
+    expect(slots.map((s) => s.hour)).toEqual([
+      5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2,
+    ]);
+    expect(slots.find((s) => s.hour === 6)?.row).toEqual(rows[0]);
+    expect(slots.find((s) => s.hour === 1)?.row).toEqual(rows[1]);
+    expect(slots.find((s) => s.hour === 2)?.row).toBeNull();
+  });
+  it("ends where the latest board ends, not at 3am", () => {
+    const slots = fillServiceHours(rows, "2026-06-10", { first: 4, last: 0 }, now);
+    expect(slots.at(-1)?.hour).toBe(0);
+    expect(slots.some((s) => s.hour === 1)).toBe(false);
+  });
+  it("falls back to the rows' own span", () => {
+    const slots = fillServiceHours(rows, "2026-06-10", null, now);
+    expect(slots[0]?.hour).toBe(6);
+    expect(slots.at(-1)?.hour).toBe(1);
+  });
+  it("stops at the current hour on the live day", () => {
+    const slots = fillServiceHours(rows, "2026-06-16", { first: 4, last: 3 }, now);
+    expect(slots.map((s) => s.hour)).toEqual([4, 5, 6, 7, 8, 9, 10]);
   });
 });
 

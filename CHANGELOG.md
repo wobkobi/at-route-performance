@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.36.9] - 2026-09-22
+
+### Fixed
+
+- The trips, routes and stops boards for a day now list the same hours, with an empty row where a
+  board had nothing, so one no longer stops early or skips an hour the others show. The last row of
+  the right-hand column gets its bottom border.
+
 ## [1.36.8] - 2026-09-22
 
 ### Fixed

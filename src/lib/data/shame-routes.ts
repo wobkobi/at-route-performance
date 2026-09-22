@@ -348,7 +348,7 @@ export async function getShameRouteStreaksBatch(
  * quiet hour on the board, high enough that a couple of stray stop readings
  * cannot nominate an hour.
  */
-const MIN_ROUTE_EVENTS_HOUR = 30;
+export const MIN_ROUTE_EVENTS_HOUR = 30;
 
 /**
  * Build the shared route-shame pipeline prefix. Groups by `(routeId, tripId)`
