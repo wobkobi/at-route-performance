@@ -176,78 +176,34 @@ async function RouteRangeBoard({
 }
 
 /**
- * Route-shame page: the worst route for each hour (day view) or service day
- * (week view), derived from arrival-event deviation aggregates.
- * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
- * @returns Page markup.
+ * Day board body: the day's hourly rows, awaited behind the header's Suspense
+ * boundary so the window controls and filters are on screen while the route
+ * queries run.
+ * @param root0 - Props.
+ * @param root0.range - The shown day's 4am-to-4am window.
+ * @param root0.serviceDate - The shown service date.
+ * @param root0.filter - Active mode/school filter.
+ * @param root0.dayWhen - The day as the row copy names it ("today" / "that day").
+ * @param root0.linkDay - The `?day` a row's link carries, or undefined on today.
+ * @returns The board.
  */
-export default async function RoutesShamePage({
-  searchParams,
+async function RouteDayBoard({
+  range,
+  serviceDate,
+  filter,
+  dayWhen,
+  linkDay,
 }: {
-  searchParams?: Promise<ShameSearchParams>;
+  range: DateRange;
+  serviceDate: string;
+  filter: ShameFilter;
+  dayWhen: string;
+  linkDay: string | undefined;
 }): Promise<JSX.Element> {
-  const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
-  const { filter, view, subtitle } = parseShameParams(sp);
-
-  if (view !== "day") {
-    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
-    // behind the header via Suspense. The window is anchored to the latest day
-    // with data, as the home page anchors its own, so this board and the home
-    // card that opens it cover the same days.
-    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
-    const {
-      range: activeRange,
-      period: periodParam,
-      nav: rangeControls,
-    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
-    const isMonth = view === "month";
-    const periodNoun = view;
-    const rangeNav = { window: view, period: periodParam ?? undefined };
-
-    return (
-      <main className="space-y-6">
-        <ShameHeader
-          title={`Worst routes of the ${periodNoun}`}
-          subtitle={`The most off-schedule route of each day · ${subtitle}`}
-          activeTab="route"
-          tabHrefs={{
-            trip: buildShameHref("/shame/trip", rangeNav, filter),
-            route: buildShameHref(BASE, rangeNav, filter),
-            stop: buildShameHref("/shame/stop", rangeNav, filter),
-          }}
-          basePath={BASE}
-          nav={rangeControls}
-          filter={{
-            mode: filter.mode,
-            includeSchool: filter.includeSchool,
-            nav: rangeNav,
-          }}
-        />
-        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
-          <RouteRangeBoard
-            range={activeRange}
-            filter={filter}
-            isMonth={isMonth}
-            periodParam={periodParam}
-          />
-        </Suspense>
-      </main>
-    );
-  }
-
-  // Day view (default): worst route per hour.
-  const shown = await resolveShownDay(resolveRequestedDay(sp.day));
-  const { range, serviceDate } = shown;
-  const [shame, earliestDay, dayHours] = await Promise.all([
+  const [shame, dayHours] = await Promise.all([
     getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
-    getEarliestDataDay(1),
     getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
-  const dayNav = dayRangeNav(shown, earliestDay);
-
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countById(visibleHours, (h) => h.route_id);
@@ -256,8 +212,6 @@ export default async function RoutesShamePage({
     range,
     filter,
   );
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
-  const dayWhen = windowPhrase(dayNav, null);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.route_id}` : null;
@@ -354,6 +308,91 @@ export default async function RoutesShamePage({
     );
 
   return (
+    <ShameBoard
+      layout="day"
+      items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
+      keyOf={(slot) => String(slot.hour)}
+      emptyMessage="No route data recorded for this day."
+      footerMessage="No routes were notably off-schedule during these hours."
+      showFooter={noneNotablyBad}
+      renderRow={renderHourSlot}
+    />
+  );
+}
+
+/**
+ * Route-shame page: the worst route for each hour (day view) or service day
+ * (week view), derived from arrival-event deviation aggregates.
+ * @param root0 - Page props.
+ * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
+ * @returns Page markup.
+ */
+export default async function RoutesShamePage({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<JSX.Element> {
+  const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
+  dropTodayParam(BASE, sp);
+  const { filter, view, subtitle } = parseShameParams(sp);
+
+  if (view !== "day") {
+    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
+    // behind the header via Suspense. The window is anchored to the latest day
+    // with data, as the home page anchors its own, so this board and the home
+    // card that opens it cover the same days.
+    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+    const {
+      range: activeRange,
+      period: periodParam,
+      nav: rangeControls,
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    const isMonth = view === "month";
+    const periodNoun = view;
+    const rangeNav = { window: view, period: periodParam ?? undefined };
+
+    return (
+      <main className="space-y-6">
+        <ShameHeader
+          title={`Worst routes of the ${periodNoun}`}
+          subtitle={`The most off-schedule route of each day · ${subtitle}`}
+          activeTab="route"
+          tabHrefs={{
+            trip: buildShameHref("/shame/trip", rangeNav, filter),
+            route: buildShameHref(BASE, rangeNav, filter),
+            stop: buildShameHref("/shame/stop", rangeNav, filter),
+          }}
+          basePath={BASE}
+          nav={rangeControls}
+          filter={{
+            mode: filter.mode,
+            includeSchool: filter.includeSchool,
+            nav: rangeNav,
+          }}
+        />
+        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+          <RouteRangeBoard
+            range={activeRange}
+            filter={filter}
+            isMonth={isMonth}
+            periodParam={periodParam}
+          />
+        </Suspense>
+      </main>
+    );
+  }
+
+  // Day view (default): worst route per hour.
+  const [shown, earliestDay] = await Promise.all([
+    resolveShownDay(resolveRequestedDay(sp.day)),
+    getEarliestDataDay(1),
+  ]);
+  const { range, serviceDate } = shown;
+  const dayNav = dayRangeNav(shown, earliestDay);
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+
+  return (
     <main className="space-y-6">
       <ShameHeader
         title="Worst routes of the day"
@@ -372,15 +411,15 @@ export default async function RoutesShamePage({
           nav: { day: linkDay },
         }}
       />
-      <ShameBoard
-        layout="day"
-        items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
-        keyOf={(slot) => String(slot.hour)}
-        emptyMessage="No route data recorded for this day."
-        footerMessage="No routes were notably off-schedule during these hours."
-        showFooter={noneNotablyBad}
-        renderRow={renderHourSlot}
-      />
+      <Suspense fallback={<ShameBoardSkeleton layout="day" />}>
+        <RouteDayBoard
+          range={range}
+          serviceDate={serviceDate}
+          filter={filter}
+          dayWhen={windowPhrase(dayNav, null)}
+          linkDay={linkDay}
+        />
+      </Suspense>
     </main>
   );
 }

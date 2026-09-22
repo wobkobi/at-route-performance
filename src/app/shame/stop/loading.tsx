@@ -2,20 +2,19 @@
 // Loading skeleton for the shame stop page.
 
 import { ShameHeaderSkeleton } from "@/components/SkeletonParts";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Shame stop page loading skeleton: the ShameHeader with its window controls and
- * the hourly board. Stop rows have no mode icon, and under the arrivals line they
- * commonly carry "was bad N times today".
+ * Shame stop page loading skeleton: the header alone. Which window is
+ * opening is in the query, which a loading file is not given, so the board is
+ * left to the page's own Suspense fallback rather than drawn here in the wrong
+ * shape.
  * @returns Skeleton layout matching the shame stop page structure.
  */
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
       <ShameHeaderSkeleton />
-      <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
     </main>
   );
 }

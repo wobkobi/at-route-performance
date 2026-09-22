@@ -2,20 +2,19 @@
 // Loading skeleton for the shame trip page.
 
 import { ShameHeaderSkeleton } from "@/components/SkeletonParts";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**
- * Shame trip page loading skeleton: the ShameHeader with its window controls and
- * the hourly board. Trip rows carry the headsign, start time and stop count,
- * which wrap to two lines in a desktop cell and four on a phone.
+ * Shame trip page loading skeleton: the header alone. Which window is
+ * opening is in the query, which a loading file is not given, so the board is
+ * left to the page's own Suspense fallback rather than drawn here in the wrong
+ * shape.
  * @returns Skeleton layout matching the shame trip page structure.
  */
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
       <ShameHeaderSkeleton twoLineSubtitle />
-      <ShameBoardSkeleton layout="day" shape={{ icon: true, mobileLines: 4, gridLines: 2 }} />
     </main>
   );
 }

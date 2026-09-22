@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.50.2] - 2026-09-23
+
+### Changed
+
+- A shame board's title, window controls and filters now appear while its rows are still loading,
+  and the placeholder matches the window you opened.
+
 ## [1.50.1] - 2026-09-23
 
 ### Fixed

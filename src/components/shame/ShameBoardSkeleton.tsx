@@ -37,17 +37,26 @@ export interface ShameRowShape {
 const ONE_LINE: ShameRowShape = { icon: true, mobileLines: 1, gridLines: 1 };
 
 /**
- * The body of one hour row: the `text-sm` hour (with its 1px nudge), the icon,
+ * The body of one row: the `text-sm` label (with its 1px nudge), the icon,
  * a 24px name line over `text-xs` subtitle lines, and the delay value.
  * @param root0 - Props.
  * @param root0.shape - The row's glyphs.
  * @param root0.lines - Subtitle lines for this surface.
+ * @param root0.labelClass - Width of the leading label ("7am", or "Mon 14/09").
  * @returns The row contents.
  */
-function RowBody({ shape, lines }: { shape: ShameRowShape; lines: number }): JSX.Element {
+function RowBody({
+  shape,
+  lines,
+  labelClass,
+}: {
+  shape: ShameRowShape;
+  lines: number;
+  labelClass: string;
+}): JSX.Element {
   return (
     <>
-      <Bone className="mt-px h-5 w-12 shrink-0" />
+      <Bone className={cn("mt-px h-5 shrink-0", labelClass)} />
       {shape.icon && <Bone className="mt-0.5 h-5 w-5 shrink-0 rounded-full" />}
       <div className="min-w-0 flex-1">
         <div className="flex h-6 items-center">
@@ -80,6 +89,9 @@ export function ShameBoardSkeleton({
   layout: "day" | "week";
   shape?: ShameRowShape;
 }): JSX.Element {
+  // A day row's label is an hour ("7am"); a week or month row's is a weekday
+  // and date ("Mon 14/09"), which is half as wide again.
+  const labelClass = layout === "week" ? "w-16" : "w-12";
   /**
    * One single-column row; each carries a top rule, as the real list anchors do.
    * @param i - Row index, for the key.
@@ -87,7 +99,7 @@ export function ShameBoardSkeleton({
    */
   const listRow = (i: number): JSX.Element => (
     <li key={i} className="flex items-start gap-3 border-t border-at-border px-4 py-3">
-      <RowBody shape={shape} lines={shape.mobileLines} />
+      <RowBody shape={shape} lines={shape.mobileLines} labelClass={labelClass} />
     </li>
   );
   if (layout === "week") {
@@ -117,7 +129,7 @@ export function ShameBoardSkeleton({
               style={{ gridColumn: isRight ? 2 : 1, gridRow: rowIdx + 1 }}
             >
               <div className="flex h-full items-start gap-3 px-4 py-3">
-                <RowBody shape={shape} lines={shape.gridLines} />
+                <RowBody shape={shape} lines={shape.gridLines} labelClass={labelClass} />
               </div>
             </li>
           );

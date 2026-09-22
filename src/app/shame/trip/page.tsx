@@ -174,84 +174,31 @@ async function TripRangeBoard({
 }
 
 /**
- * Shame of the Day / Week: the most off-schedule run of each hour (day view) or
- * each service day (week view).
- * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
- * @returns Page markup.
+ * Day board body: the day's hourly rows, awaited behind the header's Suspense
+ * boundary so the window controls and filters are on screen while the run
+ * queries run.
+ * @param root0 - Props.
+ * @param root0.range - The shown day's 4am-to-4am window.
+ * @param root0.serviceDate - The shown service date.
+ * @param root0.filter - Active mode/school filter.
+ * @param root0.dayWhen - The day as the row copy names it ("today" / "that day").
+ * @returns The board.
  */
-export default async function TripShamePage({
-  searchParams,
+async function TripDayBoard({
+  range,
+  serviceDate,
+  filter,
+  dayWhen,
 }: {
-  searchParams?: Promise<ShameSearchParams>;
+  range: DateRange;
+  serviceDate: string;
+  filter: ShameFilter;
+  dayWhen: string;
 }): Promise<JSX.Element> {
-  const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
-  const { filter, view, subtitle } = parseShameParams(sp);
-
-  if (view !== "day") {
-    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
-    // behind the header via Suspense. The window is anchored to the latest day
-    // with data, as the home page anchors its own, so this board and the home
-    // card that opens it cover the same days.
-    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
-    const {
-      range: activeRange,
-      period: periodParam,
-      nav: rangeControls,
-    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
-    const periodNoun = view;
-    const rangeNav = { window: view, period: periodParam ?? undefined };
-
-    return (
-      <main className="space-y-6">
-        <ShameHeader
-          title={`Worst trips of the ${periodNoun}`}
-          subtitle={`The most off-schedule run of each day · ${subtitle}`}
-          activeTab="trip"
-          tabHrefs={{
-            trip: buildShameHref(BASE, rangeNav, filter),
-            route: buildShameHref("/shame/route", rangeNav, filter),
-            stop: buildShameHref("/shame/stop", rangeNav, filter),
-          }}
-          basePath={BASE}
-          nav={rangeControls}
-          filter={{
-            mode: filter.mode,
-            includeSchool: filter.includeSchool,
-            nav: rangeNav,
-          }}
-        />
-        <Suspense
-          fallback={
-            <ShameBoardSkeleton
-              layout="week"
-              shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
-            />
-          }
-        >
-          <TripRangeBoard
-            range={activeRange}
-            filter={filter}
-            periodNoun={periodNoun}
-            periodWhen={periodInPhrase(periodNoun, periodParam)}
-          />
-        </Suspense>
-      </main>
-    );
-  }
-
-  // Day view (default): worst trip per hour.
-  const shown = await resolveShownDay(resolveRequestedDay(sp.day));
-  const { range, serviceDate } = shown;
-  const [shame, earliestDay, dayHours] = await Promise.all([
+  const [shame, dayHours] = await Promise.all([
     getShameOfDay(range, filter, TODAY_REVALIDATE),
-    getEarliestDataDay(1),
     getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
-  const dayNav = dayRangeNav(shown, earliestDay);
-
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countById(visibleHours, (h) => h.route_id);
@@ -260,8 +207,6 @@ export default async function TripShamePage({
     range,
     filter,
   );
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
-  const dayWhen = windowPhrase(dayNav, null);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.trip_id}` : null;
@@ -353,6 +298,97 @@ export default async function TripShamePage({
     );
 
   return (
+    <ShameBoard
+      layout="day"
+      items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
+      keyOf={(slot) => String(slot.hour)}
+      emptyMessage="No runs recorded for this day."
+      footerMessage="No runs were notably off-schedule during these hours."
+      showFooter={noneNotablyBad}
+      renderRow={renderHourSlot}
+    />
+  );
+}
+
+/**
+ * Shame of the Day / Week: the most off-schedule run of each hour (day view) or
+ * each service day (week view).
+ * @param root0 - Page props.
+ * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
+ * @returns Page markup.
+ */
+export default async function TripShamePage({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<JSX.Element> {
+  const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
+  dropTodayParam(BASE, sp);
+  const { filter, view, subtitle } = parseShameParams(sp);
+
+  if (view !== "day") {
+    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
+    // behind the header via Suspense. The window is anchored to the latest day
+    // with data, as the home page anchors its own, so this board and the home
+    // card that opens it cover the same days.
+    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+    const {
+      range: activeRange,
+      period: periodParam,
+      nav: rangeControls,
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    const periodNoun = view;
+    const rangeNav = { window: view, period: periodParam ?? undefined };
+
+    return (
+      <main className="space-y-6">
+        <ShameHeader
+          title={`Worst trips of the ${periodNoun}`}
+          subtitle={`The most off-schedule run of each day · ${subtitle}`}
+          activeTab="trip"
+          tabHrefs={{
+            trip: buildShameHref(BASE, rangeNav, filter),
+            route: buildShameHref("/shame/route", rangeNav, filter),
+            stop: buildShameHref("/shame/stop", rangeNav, filter),
+          }}
+          basePath={BASE}
+          nav={rangeControls}
+          filter={{
+            mode: filter.mode,
+            includeSchool: filter.includeSchool,
+            nav: rangeNav,
+          }}
+        />
+        <Suspense
+          fallback={
+            <ShameBoardSkeleton
+              layout="week"
+              shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
+            />
+          }
+        >
+          <TripRangeBoard
+            range={activeRange}
+            filter={filter}
+            periodNoun={periodNoun}
+            periodWhen={periodInPhrase(periodNoun, periodParam)}
+          />
+        </Suspense>
+      </main>
+    );
+  }
+
+  // Day view (default): worst trip per hour.
+  const [shown, earliestDay] = await Promise.all([
+    resolveShownDay(resolveRequestedDay(sp.day)),
+    getEarliestDataDay(1),
+  ]);
+  const { range, serviceDate } = shown;
+  const dayNav = dayRangeNav(shown, earliestDay);
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+
+  return (
     <main className="space-y-6">
       <ShameHeader
         title="Worst trips of the day"
@@ -371,15 +407,18 @@ export default async function TripShamePage({
           nav: { day: linkDay },
         }}
       />
-      <ShameBoard
-        layout="day"
-        items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
-        keyOf={(slot) => String(slot.hour)}
-        emptyMessage="No runs recorded for this day."
-        footerMessage="No runs were notably off-schedule during these hours."
-        showFooter={noneNotablyBad}
-        renderRow={renderHourSlot}
-      />
+      <Suspense
+        fallback={
+          <ShameBoardSkeleton layout="day" shape={{ icon: true, mobileLines: 4, gridLines: 2 }} />
+        }
+      >
+        <TripDayBoard
+          range={range}
+          serviceDate={serviceDate}
+          filter={filter}
+          dayWhen={windowPhrase(dayNav, null)}
+        />
+      </Suspense>
     </main>
   );
 }
