@@ -4,6 +4,13 @@ All notable changes to this project. Versions follow [semantic versioning](https
 pre-1.0, new capabilities bump the minor and fixes/chores bump the patch. Merge commits and
 local-only exploratory scripts are omitted.
 
+## [1.32.5] - 2026-09-22
+
+### Changed
+
+- Deployments store about half as much server code: the API routes share one function bundle instead
+  of three.
+
 ## [1.32.4] - 2026-09-22
 
 ### Changed

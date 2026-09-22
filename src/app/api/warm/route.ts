@@ -15,9 +15,9 @@ import { nzServiceDayString } from "@/lib/time";
 import { forEachLimited, pageWarmPaths } from "@/lib/warm";
 import { after, NextResponse } from "next/server";
 
-// Seven cold days of seven pages can run for minutes on the first night; the
-// page renders happen after the 202 is sent, inside this budget.
-export const maxDuration = 300;
+// No maxDuration here: the project default is already 300s, and any
+// route-level value splits this route into its own function bundle, each
+// carrying its own ~40MB copy of the Prisma engine.
 
 /**
  * Page renders in flight at once. Each cold render runs several day-sized

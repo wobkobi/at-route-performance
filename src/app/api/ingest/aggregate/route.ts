@@ -19,9 +19,9 @@ import { resolveRequestedDay } from "@/lib/page-nav";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
 import { after, NextResponse } from "next/server";
 
-// Three days of ghost pass plus rollup can run past the default; the work
-// happens after the 202 is sent, inside this budget.
-export const maxDuration = 300;
+// No maxDuration here: the project default is already 300s, and any
+// route-level value splits this route into its own function bundle, each
+// carrying its own ~40MB copy of the Prisma engine.
 
 /**
  * Roll each service date up in turn, recording one IngestRun per day. Invoked

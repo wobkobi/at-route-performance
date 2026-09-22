@@ -15,8 +15,9 @@ import { syncRoutes, syncStops } from "@/lib/ingest";
 import { recordIngestRun } from "@/lib/ingest-run";
 import { after, NextResponse } from "next/server";
 
-// Static GTFS sync touches thousands of rows; give it headroom over the default.
-export const maxDuration = 60;
+// No maxDuration here: the project default is already 300s, and any
+// route-level value splits this route into its own function bundle, each
+// carrying its own ~40MB copy of the Prisma engine.
 
 /**
  * Run the routes + stops sync and record the outcome. Invoked via `after` so
