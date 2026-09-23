@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.56.3] - 2026-09-24
+
+### Changed
+
+- Added: the 50 busiest route pages are prerendered, so a link prefetch of one answers from the CDN
+  instead of rendering against the database. Route prefetches were the single biggest path in
+  production traffic.
+
 ## [1.56.2] - 2026-09-24
 
 ### Fixed

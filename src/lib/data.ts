@@ -39,6 +39,7 @@ export { getRouteStopSplit } from "@/lib/data/route-stop-split";
 export {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
+  getBusiestRouteSlugs,
   getDirectoryRoutes,
   getRouteNames,
   ownRouteIds,
