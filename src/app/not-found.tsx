@@ -38,6 +38,13 @@ const PAGES = [
   { href: "/vehicles", icon: FaBus, label: "Vehicles" },
 ] as const;
 
+// Not yet converted to a prerendered shell: the route list is read above any
+// Suspense boundary, so this segment is allowed to block, as the thirteen real
+// pages are. Without it a build cannot prerender this page at all unless the
+// route read happens to answer, which is why CI - which builds with no
+// DATABASE_URL - could not build it.
+export const instant = false;
+
 /**
  * Global 404 page - rendered by Next.js when `notFound()` is called from any
  * route or stop page, or when a path matches no route segment. Loads the route

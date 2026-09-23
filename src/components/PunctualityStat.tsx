@@ -12,7 +12,15 @@ import {
   ON_TIME_LATE_SEC,
   type CancellationBasis,
 } from "@/lib/on-time";
-import { useId, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 /**
  * CSS width for a share-bar segment from a percentage (clamped at 0).
@@ -200,6 +208,16 @@ export function PunctualityInfo({
     setOpen(false);
     buttonRef.current?.focus();
   };
+
+  // Leaving the page no longer unmounts it: a route navigated away from is held
+  // hidden, so an open popover would still be open on the way back, over figures
+  // the reader never asked it about. Effects are torn down when the route hides,
+  // so closing from a cleanup catches it. `setOpen` rather than `close`, because
+  // moving focus to a hidden button would take it off the page being opened.
+  useEffect(() => {
+    if (!open) return;
+    return () => setOpen(false);
+  }, [open]);
 
   /**
    * Close on Escape from the button or from inside the popover.

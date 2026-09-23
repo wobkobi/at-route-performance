@@ -46,6 +46,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
 /**
  * Per-trip page title, so a tab and a shared link name the route and, when the
  * link carries one, the day the run ran.

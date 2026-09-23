@@ -27,6 +27,7 @@ import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
+  getBusiestRouteSlugs,
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
@@ -77,6 +78,65 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
+/**
+ * How many route pages are prerendered at build.
+ *
+ * Every route not listed still works; its prefetch is answered by a fresh
+ * render instead of the CDN, which is what every route did before this existed.
+ * So the number is a spend, not a limit: each one is build time and stored
+ * output, and the return falls away past the routes boards actually link to.
+ */
+const PRERENDERED_ROUTES = 50;
+
+/**
+ * Routes prerendered when the database cannot be read at build.
+ *
+ * A build has to produce at least one param or Next fails the route with
+ * `empty-generate-static-params`, and CI builds with no `DATABASE_URL` at all -
+ * the property that lets a deploy proceed while the NAS is unreachable. These
+ * are the busiest slugs at the time of writing, all of them long-lived lines
+ * (the Link services, the Northern Express, the top frequent routes), so a
+ * stale list still names routes that exist.
+ */
+const FALLBACK_ROUTES = [
+  "70",
+  "INN",
+  "OUT",
+  "E-W",
+  "33",
+  "75",
+  "18",
+  "S-C",
+  "65",
+  "NX1",
+  "NX2",
+  "CTY",
+];
+
+/**
+ * The route pages to prerender, busiest first.
+ *
+ * Prefetches were 93% of production traffic and `/route/[id]` was the single
+ * biggest path in it. A prefetch of a route that was not prerendered has to be
+ * rendered on demand, because the answer belongs to one id and nothing generic
+ * is on hand to serve; a prerendered one is a CDN hit that never reaches the
+ * database. The shells are identical and hold no route data - the prerender
+ * stops at this segment's loading skeleton - so what listing an id buys is a
+ * cache entry under its path, not any of its figures.
+ * @returns Params for the busiest routes, or the fallback list if unreadable.
+ */
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  const slugs = await getBusiestRouteSlugs(PRERENDERED_ROUTES).catch(
+    readFallback("busiest-route-slugs", [] as string[]),
+  );
+  return (slugs.length > 0 ? slugs : FALLBACK_ROUTES).map((id) => ({ id }));
+}
 
 /** Trips shown per page on the "of the day" board. */
 const PAGE_SIZE = 10;

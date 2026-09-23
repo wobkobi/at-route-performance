@@ -32,6 +32,36 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.56.3] - 2026-09-24
+
+### Changed
+
+- Added: the 50 busiest route pages are prerendered, so a link prefetch of one answers from the CDN
+  instead of rendering against the database. Route prefetches were the single biggest path in
+  production traffic.
+
+## [1.56.2] - 2026-09-24
+
+### Fixed
+
+- Fixed: a build with no DATABASE_URL failed on the 404 page, which broke CI's build step and the
+  Dependabot auto-merge signal.
+
+## [1.56.1] - 2026-09-24
+
+### Fixed
+
+- The on-time breakdown popover closes when you navigate away, instead of reappearing open on the
+  way back.
+
+## [1.56.0] - 2026-09-24
+
+### Added
+
+- /rankings and /shame are route handlers rather than pages, so both still answer a real redirect: a
+  page flushes its shell before its component runs, which would have turned each into a 200 that a
+  crawler indexes and a reader without JavaScript never follows.
+
 ## [1.55.23] - 2026-09-23
 
 ### Fixed

@@ -66,6 +66,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JSX, ReactNode } from "react";
 
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
 const MODE_NAME: Record<VehicleMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
 
 /** Text colour for a live status band; no live delay stays muted. */

@@ -29,6 +29,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Live now",
   description:
