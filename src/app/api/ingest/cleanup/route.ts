@@ -109,6 +109,7 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
       trips: outcome.deletedTrips,
       summaries: outcome.deletedSummaries,
       sightings: outcome.deletedSightings,
+      closures: outcome.deletedClosures,
     };
 
     console.log("[CLEANUP] Complete", {

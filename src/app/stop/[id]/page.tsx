@@ -1,8 +1,8 @@
 // src/app/stop/[id]/page.tsx
 // Stop detail page showing a single stop's punctuality, worst routes,
-// and map location for a service day. Day-focused like the route page: it falls
-// back to the most recent populated day when the requested one has too few
-// events, and the net-average wording stays mode-less because a stop mixes modes
+// and map location for a service day. Day-focused like the route page: it opens
+// on the same day as every other day page (see resolveShownDay), and the
+// net-average wording stays mode-less because a stop mixes modes
 // (no single on-time window). A station page stands for several GTFS stops, so
 // its alerts and departures are resolved across every platform behind it - AT
 // keys both to raw stop ids, and matching the station's own id hit nothing.
@@ -15,17 +15,14 @@ import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
-import { getStopTrips } from "@/lib/at-stop-trips";
+import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
-import { hasEarlierDay, routeLinkQuery } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek, type DateRange } from "@/lib/time";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
@@ -42,7 +39,8 @@ interface StopSearchParams {
 /**
  * Per-stop page title, so a tab and a shared link name the stop rather than
  * repeating the site title. The shared link's card and title name the day the
- * link carries.
+ * link carries. The name comes from the same stats read as the page's, on the
+ * same shown day, so the two share one cached query.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id }`.
  * @param root0.searchParams - Optional query params (`day`).
@@ -62,11 +60,12 @@ export async function generateMetadata({
   } catch {
     id = raw;
   }
-  const range = nzServiceDayRange(new Date());
+  const sp = (await searchParams) ?? {};
+  const { range } = await resolveShownDay(resolveRequestedDay(sp.day));
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(() => null);
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
-  const card = parseStopCard(id, (await searchParams) ?? {});
+  const card = parseStopCard(id, sp);
   const description = `On-time performance at ${name} against Auckland Transport's published schedule.`;
   return {
     title: name,
@@ -78,8 +77,8 @@ export async function generateMetadata({
 /**
  * Stop detail page: how a single stop performed across every route on a service
  * day - overall punctuality, the worst routes calling there, and the stop's spot
- * on the map. Day-focused like the route page, falling back to the most recent
- * day with data.
+ * on the map. Day-focused like the route page, opening on the day every other
+ * day page opens on.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id }`.
  * @param root0.searchParams - Optional query params (`day`).
@@ -115,41 +114,22 @@ export default async function StopPage({
   clampDayParam(`/stop/${encodeURIComponent(id)}`, sp);
   dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
 
-  const requestedDay = resolveRequestedDay(sp.day);
-  let range: DateRange = nzServiceDayRange(requestedDay ?? new Date());
-  let serviceDate = nzServiceDayString(range.start);
   // Start the alerts fetch early so it overlaps the stats query. The banner is
   // awaited rather than streamed: it sits above the page's content, and letting
   // it pop in afterwards shoved everything below it down as the reader arrived.
   const alertsPromise = getServiceAlerts();
-  // getEarliestDataDay is independent of the stop query - fire both immediately.
-  const [initialStats, earliestDay] = await Promise.all([
-    getStopStats(id, range, THRESHOLD_SEC, REVALIDATE),
+  // getEarliestDataDay is independent of the day and the stop query.
+  const [shown, earliestDay] = await Promise.all([
+    resolveShownDay(resolveRequestedDay(sp.day)),
     getEarliestDataDay(1),
   ]);
-  let stats = initialStats;
+  const { range, serviceDate } = shown;
+  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
   if (!stats) notFound();
-  // Fall back to the most recent populated day only when no day was requested.
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    (stats.summary?.events ?? 0) === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    const refreshed = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
-    if (refreshed) stats = refreshed;
-  }
 
-  const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
-  const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? `/stop/${encodeURIComponent(id)}`
-      : undefined;
+  const nav = dayRangeNav(shown, earliestDay);
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
-  const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+  const linkDay = nav.isToday ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
   const routeNameMap = new Map(routes.map((r) => [r.route_id, r.short_name ?? null]));
@@ -173,10 +153,11 @@ export default async function StopPage({
           basePath={`/stop/${encodeURIComponent(id)}`}
           serviceDate={serviceDate}
           preservedParams={{}}
-          hasPrev={hasPrevDay}
-          atFloor={serviceDate === DATA_START_DAY}
-          hasNext={hasNextDay}
-          nextHref={nextDayHref}
+          hasPrev={nav.hasPrev}
+          atFloor={nav.atFloor}
+          hasNext={nav.hasNext}
+          nextHref={nav.nextIsToday ? `/stop/${encodeURIComponent(id)}` : undefined}
+          nextPending={nav.nextPending}
         />
       </header>
 
@@ -283,11 +264,7 @@ async function StopScheduleSection({
   );
   const byTrip = new Map<string, (typeof perStop)[number][number]>();
   for (const d of perStop.flat()) if (!byTrip.has(d.tripId)) byTrip.set(d.tripId, d);
-  const departures = [...byTrip.values()].sort((a, b) => {
-    if (!a.departureTime) return 1;
-    if (!b.departureTime) return -1;
-    return a.departureTime < b.departureTime ? -1 : a.departureTime > b.departureTime ? 1 : 0;
-  });
+  const departures = [...byTrip.values()].sort(byServiceDeparture);
   return <StopSchedule departures={departures} routeNames={routeNames} serviceDate={serviceDate} />;
 }
 

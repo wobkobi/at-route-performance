@@ -1,34 +1,37 @@
 // src/app/shame/stop/page.tsx
 // Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
 
-import { ShameBoard, ShameEmptyHourRow, type ShameRowContext } from "@/components/shame/ShameBoard";
+import {
+  ShameBoard,
+  ShameEmptyHourRow,
+  ShameHourLabel,
+  type ShameRowContext,
+} from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
+  getLatestEventDate,
   getShameDayHours,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
   MIN_STOP_EVENTS_HOUR,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
   filterLiveHours,
-  maybeFallbackDay,
-  resolveRangeView,
   resolveRequestedDay,
+  resolveShownDay,
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page-nav";
-import { hasEarlierDay, weekPeriodOf } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
 import {
   buildShameHref,
   countById,
@@ -39,14 +42,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import {
-  nzHourLabel,
-  nzServiceDayRange,
-  nzServiceDayString,
-  shiftWeek,
-  weekdayShort,
-  type DateRange,
-} from "@/lib/time";
+import { weekdayShort, type DateRange } from "@/lib/time";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -90,19 +86,24 @@ function badTimes(count: number): string {
  * @param root0.range - The active window.
  * @param root0.filter - Active mode/school filter.
  * @param root0.periodNoun - Copy noun for the period ("week" / "month").
+ * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function StopRangeBoard({
   range,
   filter,
   periodNoun,
+  periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
   periodNoun: "week" | "month";
+  periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);
-  const worstId = shame.worst?.stop_id ?? null;
+  // Crowned by day, not by stop: a stop that tops several days wins one of them,
+  // and its other rows are ordinary rows.
+  const worstKey = shame.worst?.date ?? null;
   const stopDayCounts = countById(shame.days, (d) => d.stop_id);
 
   /**
@@ -112,7 +113,7 @@ async function StopRangeBoard({
    * @returns The row anchor element.
    */
   const renderWeekRow = (s: ShameDayStop, ctx: ShameRowContext): JSX.Element => {
-    const isWorst = s.stop_id === worstId;
+    const isWorst = s.date === worstKey;
     const [, m, d] = s.date.split("-");
     const dayLabel = weekdayShort(s.date);
     const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
@@ -132,7 +133,7 @@ async function StopRangeBoard({
           <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {weekCount > 1 && (
             <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(weekCount)} this {periodNoun}
+              {s.name} was bad {badTimes(weekCount)} in {periodWhen}
             </span>
           )}
         </span>
@@ -158,119 +159,41 @@ async function StopRangeBoard({
 }
 
 /**
- * Worst Stop of the Day / Week: the most off-schedule stop of each hour (day
- * view) or each service day (week view). Mirrors the Shame of the Day page but
- * for stops rather than trips.
- * @param root0 - Page props.
- * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
- * @returns Page markup.
+ * Day board body: the day's hourly rows, awaited behind the header's Suspense
+ * boundary so the window controls and filters are on screen while the stop
+ * queries run.
+ * @param root0 - Props.
+ * @param root0.range - The shown day's 4am-to-4am window.
+ * @param root0.serviceDate - The shown service date.
+ * @param root0.filter - Active mode/school filter.
+ * @param root0.dayWhen - The day as the row copy names it ("today" / "that day").
+ * @param root0.linkDay - The `?day` a row's link carries, or undefined on today.
+ * @returns The board.
  */
-export default async function StopShamePage({
-  searchParams,
+async function StopDayBoard({
+  range,
+  serviceDate,
+  filter,
+  dayWhen,
+  linkDay,
 }: {
-  searchParams?: Promise<ShameSearchParams>;
+  range: DateRange;
+  serviceDate: string;
+  filter: ShameFilter;
+  dayWhen: string;
+  linkDay: string | undefined;
 }): Promise<JSX.Element> {
-  const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
-  const { filter, view, preserved } = parseShameParams(sp);
-
-  if (view !== "day") {
-    /**
-     * Build a link to this view for a period, preserving the active filter.
-     * @param period - ISO week-start date or `YYYY-MM` month key, or null for the rolling default.
-     * @returns The href.
-     */
-    const rangeHref = (period: string | null): string =>
-      buildShameHref(BASE, { window: view, period: period ?? undefined }, filter);
-    // Cheap cached bound for the stepper; the heavy per-day fan-out streams in
-    // behind the header via Suspense.
-    const earliestDay = await getEarliestDataDay(1);
-    const { isMonth, periodNoun, periodParam, activeRange, periodLabel, prevHref, nextHref } =
-      resolveRangeView(view, sp.period, earliestDay, rangeHref);
-    const rangeNav = { window: view, period: periodParam ?? undefined };
-
-    return (
-      <main className="space-y-6">
-        <ShameHeader
-          title={`Worst Stop of the ${isMonth ? "Month" : "Week"}`}
-          subtitle="The most off-schedule stop of each day"
-          activeTab="stop"
-          tabHrefs={{
-            trip: buildShameHref("/shame/trip", rangeNav, filter),
-            route: buildShameHref("/shame/route", rangeNav, filter),
-            stop: buildShameHref(BASE, rangeNav, filter),
-          }}
-          filter={{
-            basePath: BASE,
-            mode: filter.mode,
-            includeSchool: filter.includeSchool,
-            nav: rangeNav,
-          }}
-          nav={{
-            kind: "week",
-            unit: periodNoun,
-            // A stepped-back week's Day opens its Monday; a month opens today.
-            dayToggleHref: buildShameHref(
-              BASE,
-              { day: isMonth ? undefined : (periodParam ?? undefined) },
-              filter,
-            ),
-            periodLabel,
-            prevHref,
-            nextHref,
-          }}
-        />
-        <Suspense
-          fallback={
-            <ShameBoardSkeleton
-              layout="week"
-              shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
-            />
-          }
-        >
-          <StopRangeBoard range={activeRange} filter={filter} periodNoun={periodNoun} />
-        </Suspense>
-      </main>
-    );
-  }
-
-  // Day view: worst stop per hour.
-  const requestedDay = resolveRequestedDay(sp.day);
-  const initialRange = nzServiceDayRange(requestedDay ?? new Date());
-  const [initialShame, earliestDay] = await Promise.all([
-    getWorstStopsOfDay(initialRange, filter, TODAY_REVALIDATE),
-    getEarliestDataDay(1),
+  const [shame, dayHours] = await Promise.all([
+    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
+    getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
-  let range = initialRange;
-  let serviceDate = nzServiceDayString(range.start);
-  let shame = initialShame;
-  const fallbackDay = await maybeFallbackDay(
-    requestedDay,
-    shame.hours.length === 0,
-    MIN_BOARD_EVENTS,
-  );
-  if (fallbackDay) {
-    range = nzServiceDayRange(fallbackDay);
-    serviceDate = nzServiceDayString(range.start);
-    shame = await getWorstStopsOfDay(range, filter, TODAY_REVALIDATE);
-  }
-
-  const hasNextDay = serviceDate < nzServiceDayString();
-  const hasPrevDay = hasEarlierDay(serviceDate, earliestDay);
-
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
-  const daySpan = serviceHourSpan(await getShameDayHours(range, filter, TODAY_REVALIDATE));
+  const daySpan = serviceHourSpan(dayHours);
   const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
-  const linkDay = serviceDate !== nzServiceDayString() ? serviceDate : undefined;
-  const nextDayHref =
-    hasNextDay && shiftWeek(serviceDate, 1) === nzServiceDayString()
-      ? buildShameHref(BASE, {}, filter)
-      : undefined;
 
   const worst = pickWorst(visibleHours);
-  const worstId = worst && isCrownable(worst) ? worst.stop_id : null;
-  const noneNotablyBad = visibleHours.length > 0 && worstId === null;
+  const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.stop_id}` : null;
+  const noneNotablyBad = visibleHours.length > 0 && worstKey === null;
 
   /**
    * Render one day-view hour row.
@@ -279,16 +202,14 @@ export default async function StopShamePage({
    * @returns The row anchor element.
    */
   const renderDayRow = (s: ShameStop, ctx: ShameRowContext): JSX.Element => {
-    const isWorst = s.stop_id === worstId;
+    const isWorst = worstKey === `${s.hour}-${s.stop_id}`;
     const hourCount = stopHourCounts.get(s.stop_id) ?? 0;
     return (
       <Link
         href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
-        <span className="w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
-          {nzHourLabel(s.hour)}
-        </span>
+        <ShameHourLabel hour={s.hour} serviceDate={serviceDate} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="font-semibold text-at-ink">{s.name}</span>
@@ -297,7 +218,7 @@ export default async function StopShamePage({
           <span className="block text-xs text-at-muted">{s.events} arrivals</span>
           {hourCount > 1 && (
             <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(hourCount)} today
+              {s.name} was bad {badTimes(hourCount)} {dayWhen}
             </span>
           )}
         </span>
@@ -323,7 +244,8 @@ export default async function StopShamePage({
       renderDayRow(slot.row, ctx)
     ) : (
       <ShameEmptyHourRow
-        label={nzHourLabel(slot.hour)}
+        hour={slot.hour}
+        serviceDate={serviceDate}
         title="No stop fits this hour"
         reason={`No stop had ${MIN_STOP_EVENTS_HOUR} arrivals this hour`}
         ctx={ctx}
@@ -331,47 +253,129 @@ export default async function StopShamePage({
     );
 
   return (
+    <ShameBoard
+      layout="day"
+      items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
+      keyOf={(slot) => String(slot.hour)}
+      emptyMessage="No stop data recorded for this day."
+      footerMessage="No stops were notably off-schedule during these hours."
+      showFooter={noneNotablyBad}
+      renderRow={renderHourSlot}
+    />
+  );
+}
+
+/**
+ * Worst Stop of the Day / Week: the most off-schedule stop of each hour (day
+ * view) or each service day (week view). Mirrors the Shame of the Day page but
+ * for stops rather than trips.
+ * @param root0 - Page props.
+ * @param root0.searchParams - Optional query params (`day`, `window`, `period`).
+ * @returns Page markup.
+ */
+export default async function StopShamePage({
+  searchParams,
+}: {
+  searchParams?: Promise<ShameSearchParams>;
+}): Promise<JSX.Element> {
+  const sp = (await searchParams) ?? {};
+  clampDayParam(BASE, sp);
+  dropTodayParam(BASE, sp);
+  const { filter, view, subtitle } = parseShameParams(sp);
+
+  if (view !== "day") {
+    // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
+    // behind the header via Suspense. The window is anchored to the latest day
+    // with data, as the home page anchors its own, so this board and the home
+    // card that opens it cover the same days.
+    const [latest, earliestDay] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+    const {
+      range: activeRange,
+      period: periodParam,
+      nav: rangeControls,
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    const periodNoun = view;
+    const rangeNav = { window: view, period: periodParam ?? undefined };
+
+    return (
+      <main className="space-y-6">
+        <ShameHeader
+          title={`Worst stops of the ${periodNoun}`}
+          subtitle={`The most off-schedule stop of each day · ${subtitle}`}
+          activeTab="stop"
+          tabHrefs={{
+            trip: buildShameHref("/shame/trip", rangeNav, filter),
+            route: buildShameHref("/shame/route", rangeNav, filter),
+            stop: buildShameHref(BASE, rangeNav, filter),
+          }}
+          basePath={BASE}
+          nav={rangeControls}
+          filter={{
+            mode: filter.mode,
+            includeSchool: filter.includeSchool,
+            nav: rangeNav,
+          }}
+        />
+        <Suspense
+          fallback={
+            <ShameBoardSkeleton
+              layout="week"
+              shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
+            />
+          }
+        >
+          <StopRangeBoard
+            range={activeRange}
+            filter={filter}
+            periodNoun={periodNoun}
+            periodWhen={periodInPhrase(periodNoun, periodParam)}
+          />
+        </Suspense>
+      </main>
+    );
+  }
+
+  // Day view: worst stop per hour.
+  const [shown, earliestDay] = await Promise.all([
+    resolveShownDay(resolveRequestedDay(sp.day)),
+    getEarliestDataDay(1),
+  ]);
+  const { range, serviceDate } = shown;
+  const dayNav = dayRangeNav(shown, earliestDay);
+  const linkDay = dayNav.isToday ? undefined : serviceDate;
+
+  return (
     <main className="space-y-6">
       <ShameHeader
-        title="Worst Stop of the Day"
-        subtitle="The most off-schedule stop of each hour"
+        title="Worst stops of the day"
+        subtitle={`The most off-schedule stop of each hour · ${subtitle}`}
         activeTab="stop"
         tabHrefs={{
           trip: buildShameHref("/shame/trip", { day: linkDay }, filter),
           route: buildShameHref("/shame/route", { day: linkDay }, filter),
           stop: buildShameHref(BASE, { day: linkDay }, filter),
         }}
+        basePath={BASE}
+        nav={dayNav}
         filter={{
-          basePath: BASE,
           mode: filter.mode,
           includeSchool: filter.includeSchool,
           nav: { day: linkDay },
         }}
-        nav={{
-          kind: "day",
-          weekToggleHref: buildShameHref(
-            BASE,
-            { window: "week", period: weekPeriodOf(serviceDate) ?? undefined },
-            filter,
-          ),
-          basePath: BASE,
-          serviceDate,
-          preserved,
-          hasPrev: hasPrevDay,
-          atFloor: serviceDate === DATA_START_DAY,
-          hasNext: hasNextDay,
-          nextHref: nextDayHref,
-        }}
       />
-      <ShameBoard
-        layout="day"
-        items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
-        keyOf={(slot) => String(slot.hour)}
-        emptyMessage="No stop data recorded for this day."
-        footerMessage="No stops were notably off-schedule during these hours."
-        showFooter={noneNotablyBad}
-        renderRow={renderHourSlot}
-      />
+      <Suspense
+        fallback={
+          <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
+        }
+      >
+        <StopDayBoard
+          range={range}
+          serviceDate={serviceDate}
+          filter={filter}
+          dayWhen={windowPhrase(dayNav, null)}
+          linkDay={linkDay}
+        />
+      </Suspense>
     </main>
   );
 }

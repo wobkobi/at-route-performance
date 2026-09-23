@@ -9,9 +9,11 @@
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
+import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
 import type * as Leaflet from "leaflet";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type JSX } from "react";
 
 /** How often to refresh while the tab is visible; the server caches the feed for as long. */
@@ -78,6 +80,7 @@ export default function LiveMap({
   mode: LiveMode | null;
   className?: string;
 }): JSX.Element {
+  const router = useRouter();
   const divRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<{
     L: typeof Leaflet;
@@ -97,9 +100,10 @@ export default function LiveMap({
     void (async () => {
       const L = (await import("leaflet")) as typeof import("leaflet");
       if (dead || !divRef.current) return;
-      // Wheel zoom and one-finger drag off, as on the route maps, so the page
-      // still scrolls past a map that fills a phone screen.
+      // One-finger drag off and the wheel only on a settled mouse, as on the
+      // route maps, so the page still scrolls past a map that fills a screen.
       const map = L.map(divRef.current, { scrollWheelZoom: false, dragging: !L.Browser.mobile });
+      wheelZoomOnHover(map);
       map.setView(AUCKLAND, 11);
       L.tileLayer(
         cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),
@@ -121,6 +125,28 @@ export default function LiveMap({
       mapRef.current = null;
     };
   }, []);
+
+  // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
+  // page afresh. A plain click on a same-site link goes through the router instead; one with a
+  // modifier (new tab, new window) is left to the browser. Listening in the capture phase keeps
+  // it working even if Leaflet stops a click inside a popup from bubbling.
+  useEffect(() => {
+    const div = divRef.current;
+    if (!div) return;
+    /**
+     * Send a plain click on a same-site popup link through the router.
+     * @param e - The click.
+     */
+    const onClick = (e: MouseEvent): void => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target instanceof Element ? e.target.closest("a") : null;
+      if (!a || a.target || a.origin !== window.location.origin) return;
+      e.preventDefault();
+      router.push(`${a.pathname}${a.search}${a.hash}`);
+    };
+    div.addEventListener("click", onClick, true);
+    return () => div.removeEventListener("click", onClick, true);
+  }, [router]);
 
   // Poll while the tab is visible; a return to the tab polls straight away when
   // the last positions are a full poll old.

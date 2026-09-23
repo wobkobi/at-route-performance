@@ -12,7 +12,7 @@ import { FaChartBar, FaExclamationTriangle, FaHome, FaMapMarkerAlt, FaRoute } fr
 const PAGES = [
   { href: "/", icon: FaHome, label: "Overview" },
   { href: "/routes", icon: FaChartBar, label: "Routes" },
-  { href: "/shame", icon: FaExclamationTriangle, label: "Shame of the day" },
+  { href: "/shame/trip", icon: FaExclamationTriangle, label: "Worst trips" },
   { href: "/shame/route", icon: FaRoute, label: "Worst routes" },
   { href: "/shame/stop", icon: FaMapMarkerAlt, label: "Worst stops" },
 ] as const;

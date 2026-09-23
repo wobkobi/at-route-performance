@@ -4,8 +4,8 @@
 // running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
-// RouteExplorer. The day view falls back to the most recent day with data when
-// the current one is too sparse, as the home page does.
+// RouteExplorer. The day view opens on the same day as every other day page
+// (see resolveShownDay).
 
 import { RangeControls } from "@/components/RangeControls";
 import { RouteExplorer } from "@/components/RouteExplorer";
@@ -21,7 +21,7 @@ import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   parseRangeWindow,
@@ -29,12 +29,11 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route-explorer";
 import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time";
 import { getLiveVehicles } from "@/lib/vehicles";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
@@ -96,20 +95,10 @@ export default async function RoutesPage({
   let period: string | null = null;
   const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+    ({ range, serviceDate } = shown);
     rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
-    const fallbackDay = await maybeFallbackDay(
-      requestedDay,
-      !rows.some((r) => r.events >= MIN_BOARD_EVENTS),
-      MIN_BOARD_EVENTS,
-    );
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
-    }
-    serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
+    nav = dayRangeNav(shown, earliest);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/routes",

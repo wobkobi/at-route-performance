@@ -136,6 +136,11 @@ export interface RouteVariant {
   stopIds: string[];
   /** GTFS shape id for the road geometry, when the schedule reports one. */
   shapeId: string | null;
+  /**
+   * Every shape id folded into this variant when others collapsed onto the same stops, so a run
+   * on any of them can be placed. Absent on a variant straight from the schedule.
+   */
+  shapeIds?: string[];
 }
 
 // A route's stopping patterns grouped by direction.

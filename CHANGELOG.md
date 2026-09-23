@@ -32,6 +32,303 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.4] - 2026-09-23
+
+### Fixed
+
+- The five section tabs no longer crowd the logo on a narrow phone.
+
+## [1.54.3] - 2026-09-23
+
+### Fixed
+
+- A held batch can no longer be overwritten by another poll holding one in the same millisecond.
+
+## [1.54.2] - 2026-09-23
+
+### Fixed
+
+- Spool replay no longer stalls on a blob response that carries no body.
+
+## [1.54.1] - 2026-09-23
+
+### Fixed
+
+- The spool's configuration check accepted only a read-write token, so a Blob store connected
+  through OIDC - which sets a store id instead - would have read as no store at all. The spool would
+  then have sat silently off while the configuration looked right, and an outage would still have
+  lost data. Either form now counts.
+
+## [1.54.0] - 2026-09-23
+
+### Added
+
+- A poll that cannot reach the database no longer loses its arrivals. Once the retries run out, the
+  batch is gzipped into a Vercel Blob store, and every later poll replays the spool oldest-first
+  before fetching AT, deleting each batch as it lands. Replay is safe to repeat: the inserts already
+  ignore duplicate keys and the arrivals are upserts keyed on the stop visit, so a batch that partly
+  landed before the outage does nothing the second time. At most 8 batches replay per run so a
+  catch-up cannot collide with the next poll, and a batch older than a day is dropped rather than
+  written over what the nightly aggregate has since settled. The spool needs a Blob store connected
+  to the project; without the token it is off and the ingest behaves as before.
+
+## [1.53.0] - 2026-09-23
+
+### Added
+
+- A route page can now be narrowed to a part of the service day - Early, Morning peak, Midday,
+  Evening peak or Night - with All day as the default. The five presets partition the 4am-4am day
+  exactly once, and Night wraps past midnight, so a bus leaving at 11:30pm counts in the same band
+  as the rest of that evening. Every figure moves together: the summary, the per-stop table, the
+  route map and the buses-of-the-day board, which would otherwise have shown evening runs under a
+  morning-peak heading. A narrowed view stays on measured arrivals alone, because a cancellation is
+  counted per service day and cannot be placed in one hour of it.
+
+## [1.52.1] - 2026-09-23
+
+### Fixed
+
+- The nightly pre-warm now covers the hardest-worked-vehicles page. It has a day stepper like the
+  other warmed pages, so until now its first reader each day paid for the cold render. Three
+  documented claims were corrected against measurement: the realtime ingest's cadence is not a free
+  knob (three constants are pinned to it, and a slower poll degrades every delay figure), a poll
+  takes 2.6s at the median and 12s at p90 rather than the 8s and 22s a code comment claimed, and a
+  cron-job.org failure notice on that job is usually the scheduler's 30s drop rather than a real
+  failure - none of 8,617 polls failed server-side.
+
+## [1.52.0] - 2026-09-23
+
+### Added
+
+- A database outage no longer takes every page to an unstyled error screen. The footer's freshness
+  line now reads "Last update unknown" instead of claiming the site is awaiting its first data, and
+  each page fails through its own error boundary, so the masthead, nav and footer survive an outage.
+  /api/health gained a database field, probed with a five-second bound, so a monitor can watch the
+  database separately from the build - the two fail independently.
+
+## [1.51.2] - 2026-09-23
+
+### Fixed
+
+- The ingest now waits out a database that is unreachable, retrying a write over about 27 seconds
+  instead of giving up at once. AT's feed is a snapshot of where the buses are at that moment and
+  nothing re-fetches it, so a write abandoned during a restart was a permanent hole in the record;
+  only dropped sockets were retried before.
+
+## [1.51.1] - 2026-09-23
+
+### Fixed
+
+- The smoke test now expects /shame to land on the trips board, and it visits the routes board
+  alongside the trips and stops ones.
+
+## [1.51.0] - 2026-09-23
+
+### Added
+
+- The home page now shows a worst trip, a worst route and a worst stop for whichever window is open,
+  each taken from that board's own ranking so the card and the board it names never disagree. The
+  route and stop cards gained the trip card's clean-window state, so a window with nothing bad
+  enough to crown reads green instead of blank.
+
+## [1.50.2] - 2026-09-23
+
+### Changed
+
+- A shame board's title, window controls and filters now appear while its rows are still loading,
+  and the placeholder matches the window you opened.
+
+## [1.50.1] - 2026-09-23
+
+### Fixed
+
+- The shame boards now carry the Day / Week / Month controls the rest of the site uses, so a window
+  switch stays on the day you were reading, and the board tabs say which one you are on.
+
+## [1.50.0] - 2026-09-23
+
+### Added
+
+- The three shame boards now have their own top-bar tab and footer links, and /shame opens the trips
+  board with whatever day, window and filter you arrived with.
+
+## [1.49.9] - 2026-09-23
+
+### Fixed
+
+- The worst-trip, worst-route and worst-stop boards now go by one name each - on the page, in the
+  browser tab and on a shared link - and the worst-stop board marks the one hour or day it crowns
+  instead of every appearance of that stop. The stop board names the filter it is under, and a past
+  week or month is described as such rather than as "this week".
+
+## [1.49.8] - 2026-09-23
+
+### Fixed
+
+- A run or vehicle opened from a live map popup loads like any other link, instead of reloading the
+  whole site.
+
+## [1.49.7] - 2026-09-23
+
+### Fixed
+
+- Back from a trip, a vehicle or anywhere off the Cancellations list lands where you left it: the
+  route's trip board keeps its sort, page and direction, the vehicles list its filters, sort and
+  length, the cancellations list its stage and how far it was opened, and the line diagram its
+  version.
+
+## [1.49.6] - 2026-09-23
+
+### Fixed
+
+- A vehicle's page lights Overview in the top bar, and a section tab lit for a page under it is
+  marked as the current section rather than the current page
+
+## [1.49.5] - 2026-09-23
+
+### Fixed
+
+- Links keep what you were looking at: the home page's week link opens the viewed day's week,
+  cancellations and the shame route board open a route's week on a week or month, live's mode chips
+  keep the full list, the route's day and week toggle keeps its threshold, and vehicle route links
+  go straight to the route
+
+## [1.49.4] - 2026-09-23
+
+### Fixed
+
+- A run that crosses 4am now counts whole, on the day it started, on the trip page, the route's trip
+  board, the stop board, the stop page and cards, and the cancellation stages; an undated trip link
+  opens the day the run started
+
+## [1.49.3] - 2026-09-23
+
+### Fixed
+
+- Pages now say which day they mean. On a past day the shame boards and the home page's worst-trip
+  card say "that day" instead of "today", and the week tab's default reads "over the last 7 days",
+  since it is not the calendar week. The home page's shared-link title names the day the page opens
+  on, and a stop page's title reads the same day as the page. Hovering the date on any day stepper
+  shows the 4am-to-4am window it covers. A run after midnight now says it counts toward the day
+  before: a note on the trip page, a tooltip on the 12am to 3am rows of the shame boards and on the
+  route's trip list, and a line above the late departures in a stop's schedule, which now lists them
+  last instead of first.
+
+## [1.49.2] - 2026-09-23
+
+### Fixed
+
+- Every day page and its shared-link card now opens on the same day. Before today has 2,000 arrivals
+  due (about 5:45am), the home page, the shame boards, Routes, Cancellations, the vehicle pages and
+  each route and stop page all show yesterday, where each page used to decide for itself and a quiet
+  stop could show a different day from the home page. Yesterday's next-day arrow is replaced by
+  "today still starting" until today opens, so it no longer leads back to yesterday.
+
+## [1.49.1] - 2026-09-23
+
+### Fixed
+
+- Weeks and months now run from 4am to 4am like days, so between midnight and 4am on a Monday or the
+  1st the week and month views stay on the one still running, and a week is no longer treated as
+  finished while its Sunday is.
+
+## [1.49.0] - 2026-09-23
+
+### Added
+
+- The route diagram marks the day's recorded stop closures and detours: a strand bends round a stop
+  closed all day on the side of the way it closed, a grey dashed stub marks line no run used,
+  detours the runs took step off in orange (dashed for one or two runs), and an announced detour is
+  dashed along the line. A part-day closure keeps its figure with a star, and notes under the
+  diagram say where, which way, when and what said so. Arrivals timed at a stop while it was closed
+  are left out of its figures.
+
+## [1.48.0] - 2026-09-23
+
+### Added
+
+- The realtime ingest now keeps a record of stop closures and detours as they happen, for the route
+  diagram to show. A record opens from any of three signs: an AT alert naming a stop as skipped,
+  moved or detoured on a route; AT's feed marking a stop skipped on a run already under way; or a
+  run seen off its road between two stops it did serve. A detour the buses show counts once three
+  runs take it within two hours, and ends once three runs pass through those stops again; one AT
+  announced but three runs drove straight through is marked as disputed. Each record keeps the runs
+  that showed it, so a poll that misses the step is made up by the next one. Nothing on the site
+  shows these yet. The cleanup cron deletes ended records past the retention window, the same as the
+  other collections.
+
+## [1.47.0] - 2026-09-23
+
+### Added
+
+- The route page's line diagram is now a strip map. The line runs down the page carrying both
+  directions, and each stop's ring is split in two: the left half for runs reading down the list and
+  the right half for runs reading up it, each in the colour of that direction's average delay that
+  day, and dashed where that direction doesn't stop. Two figure columns beside the names give each
+  direction's delay, headed by where its runs end, or Clockwise and Anticlockwise on a circuit run
+  both ways. Where a route has more than one version, chips pick one: the stops it doesn't use go
+  grey, and the figures become that version's runs alone. The direction chip at the top of the page
+  dims the other direction instead of redrawing, so no stop moves. A long route splits into two
+  columns on a wide screen, and on a phone a long stop name wraps onto a second line. The week view
+  draws the line without figures, since figures per stop are kept for a single day. The old snake
+  diagram is gone.
+
+## [1.46.0] - 2026-09-23
+
+### Added
+
+- The route diagram v2 now has its layout. Both directions merge into one list of stops, with a
+  stop's two sides of the road on one row. The version that reaches the most stops runs straight
+  down, and stops only other versions reach sit on a track beside it. A loop such as the Southern
+  line's city loop is drawn as a lasso, and a circuit such as the Inner Link ends on the stop it
+  started from. Every stretch of line is drawn once and knows which versions run along it, so the
+  pieces always meet. Versions are now matched by the names of their ends, since a bus stop has a
+  different id on each side of the road, and one carrying under 5% of a route's runs is listed as a
+  minor version.
+
+## [1.45.0] - 2026-09-23
+
+### Added
+
+- Each stop's figures on a route can now be read per direction and per version (runs with the same
+  two termini), joined through each run's trip record. The route diagram v2 draws from them.
+
+## [1.44.0] - 2026-09-22
+
+### Added
+
+- The trip page's stop list is now a transit map drawn in the route's colour. Stops the run made off
+  its timetable sit on an orange spur where they came in time, not at the end. Stops a detour went
+  around are marked skipped only where GPS put the vehicle off route. A live run greys the legs it
+  has not reached, and the key names only what is on screen.
+
+## [1.43.0] - 2026-09-22
+
+### Added
+
+- The mouse wheel zooms a map once the pointer is resting on it; scrolling the page past a map still
+  scrolls the page.
+
+## [1.42.2] - 2026-09-22
+
+### Fixed
+
+- Every line on a shared-link card is at least 40px, so a card shrunk into a phone's feed can still
+  be read; long names end in an ellipsis instead of wrapping.
+
+## [1.42.1] - 2026-09-22
+
+### Fixed
+
+- The smallest text on the site is 13px, nothing is set under 12px, and the shared-link cards'
+  smaller lines are larger.
+
+## [1.42.0] - 2026-09-22
+
+### Added
+
+- The trip page says when Auckland Transport reported a run under another run's number.
+
 ## [1.41.12] - 2026-09-22
 
 ### Fixed

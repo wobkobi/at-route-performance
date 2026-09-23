@@ -9,7 +9,7 @@ import type { JSX } from "react";
  */
 export function ShameWorstBadge(): JSX.Element {
   return (
-    <span className="bg-at-late px-1.5 py-0.5 text-[10px] font-bold tracking-zero text-white uppercase">
+    <span className="bg-at-late px-1.5 py-0.5 text-xs font-bold tracking-zero text-white uppercase">
       Worst
     </span>
   );

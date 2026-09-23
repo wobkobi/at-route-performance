@@ -5,13 +5,14 @@
 // build the prev/next stepper bounded by the earliest day with data and the
 // present week. Two subtleties: on a live (today) view, hours that have not
 // started yet are dropped so AT's predicted-future slots don't show as phantom
-// on-time entries; and the empty-day fallback lazily imports the data layer so
+// on-time entries; and the shown-day resolver lazily imports the data layer so
 // these helpers stay pure and unit-testable.
 import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/data-start";
+import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
   monthRangeLabel,
-  NZ_TZ,
   nzLast7DaysRange,
+  nzLocalHour,
   nzMonthKey,
   nzMonthRange,
   nzServiceDayRange,
@@ -78,14 +79,7 @@ export function filterLiveHours<H extends { hour: number }>(
   now: Date = new Date(),
 ): H[] {
   if (serviceDate !== nzServiceDayString(now)) return hours;
-  const nowHourNZ = parseInt(
-    new Intl.DateTimeFormat("en-NZ", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: NZ_TZ,
-    }).format(now),
-    10,
-  );
+  const nowHourNZ = nzLocalHour(now);
   // The constant, not a literal 4, so the next move needs no second sweep.
   return hours.filter((h) =>
     nowHourNZ < SERVICE_START_HOUR
@@ -306,24 +300,62 @@ export function resolveRangeView(
   return { isMonth, periodNoun: isMonth ? "month" : "week", periodParam, activeRange, ...nav };
 }
 
+/** The service day a day view shows. */
+export interface ShownDay {
+  /** The shown service date (`YYYY-MM-DD`). */
+  serviceDate: string;
+  /** Its 4am-to-4am window. */
+  range: DateRange;
+  /**
+   * Whether the next day is the current one and it has not opened yet. Its bare
+   * URL would fall back to this same day, so the page offers no next day and
+   * says why instead.
+   */
+  nextPending: boolean;
+}
+
 /**
- * The fallback service day for an empty day view: when no specific day was
- * requested and the current day has no data yet, the most recent service day
- * with data; otherwise null (the caller keeps its current day). Lets a page
- * decide to recompute its range and refetch with its own data function.
+ * The service day a day view shows. An asked-for `?day` is shown as it is.
+ * Without one, every page and shared-link card answers the same way: the
+ * current service day once it has opened (see `currentDayIsOpen`), otherwise
+ * the latest earlier day with enough data for the boards. One network-wide
+ * test rather than each page asking whether its own board is empty, so the
+ * home page, the shame boards and a quiet stop never disagree about the day in
+ * the early morning.
  * @param requestedDay - The validated `?day=`, or null when none was given.
- * @param isEmpty - Whether the data already fetched has nothing to show.
- * @param minEvents - Minimum events for a day to qualify as "has data".
- * @returns The fallback day (noon within it), or null for no fallback.
+ * @param today - The current service date (injectable for tests).
+ * @returns The day, its window, and whether its next day is still pending.
  */
-export async function maybeFallbackDay(
+export async function resolveShownDay(
   requestedDay: string | null,
-  isEmpty: boolean,
-  minEvents: number,
-): Promise<Date | null> {
-  if (requestedDay || !isEmpty) return null;
+  today: string = nzServiceDayString(),
+): Promise<ShownDay> {
+  const yesterday = shiftWeek(today, -1);
+  // Only the day before today steps onto today, so any other asked-for day
+  // skips the open test.
+  if (requestedDay && requestedDay !== yesterday) return shownDay(requestedDay, false);
   // Lazy import keeps the data/DB layer out of this module's pure helpers (and
-  // their unit tests); it only loads when the fallback actually runs at runtime.
-  const { getMostRecentDataDay } = await import("@/lib/data");
-  return getMostRecentDataDay(minEvents);
+  // their unit tests); it only loads when a page asks at runtime.
+  const { currentDayIsOpen, getMostRecentDataDay, TODAY_REVALIDATE } = await import("@/lib/data");
+  const open = await currentDayIsOpen(TODAY_REVALIDATE);
+  if (requestedDay) return shownDay(requestedDay, !open);
+  if (open) return shownDay(today, false);
+  // Before today opens: the latest earlier day with enough data. An ingest gap
+  // can make that older than yesterday, and then yesterday is still a step on.
+  const recent = await getMostRecentDataDay(MIN_BOARD_EVENTS);
+  const recentDay = recent ? nzServiceDayString(recent) : null;
+  const day = recentDay && recentDay < today ? recentDay : yesterday;
+  // The archive's first morning has nothing earlier to stand in.
+  if (day < DATA_START_DAY) return shownDay(today, false);
+  return shownDay(day, day === yesterday);
+}
+
+/**
+ * A {@link ShownDay} for a service date.
+ * @param serviceDate - The service date (`YYYY-MM-DD`).
+ * @param nextPending - Whether its next day is today and not yet open.
+ * @returns The shown day.
+ */
+function shownDay(serviceDate: string, nextPending: boolean): ShownDay {
+  return { serviceDate, range: nzServiceDayRange(serviceDate), nextPending };
 }

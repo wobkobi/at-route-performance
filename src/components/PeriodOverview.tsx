@@ -9,13 +9,15 @@ import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
 import { ShameOfDay } from "@/components/ShameOfDay";
+import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import {
   getCancelledByRoute,
   getCancelledCount,
   getRankings,
   getShameOfWeek,
-  getWorstStops,
+  getShameRouteOfWeek,
+  getWorstStopsOfWeek,
 } from "@/lib/data";
 import { rangeIsEmpty } from "@/lib/data-start";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -35,7 +37,12 @@ import { isSchoolBus } from "@/lib/school-bus";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { TopRouteRow } from "@/types/api";
-import type { FleetSummary as FleetSummaryData, ShameOfWeek, WorstStop } from "@/types/dashboard";
+import type {
+  FleetSummary as FleetSummaryData,
+  ShameOfWeek,
+  ShameRouteOfWeek,
+  ShameStopOfWeek,
+} from "@/types/dashboard";
 import type { JSX } from "react";
 
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
@@ -72,15 +79,16 @@ export interface PeriodCore {
 }
 
 /**
- * The week or month home's three independent reads, each its own promise so
- * each streamed part waits only for its own: the verdict and boards for the
- * rankings, each shame card for its own query. The worst stop scans the whole
- * window, and sharing one promise made the whole page wait for it.
+ * The week or month home's independent reads, each its own promise so each
+ * streamed part waits only for its own: the verdict and boards for the
+ * rankings, and each shame card for the board query it names. Sharing one
+ * promise made the whole page wait for the slowest of them.
  */
 export interface PeriodBatch {
   core: Promise<PeriodCore>;
   shame: Promise<ShameOfWeek>;
-  worstStop: Promise<WorstStop | null>;
+  shameRoute: Promise<ShameRouteOfWeek>;
+  shameStop: Promise<ShameStopOfWeek>;
 }
 
 /**
@@ -108,9 +116,8 @@ export function loadPeriodBatch(view: PeriodView): PeriodBatch {
   return {
     core: handled(loadPeriodCore(view)),
     shame: handled(getShameOfWeek(range, { mode, includeSchool }, REVALIDATE)),
-    worstStop: handled(
-      getWorstStops(range, { mode, includeSchool }, 1, REVALIDATE).then((r) => r[0] ?? null),
-    ),
+    shameRoute: handled(getShameRouteOfWeek(range, { mode, includeSchool }, REVALIDATE)),
+    shameStop: handled(getWorstStopsOfWeek(range, { mode, includeSchool }, REVALIDATE)),
   };
 }
 
@@ -215,38 +222,75 @@ export async function PeriodModeFilter({
 }
 
 /**
- * The period's worst-run card. It opens that run.
+ * The period's worst-run card, as the worst-trips board crowns it. It opens that
+ * run, on the day it ran.
  * @param props - Component props.
  * @param props.batch - The period's reads.
- * @param props.window - The active window, for the empty-state copy.
+ * @param props.when - The shown window as words, for the empty-state copy.
  * @returns The card.
  */
 export async function PeriodTripCard({
   batch,
-  window,
+  when,
 }: {
   batch: PeriodBatch;
-  window: RankWindow;
+  when: string;
 }): Promise<JSX.Element> {
-  return <ShameOfDay trip={(await batch.shame).worst} period={window} />;
+  const shame = await batch.shame;
+  return <ShameOfDay trip={shame.worst} ranked={shame.days.length > 0} when={when} />;
 }
 
 /**
- * The period's worst-stop card. It stays on the shame board, because /stop
- * reads `?day` only and cannot show a week or a month.
+ * The period's worst-route card, as the worst-routes board crowns it. Its
+ * figures are one day's, so it opens the route on that day.
  * @param props - Component props.
  * @param props.batch - The period's reads.
- * @param props.href - Where the card leads.
+ * @param props.when - The shown window as words, for the empty-state copy.
+ * @returns The card.
+ */
+export async function PeriodRouteCard({
+  batch,
+  when,
+}: {
+  batch: PeriodBatch;
+  when: string;
+}): Promise<JSX.Element> {
+  const shame = await batch.shameRoute;
+  return (
+    <WorstRouteCard
+      route={shame.worst}
+      ranked={shame.days.length > 0}
+      when={when}
+      day={shame.worst?.date}
+    />
+  );
+}
+
+/**
+ * The period's worst-stop card, as the worst-stops board crowns it. Its figures
+ * are one day's, so it opens the stop on that day rather than on a window
+ * /stop cannot show.
+ * @param props - Component props.
+ * @param props.batch - The period's reads.
+ * @param props.when - The shown window as words, for the empty-state copy.
  * @returns The card.
  */
 export async function PeriodStopCard({
   batch,
-  href,
+  when,
 }: {
   batch: PeriodBatch;
-  href: string;
+  when: string;
 }): Promise<JSX.Element> {
-  return <WorstStopCard stop={await batch.worstStop} href={href} />;
+  const shame = await batch.shameStop;
+  return (
+    <WorstStopCard
+      stop={shame.worst}
+      ranked={shame.days.length > 0}
+      when={when}
+      day={shame.worst?.date}
+    />
+  );
 }
 
 /**

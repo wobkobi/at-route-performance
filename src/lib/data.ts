@@ -17,7 +17,14 @@ export type {
   NetworkCancelledTrip,
   TripCancellation,
 } from "@/lib/data/cancelled";
-export { getEarliestDataDay, getLatestEventDate, getMostRecentDataDay } from "@/lib/data/data-days";
+export {
+  currentDayIsOpen,
+  getEarliestDataDay,
+  getLatestEventDate,
+  getMostRecentDataDay,
+} from "@/lib/data/data-days";
+export { getGhostRun, getGhostRunFor } from "@/lib/data/ghost-runs";
+export type { GhostRunRow } from "@/lib/data/ghost-runs";
 export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
@@ -25,8 +32,10 @@ export type { TopRoutesParams } from "@/lib/data/rankings";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
 export type { DayRiderWait } from "@/lib/data/rider-wait";
 export { getRouteAreas } from "@/lib/data/route-areas";
+export { getRouteClosures } from "@/lib/data/route-closures";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";
+export { getRouteStopSplit } from "@/lib/data/route-stop-split";
 export {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,

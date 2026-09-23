@@ -49,6 +49,19 @@ const GLYPH_HEX: Record<string, string> = {
 };
 
 /**
+ * The smallest text on a card, in card px. A phone's feed draws the 1200px card
+ * about 300-350px wide, a quarter of its size, so this reads at about 10-12px
+ * there; nothing on a card is set smaller.
+ */
+const MIN_TEXT = 40;
+
+/**
+ * A line that stays on one line and ends in an ellipsis rather than wrapping,
+ * so a long headsign or stop name cannot push the lines under it off the card.
+ */
+const ONE_LINE = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;
+
+/**
  * A tone class as hex, falling back to ink for one the card does not know.
  * @param cls - A `text-at-*` or `bg-at-*` class.
  * @returns The hex colour.
@@ -92,13 +105,14 @@ export function CardFrame({
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          padding: "56px 64px 0",
+          padding: "40px 64px 0",
         }}
       >
         <div
           style={{
-            fontSize: 28,
-            letterSpacing: 2,
+            ...ONE_LINE,
+            fontSize: MIN_TEXT,
+            letterSpacing: 1,
             textTransform: "uppercase",
             color: MUTED,
           }}
@@ -109,7 +123,7 @@ export function CardFrame({
       </div>
       <div
         style={{
-          height: 104,
+          height: 96,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -120,10 +134,11 @@ export function CardFrame({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain img only */}
-          <img src={logo} width={60} height={60} alt="" />
-          <div style={{ fontSize: 34, fontWeight: 900 }}>AT Route Performance</div>
+          <img src={logo} width={64} height={64} alt="" />
+          <div style={{ fontSize: 44, fontWeight: 900 }}>AT Route Performance</div>
         </div>
-        <div style={{ fontSize: 20, color: BORDER }}>Independent, not affiliated with AT</div>
+        {/* Short enough to sit beside the lockup at the smallest size. */}
+        <div style={{ fontSize: MIN_TEXT, color: BORDER }}>Not affiliated with AT</div>
       </div>
     </div>
   );
@@ -161,13 +176,13 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
           fontSize: 172,
           fontWeight: 900,
           lineHeight: 1,
-          marginTop: 28,
+          marginTop: 20,
           color: toneHex(band.toneClass),
         }}
       >
         {band.label}
       </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
+      <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
         {VERDICT_BANDS.map((b, i) => (
           <div
             key={b.label}
@@ -180,10 +195,10 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
           />
         ))}
       </div>
-      <div style={{ fontSize: 36, marginTop: 32 }}>
+      <div style={{ ...ONE_LINE, fontSize: 48, marginTop: 28 }}>
         {`${summary.on_time_pct.toFixed(1)}% of ${summary.events.toLocaleString("en-NZ")} arrivals on time`}
       </div>
-      <div style={{ fontSize: 30, marginTop: 8, color: MUTED }}>
+      <div style={{ ...ONE_LINE, fontSize: 44, marginTop: 4, color: MUTED }}>
         {summary.avg_abs_delay_sec === null
           ? ""
           : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`}
@@ -251,23 +266,26 @@ export interface SubjectBodyProps {
  */
 export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyProps): JSX.Element {
   // A long stop name or a long hero phrase steps down a size rather than clip.
-  const nameSize = name && name.length > 28 ? 48 : 60;
-  const heroSize = hero && hero.text.length > 12 ? 92 : 116;
+  const nameSize = name && name.length > 28 ? 52 : 64;
+  const heroSize = hero && hero.text.length > 12 ? 88 : 104;
   // Children as an array rather than fragments: Satori gives an empty fragment
   // the flex gap too, so a missing glyph or name row would still leave space.
   const head =
     name === null
       ? []
       : [
-          <div key="name" style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 24 }}>
+          <div key="name" style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 16 }}>
             {[
               ...(route ? [<Glyph key="glyph" route={route} size={nameSize} />] : []),
-              <div key="name" style={{ fontSize: nameSize, fontWeight: 900, lineHeight: 1.1 }}>
+              <div
+                key="name"
+                style={{ ...ONE_LINE, fontSize: nameSize, fontWeight: 900, lineHeight: 1.1 }}
+              >
                 {name}
               </div>,
             ]}
           </div>,
-          <div key="subname" style={{ fontSize: 30, marginTop: 6, color: MUTED }}>
+          <div key="subname" style={{ ...ONE_LINE, fontSize: 42, marginTop: 4, color: MUTED }}>
             {subname ?? ""}
           </div>,
         ];
@@ -280,7 +298,7 @@ export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyPr
             fontSize: heroSize,
             fontWeight: 900,
             lineHeight: 1,
-            marginTop: name === null ? 40 : 20,
+            marginTop: name === null ? 32 : 16,
             color: toneHex(hero.toneClass),
           }}
         >
@@ -293,8 +311,9 @@ export function SubjectBody({ route, name, subname, hero, lines }: SubjectBodyPr
         <div
           key={line}
           style={{
-            fontSize: i === 0 ? 34 : 28,
-            marginTop: i === 0 ? 20 : 6,
+            ...ONE_LINE,
+            fontSize: i === 0 ? 46 : MIN_TEXT,
+            marginTop: i === 0 ? 12 : 2,
             color: i === 0 ? INK : MUTED,
           }}
         >

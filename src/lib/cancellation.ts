@@ -20,6 +20,9 @@
  */
 export type CancellationStage = "before" | "mid-trip" | "ran";
 
+/** Every {@link CancellationStage}, in the order a trip can reach them. */
+export const CANCELLATION_STAGES: readonly CancellationStage[] = ["before", "mid-trip", "ran"];
+
 /**
  * Slack after the flag within which an arrival still counts as before it. Ingest
  * polls every minute or two, so the flag can be seen a poll after the vehicle

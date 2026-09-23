@@ -42,8 +42,8 @@ export interface TopRoutesParams {
  * The Auckland-local week window for an ISO week string, defaulting to the
  * week containing now. ISO week 1 is the week holding 4 January; the target
  * week's Monday is stepped from there as a date and handed to
- * {@link nzWeekRange}, so the window runs from Auckland midnight rather than
- * UTC midnight (twelve or thirteen hours late for a New Zealand week).
+ * {@link nzWeekRange}, so the window runs from the Monday's 4am service-day
+ * start in Auckland rather than UTC midnight (well into a New Zealand Monday).
  * @param iso - ISO week like `2025-W32` (optional).
  * @returns The week as a half-open UTC window.
  */

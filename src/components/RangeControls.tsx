@@ -91,6 +91,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
           hasNext={nav.hasNext}
           nextHref={nav.nextIsToday ? buildHref(basePath, carried) : undefined}
           atFloor={nav.atFloor}
+          nextPending={nav.nextPending}
         />
       ) : (
         <div className="flex items-center gap-1">

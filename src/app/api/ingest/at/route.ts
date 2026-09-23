@@ -8,18 +8,27 @@
 // trip per service day, and the vehicle feed is joined best-effort so a feed
 // outage leaves rows unnamed rather than failing. The same vehicle read feeds
 // the off-route check (lib/off-route.ts) and the fleet register
-// (lib/fleet-store.ts), both best-effort.
+// (lib/fleet-store.ts), and the stop closures (lib/stop-closures.ts) are recorded
+// last; all three are best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
 import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
-import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
-import { type ArrivalWrite, arrivalWriteStages, NO_DELAY_SOURCE } from "@/lib/deviation";
+import {
+  DUPLICATE_KEY,
+  isDatabaseUnreachableError,
+  prisma,
+  runWriteCommand,
+  throwOnWriteErrors,
+} from "@/lib/db";
+import { arrivalWriteStages, NO_DELAY_SOURCE, type ArrivalWrite } from "@/lib/deviation";
 import { recordFleet } from "@/lib/fleet-store";
 import { recordIngestRun } from "@/lib/ingest-run";
+import { drainSpool, spoolEnabled, spoolWrites, type SpooledWrite } from "@/lib/ingest-spool";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
+import { recordStopClosures } from "@/lib/stop-closure-store";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -35,12 +44,20 @@ type TripRow = Prisma.TripDelayCreateManyInput;
 const INSERT_BATCH = 1000;
 
 /**
+ * A poll already this long skips the closure step rather than run longer. Polls
+ * take 2.6s at the median and 12s at p90 (8,617 runs to 22 Sep 2026), so about
+ * one in 250 skips, and each closure row carries its own evidence, so the next
+ * poll makes a skip up.
+ */
+const CLOSURE_STEP_CUTOFF_MS = 60_000;
+
+/**
  * Insert documents into a collection in batches, skipping duplicate-key rows
  * (ordered: false) in a single round-trip per batch - no per-document fallback
  * and no multi-document transaction. A duplicate key is the expected outcome of
  * a repeated poll; any other per-entry error fails the run, since the command
- * itself resolves even when entries were rejected. Each batch goes through the
- * connection-reset retry.
+ * itself resolves even when entries were rejected. Each batch waits out an
+ * unreachable database, since these rows are point-in-time too.
  * @param collection - Target collection name.
  * @param docs - Extended-JSON documents (dates as `{ $date }`).
  * @returns Count actually inserted (duplicates excluded).
@@ -48,7 +65,7 @@ const INSERT_BATCH = 1000;
 async function bulkInsert(collection: string, docs: Record<string, unknown>[]): Promise<number> {
   let inserted = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await runCommand(() =>
+    const res = (await runWriteCommand(() =>
       prisma.$runCommandRaw({
         insert: collection,
         documents: docs.slice(i, i + INSERT_BATCH) as never,
@@ -59,6 +76,48 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
     inserted += res.n ?? 0;
   }
   return inserted;
+}
+
+/**
+ * Run a write, or hold it back for a later run when the database is
+ * unreachable. Only an outage is held: a write that failed on its own merits
+ * (a bad document, a failed validation) would fail the same way on replay, so
+ * it still fails the run and gets seen.
+ * @param attempt - Issues the write.
+ * @param held - The same write in the shape the replay re-issues it.
+ * @param heldBack - Collects what this poll could not write.
+ * @returns Rows written, or 0 when the write was held.
+ */
+async function writeOrHold(
+  attempt: () => Promise<number>,
+  held: SpooledWrite,
+  heldBack: SpooledWrite[],
+): Promise<number> {
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!spoolEnabled() || !isDatabaseUnreachableError(err)) throw err;
+    heldBack.push(held);
+    return 0;
+  }
+}
+
+/**
+ * Re-issue one spooled batch's writes. Safe to run over a batch that partly
+ * landed before the outage: the inserts ignore duplicate keys and the arrival
+ * writes are upserts keyed on the stop visit.
+ * @param writes - The batch, in the order it was held.
+ * @returns Rows written.
+ */
+async function replaySpooled(writes: SpooledWrite[]): Promise<number> {
+  let rows = 0;
+  for (const write of writes) {
+    rows +=
+      write.kind === "arrivals"
+        ? await bulkUpsertArrivals(write.docs as ArrivalUpsert[])
+        : await bulkInsert(write.collection, write.docs);
+  }
+  return rows;
 }
 
 /** One stop visit as the upsert takes it: the key fields, then the values. */
@@ -82,7 +141,9 @@ interface ArrivalUpsert {
 async function bulkUpsertArrivals(docs: ArrivalUpsert[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < docs.length; i += INSERT_BATCH) {
-    const res = (await runCommand(() =>
+    // The feed is a snapshot of where the buses are now; nothing re-fetches it,
+    // so this write waits out a database that is down rather than dropping it.
+    const res = (await runWriteCommand(() =>
       prisma.$runCommandRaw({
         update: "ArrivalEvent",
         updates: docs.slice(i, i + INSERT_BATCH).map((doc) => ({
@@ -151,7 +212,23 @@ export async function POST(req: Request): Promise<NextResponse> {
   const wantDebug = url.searchParams.has("debug");
   const wantPeek = url.searchParams.get("peek") === "1";
 
+  /** Writes this poll could not make because the database was unreachable. */
+  const heldBack: SpooledWrite[] = [];
+
   try {
+    // Replay what earlier polls could not write, before adding this poll's own.
+    // A drain that fails leaves its batches in place, so nothing is lost by
+    // trying while the database is still down.
+    const drained = await drainSpool(replaySpooled).catch((err: unknown) => {
+      console.error("[SPOOL] Drain failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    });
+    if (drained && (drained.replayed > 0 || drained.dropped > 0)) {
+      console.log("[SPOOL] Drained", drained);
+    }
+
     const feed = await fetchATTripUpdates();
 
     if (wantPeek) {
@@ -330,47 +407,54 @@ export async function POST(req: Request): Promise<NextResponse> {
     // rather than inserting a duplicate alongside it. The key fields stay
     // extended JSON in the query; the value fields become the ArrivalWrite the
     // update pipeline reads.
-    const stopCount = await bulkUpsertArrivals(
-      stopRows.map((r) => ({
-        tripId: r.tripId,
-        stopId: r.stopId,
-        scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
-        write: {
-          routeId: r.routeId,
-          actualAtMs: new Date(r.actualAt).getTime(),
-          deviationSec: r.deviationSec,
-          vehicleId: r.vehicleId ?? undefined,
-          cars: r.cars ?? undefined,
-          source: r.source ?? undefined,
-          serviceDate: r.serviceDate ?? undefined,
-        },
-      })),
-    );
-    const tripCount = await bulkInsert(
-      "TripDelay",
-      tripRows.map((r) => ({
-        tripId: r.tripId,
+    const arrivalDocs = stopRows.map((r) => ({
+      tripId: r.tripId,
+      stopId: r.stopId,
+      scheduledAt: { $date: new Date(r.scheduledAt).toISOString() },
+      write: {
         routeId: r.routeId,
-        ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
-        timestamp: { $date: new Date(r.timestamp).toISOString() },
-        delaySec: r.delaySec,
-        ...(r.source ? { source: r.source } : {}),
-      })),
+        actualAtMs: new Date(r.actualAt).getTime(),
+        deviationSec: r.deviationSec,
+        vehicleId: r.vehicleId ?? undefined,
+        cars: r.cars ?? undefined,
+        source: r.source ?? undefined,
+        serviceDate: r.serviceDate ?? undefined,
+      },
+    }));
+    const stopCount = await writeOrHold(
+      () => bulkUpsertArrivals(arrivalDocs),
+      { kind: "arrivals", docs: arrivalDocs },
+      heldBack,
+    );
+    const tripDocs = tripRows.map((r) => ({
+      tripId: r.tripId,
+      routeId: r.routeId,
+      ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
+      timestamp: { $date: new Date(r.timestamp).toISOString() },
+      delaySec: r.delaySec,
+      ...(r.source ? { source: r.source } : {}),
+    }));
+    const tripCount = await writeOrHold(
+      () => bulkInsert("TripDelay", tripDocs),
+      { kind: "insert", collection: "TripDelay", docs: tripDocs },
+      heldBack,
     );
 
     // Idempotent: the @@unique([tripId, serviceDate]) index drops repeat polls of
     // the same cancellation (ordered: false), so this stays one row per trip per
     // run - including the 04:45 run that used to land on two days, because the
     // date now comes from the run rather than from when the poll happened to fire.
-    const cancelledCount = await bulkInsert(
-      "CancelledTrip",
-      cancelledRows.map((r) => ({
-        tripId: r.tripId,
-        routeId: r.routeId,
-        serviceDate: r.serviceDate,
-        ...(r.startTime ? { startTime: r.startTime } : {}),
-        detectedAt: { $date: new Date().toISOString() },
-      })),
+    const cancelledDocs = cancelledRows.map((r) => ({
+      tripId: r.tripId,
+      routeId: r.routeId,
+      serviceDate: r.serviceDate,
+      ...(r.startTime ? { startTime: r.startTime } : {}),
+      detectedAt: { $date: new Date().toISOString() },
+    }));
+    const cancelledCount = await writeOrHold(
+      () => bulkInsert("CancelledTrip", cancelledDocs),
+      { kind: "insert", collection: "CancelledTrip", docs: cancelledDocs },
+      heldBack,
     );
 
     // Off-route readings never fail the poll: the arrival events above are the
@@ -393,8 +477,28 @@ export async function POST(req: Request): Promise<NextResponse> {
       return 0;
     });
 
+    const closureCount =
+      Date.now() - startTime > CLOSURE_STEP_CUTOFF_MS
+        ? 0
+        : await recordStopClosures(feed).catch((err: unknown) => {
+            console.warn("[INGEST] Stop closure step failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return 0;
+          });
+
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
+
+    // Held rows go to the spool once, as one batch, so a replay re-issues this
+    // poll's writes in the order they were meant to happen.
+    const spooled = heldBack.length > 0 && (await spoolWrites(heldBack));
+    if (heldBack.length > 0) {
+      console.warn("[SPOOL] Database unreachable, batch held", {
+        writes: heldBack.length,
+        stored: spooled,
+      });
+    }
 
     const body = {
       inserted: stopResult.count,
@@ -405,6 +509,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledTried: cancelledRows.length,
       offRouteInserted: offRouteCount,
       fleetWritten: fleetCount,
+      closuresWritten: closureCount,
     } as {
       inserted: number;
       tried: number;
@@ -414,6 +519,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       cancelledTried: number;
       offRouteInserted: number;
       fleetWritten: number;
+      closuresWritten: number;
       debug?: DebugStats;
       sample?: StopRow | TripRow | null;
     };
@@ -441,6 +547,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
       offRouteInserted: offRouteCount,
+      closuresWritten: closureCount,
       duration_ms: duration,
       source: "cron",
     });

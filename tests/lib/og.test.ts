@@ -62,9 +62,9 @@ describe("homeCardTitle", () => {
     );
   });
 
-  it("names the filter", () => {
+  it("names the filter, and the rolling week as the last 7 days", () => {
     expect(homeCardTitle(parseHomeCard({ window: "week", mode: "TRAIN" }))).toBe(
-      "How bad was it this week? (Trains)",
+      "How bad was it over the last 7 days? (Trains)",
     );
   });
 });
@@ -149,21 +149,23 @@ describe("parseCardQuery", () => {
 });
 
 describe("shame cards", () => {
-  it("keeps the overview on the day, whatever the window says", () => {
-    const card = parseShameCard("overview", { window: "week", day: "2026-09-20", mode: "TRAIN" });
+  it("reads a board's day and filter", () => {
+    const card = parseShameCard("trip", { day: "2026-09-20", mode: "TRAIN" });
     expect(card).toMatchObject({ window: "day", day: "2026-09-20", period: null, mode: "TRAIN" });
-    expect(listCardTitle(card)).toBe("Shame of the day, Sun 20 Sep (Trains)");
+    expect(listCardTitle(card)).toBe("Worst trips of the day, Sun 20 Sep (Trains)");
   });
 
   it("reads a board's week and month, and titles them", () => {
     const week = parseShameCard("route", { window: "week", period: "2026-09-14" });
-    expect(listCardTitle(week)).toBe("Worst route of the week, week of Mon 14 Sep");
+    expect(listCardTitle(week)).toBe("Worst routes of the week, week of Mon 14 Sep");
     const month = parseShameCard("stop", { window: "month", period: "2026-09", school: "1" });
     expect(listCardTitle(month)).toBe(
-      "Worst stop of the month, September 2026 (Incl. school services)",
+      "Worst stops of the month, September 2026 (Incl. school services)",
     );
     // The current period is the page's default, so it names no date.
-    expect(listCardTitle(parseShameCard("trip", { window: "week" }))).toBe("Shame of the week");
+    expect(listCardTitle(parseShameCard("trip", { window: "week" }))).toBe(
+      "Worst trips of the week",
+    );
   });
 
   it("round-trips through the handler's parse", () => {

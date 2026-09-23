@@ -78,7 +78,10 @@ export default async function LivePage({
       <ModeFilter
         active={mode}
         basePath="/live"
-        preservedParams={sortParam ? { sort: sortParam } : {}}
+        preservedParams={{
+          ...(sortParam ? { sort: sortParam } : {}),
+          ...(all ? { all: "1" } : {}),
+        }}
       />
 
       <Suspense fallback={<LiveFiguresSkeleton />}>

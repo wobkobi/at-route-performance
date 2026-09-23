@@ -1,6 +1,6 @@
 // tests/lib/label-width.test.ts
 // Unit tests for the diagram label widths read from Gotham Narrow Ultra.
-import { labelWidth } from "@/lib/label-width";
+import { fitLabel, labelWidth } from "@/lib/label-width";
 import { describe, expect, it } from "vitest";
 
 describe("labelWidth", () => {
@@ -24,5 +24,26 @@ describe("labelWidth", () => {
 
   it("is zero for no text", () => {
     expect(labelWidth("", 12)).toBe(0);
+  });
+});
+
+describe("fitLabel", () => {
+  it("leaves a label that fits alone", () => {
+    expect(fitLabel("Britomart", 14, 100)).toBe("Britomart");
+  });
+
+  it("trims a long label to fit, ending in an ellipsis", () => {
+    const out = fitLabel("Papatoetoe Train Station", 14, 100);
+    expect(out.endsWith("…")).toBe(true);
+    expect(labelWidth(out, 14)).toBeLessThanOrEqual(100);
+    expect(labelWidth(`${out.slice(0, -1)}X…`, 14)).toBeGreaterThan(100);
+  });
+
+  it("drops the space before the ellipsis", () => {
+    expect(fitLabel("ab cd", 10, labelWidth("ab …", 10))).toBe("ab…");
+  });
+
+  it("is empty when not even the ellipsis fits", () => {
+    expect(fitLabel("Britomart", 14, 5)).toBe("");
   });
 });

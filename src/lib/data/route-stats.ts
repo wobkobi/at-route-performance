@@ -11,13 +11,15 @@ import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time"
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/station";
 import {
-  type DateRange,
+  NZ_TZ,
   nzLast7DaysRange,
   nzServiceDayRange,
   nzServiceDayString,
   padScanRange,
   serviceDatesInRange,
+  type DateRange,
 } from "@/lib/time";
+import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time-of-day";
 import type { RouteByStop, RouteDay, RouteSummary } from "@/types/api";
 
 /** Parameters for {@link getRouteStats}. */
@@ -26,6 +28,8 @@ export interface RouteStatsParams {
   from?: Date;
   to?: Date;
   thresholdSec: number;
+  /** Narrow to a part of the day; null or absent covers the whole of it. */
+  hours?: HourRange | null;
 }
 
 /** Result shape of {@link getRouteStats}. */
@@ -98,10 +102,22 @@ async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promis
   // Single route, so the mode is fixed: use its asymmetric on-time window.
   const mode = route?.mode ?? "BUS";
 
+  // The hour test is an $expr, so it cannot use an index - but it only ever
+  // sees the rows the routeId + scheduledAt bounds already let through, so it
+  // costs a comparison per surviving row and no extra scan. The hours are
+  // listed out rather than compared as a range because a range may wrap past
+  // midnight, which would otherwise need two branches.
   const match = {
     routeId: { $in: routeIds },
     scheduledAt: scheduledAtWindow({ start, end }),
     ...realDeviationMatchFor(classified),
+    ...(p.hours
+      ? {
+          $expr: {
+            $in: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, hoursInRange(p.hours)],
+          },
+        }
+      : {}),
   };
 
   const summaryResult = (await runCommand(() =>
@@ -217,6 +233,11 @@ async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promis
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   const range: DateRange =
     p.from && p.to ? { start: p.from, end: p.to } : clampRangeToDataStart(nzLast7DaysRange());
+  // The cancellation penalty is counted per service day, not per hour, so it
+  // cannot be narrowed with the arrivals. Applying the whole day's penalty to
+  // one part of it would charge the morning peak for an evening cancellation,
+  // so a filtered view stays on measured arrivals alone.
+  if (p.hours) return measuredRouteStats(p);
   const [stats, penalties] = await Promise.all([measuredRouteStats(p), getRouteRiderWait(range)]);
   const penalty = penaltyForRoute(penalties, p.routeId);
   return stats.summary && penalty
@@ -238,6 +259,7 @@ function measuredRouteStats(p: RouteStatsParams): Promise<RouteStats> {
       p.from?.toISOString() ?? "",
       p.to?.toISOString() ?? "",
       String(p.thresholdSec),
+      hourRangeParam(p.hours ?? null) ?? "",
     ],
     // The rolling default (no from/to) tracks the live day.
     p.from && p.to ? { start: p.from, end: p.to } : null,

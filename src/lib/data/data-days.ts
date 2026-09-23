@@ -103,6 +103,47 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
 }
 
 /**
+ * Arrivals due so far that open the current service day on a page given no
+ * `?day`. On 22 Sep 2026 the network passed 2,000 at about 5:45am, the quarter
+ * hour in which the first routes reached the home page's per-route board
+ * minimum; a page opening on the new day before then shows a near-empty day.
+ */
+export const DAY_OPEN_EVENTS = 2000;
+
+/**
+ * Whether the current service day has enough arrivals due to open on it. Counts
+ * only up to now, since the ingest stores predictions for stops not yet due, and
+ * stops at {@link DAY_OPEN_EVENTS} so the count costs the same at 11pm as at
+ * 5am. One cached answer per `revalidate`, so every page asking inside it opens
+ * on the same day.
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns True once the day has opened.
+ */
+export async function currentDayIsOpen(revalidate: number): Promise<boolean> {
+  const today = nzServiceDayString();
+  return unstable_cache(
+    async () => {
+      const { start } = nzServiceDayRange(today);
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          count: "ArrivalEvent",
+          query: {
+            scheduledAt: {
+              $gte: { $date: start.toISOString() },
+              $lt: { $date: new Date().toISOString() },
+            },
+          },
+          limit: DAY_OPEN_EVENTS,
+        }),
+      )) as unknown as { n: number };
+      return res.n >= DAY_OPEN_EVENTS;
+    },
+    ["day-open", today],
+    { revalidate },
+  )();
+}
+
+/**
  * The earliest Auckland-local **service day** that has at least `minEvents`
  * events. Day-focused pages use this to stop the day stepper paging back past
  * where data exists. Buckets match {@link getMostRecentDataDay}, so the

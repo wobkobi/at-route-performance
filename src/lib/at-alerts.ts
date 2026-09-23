@@ -93,6 +93,19 @@ const SEVERE_EFFECTS = new Set([
 ]);
 
 /**
+ * Alert effects that mean a route is running somewhere other than its usual
+ * path, or passing stops it would serve. AT files a skipped stop under any of
+ * the first three ("Stop Skipped" alerts come as STOP_MOVED, NO_SERVICE and
+ * DETOUR alike), so none of them is read as more specific than the others.
+ */
+export const REROUTE_EFFECTS: ReadonlySet<string> = new Set([
+  "DETOUR",
+  "STOP_MOVED",
+  "NO_SERVICE",
+  "MODIFIED_SERVICE",
+]);
+
+/**
  * How loudly to present an alert. The feed mixes line closures with routine
  * notices, and rendering both in the same alarm styling is what teaches people
  * to ignore the bar - so only a service-stopping effect gets the loud treatment.

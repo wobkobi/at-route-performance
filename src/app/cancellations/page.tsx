@@ -4,8 +4,7 @@
 // the routes with the most, and the trips themselves linking to their trip
 // pages. The KPI strip, board and list all come from one list of flagged trips,
 // so the mode and school-bus filters flow through all three alike. The day view
-// falls back to the most recent day with data when the current one has no
-// cancellations yet, as the home page does for arrivals.
+// opens on the same day as every other day page (see resolveShownDay).
 
 import { CancellationSummary } from "@/components/CancellationSummary";
 import { CancelledBoard } from "@/components/CancelledBoard";
@@ -14,6 +13,7 @@ import { ChevronRight } from "@/components/icons";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { CANCELLATION_STAGES } from "@/lib/cancellation";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -23,10 +23,15 @@ import {
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
-import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange, nzServiceDayString, type DateRange } from "@/lib/time";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import {
+  dayRangeNav,
+  parseRangeWindow,
+  periodRangeNav,
+  routeLinkQuery,
+  type RangeNav,
+} from "@/lib/range-page";
+import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -67,12 +72,13 @@ interface CancellationsSearchParams {
   period?: string;
   mode?: string;
   school?: string;
+  stage?: string;
 }
 
 /**
  * Cancellations page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `day`, `period`) and filter (`mode`, `school`) params.
+ * @param root0.searchParams - Window (`window`, `day`, `period`) and filter (`mode`, `school`, `stage`) params.
  * @returns Page markup.
  */
 export default async function CancellationsPage({
@@ -90,6 +96,7 @@ export default async function CancellationsPage({
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
+  const stage = CANCELLATION_STAGES.find((s) => s === sp.stage) ?? null;
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
@@ -98,17 +105,11 @@ export default async function CancellationsPage({
   let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+    range = shown.range;
     trips = await getNetworkCancelledTrips(range);
-    const fallbackDay = await maybeFallbackDay(requestedDay, trips.length === 0, MIN_BOARD_EVENTS);
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      trips = await getNetworkCancelledTrips(range);
-    }
-    const serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
-    linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+    nav = dayRangeNav(shown, earliest);
+    linkDay = nav.isToday ? undefined : shown.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/cancellations",
@@ -149,8 +150,18 @@ export default async function CancellationsPage({
   if (window !== "day") windowParams.window = window;
   if (window === "day" && linkDay && sp.day) windowParams.day = linkDay;
   if (period) windowParams.period = period;
-  const modePreserved = { ...windowParams, ...(includeSchool ? { school: "1" } : {}) };
-  const schoolPreserved = { ...windowParams, ...(mode ? { mode } : {}) };
+  const stageParam: Record<string, string> = stage ? { stage } : {};
+  const modePreserved = {
+    ...windowParams,
+    ...(includeSchool ? { school: "1" } : {}),
+    ...stageParam,
+  };
+  const schoolPreserved = { ...windowParams, ...(mode ? { mode } : {}), ...stageParam };
+  const stagePreserved = {
+    ...windowParams,
+    ...(mode ? { mode } : {}),
+    ...(includeSchool ? { school: "1" } : {}),
+  };
 
   return (
     <main className="space-y-6">
@@ -186,7 +197,7 @@ export default async function CancellationsPage({
           <CancelledBoard
             rows={boardRows.slice(0, BOARD_ROUTES)}
             total={visible.length}
-            routeDay={linkDay}
+            routeQuery={routeLinkQuery(window, linkDay, period)}
           />
           {boardRows.length > BOARD_ROUTES && (
             <Link
@@ -204,7 +215,15 @@ export default async function CancellationsPage({
             </Link>
           )}
         </div>
-        <CancelledTripList trips={visible} multiDay={window !== "day"} />
+        {/* Keyed by what the list shows, so a new window or filter opens it at the first page. */}
+        <CancelledTripList
+          key={buildHref("", { ...stagePreserved, ...stageParam })}
+          trips={visible}
+          multiDay={window !== "day"}
+          stage={stage}
+          basePath="/cancellations"
+          preservedParams={stagePreserved}
+        />
       </div>
 
       <p className="text-xs text-at-muted">

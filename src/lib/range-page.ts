@@ -37,9 +37,13 @@ export type RangeNav =
       window: "day";
       /** The shown service date (`YYYY-MM-DD`). */
       serviceDate: string;
+      /** Whether the shown day is the current service day. */
+      isToday: boolean;
+      /** Whether the next day is today and has not opened yet. */
+      nextPending: boolean;
       /** Whether an earlier day has data. */
       hasPrev: boolean;
-      /** Whether a later day exists (false on today). */
+      /** Whether a later day can be shown (false on today, and while today is pending). */
       hasNext: boolean;
       /** Whether the next day is today, so its link drops `?day`. */
       nextIsToday: boolean;
@@ -88,22 +92,27 @@ export function hasEarlierDay(serviceDate: string, earliestDay: Date | null): bo
 
 /**
  * The day stepper for a shown service date, bounded by the earliest day with
- * data and today.
- * @param serviceDate - The shown service date (`YYYY-MM-DD`).
+ * data and today. Before today opens there is no next day from yesterday: the
+ * bare URL would fall back to yesterday again.
+ * @param shown - The shown day (see `resolveShownDay`).
+ * @param shown.serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param shown.nextPending - Whether the next day is today and not yet open.
  * @param earliestDay - The earliest service day with data, or null when unknown.
  * @param today - Today's service date (injectable for tests).
  * @returns The day stepper state.
  */
 export function dayRangeNav(
-  serviceDate: string,
+  { serviceDate, nextPending }: { serviceDate: string; nextPending: boolean },
   earliestDay: Date | null,
   today: string = nzServiceDayString(),
 ): Extract<RangeNav, { window: "day" }> {
   return {
     window: "day",
     serviceDate,
+    isToday: serviceDate === today,
+    nextPending,
     hasPrev: hasEarlierDay(serviceDate, earliestDay),
-    hasNext: serviceDate < today,
+    hasNext: serviceDate < today && !nextPending,
     nextIsToday: shiftWeek(serviceDate, 1) === today,
     atFloor: serviceDate === DATA_START_DAY,
     tabs: rangeTabPeriods(serviceDate, today),
@@ -231,16 +240,43 @@ export function rangeTabPeriods(
 }
 
 /**
- * The home page heading for a window. The stepper beside it names the date, so
- * the heading only says whether the window is the current one.
+ * The shown window as the words that end "How bad was it ..." or "No shame
+ * ...": "today" or "that day", "over the last 7 days" for the rolling week (the
+ * week tab's default is seven days back from today, not the calendar week),
+ * "that week", "this month" or "that month". The stepper beside it names the
+ * date, so the words only say whether the window is the current one.
+ * @param nav - The stepper state for the shown window.
+ * @param period - The shown week or month, or null for the current one.
+ * @returns The phrase.
+ */
+export function windowPhrase(nav: RangeNav, period: string | null): string {
+  if (nav.window === "day") return nav.isToday ? "today" : "that day";
+  if (period !== null) return `that ${nav.window}`;
+  return nav.window === "week" ? "over the last 7 days" : "this month";
+}
+
+/**
+ * The shown week or month as the words that follow "in": "the last 7 days" for
+ * the rolling week, "that week" for a stepped-back one, "this month", "that
+ * month". {@link windowPhrase} says the same thing where the phrase stands on
+ * its own ("How bad was it over the last 7 days?").
+ * @param window - "week" or "month".
+ * @param period - The shown week or month, or null for the current one.
+ * @returns The phrase.
+ */
+export function periodInPhrase(window: "week" | "month", period: string | null): string {
+  if (period !== null) return `that ${window}`;
+  return window === "week" ? "the last 7 days" : "this month";
+}
+
+/**
+ * The home page heading for a window (see {@link windowPhrase}).
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.
  * @returns The heading text.
  */
 export function overviewHeading(nav: RangeNav, period: string | null): string {
-  if (nav.window === "day")
-    return nav.hasNext ? "How bad was it that day?" : "How bad was it today?";
-  return `How bad was ${period === null ? "this" : "that"} ${nav.window}?`;
+  return `How bad was it ${windowPhrase(nav, period)}?`;
 }
 
 /**

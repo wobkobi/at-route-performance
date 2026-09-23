@@ -71,18 +71,33 @@ irreversible and the rollup reads the events the cleanup then removes.
 
 ## Notes
 
-- The realtime job is the one that fills the home page's "today" view. Lower the frequency to every
-  5 minutes if you want fewer invocations.
+- The realtime job is the one that fills the home page's "today" view. **Two minutes is not a free
+  knob.** AT's feed is a snapshot with no history, so the interval _is_ the sampling rate: at five
+  minutes each arrival's delay is measured against a position up to 2.5x staler, which degrades the
+  headline figure everywhere. It would also blind short-detour detection, which needs
+  `MIN_SIGHTINGS` (2, `src/lib/off-route.ts`) readings off-route - at five minutes a detour has to
+  last ten. And three constants are pinned to the 120s cadence: `INGEST_INTERVAL_SEC`
+  (`src/lib/ingest-run.ts`), the client `staleTimes.dynamic` (`next.config.ts`) and the footer's
+  `REFRESH_MS` (`src/components/DataFreshness.tsx`). Change the schedule without them and the footer
+  shows "update due now" for most of every gap. If invocations must come down, move those four
+  together and accept the coarser figures.
+- **A failure notice from cron-job.org on the realtime job is usually not a failure.** Of 8,617
+  polls to 22 Sep 2026, none failed server-side, but 337 (3.9%) ran past the scheduler's 30s drop
+  and 35 past 60s - the poll finishes and records its `IngestRun` regardless. Check the endpoint's
+  last `IngestRun` row before treating one as real.
 - The slow jobs (gtfs sync, shapes, aggregate, cleanup) respond `202 { started: true }` immediately
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
 - The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders
-  every day page (home, the four shame boards, rankings and cancellations) for each of the last
-  seven completed days after the response, three at a time. It records no IngestRun; its outcome is
-  the `[WARM] Pages warmed` or `[WARM] Pages failed` line in the Vercel function logs. A day already
-  cached renders in well under a second, so after the first night only yesterday's pages cost
-  anything.
+  every page with a day stepper after the response, three at a time (`PAGE_CONCURRENCY`). The list
+  is `DAY_PAGES` in `src/lib/warm.ts` - home, the three shame boards, rankings, vehicles and
+  cancellations - across the last `WARM_DAYS` (7) completed days, never before the archive starts.
+  Adding a day-stepper page to the site means adding it there too, or its first reader each day pays
+  for the cold render. It records no IngestRun; its outcome is the `[WARM] Pages warmed` or
+  `[WARM] Pages failed` line in the Vercel function logs, which carries the slowest path. A day
+  already cached renders in well under a second, so after the first night only yesterday's pages
+  cost anything.
 - The aggregate job catches up on its own: without `?date=` it rolls up yesterday plus any of the
   two days before it that have events but no summary yet (a night the cron missed, or a day whose
   ghost pass failed). Each day records its own IngestRun row. A longer gap closes over successive

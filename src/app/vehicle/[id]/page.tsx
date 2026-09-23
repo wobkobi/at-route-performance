@@ -30,7 +30,7 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
-import { maybeFallbackDay, resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
   parseRangeWindow,
@@ -38,7 +38,6 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import {
   nzClockTime,
@@ -81,6 +80,11 @@ interface VehicleSearchParams {
   window?: string;
   day?: string;
   period?: string;
+  /** The vehicles list's filters, sort and length, handed back by the back link. */
+  mode?: string;
+  school?: string;
+  sort?: string;
+  show?: string;
 }
 
 /**
@@ -111,7 +115,8 @@ export async function generateMetadata({
  * Vehicle page.
  * @param root0 - Page props.
  * @param root0.params - Route params (`id`, the feed vehicle id).
- * @param root0.searchParams - Window (`window`, `day`, `period`).
+ * @param root0.searchParams - Window (`window`, `day`, `period`), and the vehicles list's
+ *   `mode`, `school`, `sort` and `show` for the back link.
  * @returns Page markup.
  */
 export default async function VehiclePage({
@@ -147,22 +152,11 @@ export default async function VehiclePage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const requestedDay = resolveRequestedDay(sp.day);
-    range = nzServiceDayRange(requestedDay ?? new Date());
+    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    range = day.range;
     days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    // Early morning, before today's first runs, show yesterday rather than nothing.
-    const fallbackDay = await maybeFallbackDay(
-      requestedDay,
-      days.every((d) => d.rows.length === 0),
-      MIN_BOARD_EVENTS,
-    );
-    if (fallbackDay) {
-      range = nzServiceDayRange(fallbackDay);
-      days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    }
-    const serviceDate = nzServiceDayString(range.start);
-    nav = dayRangeNav(serviceDate, earliest);
-    dayParam = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+    nav = dayRangeNav(day, earliest);
+    dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
       basePath,
@@ -209,7 +203,13 @@ export default async function VehiclePage({
   return (
     <main className="space-y-6">
       <Link
-        href={buildHref("/vehicles", view)}
+        href={buildHref("/vehicles", {
+          ...view,
+          mode: sp.mode,
+          school: sp.school,
+          sort: sp.sort,
+          show: sp.show,
+        })}
         className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
@@ -412,7 +412,7 @@ function LiveCard({
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
             <Link
-              href={`/route/${encodeURIComponent(route)}`}
+              href={`/route/${encodeURIComponent(routeSlug(now.routeId))}`}
               className="text-at-shore hover:underline"
             >
               {route}
@@ -520,7 +520,7 @@ function RunsTable({
                   </th>
                   <td className="p-3">
                     <Link
-                      href={`/route/${encodeURIComponent(route)}${routeQuery}`}
+                      href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery}`}
                       className="font-semibold text-at-shore hover:underline"
                     >
                       {route}

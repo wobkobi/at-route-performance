@@ -24,6 +24,8 @@ interface Rows {
   trips: Date[];
   summaries: Date[];
   sightings?: Date[];
+  /** When each closure ended; the fake leaves out the ones still open. */
+  closures?: Date[];
 }
 
 /**
@@ -79,6 +81,7 @@ function fakeStore(rows: Rows, failing: (keyof Rows)[] = []): { store: CleanupSt
     deleteTrips: remove("trips"),
     deleteSummaries: remove("summaries"),
     deleteSightings: remove("sightings"),
+    deleteClosures: remove("closures"),
     storage,
   };
   return { store, rows };
@@ -195,13 +198,16 @@ describe("runCleanup", () => {
       trips: [old, recent],
       summaries: [old, recent],
       sightings: [old, old, old, recent],
+      closures: [old, recent, recent],
     });
     const outcome = await runCleanup(store, cutoff, 14, 512, new Date("2026-06-15T00:00:00Z"));
     expect(outcome.deletedEvents).toBe(2);
     expect(outcome.deletedTrips).toBe(1);
     expect(outcome.deletedSummaries).toBe(1);
     expect(outcome.deletedSightings).toBe(3);
+    expect(outcome.deletedClosures).toBe(1);
     expect(rows.sightings).toEqual([recent]);
+    expect(rows.closures).toEqual([recent, recent]);
     expect(rows.events).toEqual([recent]);
     expect(outcome.firstError).toBeNull();
     expect(outcome.storageWarning).toBe(true);

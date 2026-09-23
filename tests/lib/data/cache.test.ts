@@ -1,7 +1,7 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
 import { cacheKey, cacheState, rangeIsFinal } from "@/lib/data/cache";
-import { nzServiceDayRange } from "@/lib/time";
+import { nzServiceDayRange, nzWeekRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
@@ -78,6 +78,14 @@ describe("cacheState", () => {
     expect(cacheState(false, week, 3600, wednesday, wednesday - 60_000)).toBe("open-2026-09-16");
     // A single live day keeps the exact-to-the-run key.
     expect(cacheState(false, nzServiceDayRange("2026-09-15"), 120, morning, 1)).toBe("run-1");
+  });
+
+  it("keeps a week open until its last service day ends at Monday 4am", () => {
+    // Mon 21 Sep 2026 01:30 NZST: Sunday 20 Sep's service day is still running.
+    const week = nzWeekRange("2026-09-14");
+    const monday = Date.parse("2026-09-20T13:30:00Z");
+    expect(cacheState(false, week, 3600, monday, monday - 60_000)).toBe("open-2026-09-20");
+    expect(cacheState(false, week, 3600, week.end.getTime())).toBe("ended");
   });
 
   it("lets a finished window's state win over the run behind it", () => {

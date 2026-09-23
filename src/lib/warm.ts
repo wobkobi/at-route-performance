@@ -9,11 +9,11 @@ import { shiftWeek } from "@/lib/time";
  */
 export const DAY_PAGES = [
   "/",
-  "/shame",
   "/shame/trip",
   "/shame/route",
   "/shame/stop",
   "/routes",
+  "/vehicles",
   "/cancellations",
 ] as const;
 

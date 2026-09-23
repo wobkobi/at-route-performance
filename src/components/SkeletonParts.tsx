@@ -138,13 +138,15 @@ export function FeatureCardSkeleton({
 }
 
 /**
- * Mirrors the home page's pair of highlight cards.
- * @returns The two-card grid placeholder.
+ * Mirrors the home page's row of highlight cards: the trip, route and stop the
+ * shame boards crown, in the same grid they sit in.
+ * @returns The three-card grid placeholder.
  */
-export function FeatureCardPairSkeleton(): JSX.Element {
+export function FeatureCardRowSkeleton(): JSX.Element {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <FeatureCardSkeleton withHeadsign />
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <FeatureCardSkeleton withHeadsign narrow />
+      <FeatureCardSkeleton />
       <FeatureCardSkeleton />
     </div>
   );
@@ -276,50 +278,49 @@ export function VehicleCardsSkeleton({
 }
 
 /**
- * Mirrors ShameHeader: the red title over its `mt-0.5 text-sm` subtitle, then the
- * Trips/Routes/Stops chips, the Day/Week toggle chip on the hour boards, the
- * day stepper, and the mode/school row on its own line.
+ * Mirrors ShameHeader's three rows: the red title over its `mt-0.5 text-sm`
+ * subtitle beside the Day/Week/Month chips and the day stepper, then the
+ * Trips/Routes/Stops tabs, then the mode and school chips.
  * @param root0 - Props.
- * @param root0.toggle - Whether the header carries the Day/Week toggle chip.
  * @param root0.twoLineSubtitle - Whether the subtitle wraps to two lines below `sm`.
- * @param root0.filters - Whether the header carries the mode and school chips.
  * @returns The header placeholder.
  */
 export function ShameHeaderSkeleton({
-  toggle = false,
   twoLineSubtitle = false,
-  filters = false,
 }: {
-  toggle?: boolean;
   twoLineSubtitle?: boolean;
-  filters?: boolean;
 }): JSX.Element {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <TitleBone className="w-64" />
-        <Bone className={cn("mt-0.5 w-80 max-w-full", twoLineSubtitle ? "h-10 sm:h-5" : "h-5")} />
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
-          <ChipBone className="w-15" />
-          <ChipBone className="w-17" />
-          <ChipBone className="w-15" />
+    <header className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <TitleBone className="w-64" />
+          <Bone className={cn("mt-0.5 w-80 max-w-full", twoLineSubtitle ? "h-10 sm:h-5" : "h-5")} />
         </div>
-        {toggle && <ChipBone className="w-15" />}
-        <DayNavSkeleton />
-      </div>
-      {filters && (
-        <div className="flex w-full flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-2">
-            <ChipBone className="w-12" />
+        {/* The window controls, drawn as the home page draws its own. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
             <ChipBone className="w-13" />
             <ChipBone className="w-16" />
-            <ChipBone className="w-16" />
+            <ChipBone className="w-18" />
           </div>
-          <ChipBone className="w-28" />
+          <DayNavSkeleton />
         </div>
-      )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <ChipBone className="w-15" />
+        <ChipBone className="w-17" />
+        <ChipBone className="w-15" />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-2">
+          <ChipBone className="w-12" />
+          <ChipBone className="w-13" />
+          <ChipBone className="w-16" />
+          <ChipBone className="w-16" />
+        </div>
+        <ChipBone className="w-28" />
+      </div>
     </header>
   );
 }
@@ -436,21 +437,42 @@ export function TripBoardSkeleton(): JSX.Element {
   );
 }
 
+/** Stops in the placeholder strip: a typical bus route's length. */
+const STRIP_BONE_ROWS = 40;
+
 /**
- * Mirrors the head of RouteLineDiagram: the `text-lg` heading (`mb-1`), the
- * `text-xs` hint (`mb-3`), then the diagram, whose real height depends on
- * the route's branches, so its box is only a typical size.
+ * Mirrors RouteStrip: the `text-lg` heading (`mb-3`), the figure columns'
+ * headings over a rule, then one 32px row per stop with its ring, name and
+ * two figures. The real length depends on the route, so this is a typical
+ * one: a single column on a phone, two from `lg`, as the strip breaks there.
  * @returns The diagram placeholder.
  */
 export function LineDiagramSkeleton(): JSX.Element {
   return (
     <div className="border border-at-border bg-at-surface p-4">
-      <Bone className="mb-1 h-7 w-32" />
-      {/* The hint wraps to two lines on a phone. */}
-      <Bone className="mb-3 h-8 w-full sm:h-4 sm:w-96" />
-      {/* A typical two-direction route: about 1,000px of 6-column snake on a
-          phone, about 480px of 20-column line from sm up. */}
-      <Bone className="h-240 sm:h-120" />
+      <Bone className="mb-3 h-7 w-32" />
+      <div className="lg:grid lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-[auto_repeat(20,2rem)] lg:gap-x-10">
+        {[0, 1].map((col) => (
+          <div
+            key={col}
+            className={cn(
+              "flex justify-end gap-3 border-b border-at-border pb-1.5 lg:row-start-1",
+              col === 0 ? "lg:col-start-1" : "hidden lg:col-start-2 lg:flex",
+            )}
+          >
+            <Bone className="h-4 w-22" />
+            <Bone className="h-4 w-22" />
+          </div>
+        ))}
+        {Array.from({ length: STRIP_BONE_ROWS }, (_, i) => (
+          <div key={i} className="flex h-8 items-center gap-3 pl-2.5">
+            <Bone className="size-3.5 shrink-0 rounded-full" />
+            <Bone className="ml-3 h-3.5 w-36" />
+            <Bone className="ml-auto h-3.5 w-14" />
+            <Bone className="h-3.5 w-14" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

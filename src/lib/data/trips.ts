@@ -18,7 +18,14 @@ import {
   stationPartsOf,
   stationProjection,
 } from "@/lib/station";
-import { type DateRange, NZ_TZ, nzServiceDayRange } from "@/lib/time";
+import {
+  type DateRange,
+  NZ_TZ,
+  nzServiceDayRange,
+  nzServiceDayString,
+  padScanRange,
+  serviceDatesInRange,
+} from "@/lib/time";
 import type { PerTripStat, TripStop, TripTimeline } from "@/types/api";
 
 /** Parameters for {@link getWorstTripsOfDay}. */
@@ -68,7 +75,11 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
             {
               $match: {
                 routeId: { $in: routeIds },
-                scheduledAt: scheduledAtWindow(p.range),
+                // The run's stamped day over a padded scan, as the shame boards
+                // read it: a run crossing 4am stays one row on its own day
+                // rather than lending its tail to the next day as another run.
+                scheduledAt: scheduledAtWindow(padScanRange(p.range)),
+                serviceDate: { $in: serviceDatesInRange(p.range) },
                 // No deviation filter here: every trip that had any event is
                 // counted so the total reflects real runs, not just those within
                 // the noise-free window.
@@ -172,7 +183,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
       }));
     },
     [
-      "worst-trips",
+      "worst-trips-v2",
       p.routeId,
       p.range.start.toISOString(),
       p.range.end.toISOString(),
@@ -191,33 +202,45 @@ interface TripStopRaw extends Omit<TripStop, "scheduled_at">, StationRow {
 }
 
 /**
- * The Auckland-local service-day window of a trip's most recent run, so an
- * undated timeline request still resolves to a single run (a run that crosses
- * midnight stays in one service day).
+ * The service-day window of a trip's most recent run, so an undated timeline
+ * request still resolves to a single run. Read from the stamped service date,
+ * so a run that crosses 4am is filed under the day it started rather than the
+ * day its last reading fell in; the latest reading stands in only when no row
+ * carries a stamp.
  * @param tripId - The trip to scope.
  * @returns The latest run's service-day window, or null when the trip has no events.
  */
 export async function getLatestTripDay(tripId: string): Promise<DateRange | null> {
-  // Cache the raw ISO string; reconstruct DateRange outside to avoid Date serialisation issues.
-  const iso = await unstable_cache(
+  // Cache the service date string; reconstruct DateRange outside to avoid Date serialisation issues.
+  const date = await unstable_cache(
     async () => {
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
           aggregate: "ArrivalEvent",
           pipeline: [
             { $match: { tripId } },
-            { $group: { _id: null, max: { $max: "$scheduledAt" } } },
+            // `$max` skips nulls, and `YYYY-MM-DD` strings sort as dates.
+            {
+              $group: {
+                _id: null,
+                day: { $max: "$serviceDate" },
+                max: { $max: "$scheduledAt" },
+              },
+            },
           ] as never,
           cursor: { batchSize: 1 },
         }),
-      )) as unknown as { cursor: { firstBatch: { max?: { $date: string } | string }[] } };
-      const raw = res.cursor.firstBatch[0]?.max;
-      return raw ? toIso(raw) : null;
+      )) as unknown as {
+        cursor: { firstBatch: { day?: string | null; max?: { $date: string } | string }[] };
+      };
+      const row = res.cursor.firstBatch[0];
+      if (row?.day) return row.day;
+      return row?.max ? nzServiceDayString(new Date(toIso(row.max))) : null;
     },
-    ["latest-trip-day", tripId],
+    ["latest-trip-day-v2", tripId],
     { revalidate: 21600 },
   )();
-  return iso ? nzServiceDayRange(new Date(iso)) : null;
+  return date ? nzServiceDayRange(date) : null;
 }
 
 /**
@@ -248,10 +271,14 @@ export async function getTripTimeline(
 
       const match: Record<string, unknown> = { tripId, ...realDeviationMatchFor(classified) };
       if (day) {
+        // Padded past 4am so a night run keeps its tail, and held to the run's
+        // stamped day so the next day's run of the same trip id stays out. Not
+        // clipped to now: a running trip's predicted stops belong on its timeline.
         match.scheduledAt = {
           $gte: { $date: day.start.toISOString() },
-          $lt: { $date: day.end.toISOString() },
+          $lt: { $date: padScanRange(day).end.toISOString() },
         };
+        match.serviceDate = nzServiceDayString(day.start);
       }
 
       const res = (await runCommand(() =>
@@ -324,7 +351,7 @@ export async function getTripTimeline(
         stops,
       };
     },
-    ["trip-timeline", tripId, routeId, day?.start.toISOString() ?? "all"],
+    ["trip-timeline-v2", tripId, routeId, day?.start.toISOString() ?? "all"],
     // The "all" variant follows the trip's latest day and stays short-lived.
     day ?? null,
     300,

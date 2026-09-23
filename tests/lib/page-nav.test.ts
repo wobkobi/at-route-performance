@@ -1,25 +1,30 @@
 // tests/lib/page-nav.test.ts
-// Unit tests for the page-nav helpers resolveRequestedDay, resolveWeekNav and filterLiveHours in page-nav.ts.
+// Unit tests for the page-nav helpers: day, week and month resolution, the
+// shown-day fallback and the live-hour filters.
 
-import { getMostRecentDataDay } from "@/lib/data";
+import { currentDayIsOpen, getMostRecentDataDay } from "@/lib/data";
 import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/data-start";
 import {
   fillServiceHours,
   filterLiveHours,
-  maybeFallbackDay,
   resolveActiveWeekRange,
   resolveMonthNav,
   resolveRangeView,
   resolveRequestedDay,
   resolveRequestedMonth,
+  resolveShownDay,
   resolveWeekNav,
   serviceHourSpan,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { nzServiceDayRange } from "@/lib/time";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/data", () => ({ getMostRecentDataDay: vi.fn(() => Promise.resolve(null)) }));
+vi.mock("@/lib/data", () => ({
+  currentDayIsOpen: vi.fn(),
+  getMostRecentDataDay: vi.fn(),
+  TODAY_REVALIDATE: 60,
+}));
 
 /**
  * Test stub for `resolveWeekNav`'s `makeHref`: encode a week period as a
@@ -222,6 +227,37 @@ describe("resolveWeekNav", () => {
     });
     expect(nav.prevHref).toBeNull();
   });
+  it("keeps 1am on a Monday in the week still running, so prev is the week before it", () => {
+    // Mon 15 Jun 01:00 NZST: Sunday's service day, so this week is still 8 Jun's.
+    const nav = resolveWeekNav({
+      periodParam: null,
+      earliestDay: oldEarliest,
+      makeHref,
+      now: new Date("2026-06-14T13:00:00Z"),
+    });
+    expect(nav.prevHref).toBe("week:2026-06-01");
+  });
+});
+
+describe("resolveMonthNav on the 1st before 4am", () => {
+  /**
+   * Test stub encoding a month period as a recognisable href.
+   * @param period - The month period, or null for the current month.
+   * @returns A stub href like "month:2026-05" or "month:current".
+   */
+  const monthHref = (period: string | null): string => `month:${period ?? "current"}`;
+
+  it("stays on the month still running", () => {
+    // Wed 1 Jul 01:00 NZST: 30 June's service day.
+    const nav = resolveMonthNav({
+      periodParam: null,
+      earliestDay: new Date("2026-01-01T00:00:00Z"),
+      makeHref: monthHref,
+      now: new Date("2026-06-30T13:00:00Z"),
+    });
+    expect(nav.periodLabel).toBe("June 2026");
+    expect(nav.prevHref).toBe("month:2026-05");
+  });
 });
 
 describe("partial periods at the archive floor", () => {
@@ -282,14 +318,79 @@ describe("partial periods at the archive floor", () => {
   });
 });
 
-describe("maybeFallbackDay", () => {
-  it("never falls back from a requested day, so a clamped redirect stays put", async () => {
-    await expect(maybeFallbackDay(DATA_START_DAY, true, MIN_BOARD_EVENTS)).resolves.toBeNull();
+describe("resolveShownDay", () => {
+  const TODAY = "2026-09-22";
+
+  beforeEach(() => {
+    vi.mocked(currentDayIsOpen).mockReset();
+    vi.mocked(getMostRecentDataDay).mockReset();
+  });
+
+  it("shows an asked-for day as it is, without asking the database", async () => {
+    const shown = await resolveShownDay("2026-09-15", TODAY);
+    expect(shown).toMatchObject({ serviceDate: "2026-09-15", nextPending: false });
+    expect(shown.range).toEqual(nzServiceDayRange("2026-09-15"));
+    expect(currentDayIsOpen).not.toHaveBeenCalled();
+  });
+
+  it("holds back an asked-for yesterday's next step until today opens", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(false);
+    await expect(resolveShownDay("2026-09-21", TODAY)).resolves.toMatchObject({
+      serviceDate: "2026-09-21",
+      nextPending: true,
+    });
+    vi.mocked(currentDayIsOpen).mockResolvedValue(true);
+    await expect(resolveShownDay("2026-09-21", TODAY)).resolves.toMatchObject({
+      nextPending: false,
+    });
     expect(getMostRecentDataDay).not.toHaveBeenCalled();
   });
 
-  it("still falls back on a sparse today, where the forward clamp dropped ?day", async () => {
-    await maybeFallbackDay(null, true, MIN_BOARD_EVENTS);
+  it("shows today once it has opened", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(true);
+    await expect(resolveShownDay(null, TODAY)).resolves.toMatchObject({
+      serviceDate: TODAY,
+      nextPending: false,
+    });
+    expect(getMostRecentDataDay).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the latest day with enough data before today opens", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(false);
+    // Sun 20 Sep 08:00 NZST: an ingest gap left the 21st short of data. The
+    // 21st is still a step on, so the next day is not pending.
+    vi.mocked(getMostRecentDataDay).mockResolvedValue(new Date("2026-09-19T20:00:00Z"));
+    await expect(resolveShownDay(null, TODAY)).resolves.toMatchObject({
+      serviceDate: "2026-09-20",
+      nextPending: false,
+    });
     expect(getMostRecentDataDay).toHaveBeenCalledWith(MIN_BOARD_EVENTS);
+  });
+
+  it("never falls back onto today itself, taking the day before instead", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(false);
+    vi.mocked(getMostRecentDataDay).mockResolvedValue(new Date("2026-09-21T20:00:00Z"));
+    await expect(resolveShownDay(null, TODAY)).resolves.toMatchObject({
+      serviceDate: "2026-09-21",
+      nextPending: true,
+    });
+  });
+
+  it("takes the day before when no day has enough data", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(false);
+    vi.mocked(getMostRecentDataDay).mockResolvedValue(null);
+    await expect(resolveShownDay(null, TODAY)).resolves.toMatchObject({
+      serviceDate: "2026-09-21",
+      nextPending: true,
+    });
+  });
+
+  it("stays on the archive's first day, which has nothing earlier to stand in", async () => {
+    vi.mocked(currentDayIsOpen).mockResolvedValue(false);
+    vi.mocked(getMostRecentDataDay).mockResolvedValue(null);
+    await expect(resolveShownDay(null, DATA_START_DAY)).resolves.toMatchObject({
+      serviceDate: DATA_START_DAY,
+      nextPending: false,
+    });
   });
 });

@@ -28,6 +28,7 @@ import {
   nzServiceDayString,
   padScanRange,
   serviceDatesInRange,
+  serviceDayScanRange,
 } from "@/lib/time";
 import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
 import type {
@@ -93,7 +94,8 @@ function cachedStopSumsOfDay(
     async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
+        scheduledAt: scheduledAtWindow(serviceDayScanRange(date)),
+        serviceDate: date,
         ...realDeviationMatchFor(classified),
       };
       if (routeIds) match.routeId = { $in: routeIds };
@@ -118,7 +120,7 @@ function cachedStopSumsOfDay(
       )) as unknown as { cursor: { firstBatch: StopDaySum[] } };
       return res.cursor.firstBatch;
     },
-    ["stop-sums-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    ["stop-sums-of-day-v2", date, mode ?? "all", includeSchool ? "school" : "no-school"],
     date,
     revalidate,
   );
@@ -222,9 +224,9 @@ export async function getWorstStops(
   revalidate: number,
 ): Promise<WorstStop[]> {
   const { mode = null, includeSchool = false } = filter;
-  // Align midnight-aligned week/month windows to service-day edges so the
-  // worst-stops card counts the same events as the per-day shame boards. A
-  // service-day-aligned range maps to itself, so day callers are unaffected.
+  // Snap the window to whole service days so the worst-stops card counts the
+  // same events as the per-day shame boards. Weeks, months and days already sit
+  // on those edges and map to themselves.
   const days = serviceDatesInRange(range);
   const aligned =
     days.length > 0
@@ -240,7 +242,7 @@ export async function getWorstStops(
     return cachedForRange(
       () => worstStopsFromDays(days, mode, includeSchool, limit, candidates, revalidate),
       [
-        "worst-stops-days",
+        "worst-stops-days-v2",
         aligned.start.toISOString(),
         aligned.end.toISOString(),
         mode ?? "all",
@@ -254,10 +256,13 @@ export async function getWorstStops(
   return cachedForRange(
     async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
+      // A day's readings are its runs' readings, tails past 4am included; a
+      // window with no whole day in it has no stamped date to hold to.
       const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(aligned),
+        scheduledAt: scheduledAtWindow(days.length > 0 ? padScanRange(aligned) : aligned),
         ...realDeviationMatchFor(classified),
       };
+      if (days.length > 0) match.serviceDate = { $in: days };
       if (routeIds) match.routeId = { $in: routeIds };
 
       const res = (await runCommand(() =>
@@ -306,7 +311,7 @@ export async function getWorstStops(
       return collapseWorstStops(enriched).slice(0, limit);
     },
     [
-      "worst-stops",
+      "worst-stops-v2",
       aligned.start.toISOString(),
       aligned.end.toISOString(),
       mode ?? "all",
@@ -398,7 +403,8 @@ export async function getWorstStopsOfDay(
     async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
       const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(range),
+        scheduledAt: scheduledAtWindow(padScanRange(range)),
+        serviceDate: { $in: serviceDatesInRange(range) },
         ...realDeviationMatchFor(classified),
       };
       if (routeIds) match.routeId = { $in: routeIds };
@@ -411,7 +417,17 @@ export async function getWorstStopsOfDay(
             {
               $group: {
                 _id: {
-                  hour: { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+                  // A run's tail past the day's 4am end reads as 4am-6am on the
+                  // clock, which is this board's first slot; it goes in the last
+                  // one instead, with the rest of the day's after-midnight calls.
+                  // Compared as epoch ms, so no date literal crosses the raw command.
+                  hour: {
+                    $cond: [
+                      { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
+                      { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+                      (SERVICE_START_HOUR + 23) % 24,
+                    ],
+                  },
                   stop_id: "$stopId",
                 },
                 events: { $sum: 1 },
@@ -480,7 +496,7 @@ export async function getWorstStopsOfDay(
       return { worst, hours };
     },
     [
-      "worst-stops-of-day",
+      "worst-stops-of-day-v2",
       range.start.toISOString(),
       range.end.toISOString(),
       mode ?? "all",
@@ -765,7 +781,8 @@ export async function getStopStats(
             {
               $match: {
                 stopId: { $in: group.ids },
-                scheduledAt: scheduledAtWindow(range),
+                scheduledAt: scheduledAtWindow(padScanRange(range)),
+                serviceDate: { $in: serviceDatesInRange(range) },
                 ...realDeviationMatchFor(classified),
               },
             },
@@ -863,7 +880,7 @@ export async function getStopStats(
         routes_count: facet?.routeCount[0]?.n ?? 0,
       };
     },
-    ["stop-stats", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    ["stop-stats-v2", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
     range,
     revalidate,
   );

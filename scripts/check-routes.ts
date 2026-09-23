@@ -49,10 +49,10 @@ void (async () => {
       continue;
     }
 
-    // Extract diagram SVG blocks (role="img") - each DiagramSvg renders one such element.
-    // Checking per-SVG prevents false positives from two direction diagrams in a grid
-    // that independently place a stop at the same coordinate.
-    const svgBlocks = [...html.matchAll(/<svg\s[^>]*role="img"[^>]*>([\s\S]*?)<\/svg>/g)].map(
+    // Extract the strip's SVG blocks (data-strip) - RouteStrip draws one per column, in
+    // both its one-column and two-column copies. Checking per SVG prevents false
+    // positives from the two copies placing the same stop at the same coordinate.
+    const svgBlocks = [...html.matchAll(/<svg\s[^>]*data-strip[^>]*>([\s\S]*?)<\/svg>/g)].map(
       (m) => m[0],
     );
 
@@ -62,13 +62,14 @@ void (async () => {
       continue;
     }
 
-    // Within each SVG, check for stop-node circles (not transparent hit areas) sharing
-    // the same rounded cx+cy — a true duplicate node in that diagram.
+    // Within each SVG, check for stop rings sharing the same rounded cx+cy - a true
+    // duplicate stop in that column. The dashed alert rings circle a stop's own ring,
+    // so they are left out.
     let totalDupes = 0;
     for (const svg of svgBlocks) {
       const svgCircles = [
         ...svg.matchAll(/<circle\s[^>]*cx="([\d.]+)"[^>]*cy="([\d.]+)"[^>]*>/g),
-      ].filter((m) => !m[0].includes('fill="transparent"'));
+      ].filter((m) => !m[0].includes("stroke-dasharray"));
       const positions = new Set<string>();
       for (const m of svgCircles) {
         const key = `${Math.round(Number(m[1]))},${Math.round(Number(m[2]))}`;

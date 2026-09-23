@@ -3,8 +3,13 @@
 
 import type { ScheduledDeparture } from "@/lib/at-stop-trips";
 import { formatGtfsTime } from "@/lib/format";
-import { nzServiceDayString } from "@/lib/time";
-import type { JSX } from "react";
+import {
+  afterMidnightNote,
+  gtfsServiceSeconds,
+  nzServiceDayString,
+  serviceDayLabel,
+} from "@/lib/time";
+import { Fragment, type JSX } from "react";
 
 /** Props for {@link StopSchedule}. */
 export interface StopScheduleProps {
@@ -19,6 +24,8 @@ export interface StopScheduleProps {
 /**
  * Today's (or a named day's) scheduled departures at a stop, presented as a
  * compact table. Matches the table style used across other stop-page sections.
+ * The departures run 4am to 4am, so the ones after midnight close the list
+ * under a line naming the day they still count toward.
  * @param props - Component props.
  * @param props.departures - Sorted departures.
  * @param props.routeNames - Route ID to short name map.
@@ -31,7 +38,11 @@ export function StopSchedule({
   serviceDate,
 }: StopScheduleProps): JSX.Element {
   const isToday = serviceDate === nzServiceDayString();
-  const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDate}`;
+  const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDayLabel(serviceDate)}`;
+  // Past 24h on the service clock is after midnight (the list is sorted by it).
+  const firstAfterMidnight = departures.findIndex(
+    (d) => d.departureTime !== null && (gtfsServiceSeconds(d.departureTime) ?? 0) >= 86_400,
+  );
 
   return (
     <section className="flex flex-col gap-3">
@@ -50,15 +61,24 @@ export function StopSchedule({
             </thead>
             <tbody>
               {departures.map((dep, i) => (
-                <tr key={dep.tripId || i} className="border-b border-at-border/40 last:border-0">
-                  <td className="py-1.5 pr-4 font-semibold text-at-ink">
-                    {routeNames.get(dep.routeId) ?? dep.routeId}
-                  </td>
-                  <td className="py-1.5 pr-4 text-at-muted">{dep.headsign ?? "—"}</td>
-                  <td className="py-1.5 text-at-ink tabular-nums">
-                    {formatGtfsTime(dep.departureTime) ?? "—"}
-                  </td>
-                </tr>
+                <Fragment key={dep.tripId || i}>
+                  {i === firstAfterMidnight && (
+                    <tr className="border-b border-at-border/40">
+                      <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
+                        {afterMidnightNote(serviceDate)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="border-b border-at-border/40 last:border-0">
+                    <td className="py-1.5 pr-4 font-semibold text-at-ink">
+                      {routeNames.get(dep.routeId) ?? dep.routeId}
+                    </td>
+                    <td className="py-1.5 pr-4 text-at-muted">{dep.headsign ?? "—"}</td>
+                    <td className="py-1.5 text-at-ink tabular-nums">
+                      {formatGtfsTime(dep.departureTime) ?? "—"}
+                    </td>
+                  </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

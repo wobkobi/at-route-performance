@@ -1,10 +1,13 @@
 // tests/lib/time.test.ts
 // Unit tests for the Auckland-timezone day, week and month range helpers in time.ts.
 import {
+  afterMidnightNote,
+  gtfsServiceSeconds,
+  isAfterMidnight,
   monthRangeLabel,
   NZ_TZ,
-  nzDayRange,
   nzLast7DaysRange,
+  nzLocalHour,
   nzMonthKey,
   nzMonthRange,
   nzServiceDayRange,
@@ -18,6 +21,7 @@ import {
   serviceDayLabel,
   serviceDayNoon,
   serviceDayScanRange,
+  serviceDayWindowText,
   shiftMonth,
   weekdayShort,
 } from "@/lib/time";
@@ -25,48 +29,20 @@ import { describe, expect, it } from "vitest";
 
 const HOUR_MS = 3_600_000;
 
-describe("nzDayRange", () => {
-  it("covers one Auckland calendar day in winter (NZST, UTC+12)", () => {
-    // 2026-06-15 12:00 NZST == 2026-06-15 00:00 UTC.
-    const { start, end } = nzDayRange(new Date("2026-06-15T00:00:00Z"));
-    // Local day 2026-06-15 starts 2026-06-14T12:00Z and ends 2026-06-15T12:00Z.
-    expect(start.toISOString()).toBe("2026-06-14T12:00:00.000Z");
-    expect(end.toISOString()).toBe("2026-06-15T12:00:00.000Z");
-  });
-  it("covers one Auckland calendar day in summer (NZDT, UTC+13)", () => {
-    // January is NZDT (+13): local day starts at 11:00Z the previous date.
-    const { start, end } = nzDayRange(new Date("2026-01-15T00:00:00Z"));
-    expect(start.toISOString()).toBe("2026-01-14T11:00:00.000Z");
-    expect(end.toISOString()).toBe("2026-01-15T11:00:00.000Z");
-  });
-});
-
-describe("Auckland midnight on DST-switch days", () => {
-  // The switch happens at 02:00/03:00 local, so local midnight sits on the
-  // old offset while UTC midnight (local noon) already sits on the new one. A
-  // single offset sample at UTC midnight put these days an hour off.
-  it("starts the NZDT-start day (27 Sep 2026) at NZST midnight and makes it 23 hours long", () => {
-    // 2026-09-27 05:00 UTC == 27 Sep 18:00 NZDT, comfortably inside the day.
-    const { start, end } = nzDayRange(new Date("2026-09-27T05:00:00Z"));
-    expect(start.toISOString()).toBe("2026-09-26T12:00:00.000Z");
-    expect(end.toISOString()).toBe("2026-09-27T11:00:00.000Z");
-    expect(end.getTime() - start.getTime()).toBe(23 * HOUR_MS);
-  });
-  it("starts the NZDT-end day (5 Apr 2026) at NZDT midnight and makes it 25 hours long", () => {
-    const { start, end } = nzDayRange(new Date("2026-04-05T05:00:00Z"));
-    expect(start.toISOString()).toBe("2026-04-04T11:00:00.000Z");
-    expect(end.toISOString()).toBe("2026-04-05T12:00:00.000Z");
-    expect(end.getTime() - start.getTime()).toBe(25 * HOUR_MS);
-  });
-  it("ends the week containing the switch at the following Monday's NZDT midnight", () => {
-    // Mon 28 Sep 2026 00:00 NZDT == 2026-09-27T11:00Z; the week is 167 hours.
+describe("service days across the DST switches", () => {
+  // The switch happens at 02:00/03:00 local, before the 4am boundary, so each
+  // switch day's own boundary already carries the new offset.
+  it("ends the week containing the switch at the following Monday's 4am NZDT", () => {
+    // Mon 21 Sep 2026 04:00 NZST == 2026-09-20T16:00Z; Mon 28 Sep 04:00 NZDT ==
+    // 2026-09-27T15:00Z. The week loses the skipped hour: 167 hours.
     const { start, end } = nzWeekRange("2026-09-21");
-    expect(end.toISOString()).toBe("2026-09-27T11:00:00.000Z");
+    expect(start.toISOString()).toBe("2026-09-20T16:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-09-27T15:00:00.000Z");
     expect(end.getTime() - start.getTime()).toBe(167 * HOUR_MS);
   });
-  it("starts a month whose 1st is a switch Sunday at the right midnight", () => {
-    // 1 Apr 2029 is a Sunday, so NZDT ends that morning; midnight is still NZDT.
-    expect(nzMonthRange("2029-04").start.toISOString()).toBe("2029-03-31T11:00:00.000Z");
+  it("starts a month whose 1st is a switch Sunday at that day's 4am", () => {
+    // 1 Apr 2029 is a Sunday; NZDT ends at 3am, so its 4am is already NZST.
+    expect(nzMonthRange("2029-04").start.toISOString()).toBe("2029-03-31T16:00:00.000Z");
   });
   it("keeps the 4am service-day boundary correct on both switch days", () => {
     // 04:00 is after the 02:00/03:00 switch, so the switch day's own boundary
@@ -95,11 +71,11 @@ describe("Auckland midnight on DST-switch days", () => {
 });
 
 describe("nzWeekRange (Monday start)", () => {
-  it("snaps any date to its local Monday and spans seven days", () => {
+  it("snaps any date to its Monday and spans seven service days", () => {
     // 2026-06-17 is a Wednesday; its week's Monday is 2026-06-15.
-    // 2026-06-15 00:00 NZST == 2026-06-14T12:00Z.
+    // 2026-06-15 04:00 NZST == 2026-06-14T16:00Z.
     const { start, end } = nzWeekRange("2026-06-17");
-    expect(start.toISOString()).toBe("2026-06-14T12:00:00.000Z");
+    expect(start.toISOString()).toBe("2026-06-14T16:00:00.000Z");
     expect(end.getTime() - start.getTime()).toBe(7 * 86_400_000);
   });
   it("round-trips with nzWeekStart", () => {
@@ -109,17 +85,23 @@ describe("nzWeekRange (Monday start)", () => {
 });
 
 describe("nzMonthRange", () => {
-  it("covers June 2026 in Auckland local time (NZST)", () => {
+  it("covers June 2026's service days", () => {
     const { start, end } = nzMonthRange("2026-06");
-    // 2026-06-01 00:00 NZST == 2026-05-31T12:00Z; 2026-07-01 00:00 NZST == 2026-06-30T12:00Z.
-    expect(start.toISOString()).toBe("2026-05-31T12:00:00.000Z");
-    expect(end.toISOString()).toBe("2026-06-30T12:00:00.000Z");
+    // 2026-06-01 04:00 NZST == 2026-05-31T16:00Z; 2026-07-01 04:00 NZST == 2026-06-30T16:00Z.
+    expect(start.toISOString()).toBe("2026-05-31T16:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-06-30T16:00:00.000Z");
   });
 });
 
 describe("nzWeekStart", () => {
   it("returns the Monday of the week", () => {
     expect(nzWeekStart(new Date("2026-06-17T00:00:00Z"))).toBe("2026-06-15");
+  });
+  it("keeps 1am on a Monday in the week before, as its service day is Sunday's", () => {
+    // 2026-06-14 13:00 UTC == Mon 15 Jun 01:00 NZST.
+    expect(nzWeekStart(new Date("2026-06-14T13:00:00Z"))).toBe("2026-06-08");
+    // 2026-06-14 16:00 UTC == Mon 15 Jun 04:00 NZST, the new week's first instant.
+    expect(nzWeekStart(new Date("2026-06-14T16:00:00Z"))).toBe("2026-06-15");
   });
 });
 
@@ -157,7 +139,7 @@ describe("serviceDayClockInstant", () => {
 });
 
 describe("serviceDatesInRange", () => {
-  it("yields exactly the seven calendar days Mon to Sun for a midnight-aligned week", () => {
+  it("yields exactly the seven days Mon to Sun for a week", () => {
     expect(serviceDatesInRange(nzWeekRange("2026-06-29"))).toEqual([
       "2026-06-29",
       "2026-06-30",
@@ -168,7 +150,7 @@ describe("serviceDatesInRange", () => {
       "2026-07-05",
     ]);
   });
-  it("yields exactly the month's days for a midnight-aligned month", () => {
+  it("yields exactly the month's days for a month", () => {
     const dates = serviceDatesInRange(nzMonthRange("2026-06"));
     expect(dates).toHaveLength(30);
     expect(dates[0]).toBe("2026-06-01");
@@ -206,9 +188,11 @@ describe("month helpers", () => {
     expect(shiftMonth("2026-12", 1)).toBe("2027-01");
     expect(shiftMonth("2026-06", -18)).toBe("2024-12");
   });
-  it("nzMonthKey labels an instant with its Auckland month", () => {
-    // 2026-06-30 13:00 UTC == 1 Jul 01:00 NZST.
-    expect(nzMonthKey(new Date("2026-06-30T13:00:00Z"))).toBe("2026-07");
+  it("nzMonthKey labels an instant with its service day's month", () => {
+    // 2026-06-30 13:00 UTC == 1 Jul 01:00 NZST, still 30 June's service day.
+    expect(nzMonthKey(new Date("2026-06-30T13:00:00Z"))).toBe("2026-06");
+    // 2026-06-30 16:00 UTC == 1 Jul 04:00 NZST, the first of July's.
+    expect(nzMonthKey(new Date("2026-06-30T16:00:00Z"))).toBe("2026-07");
   });
   it("monthRangeLabel names the month of the range", () => {
     expect(monthRangeLabel(nzMonthRange("2026-06"))).toBe("June 2026");
@@ -326,5 +310,43 @@ describe("serviceDayLabel", () => {
   it("names the weekday, day and month of the date itself", () => {
     expect(serviceDayLabel("2026-09-13")).toBe("Sun 13 Sep");
     expect(serviceDayLabel("2027-01-01")).toBe("Fri 1 Jan");
+  });
+});
+
+describe("nzLocalHour and isAfterMidnight", () => {
+  it("reads the Auckland hour, midnight as 0", () => {
+    // 23 Sep 00:15 NZST.
+    expect(nzLocalHour(new Date("2026-09-22T12:15:00Z"))).toBe(0);
+    expect(nzLocalHour(new Date("2026-09-22T23:00:00Z"))).toBe(11);
+  });
+
+  it("puts midnight to 4am after midnight, and 4am on the new day", () => {
+    expect(isAfterMidnight(new Date("2026-09-22T12:15:00Z"))).toBe(true);
+    expect(isAfterMidnight(new Date("2026-09-22T15:59:00Z"))).toBe(true);
+    expect(isAfterMidnight(new Date("2026-09-22T16:00:00Z"))).toBe(false);
+    expect(isAfterMidnight(new Date("2026-09-22T11:59:00Z"))).toBe(false);
+  });
+});
+
+describe("gtfsServiceSeconds", () => {
+  it("moves a time before the start hour past 24h, whichever way AT writes it", () => {
+    expect(gtfsServiceSeconds("04:00:00")).toBe(4 * 3600);
+    expect(gtfsServiceSeconds("23:50:30")).toBe(23 * 3600 + 50 * 60 + 30);
+    expect(gtfsServiceSeconds("00:30:00")).toBe(24.5 * 3600);
+    expect(gtfsServiceSeconds("24:30:00")).toBe(24.5 * 3600);
+  });
+
+  it("is null for a time that does not parse", () => {
+    expect(gtfsServiceSeconds("")).toBeNull();
+    expect(gtfsServiceSeconds("soon")).toBeNull();
+  });
+});
+
+describe("serviceDayWindowText and afterMidnightNote", () => {
+  it("says the 4am-to-4am window and the day a late run counts toward", () => {
+    expect(serviceDayWindowText("2026-09-22")).toBe(
+      "Tue 22 Sep runs from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it.",
+    );
+    expect(afterMidnightNote("2026-09-22")).toBe("After midnight, still counted in Tue 22 Sep");
   });
 });

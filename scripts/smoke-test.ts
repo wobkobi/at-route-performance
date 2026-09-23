@@ -69,7 +69,7 @@ const PAGE_OVERRIDES: Record<
   "/rankings": { name: "Rankings (redirects home)", expectFinalPath: "/?window=week" },
   "/routes": { name: "Routes" },
   "/cancellations": { name: "Cancellations" },
-  "/shame": { name: "Shame of the Day" },
+  "/shame": { name: "Shame (redirects to trips)", expectFinalPath: "/shame/trip" },
 };
 
 /**
@@ -87,6 +87,7 @@ const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/routes?window=week&area=north", name: "Routes (week, North Shore)" },
   { path: "/cancellations?window=week", name: "Cancellations (week)" },
   { path: "/shame/trip?window=week", name: "Shame trips (week)" },
+  { path: "/shame/route?window=week", name: "Shame routes (week)" },
   { path: "/shame/stop?window=week", name: "Shame stops (week)" },
   {
     path: "/shame/stop?day=2026-09-01",

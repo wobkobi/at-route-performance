@@ -207,6 +207,53 @@ model OffRouteSighting {
   @@index([seenAt])
 }
 
+/// One run's part in a stop closure or detour: the trip, and when it showed it.
+type RunMark {
+  tripId String
+  at     DateTime
+}
+
+// A stop closed, or a stretch detoured, on one route, recorded by the realtime
+// ingest as it happens (see lib/stop-closures.ts). Alerts and the feed's SKIPPED
+// stop times are never stored anywhere else, so this is the only record a past
+// day's route diagram can draw its closures from. One row is one episode: one
+// active stint of an alert on a route, one stop AT skipped one way, or one
+// stretch runs left their route over. Open while `to` is null. Pruned on the
+// ArrivalEvent retention window once closed.
+model StopClosure {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  // Feed route id; null for an alert naming a stop without a route.
+  routeId     String?
+  // Null means both ways: alerts carry no direction.
+  directionId Int?
+  kind        String // "closed" | "detour"
+  source      String // "alert" | "seen" | "skipped"
+  // The stops closed, or an alert detour's named stops; empty for a seen detour.
+  stopIds     String[]
+  // A seen detour's ends: the last stop timed before leaving the route and the
+  // first after rejoining it.
+  fromStopId  String?
+  toStopId    String?
+  alertId     String?
+  effect      String?
+  // The alert's cleaned header; on a seen detour, the header of a reroute alert
+  // on the route at the time, when there was one.
+  alert       String?
+  // The runs that showed it, oldest first, and the runs since that didn't.
+  runs        RunMark[]
+  clears      RunMark[]
+  // When enough separate runs showed a seen or skipped state to call it a trend.
+  confirmedAt DateTime?
+  // When enough runs drove an announced detour's stops on route to doubt it.
+  disputedAt  DateTime?
+  from        DateTime
+  to          DateTime?
+
+  @@index([routeId, from])
+  // The open rows each poll reads, and the retention delete.
+  @@index([to])
+}
+
 // Pre-aggregated per-route stats for one NZ service day, written by the aggregate
 // endpoint so the rankings and week views read summaries instead of rescanning
 // millions of raw events. Retained indefinitely for trend history: ArrivalEvent

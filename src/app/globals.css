@@ -10,6 +10,12 @@
   /* UI/body fallback when Gotham Narrow unavailable */
   --font-ui: "Open Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
 
+  /* The smallest size the site uses: Tailwind's 12px is thin in a narrow face
+     on a phone, so text-xs is 13px here. Nothing is set smaller. The line
+     height stays 16px, so every skeleton sized to a text-xs line still fits. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1rem;
+
   /* AT core palette (brand identity guide p8) */
   --color-at-shore: #0073bd;
   --color-at-ocean: #001930;
@@ -189,7 +195,7 @@
   border-radius: 2px;
   box-shadow: none;
   padding: 1px 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.3;
   color: var(--color-at-ink);

@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
+import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
@@ -606,17 +607,16 @@ export default function StopMap({
 
       const colours = readColours();
       /*
-        Leaflet's defaults leave wheel zoom and one-finger drag on, so a wheel over
-        the map zoomed it instead of scrolling past it and a thumb swipe panned the
-        map instead of the page - on a phone the map is most of the viewport, so
-        there was no reliable way to scroll past it at all. The zoom buttons and
-        pinch-zoom both still work; this only takes away the two gestures that were
-        stealing a scroll the reader meant for the page.
+        Leaflet's always-on wheel zoom and one-finger drag would take a scroll the
+        reader meant for the page - on a phone the map is most of the viewport. So
+        one-finger drag is off on touch (pinch and the zoom buttons still work),
+        and the wheel zooms only once the mouse has settled on the map.
       */
       const map = L.map(divRef.current, {
         scrollWheelZoom: false,
         dragging: !L.Browser.mobile,
       });
+      wheelZoomOnHover(map);
       // The key goes out only where CARTO accepts it (see cartoTileUrl).
       const tiles = cartoTileUrl(
         window.location.host,

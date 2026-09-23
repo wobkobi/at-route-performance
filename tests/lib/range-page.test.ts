@@ -8,9 +8,11 @@ import {
   overviewHeading,
   parseRangeWindow,
   periodAnchorDay,
+  periodInPhrase,
   rangeTabPeriods,
   routeLinkQuery,
   weekPeriodOf,
+  windowPhrase,
 } from "@/lib/range-page";
 import { nzServiceDayRange } from "@/lib/time";
 import { describe, expect, it } from "vitest";
@@ -31,9 +33,24 @@ describe("dayRangeNav", () => {
   // stepper here rather than DATA_START_DAY standing in for it.
   const earliest = nzServiceDayRange("2026-09-12").start;
 
+  /**
+   * A shown day that was asked for, as `resolveShownDay` returns it.
+   * @param serviceDate - The service date.
+   * @returns The shown day, its next day not pending.
+   */
+  const asked = (serviceDate: string): { serviceDate: string; nextPending: boolean } => ({
+    serviceDate,
+    nextPending: false,
+  });
+
   it("stops at today and at the earliest day with data", () => {
-    expect(dayRangeNav(TODAY, earliest, TODAY)).toMatchObject({ hasPrev: true, hasNext: false });
-    expect(dayRangeNav("2026-09-12", earliest, TODAY)).toMatchObject({
+    expect(dayRangeNav(asked(TODAY), earliest, TODAY)).toMatchObject({
+      isToday: true,
+      hasPrev: true,
+      hasNext: false,
+    });
+    expect(dayRangeNav(asked("2026-09-12"), earliest, TODAY)).toMatchObject({
+      isToday: false,
       hasPrev: false,
       hasNext: true,
       nextIsToday: false,
@@ -41,12 +58,20 @@ describe("dayRangeNav", () => {
   });
 
   it("marks yesterday's next link as today", () => {
-    expect(dayRangeNav("2026-09-13", earliest, TODAY)).toMatchObject({ nextIsToday: true });
+    expect(dayRangeNav(asked("2026-09-13"), earliest, TODAY)).toMatchObject({
+      nextIsToday: true,
+    });
+  });
+
+  it("offers no next day while today is pending, since its bare URL falls back here", () => {
+    expect(
+      dayRangeNav({ serviceDate: "2026-09-13", nextPending: true }, earliest, TODAY),
+    ).toMatchObject({ hasNext: false, nextPending: true, isToday: false });
   });
 
   it("falls back to the archive floor when the earliest day is unknown", () => {
-    expect(dayRangeNav(DATA_START_DAY, null, TODAY).hasPrev).toBe(false);
-    expect(dayRangeNav("2026-09-12", null, TODAY).hasPrev).toBe(true);
+    expect(dayRangeNav(asked(DATA_START_DAY), null, TODAY).hasPrev).toBe(false);
+    expect(dayRangeNav(asked("2026-09-12"), null, TODAY).hasPrev).toBe(true);
   });
 });
 
@@ -137,6 +162,7 @@ describe("overviewHeading", () => {
   const day = {
     window: "day",
     serviceDate: TODAY,
+    nextPending: false,
     hasPrev: true,
     nextIsToday: false,
     atFloor: false,
@@ -152,15 +178,50 @@ describe("overviewHeading", () => {
   } as const;
 
   it("names today, or another day, from the stepper", () => {
-    expect(overviewHeading({ ...day, hasNext: false }, null)).toBe("How bad was it today?");
-    expect(overviewHeading({ ...day, hasNext: true }, null)).toBe("How bad was it that day?");
+    expect(overviewHeading({ ...day, isToday: true, hasNext: false }, null)).toBe(
+      "How bad was it today?",
+    );
+    expect(overviewHeading({ ...day, isToday: false, hasNext: true }, null)).toBe(
+      "How bad was it that day?",
+    );
   });
 
-  it("tells the current week or month from a stepped-back one", () => {
-    expect(overviewHeading(week, null)).toBe("How bad was this week?");
+  it("does not call yesterday today while today is pending, though neither has a next day", () => {
+    expect(
+      overviewHeading({ ...day, isToday: false, nextPending: true, hasNext: false }, null),
+    ).toBe("How bad was it that day?");
+  });
+
+  it("tells the rolling week and the current month from a stepped-back one", () => {
+    expect(overviewHeading(week, null)).toBe("How bad was it over the last 7 days?");
+    expect(overviewHeading(week, "2026-09-07")).toBe("How bad was it that week?");
+    expect(overviewHeading({ ...week, window: "month" }, null)).toBe("How bad was it this month?");
     expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
-      "How bad was that month?",
+      "How bad was it that month?",
     );
+  });
+});
+
+describe("windowPhrase", () => {
+  const tabs = { day: null, week: null, month: null } as const;
+
+  it("says today only on today, so a past day's shame rows say that day", () => {
+    const today = dayRangeNav({ serviceDate: TODAY, nextPending: false }, null, TODAY);
+    const past = dayRangeNav({ serviceDate: "2026-09-12", nextPending: false }, null, TODAY);
+    expect(windowPhrase(today, null)).toBe("today");
+    expect(windowPhrase(past, null)).toBe("that day");
+  });
+
+  it("names the rolling week as the last 7 days, since it is not the calendar week", () => {
+    const week = {
+      window: "week",
+      label: "Last 7 days",
+      prevHref: null,
+      nextHref: null,
+      partial: false,
+      tabs,
+    } as const;
+    expect(windowPhrase(week, null)).toBe("over the last 7 days");
   });
 });
 
@@ -176,5 +237,14 @@ describe("hasEarlierDay", () => {
   it("ignores a live floor that sits before the constant", () => {
     // The 10 September remnant must never re-open the stepper.
     expect(hasEarlierDay(DATA_START_DAY, nzServiceDayRange("2026-09-10").start)).toBe(false);
+  });
+});
+
+describe("periodInPhrase", () => {
+  it("names the rolling window by its days and a stepped-back one as that period", () => {
+    expect(periodInPhrase("week", null)).toBe("the last 7 days");
+    expect(periodInPhrase("week", "2026-09-14")).toBe("that week");
+    expect(periodInPhrase("month", null)).toBe("this month");
+    expect(periodInPhrase("month", "2026-08")).toBe("that month");
   });
 });
