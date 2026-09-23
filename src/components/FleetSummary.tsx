@@ -114,10 +114,14 @@ function VerdictPanel({
           />
         ))}
       </div>
+      {/* The count and the percentage have different denominators on purpose:
+          arrivals include readings the nightly ghost pass hid, and every rate
+          divides by the real ones (see aggregate.ts). "X% of N arrivals" welded
+          them into one claim neither number supports, so they are listed. */}
       <p className="text-sm text-at-muted">
         {data.on_time_pct === null
           ? "Not enough data"
-          : `${data.on_time_pct.toFixed(1)}% of ${data.events.toLocaleString()} arrivals were on time` +
+          : `${data.events.toLocaleString()} arrivals, ${data.on_time_pct.toFixed(1)}% of those measured on time` +
             (data.avg_abs_delay_sec === null
               ? ""
               : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}

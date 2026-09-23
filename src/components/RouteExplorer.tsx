@@ -12,9 +12,8 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/areas";
 import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
-import { delayBand } from "@/lib/on-time";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -376,7 +375,10 @@ export function RouteExplorer({
             const label = r.short_name || r.long_name || r.slug;
             const subtitle =
               lineName(r.mode, r.short_name) ?? (r.long_name !== label ? r.long_name : null);
-            const delay = r.avg_delay_sec;
+            // Always a distance, never the words "on time": this sits beside an
+            // on-time percentage, and a delay figure reading "on time" under an
+            // "Avg delay" label read as the two figures disagreeing.
+            const offSchedule = offScheduleValue(r.avg_delay_sec, null, r.mode);
             return (
               <li
                 key={r.slug}
@@ -418,19 +420,8 @@ export function RouteExplorer({
                   <Figure label="On time">
                     {r.on_time_pct === null ? "—" : `${r.on_time_pct.toFixed(1)}%`}
                   </Figure>
-                  <Figure
-                    label="Avg delay"
-                    className={
-                      delay === null
-                        ? undefined
-                        : {
-                            late: "text-at-late",
-                            early: "text-at-early-strong",
-                            ontime: undefined,
-                          }[delayBand(delay, r.mode)]
-                    }
-                  >
-                    {delay === null ? "—" : formatDelay(delay, { mode: r.mode })}
+                  <Figure label="Avg delay" className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}>
+                    {offSchedule.text}
                   </Figure>
                   <Figure label="Off by">
                     {r.avg_abs_delay_sec === null ? "—" : formatDuration(r.avg_abs_delay_sec)}

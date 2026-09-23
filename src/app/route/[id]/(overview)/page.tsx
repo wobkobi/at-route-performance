@@ -40,7 +40,7 @@ import {
   type TripSort,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { formatDuration, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -888,9 +888,7 @@ export default async function RoutePage({
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {s.avg_delay_sec == null
-                            ? "—"
-                            : formatDelay(s.avg_delay_sec, { mode: routeMode })}
+                          {offScheduleValue(s.avg_delay_sec, null, routeMode).text}
                         </td>
                       </tr>
                     ))}

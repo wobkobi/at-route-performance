@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.2] - 2026-09-23
+
+### Fixed
+
+- A route's "Avg delay" no longer reads "on time" beside an on-time percentage: it always names a
+  distance, such as "6s late", coloured by band. Applies on the routes explorer, a route's week
+  table and its per-stop table. The verdict sentence and the share card now list the arrival count
+  and the on-time share instead of joining them with "of", which claimed a relationship the two
+  figures do not have.
+
 ## [1.55.1] - 2026-09-23
 
 ### Fixed

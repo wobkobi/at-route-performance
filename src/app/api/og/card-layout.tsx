@@ -196,8 +196,10 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
           />
         ))}
       </div>
+      {/* Listed, not welded with "of": arrivals include readings the ghost pass
+          hid and the rate divides by the real ones, as on the page itself. */}
       <div style={{ ...ONE_LINE, fontSize: 48, marginTop: 28 }}>
-        {`${summary.on_time_pct.toFixed(1)}% of ${summary.events.toLocaleString("en-NZ")} arrivals on time`}
+        {`${summary.events.toLocaleString("en-NZ")} arrivals, ${summary.on_time_pct.toFixed(1)}% of those measured on time`}
       </div>
       <div style={{ ...ONE_LINE, fontSize: 44, marginTop: 4, color: MUTED }}>
         {summary.avg_abs_delay_sec === null
