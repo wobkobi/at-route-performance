@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.56.2] - 2026-09-24
+
+### Fixed
+
+- Fixed: a build with no DATABASE_URL failed on the 404 page, which broke CI's build step and the
+  Dependabot auto-merge signal.
+
 ## [1.56.1] - 2026-09-24
 
 ### Fixed
