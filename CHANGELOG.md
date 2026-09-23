@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.15] - 2026-09-23
+
+### Fixed
+
+- The day-by-day page reads its window the way every other range page does, so a URL saying
+  `window=day` no longer renders a week: it moves to the week holding the day it was reading,
+  keeping the mode and school filters. A link followed onto the page now keeps the reader's date too
+  - arriving with a day in the URL opens the week or month holding that day rather than the current
+    one. Its table gained the horizontal-scroll wrapper every other table on the site has, so a long
+    day label scrolls the table rather than the page.
+
 ## [1.55.14] - 2026-09-23
 
 ### Fixed

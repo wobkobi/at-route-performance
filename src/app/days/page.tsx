@@ -20,7 +20,12 @@ import { DATA_START_DAY } from "@/lib/data-start";
 import { daySlot, type DaySlot } from "@/lib/day-series";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { periodRangeNav, type RangeWindow } from "@/lib/range-page";
+import {
+  parseRangeWindow,
+  periodForCarriedDay,
+  periodRangeNav,
+  type RangeWindow,
+} from "@/lib/range-page";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -31,6 +36,7 @@ import {
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
 export const metadata: Metadata = {
@@ -46,6 +52,7 @@ const WINDOWS: readonly RangeWindow[] = ["week", "month"];
 interface DaysSearchParams {
   window?: string;
   period?: string;
+  day?: string;
   mode?: string;
   school?: string;
 }
@@ -53,7 +60,7 @@ interface DaysSearchParams {
 /**
  * Day by day page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `period`) and filter (`mode`, `school`) params.
+ * @param root0.searchParams - Window (`window`, `period`, `day`) and filter (`mode`, `school`) params.
  * @returns Page markup.
  */
 export default async function DaysPage({
@@ -62,18 +69,43 @@ export default async function DaysPage({
   searchParams?: Promise<DaysSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const window = sp.window === "month" ? "month" : "week";
+  // An explicit window is read the way every range page reads it, so this page
+  // cannot disagree with the rest about what a value means; only an absent one
+  // takes the week default, as `/rankings` does. A bare `/days` stays bare rather
+  // than redirecting to `?window=week`: it is the URL the sitemap advertises, and
+  // robots.txt disallows every query string, so the redirect would send a crawler
+  // from the canonical page to one it may not fetch.
+  const requested = sp.window ? parseRangeWindow(sp.window) : "week";
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
+  // One day is one column here, so there is no day view to honour and a
+  // `?window=day` would render a week under a URL saying otherwise. It becomes the
+  // week holding the day it was reading, before any read runs. The segment's
+  // loading shell has already flushed by the time a page component runs, so Next
+  // lands this as a client navigation rather than a status code - the same way the
+  // home page drops a `?day=<today>`.
+  if (requested === "day") {
+    redirect(
+      buildHref("/days", {
+        window: "week",
+        period: periodForCarriedDay("week", sp.period, sp.day),
+        mode: mode ?? undefined,
+        school: includeSchool ? "1" : undefined,
+      }),
+    );
+  }
+  const window = requested;
   // Anchored on the latest day with data, as the home week and month are, so the
   // two name the same period.
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
   const { range, period, nav } = periodRangeNav(
     "/days",
     window,
-    sp.period,
+    // The nav and the footer carry the day being read, so the week or month shown
+    // is the one holding it rather than the current one.
+    periodForCarriedDay(window, sp.period, sp.day),
     latest ?? new Date(),
     earliest,
   );
@@ -192,7 +224,7 @@ async function DaysBody({
         </p>
       </div>
 
-      <div className="border border-at-border bg-at-surface">
+      <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
