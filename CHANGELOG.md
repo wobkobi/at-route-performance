@@ -32,6 +32,19 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.0] - 2026-09-23
+
+### Added
+
+- The site had no robots.txt and no sitemap, while every page renders against the database, so a
+  crawler following links could walk one route page multiplied by day, window, mode, direction, part
+  of day, sort and page - a distinct uncached render each time. robots.txt now shuts out the
+  query-string permutations, per-run trip pages and per-vehicle pages, and turns away the agents
+  that train models or index backlinks rather than send readers. Search engines are unaffected.
+  sitemap.xml lists the canonical set instead: the nine sections and one URL per current route, with
+  feed versions collapsed, 541 in total. A preview deployment disallows everything, so a throwaway
+  build cannot turn up in search beside the real site.
+
 ## [1.54.9] - 2026-09-23
 
 ### Fixed

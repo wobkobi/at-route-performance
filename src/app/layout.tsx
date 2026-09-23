@@ -7,6 +7,7 @@ import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
 import { DATA_START_LABEL } from "@/lib/data-start";
+import { productionOrigin } from "@/lib/site-url";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
@@ -17,13 +18,13 @@ import { Suspense } from "react";
 import { gothamNarrow } from "./fonts";
 import "./globals.css";
 
-// The production origin Vercel provides, so card and page URLs in metadata
-// resolve absolute. Unset locally, where Next falls back to localhost; a preview
-// deployment's own URL still wins for its cards.
-const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+// The production origin, so card and page URLs in metadata resolve absolute.
+// Null locally, where Next falls back to localhost; a preview deployment's own
+// URL still wins for its cards.
+const productionBase = productionOrigin();
 
 export const metadata: Metadata = {
-  metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
+  metadataBase: productionBase ? new URL(productionBase) : undefined,
   title: "Auckland Transport Route Performance",
   description: "Auckland Transport route and stop performance analytics.",
 };
