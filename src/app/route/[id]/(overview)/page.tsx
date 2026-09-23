@@ -41,6 +41,7 @@ import {
   type TripSort,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
@@ -243,7 +244,7 @@ export async function generateMetadata({
   const slug = routeSlug(id);
   const card = parseRouteCard(id, (await searchParams) ?? {});
   const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
-    () => null,
+    readFallback("route-stats", null),
   );
   const route = stats?.route;
   const name = route ? lineName(route.mode, route.shortName) : null;

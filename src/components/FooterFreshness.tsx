@@ -2,6 +2,7 @@
 // Async server component that fetches data freshness and renders the footer line.
 
 import { DataFreshness } from "@/components/DataFreshness";
+import { readFallback } from "@/lib/db";
 import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import type { JSX } from "react";
 
@@ -22,7 +23,7 @@ import type { JSX } from "react";
 export async function FooterFreshness(): Promise<JSX.Element> {
   // undefined is the read failing, null is a database with nothing in it yet.
   // Telling a reader "awaiting first data" during an outage would be a lie.
-  const freshness = await getDataFreshness().catch(() => undefined);
+  const freshness = await getDataFreshness().catch(readFallback("data-freshness", undefined));
   if (freshness === undefined) {
     return <p className="text-xs text-white/50">Last update unknown.</p>;
   }

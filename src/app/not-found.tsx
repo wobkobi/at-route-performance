@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { getDirectoryRoutes, type DirectoryRoute } from "@/lib/data";
+import { logReadFailure } from "@/lib/db";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import Link from "next/link";
@@ -20,7 +21,7 @@ const PAGES = [
 /**
  * Global 404 page - rendered by Next.js when `notFound()` is called from any
  * route or stop page, or when a path matches no route segment. Loads the route
- * directory from Prisma; silently skips it when `DATABASE_URL` is unset (CI).
+ * directory from Prisma; renders without it when that read fails.
  * @returns 404 markup.
  */
 export default async function NotFound(): Promise<JSX.Element> {
@@ -28,8 +29,11 @@ export default async function NotFound(): Promise<JSX.Element> {
 
   try {
     rawRoutes = await getDirectoryRoutes();
-  } catch {
-    // DATABASE_URL not configured (CI builds, static export) - show page without route list.
+  } catch (err) {
+    // DATABASE_URL not configured (CI builds, static export) - show page without
+    // route list. Logged because the same catch takes an unreachable database,
+    // which is not an expected state and would otherwise pass unremarked.
+    logReadFailure("not-found-routes", err);
   }
 
   // Deduplicate by slug (same route across feed versions), keep first encountered.

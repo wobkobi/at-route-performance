@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.4] - 2026-09-23
+
+### Fixed
+
+- Every page read that degrades when the database is unreachable now logs at error level under a
+  stable [DB-READ-FAILED] marker, so an outage can be alerted on instead of finishing as a
+  plain 200. A database failure on /live no longer tells the reader AT's feed was at fault. The
+  connection pool is bounded to 10 sockets per instance with a 10s wait, so a saturated pool fails
+  cleanly rather than hanging.
+
 ## [1.55.3] - 2026-09-23
 
 ### Fixed

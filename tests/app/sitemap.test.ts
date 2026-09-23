@@ -62,12 +62,17 @@ describe("sitemap", () => {
     }
   });
 
-  it("still answers when the database cannot be reached", async () => {
+  it("still answers when the database cannot be reached, and says so in the log", async () => {
     // The root layout skips static generation so a build needs no DATABASE_URL;
-    // throwing here would put that back and take the build with it.
+    // throwing here would put that back and take the build with it. Degrading
+    // quietly was the other half of the problem: a sitemap that lost its 532
+    // routes looked the same as one that never had them.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedRoutes.mockRejectedValue(new Error("Can't reach database server"));
     const entries = await sitemap();
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((e) => !e.url.includes("/route/"))).toBe(true);
+    expect(spy.mock.calls[0]?.[0]).toContain("[DB-READ-FAILED]");
+    spy.mockRestore();
   });
 });

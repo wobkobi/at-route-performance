@@ -19,6 +19,7 @@ import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -63,7 +64,9 @@ export async function generateMetadata({
   }
   const sp = (await searchParams) ?? {};
   const { range } = await resolveShownDay(resolveRequestedDay(sp.day));
-  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(() => null);
+  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(
+    readFallback("stop-stats", null),
+  );
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
   const card = parseStopCard(id, sp);
@@ -261,7 +264,7 @@ async function StopScheduleSection({
 }): Promise<JSX.Element> {
   const perStop = await Promise.all(
     // One bad platform must not empty the whole board.
-    stopIds.map((sid) => getStopTrips(sid, serviceDate).catch(() => [])),
+    stopIds.map((sid) => getStopTrips(sid, serviceDate).catch(readFallback("stop-trips", []))),
   );
   const byTrip = new Map<string, (typeof perStop)[number][number]>();
   for (const d of perStop.flat()) if (!byTrip.has(d.tripId)) byTrip.set(d.tripId, d);

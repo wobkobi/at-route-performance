@@ -4,6 +4,7 @@
 // otherwise go looking for, so shutting the door does not send it exploring.
 
 import { getDirectoryRoutes } from "@/lib/data";
+import { logReadFailure } from "@/lib/db";
 import { routeSlug } from "@/lib/route-slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
@@ -51,7 +52,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let slugs: string[];
   try {
     slugs = [...new Set((await getDirectoryRoutes()).map((r) => routeSlug(r.id)))].sort();
-  } catch {
+  } catch (err) {
+    logReadFailure("sitemap-routes", err);
     return sections;
   }
 

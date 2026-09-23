@@ -22,6 +22,7 @@ import {
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import {
   formatDuration,
@@ -101,7 +102,7 @@ export async function generateMetadata({
   const { id } = await params;
   if (!VEHICLE_ID.test(id)) return { title: "Vehicle not found" };
   const [fleet, live] = await Promise.all([
-    getFleet([id]).catch(() => new Map<string, FleetVehicle>()),
+    getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
   ]);
   const name = vehicleName(fleet.get(id)?.label ?? live.get(id)?.label, id);
@@ -141,7 +142,7 @@ export default async function VehiclePage({
   const [latest, earliest, fleet, live, modeOf] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
-    getFleet([id]).catch(() => new Map<string, FleetVehicle>()),
+    getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
     getRouteModeMap(),
   ]);

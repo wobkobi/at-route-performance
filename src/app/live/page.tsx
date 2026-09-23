@@ -10,6 +10,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap } from "@/lib/data/routes";
+import { logReadFailure, readFallback } from "@/lib/db";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import {
@@ -141,8 +142,9 @@ export default async function LivePage({
 }
 
 /**
- * The feed folded into route rows for one mode. Throws when AT's feed is down,
- * so each caller can say so in its own place.
+ * The feed folded into route rows for one mode. Throws when either source is
+ * down - AT's feed or the database behind the mode map - so each caller can say
+ * so in its own place.
  * @param mode - The mode filter.
  * @param sort - The table's order.
  * @returns The rows.
@@ -173,10 +175,15 @@ async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Ele
   let rows: LiveRouteRow[];
   try {
     rows = await loadRows(mode, "running");
-  } catch {
+  } catch (err) {
+    // loadRows reads the route mode map from the database as well as AT's feed,
+    // so this catches an outage of either. Naming AT would blame a third party
+    // for what may be this site's own database, and the log is what makes the
+    // database case visible at all - the reader still gets the page.
+    logReadFailure("live-figures", err);
     return (
       <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        AT&apos;s live feed could not be read just now. Try again in a couple of minutes.
+        The live figures could not be read just now. Try again in a couple of minutes.
       </div>
     );
   }
@@ -245,16 +252,18 @@ async function LiveTable({
   try {
     const [r, directory] = await Promise.all([
       loadRows(mode, sort),
-      getDirectoryRoutes().catch(() => []),
+      getDirectoryRoutes().catch(readFallback("directory-routes", [])),
     ]);
     rows = r;
     names = new Map(
       directory.map((d) => [routeSlug(d.id), lineName(d.mode, d.shortName) ?? d.longName ?? ""]),
     );
-  } catch {
+  } catch (err) {
+    // Same pair of sources as LiveFigures above, so the same reasoning applies.
+    logReadFailure("live-routes", err);
     return (
       <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        No live positions to list: AT&apos;s feed could not be read just now.
+        No live positions to list: they could not be read just now.
       </div>
     );
   }

@@ -17,6 +17,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -133,7 +134,9 @@ export default async function VehiclesPage({
   const live = getLiveVehicleMap();
   const [names, fleet] = await Promise.all([
     getRouteNames([...new Set(rows.flatMap((v) => v.routes))]),
-    getFleet(rows.map((v) => v.vehicleId)).catch(() => new Map<string, FleetVehicle>()),
+    getFleet(rows.map((v) => v.vehicleId)).catch(
+      readFallback("fleet", new Map<string, FleetVehicle>()),
+    ),
   ]);
   const multiDay = window !== "day";
   const routeQuery = routeLinkQuery(window, dayParam, period);
