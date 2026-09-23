@@ -112,7 +112,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
               href={withCarried(nav.prevHref, carried)}
               prefetch
               scroll={false}
-              className="chip chip-off"
+              className="chip chip-icon chip-off"
               aria-label={`Previous ${nav.window}`}
             >
               <StepPending>
@@ -129,7 +129,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
               href={withCarried(nav.nextHref, carried)}
               prefetch
               scroll={false}
-              className="chip chip-off"
+              className="chip chip-icon chip-off"
               aria-label={`Next ${nav.window}`}
             >
               <StepPending>

@@ -181,8 +181,12 @@ export default async function VehiclesPage({
         />
       </div>
 
-      <nav aria-label="Rank by" className="flex flex-wrap items-center gap-2">
-        <span className="text-xs tracking-zero text-at-muted uppercase">Rank by</span>
+      {/* Named from the visible label rather than by an aria-label repeating it,
+          which had a screen reader announce "Rank by" twice over. */}
+      <nav aria-labelledby="rank-by" className="flex flex-wrap items-center gap-2">
+        <span id="rank-by" className="text-xs tracking-zero text-at-muted uppercase">
+          Rank by
+        </span>
         {(Object.keys(SORT_LABEL) as VehicleSort[]).map((s) => (
           <Link
             key={s}

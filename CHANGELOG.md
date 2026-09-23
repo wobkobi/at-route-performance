@@ -32,6 +32,18 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.14] - 2026-09-23
+
+### Fixed
+
+- The day and period steppers and the board pager - icon-only chips the whole archive is read
+  through - are now 44px targets instead of 42x26. Every filter chip row marks its active chip with
+  aria-current, so a screen reader can tell which mode, direction, part of day or sort is in force.
+  The 4am-to-4am service day is stated in the footer, where it was previously explained only in a
+  tooltip no phone can reach. The route page's Stops section keeps its heading in the outline when
+  it has data, its table and the route week table name their columns to assistive tech, and the
+  vehicles rank row stops announcing its own label twice.
+
 ## [1.55.13] - 2026-09-23
 
 ### Fixed

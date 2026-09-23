@@ -43,6 +43,7 @@ export function DelayFilter({ active, basePath, preservedParams }: DelayFilterPr
             key={d.key || "all"}
             href={href}
             scroll={false}
+            aria-current={isActive ? "true" : undefined}
             className={cn("chip", isActive ? d.activeClass : "chip-off")}
           >
             {d.label}

@@ -6,7 +6,7 @@ import { FooterFreshness } from "@/components/FooterFreshness";
 import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
-import { SITE_NAME } from "@/lib/copy";
+import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
 import { DATA_START_LABEL } from "@/lib/data-start";
 import { productionOrigin } from "@/lib/site-url";
 import { Analytics } from "@vercel/analytics/next";
@@ -138,6 +138,9 @@ export default function RootLayout({
                 An independent project, not affiliated with Auckland Transport.
               </p>
               <p className="text-xs text-white/50">Records start {DATA_START_LABEL}.</p>
+              {/* The 4am boundary decides which day a 1am run is counted in, and the
+                  day stepper could only say so on hover. */}
+              <p className="text-xs text-white/50">{SERVICE_DAY_NOTE}</p>
               <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
                 <FooterFreshness />
               </Suspense>

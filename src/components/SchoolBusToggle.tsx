@@ -32,7 +32,12 @@ export function SchoolBusToggle({
 }: SchoolBusToggleProps): JSX.Element {
   const href = buildHref(basePath, { ...preservedParams, school: active ? undefined : "1" });
   return (
-    <Link href={href} scroll={false} className={cn("chip", active ? "chip-on" : "chip-off")}>
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={active ? "true" : undefined}
+      className={cn("chip", active ? "chip-on" : "chip-off")}
+    >
       School buses
     </Link>
   );

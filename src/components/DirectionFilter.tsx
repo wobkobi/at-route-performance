@@ -38,6 +38,7 @@ export function DirectionFilter({
       <Link
         href={hrefs.both}
         scroll={false}
+        aria-current={activeDir == null ? "true" : undefined}
         className={cn("chip", activeDir == null ? "chip-on" : "chip-off")}
       >
         Both
@@ -47,6 +48,7 @@ export function DirectionFilter({
           key={d}
           href={hrefs[String(d)] ?? hrefs.both}
           scroll={false}
+          aria-current={activeDir === d ? "true" : undefined}
           className={cn("chip", activeDir === d ? "chip-on" : "chip-off")}
         >
           {labels[d]}

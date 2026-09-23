@@ -157,7 +157,7 @@ function RouteWeekNav({
           href={prevHref}
           prefetch
           aria-label="Previous week"
-          className="chip chip-off flex items-center"
+          className="chip chip-icon chip-off"
         >
           <StepPending>
             <ChevronLeft className="block h-4 w-4" />
@@ -166,12 +166,7 @@ function RouteWeekNav({
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <Link
-          href={nextHref}
-          prefetch
-          aria-label="Next week"
-          className="chip chip-off flex items-center"
-        >
+        <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
           <StepPending>
             <ChevronRight className="block h-4 w-4" />
           </StepPending>
@@ -917,14 +912,25 @@ export default async function RoutePage({
             </section>
           ) : (
             <details className="border border-at-border bg-at-surface">
-              <summary className="cursor-pointer px-4 py-3 font-semibold">Stops</summary>
+              {/* The heading goes inside the summary, which `summary` allows: as
+                  bare text it was the one section on the page with no heading in
+                  the outline, and only in the state that has something to say. */}
+              <summary className="cursor-pointer px-4 py-3">
+                <h2 className="inline font-semibold">Stops</h2>
+              </summary>
               <div className="overflow-x-auto px-4 pb-4">
                 <table className="min-w-full text-sm">
                   <thead className="bg-at-bg text-at-muted">
                     <tr>
-                      <th className="px-3 py-2 text-left">Stop</th>
-                      <th className="px-3 py-2 text-right">Arrivals</th>
-                      <th className="px-3 py-2 text-right">Avg delay</th>
+                      <th scope="col" className="px-3 py-2 text-left">
+                        Stop
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Arrivals
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Avg delay
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

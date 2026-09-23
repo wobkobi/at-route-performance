@@ -87,7 +87,7 @@ export function DayNav({
           href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
           prefetch
           scroll={false}
-          className="chip chip-off"
+          className="chip chip-icon chip-off"
           aria-label="Previous day"
         >
           <StepPending>
@@ -109,7 +109,7 @@ export function DayNav({
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
           prefetch
           scroll={false}
-          className="chip chip-off"
+          className="chip chip-icon chip-off"
           aria-label="Next day"
         >
           <StepPending>

@@ -61,6 +61,7 @@ export function ModeFilter({
             key={m.key || "all"}
             href={href}
             scroll={false}
+            aria-current={isActive ? "true" : undefined}
             className={cn("chip", isActive ? "chip-on" : "chip-off")}
           >
             {m.label}

@@ -312,6 +312,7 @@ export function WorstTripsBoard({
                 key={s.key}
                 href={href}
                 scroll={false}
+                aria-current={isActive ? "true" : undefined}
                 className={cn("chip text-xs", isActive ? "chip-on" : "chip-off")}
               >
                 {s.label}
@@ -458,7 +459,7 @@ export function WorstTripsBoard({
             <Link
               href={pageHref(basePath, preservedParams, sort, page - 1)}
               scroll={false}
-              className="chip chip-off"
+              className="chip chip-icon chip-off"
               aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -485,7 +486,7 @@ export function WorstTripsBoard({
             <Link
               href={pageHref(basePath, preservedParams, sort, page + 1)}
               scroll={false}
-              className="chip chip-off"
+              className="chip chip-icon chip-off"
               aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />

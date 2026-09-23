@@ -29,25 +29,25 @@ export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.El
       <Link
         href={hrefs.all}
         scroll={false}
+        aria-current={active == null ? "true" : undefined}
         className={cn("chip", active == null ? "chip-on" : "chip-off")}
       >
         All day
       </Link>
-      {TIME_PRESETS.map((preset) => (
-        <Link
-          key={preset.key}
-          href={hrefs[preset.key] ?? hrefs.all}
-          scroll={false}
-          className={cn(
-            "chip",
-            active?.from === preset.range.from && active.to === preset.range.to
-              ? "chip-on"
-              : "chip-off",
-          )}
-        >
-          {preset.label}
-        </Link>
-      ))}
+      {TIME_PRESETS.map((preset) => {
+        const isActive = active?.from === preset.range.from && active.to === preset.range.to;
+        return (
+          <Link
+            key={preset.key}
+            href={hrefs[preset.key] ?? hrefs.all}
+            scroll={false}
+            aria-current={isActive ? "true" : undefined}
+            className={cn("chip", isActive ? "chip-on" : "chip-off")}
+          >
+            {preset.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -56,10 +56,18 @@ export function RouteWeekSummary({
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-at-bg text-left text-xs tracking-zero text-at-muted uppercase">
-              <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2 text-right">Arrivals</th>
-              <th className="px-4 py-2 text-right">Avg delay</th>
-              <th className="px-4 py-2 text-right">On time</th>
+              <th scope="col" className="px-4 py-2">
+                Date
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Arrivals
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Avg delay
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                On time
+              </th>
             </tr>
           </thead>
           <tbody>
