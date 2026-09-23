@@ -69,6 +69,14 @@ describe("offScheduleValue", () => {
     expect(offScheduleValue(200, null, "BUS")).toEqual({ text: "3m 20s late", tone: "ontime" });
   });
 
+  it("colours on the rounded value, so one printed figure has one colour", () => {
+    // Both sides of the 300s boundary round to the same text, so they must not
+    // read as two different verdicts - and must match delayBand's pin colour.
+    expect(offScheduleValue(299.6, 299.6, "BUS")).toEqual({ text: "5m late", tone: "ontime" });
+    expect(offScheduleValue(300.4, 300.4, "BUS")).toEqual({ text: "5m late", tone: "ontime" });
+    expect(offScheduleValue(300.6, 300.6, "BUS")).toEqual({ text: "5m 1s late", tone: "late" });
+  });
+
   it("reads on time only at exactly zero, and a dash with no figures", () => {
     expect(offScheduleValue(0, 0, "BUS")).toEqual({ text: "on time", tone: "ontime" });
     expect(offScheduleValue(null, null, "BUS")).toEqual({ text: UNKNOWN_VALUE, tone: "unknown" });

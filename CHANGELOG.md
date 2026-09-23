@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.11] - 2026-09-23
+
+### Fixed
+
+- A figure and its colour now agree: an off-schedule average is banded on the rounded value it
+  prints, so two rows both reading "5m late" cannot be one green and one red; the worst-stop card
+  and the worst-stops board word their average and take its tone from its direction instead of
+  painting a directionless magnitude red, and that card names the hour its figures are from, as the
+  worst-route card beside it already did; the hottest flame badge leaves the blue that means on time
+  everywhere else.
+
 ## [1.55.10] - 2026-09-23
 
 ### Fixed

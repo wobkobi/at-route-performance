@@ -30,21 +30,23 @@ function flameSeverity(tier: FlameTier, count: number): number {
 
 /**
  * Five visually distinct colours from one normalised severity score.
- * Violet is deliberately excluded - blue is reserved for the most extreme
- * streaks only, keeping adjacent colours clearly apart.
+ * Blue is deliberately excluded, hot though a blue flame is: blue is the
+ * on-time colour everywhere else on the site, so the badge for the worst
+ * routes on it was painted the same shade as its all-clear. Cosmic is the
+ * palette's own step past crimson and stays clearly apart from it.
  *
  *   amber   s < 0.15  day, count 2
  *   orange  s < 0.35  day, count 3-6
  *   red     s < 0.60  day 7-8 / week 2-4
  *   crimson s < 0.85  week 5-7 / streak 2-5
- *   blue    s >= 0.85 streak 6+ (chronic)
+ *   cosmic  s >= 0.85 streak 6+ (chronic)
  * @param tier - Severity tier.
  * @param count - Repeat count or streak length.
  * @returns Hex colour string.
  */
 function flameColour(tier: FlameTier, count: number): string {
   const s = flameSeverity(tier, count);
-  if (s >= 0.85) return "#3B82F6"; // blue-500
+  if (s >= 0.85) return "#773581"; // at-cosmic
   if (s >= 0.6) return "#B91C1C"; // red-700  (crimson)
   if (s >= 0.35) return "#EF4444"; // red-500
   if (s >= 0.15) return "#F97316"; // orange-500

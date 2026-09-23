@@ -9,6 +9,7 @@ import {
 } from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
+import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import {
@@ -21,7 +22,6 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
-import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -140,12 +140,11 @@ async function StopRangeBoard({
             </span>
           )}
         </span>
-        <span
-          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
-          title="Average deviation from the scheduled arrival time"
-        >
-          {formatDuration(s.avg_abs_delay_sec)} off
-        </span>
+        <ShameRowDelay
+          avgDelaySec={s.avg_delay_sec}
+          avgAbsDelaySec={s.avg_abs_delay_sec}
+          mode={s.mode}
+        />
       </Link>
     );
   };
@@ -225,12 +224,11 @@ async function StopDayBoard({
             </span>
           )}
         </span>
-        <span
-          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
-          title="Average deviation from the scheduled arrival time"
-        >
-          {formatDuration(s.avg_abs_delay_sec)} off
-        </span>
+        <ShameRowDelay
+          avgDelaySec={s.avg_delay_sec}
+          avgAbsDelaySec={s.avg_abs_delay_sec}
+          mode={s.mode}
+        />
       </Link>
     );
   };
