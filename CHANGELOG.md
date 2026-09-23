@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.6] - 2026-09-23
+
+### Changed
+
+- Page views are now reported to Vercel Analytics, beside the Speed Insights already collected. Both
+  scripts are served from the deployment's own origin and load only on Vercel, so local builds and
+  the CI smoke are unaffected and the content security policy needs no exception.
+
 ## [1.54.5] - 2026-09-23
 
 ### Changed
