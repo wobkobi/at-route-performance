@@ -63,7 +63,13 @@ export default async function NotFound(): Promise<JSX.Element> {
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-6xl font-ultra tracking-zero text-at-muted">404</p>
         <h1 className="text-2xl font-ultra tracking-zero text-at-ink">Page not found</h1>
-        <p className="text-sm text-at-muted">That route or stop doesn&apos;t exist.</p>
+        {/* This page answers an unmatched path as well as a notFound() from a
+            route or stop, and Next gives it no way to tell which, so it names
+            all three rather than asserting the one it cannot know. */}
+        <p className="text-sm text-at-muted">
+          That address doesn&apos;t match a page, a route or a stop. Everything the site has is
+          below.
+        </p>
       </div>
 
       {/* Page directory */}

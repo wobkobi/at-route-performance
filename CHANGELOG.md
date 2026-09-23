@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.8] - 2026-09-23
+
+### Fixed
+
+- Empty states now say whether a figure is absent or unknown: a zero-arrival day on Day by day names
+  the cancellations that explain it, an empty rank board names the arrivals bar a route had to
+  clear, the routes hero says its dashes are blank rather than zero, a stage filter that empties the
+  cancellation list offers a way back out, and the 404 no longer insists a mistyped page was a route
+  or stop.
+
 ## [1.55.7] - 2026-09-23
 
 ### Fixed

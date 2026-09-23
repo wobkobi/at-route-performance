@@ -128,7 +128,26 @@ export function CancelledTripList({
         </div>
       </div>
       {visible.length === 0 ? (
-        <p className="text-sm text-at-muted">No cancelled trips here.</p>
+        // An empty list under a chosen stage is the chip's doing, not the
+        // window's, so it names the chip and offers the way back out. The counts
+        // on the chips say the same thing, but only to a reader who reads them.
+        <p className="text-sm text-at-muted">
+          {stage !== null && trips.length > 0 ? (
+            <>
+              No trips at this stage.{" "}
+              <Link
+                href={buildHref(basePath, preservedParams)}
+                scroll={false}
+                className="underline"
+              >
+                Show all {trips.length.toLocaleString()}
+              </Link>
+              .
+            </>
+          ) : (
+            "No trips were flagged cancelled in this window."
+          )}
+        </p>
       ) : (
         <ol>
           {visible.slice(0, shown).map((t) => {

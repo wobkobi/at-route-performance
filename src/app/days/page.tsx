@@ -18,7 +18,7 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { daySlot, type DaySlot } from "@/lib/day-series";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { periodRangeNav, type RangeWindow } from "@/lib/range-page";
 import {
@@ -177,7 +177,9 @@ async function DaysBody({
       mode: mode ?? undefined,
       school: includeSchool ? "1" : undefined,
     });
-  const past = slots.filter((s) => s.kind !== "future");
+  // Narrowed, not just filtered, so the table's rows can read an empty day's
+  // cancellation count without a second check for a variant it never holds.
+  const past = slots.filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future");
 
   return (
     <div className="space-y-4">
@@ -228,16 +230,16 @@ async function DaysBody({
                 {s.kind === "day" ? (
                   <>
                     <td className={`p-3 font-semibold ${s.verdict?.toneClass ?? "text-at-muted"}`}>
-                      {s.verdict?.label ?? "-"}
+                      {s.verdict?.label ?? UNKNOWN_VALUE}
                     </td>
                     <td className="p-3 text-right tabular-nums">
                       {s.summary.on_time_pct === null
-                        ? "-"
+                        ? UNKNOWN_VALUE
                         : `${s.summary.on_time_pct.toFixed(1)}%`}
                     </td>
                     <td className="p-3 text-right tabular-nums">
                       {s.summary.avg_abs_delay_sec === null
-                        ? "-"
+                        ? UNKNOWN_VALUE
                         : formatDuration(s.summary.avg_abs_delay_sec)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
@@ -250,6 +252,12 @@ async function DaysBody({
                 ) : (
                   <td colSpan={5} className="p-3 text-at-muted">
                     No arrivals recorded
+                    {/* The cancellations are the only thing that separates the
+                        worst possible day - every trip cancelled, so nothing
+                        arrived - from an ingest outage. Named here rather than
+                        in the column beside it, which a phone does not render. */}
+                    {s.cancelled > 0 &&
+                      `, and ${s.cancelled.toLocaleString()} trip${s.cancelled === 1 ? "" : "s"} flagged cancelled`}
                   </td>
                 )}
               </tr>
