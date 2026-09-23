@@ -4,6 +4,7 @@
 // parses that URL back here, so the two cannot disagree about which day, window
 // or filter a card describes. Pure and unit-tested; the rendering and the data
 // reads live in the route handler.
+import { SITE_NAME } from "@/lib/copy";
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page-nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
@@ -454,7 +455,7 @@ export function cardMetadata(
     openGraph: {
       title,
       description,
-      siteName: "AT Route Performance",
+      siteName: SITE_NAME,
       type: "website",
       images: [image],
     },

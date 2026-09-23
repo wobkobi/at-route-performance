@@ -4,6 +4,7 @@
 // in globals.css, and every box is an inline-styled flex container.
 
 import { brandColour, modeGlyph } from "@/components/ModeIcon";
+import { SITE_NAME } from "@/lib/copy";
 import { formatDuration } from "@/lib/format";
 import { dayVerdict, VERDICT_BANDS, verdictIndex, type VerdictBand } from "@/lib/verdict";
 import type { FleetSummary } from "@/types/dashboard";
@@ -135,7 +136,7 @@ export function CardFrame({
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain img only */}
           <img src={logo} width={64} height={64} alt="" />
-          <div style={{ fontSize: 44, fontWeight: 900 }}>AT Route Performance</div>
+          <div style={{ fontSize: 44, fontWeight: 900 }}>{SITE_NAME}</div>
         </div>
         {/* Short enough to sit beside the lockup at the smallest size. */}
         <div style={{ fontSize: MIN_TEXT, color: BORDER }}>Not affiliated with AT</div>

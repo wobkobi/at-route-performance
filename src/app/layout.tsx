@@ -6,6 +6,7 @@ import { FooterFreshness } from "@/components/FooterFreshness";
 import { FooterNav } from "@/components/FooterNav";
 import { SiteNav } from "@/components/SiteNav";
 import { cn } from "@/lib/cn";
+import { SITE_NAME } from "@/lib/copy";
 import { DATA_START_LABEL } from "@/lib/data-start";
 import { productionOrigin } from "@/lib/site-url";
 import { Analytics } from "@vercel/analytics/next";
@@ -25,7 +26,11 @@ const productionBase = productionOrigin();
 
 export const metadata: Metadata = {
   metadataBase: productionBase ? new URL(productionBase) : undefined,
-  title: "Auckland Transport Route Performance",
+  // The template names the site in every child segment's tab, so a page that
+  // sets its own title no longer replaces the only mention of where it is.
+  // It does not reach a title set in this same segment, which is why the home
+  // page sets none and takes the default.
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
   description: "Auckland Transport route and stop performance analytics.",
 };
 
@@ -65,19 +70,30 @@ export default function RootLayout({
           {/* Five tabs need more width than a 390px phone leaves beside the logo,
               so the nav takes a row of its own until there is room to share one. */}
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 min-[1440px]:max-w-[80vw] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <Link href="/" className="flex shrink-0 items-center gap-3">
+            {/* The label is on the link, not the logo: the wordmark beside it is
+                hidden on a phone, so an empty alt there would leave the home link
+                with no accessible name, and naming the logo "Auckland Transport"
+                announced the agency as this site's identity. */}
+            <Link
+              href="/"
+              aria-label={`${SITE_NAME} home`}
+              className="flex shrink-0 items-center gap-3"
+            >
               {/* Shore colourway on the light header; never recolour/distort (guide p13/p14) */}
               <Image
                 src="/source/logos/at-logo-shore.png"
-                alt="Auckland Transport"
+                alt=""
                 width={48}
                 height={48}
                 priority
                 className="h-11 w-auto"
               />
-              {/* The nav needs the width on a phone, where the logo stands alone. */}
-              <span className="hidden text-lg font-ultra tracking-zero text-at-ink sm:inline">
-                Transport Tracker
+              {/* The nav needs 391px to show five tabs without scrolling, and the
+                  wordmark takes 202px, so the two only fit together from 768px
+                  up. Below that the logo stands alone and the name is still in
+                  the tab title and the footer. */}
+              <span className="hidden text-lg font-ultra tracking-zero text-at-ink md:inline">
+                {SITE_NAME}
               </span>
             </Link>
             <SiteNav />
@@ -94,15 +110,16 @@ export default function RootLayout({
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 min-[1440px]:max-w-[80vw] sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
+                {/* Decorative: the wordmark beside it is always visible here. */}
                 <Image
                   src="/source/logos/at-logo-white.png"
-                  alt="Auckland Transport"
+                  alt=""
                   width={40}
                   height={40}
                   priority
                   className="h-9 w-auto"
                 />
-                <span className="font-ultra tracking-zero">Route Performance</span>
+                <span className="font-ultra tracking-zero">{SITE_NAME}</span>
               </div>
               <p className="max-w-xs text-sm text-white/70">
                 Live performance from Auckland Transport&apos;s GTFS feeds. Times are Auckland

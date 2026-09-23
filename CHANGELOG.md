@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.1] - 2026-09-23
+
+### Fixed
+
+- The site is named AT Route Performance in the masthead, the footer and every tab title, replacing
+  three competing names. A trip's title now reads "NX1 trip, Wed 23 Sep" rather than a raw GTFS id,
+  and the masthead logo no longer announces itself as Auckland Transport.
+
 ## [1.55.0] - 2026-09-23
 
 ### Added
