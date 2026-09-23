@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.5] - 2026-09-23
+
+### Changed
+
+- Dependency update: Next 16.3.6 with its matching bundle-analyzer and eslint-config-next,
+  @vercel/speed-insights 2.0.0, @vercel/analytics 2.0.1, tsx 4.23.15 and typescript-eslint 8.70.1.
+
 ## [1.54.4] - 2026-09-23
 
 ### Fixed

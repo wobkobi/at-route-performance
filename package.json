@@ -1,6 +1,6 @@
 {
   "name": "at-route-performance",
-  "version": "1.54.4",
+  "version": "1.54.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -39,12 +39,13 @@
   ],
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.0",
-    "@vercel/speed-insights": "^1.1.0",
+    "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
     "fflate": "^0.8.3",
     "leaflet": "^1.9.4",
-    "next": "16.3.5",
+    "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-icons": "^5.7.0",
@@ -53,7 +54,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
-    "@next/bundle-analyzer": "^16.3.5",
+    "@next/bundle-analyzer": "^16.3.6",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^26.6.2",
@@ -62,7 +63,7 @@
     "dotenv": "^17.4.2",
     "dotenv-cli": "^11.0.0",
     "eslint": "9.39.5",
-    "eslint-config-next": "^16.3.5",
+    "eslint-config-next": "^16.3.6",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "^64.5.4",
     "eslint-plugin-prettier": "^5.5.6",
@@ -77,9 +78,9 @@
     "puppeteer": "^25.11.0",
     "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.70.0",
+    "typescript-eslint": "^8.70.1",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
   },
