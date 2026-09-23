@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.9] - 2026-09-23
+
+### Fixed
+
+- The route directory computes its lineage trim outside its own hourly cache, because a successor
+  line starts carrying traffic within ten minutes of its first train. /api/routes then wrapped the
+  whole answer in an hour of shared caching, putting that staleness straight back. It now holds for
+  ten minutes, matching the trim. This matters at the CRL cutover, when four train lines retire at
+  once and a stale answer lists a retired line beside the one replacing it.
+
 ## [1.54.8] - 2026-09-23
 
 ### Changed
