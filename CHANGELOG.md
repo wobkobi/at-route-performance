@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.16] - 2026-09-23
+
+### Fixed
+
+- Day by day is now in the footer's Explore list, carrying the day being read like every other
+  footer link. It previously had a single link on the whole site, on the home page's week and month
+  views only, so a reader on the day view - the default - had no path to it at all.
+
 ## [1.55.15] - 2026-09-23
 
 ### Fixed
