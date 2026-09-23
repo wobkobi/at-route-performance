@@ -93,7 +93,9 @@ export function runSortValue(
 
 /**
  * Order runs for a delay sort, runs without a value last. "off" and "late" put
- * the largest first and "early" the smallest; reversing flips it.
+ * the largest first and "early" the smallest; reversing flips it. Runs on the
+ * same average fall back to departure order and then to trip id, matching the
+ * query's own tie-break so the board is the same board on every request.
  * @param runs - The runs.
  * @param sort - A delay sort.
  * @param isReversed - Whether the direction is reversed.
@@ -109,7 +111,8 @@ export function sortRuns(
     const va = runSortValue(a, sort);
     const vb = runSortValue(b, sort);
     if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
-    return sign * (va - vb);
+    if (va !== vb) return sign * (va - vb);
+    return byStart(a.scheduled_start, b.scheduled_start) || a.trip_id.localeCompare(b.trip_id);
   });
 }
 

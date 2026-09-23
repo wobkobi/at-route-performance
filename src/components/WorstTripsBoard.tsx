@@ -220,6 +220,21 @@ const SORTS: { key: TripSort; label: string }[] = [
 ];
 
 /**
+ * What the active sort actually ranks on, which the chips alone cannot say:
+ * "Most off" orders by distance and the other two by the signed average, so one
+ * run can top the first board and sit at the bottom of the second. Worded as
+ * the key rather than the direction, so reversing a sort cannot make the line
+ * untrue.
+ */
+const SORT_NOTE: Record<TripSort, string> = {
+  off: "Ranked on distance from schedule, so a run 9m early sits beside one 9m late.",
+  late: "Ranked on the signed average, so a run 9m early sits at the opposite end from one 9m late.",
+  early:
+    "Ranked on the signed average, so a run 9m early sits at the opposite end from one 9m late.",
+  departure: "In scheduled departure order.",
+};
+
+/**
  * Board of a route's runs for the day, ordered by the chosen sort (most
  * off-schedule, latest, earliest, or departure time). Each running row shows
  * the scheduled start, vehicle, stop count, and signed average delay, and links
@@ -309,126 +324,129 @@ export function WorstTripsBoard({
       {rows.length === 0 ? (
         <p className="text-sm text-at-muted">No trips recorded for this day yet.</p>
       ) : (
-        <ol>
-          {rows.map((row) => {
-            if (row.kind === "cancelled") {
-              const c = row.trip;
-              return (
-                <li key={`cancelled-${c.trip_id}`} className={ROW_CLASS}>
-                  {/* Links to the trip page, which lists the stops the trip would have served.
+        <>
+          <p className="mb-2 text-xs text-at-muted">{SORT_NOTE[sort]}</p>
+          <ol>
+            {rows.map((row) => {
+              if (row.kind === "cancelled") {
+                const c = row.trip;
+                return (
+                  <li key={`cancelled-${c.trip_id}`} className={ROW_CLASS}>
+                    {/* Links to the trip page, which lists the stops the trip would have served.
                       A cancellation AT flagged before the timetable loaded has no scheduled
                       start, so the board's own day stands in; without it the trip page falls
                       back to the run's latest day and opens a different day's run. */}
-                  <Link
-                    href={tripHref(c.trip_id, c.scheduled_start ?? serviceDate)}
-                    className={ROW_LINK_CLASS}
-                  >
+                    <Link
+                      href={tripHref(c.trip_id, c.scheduled_start ?? serviceDate)}
+                      className={ROW_LINK_CLASS}
+                    >
+                      <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
+                        {row.rank}
+                      </span>
+                      <span className={NAME_GROUP_CLASS}>
+                        <span className={cn(NAME_CLASS, "text-at-muted line-through")}>
+                          {c.scheduled_start && (
+                            <span
+                              className="font-semibold tabular-nums"
+                              title={lateNightTitle(c.scheduled_start, serviceDate)}
+                            >
+                              {nzClockTime(c.scheduled_start)}{" "}
+                            </span>
+                          )}
+                          {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
+                        </span>
+                        <span
+                          title={CANCELLATION_BADGE_MEANING.before}
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                            CANCELLATION_BADGE_CLASS.before,
+                          )}
+                        >
+                          {CANCELLATION_BADGE.before}
+                        </span>
+                      </span>
+                      {row.waitSec !== undefined && (
+                        <span
+                          title="A rider waited this long for the next trip"
+                          className="shrink-0 font-semibold text-at-late tabular-nums"
+                        >
+                          {formatDuration(row.waitSec)} wait
+                        </span>
+                      )}
+                      <ChevronRight className="shrink-0 text-at-muted" />
+                    </Link>
+                  </li>
+                );
+              }
+              const t = row.trip;
+              const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
+              return (
+                <li key={t.trip_id} className={ROW_CLASS}>
+                  <Link href={tripHref(t.trip_id, t.scheduled_start)} className={ROW_LINK_CLASS}>
                     <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
                       {row.rank}
                     </span>
                     <span className={NAME_GROUP_CLASS}>
-                      <span className={cn(NAME_CLASS, "text-at-muted line-through")}>
-                        {c.scheduled_start && (
-                          <span
-                            className="font-semibold tabular-nums"
-                            title={lateNightTitle(c.scheduled_start, serviceDate)}
-                          >
-                            {nzClockTime(c.scheduled_start)}{" "}
+                      <span className={NAME_CLASS}>
+                        <span
+                          className="font-semibold text-at-shore tabular-nums"
+                          title={lateNightTitle(t.scheduled_start, serviceDate)}
+                        >
+                          {nzClockTime(t.scheduled_start)}
+                        </span>
+                        <span className="text-at-muted">
+                          {t.headsign ? ` to ${t.headsign}` : ""}
+                          {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
+                          {t.cars ? ` · ${t.cars} cars` : ""}
+                          {" · "}
+                          {t.stops} stops
+                        </span>
+                      </span>
+                      {detouredTripIds?.has(t.trip_id) && (
+                        <span
+                          title="GPS put this vehicle well off its route mid-run"
+                          className="shrink-0 rounded bg-at-commercial px-1.5 py-0.5 text-xs font-bold text-at-ink"
+                        >
+                          OFF ROUTE
+                        </span>
+                      )}
+                      {row.cancellation && (
+                        <span
+                          title={CANCELLATION_BADGE_MEANING[row.cancellation]}
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                            CANCELLATION_BADGE_CLASS[row.cancellation],
+                          )}
+                        >
+                          <span className="sm:hidden">
+                            {CANCELLATION_BADGE_SHORT[row.cancellation]}
                           </span>
-                        )}
-                        {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
-                      </span>
-                      <span
-                        title={CANCELLATION_BADGE_MEANING.before}
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                          CANCELLATION_BADGE_CLASS.before,
-                        )}
-                      >
-                        {CANCELLATION_BADGE.before}
-                      </span>
+                          <span className="hidden sm:inline">
+                            {CANCELLATION_BADGE[row.cancellation]}
+                          </span>
+                        </span>
+                      )}
+                      {liveTripIds && (
+                        <Suspense fallback={null}>
+                          <LiveBadge tripId={t.trip_id} liveTripIds={liveTripIds} />
+                        </Suspense>
+                      )}
                     </span>
-                    {row.waitSec !== undefined && (
-                      <span
-                        title="A rider waited this long for the next trip"
-                        className="shrink-0 font-semibold text-at-late tabular-nums"
-                      >
-                        {formatDuration(row.waitSec)} wait
-                      </span>
-                    )}
+                    <span
+                      className={cn(
+                        "shrink-0 font-semibold tabular-nums",
+                        OFF_SCHEDULE_TONE_CLASS[value.tone],
+                      )}
+                    >
+                      {value.text}
+                    </span>
                     <ChevronRight className="shrink-0 text-at-muted" />
                   </Link>
                 </li>
               );
-            }
-            const t = row.trip;
-            const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
-            return (
-              <li key={t.trip_id} className={ROW_CLASS}>
-                <Link href={tripHref(t.trip_id, t.scheduled_start)} className={ROW_LINK_CLASS}>
-                  <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
-                    {row.rank}
-                  </span>
-                  <span className={NAME_GROUP_CLASS}>
-                    <span className={NAME_CLASS}>
-                      <span
-                        className="font-semibold text-at-shore tabular-nums"
-                        title={lateNightTitle(t.scheduled_start, serviceDate)}
-                      >
-                        {nzClockTime(t.scheduled_start)}
-                      </span>
-                      <span className="text-at-muted">
-                        {t.headsign ? ` to ${t.headsign}` : ""}
-                        {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
-                        {t.cars ? ` · ${t.cars} cars` : ""}
-                        {" · "}
-                        {t.stops} stops
-                      </span>
-                    </span>
-                    {detouredTripIds?.has(t.trip_id) && (
-                      <span
-                        title="GPS put this vehicle well off its route mid-run"
-                        className="shrink-0 rounded bg-at-commercial px-1.5 py-0.5 text-xs font-bold text-at-ink"
-                      >
-                        OFF ROUTE
-                      </span>
-                    )}
-                    {row.cancellation && (
-                      <span
-                        title={CANCELLATION_BADGE_MEANING[row.cancellation]}
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                          CANCELLATION_BADGE_CLASS[row.cancellation],
-                        )}
-                      >
-                        <span className="sm:hidden">
-                          {CANCELLATION_BADGE_SHORT[row.cancellation]}
-                        </span>
-                        <span className="hidden sm:inline">
-                          {CANCELLATION_BADGE[row.cancellation]}
-                        </span>
-                      </span>
-                    )}
-                    {liveTripIds && (
-                      <Suspense fallback={null}>
-                        <LiveBadge tripId={t.trip_id} liveTripIds={liveTripIds} />
-                      </Suspense>
-                    )}
-                  </span>
-                  <span
-                    className={cn(
-                      "shrink-0 font-semibold tabular-nums",
-                      OFF_SCHEDULE_TONE_CLASS[value.tone],
-                    )}
-                  >
-                    {value.text}
-                  </span>
-                  <ChevronRight className="shrink-0 text-at-muted" />
-                </Link>
-              </li>
-            );
-          })}
-        </ol>
+            })}
+          </ol>
+        </>
       )}
       <BadgeKey items={badgeKey(rows, detouredTripIds)} />
       {totalPages > 1 && (

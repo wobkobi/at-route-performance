@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.12] - 2026-09-23
+
+### Fixed
+
+- The trip board states what the active sort actually ranks on, so "Most off" and "Latest" stop
+  looking like the same question asked twice - a run 9m early tops one and sits at the far end of
+  the other. Runs on an identical average now break their tie on departure time and then trip id, in
+  the query as well as on the page: the query takes only the first 50, so an unbroken tie decided
+  which runs appeared at all.
+
 ## [1.55.11] - 2026-09-23
 
 ### Fixed
