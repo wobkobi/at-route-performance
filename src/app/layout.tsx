@@ -60,7 +60,9 @@ export default function RootLayout({
         </a>
         {/* Sticky white masthead with a hairline border, like at.govt.nz. */}
         <header className="sticky top-0 z-40 border-b border-at-border bg-at-surface">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 min-[1440px]:max-w-[80vw]">
+          {/* Five tabs need more width than a 390px phone leaves beside the logo,
+              so the nav takes a row of its own until there is room to share one. */}
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 min-[1440px]:max-w-[80vw] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <Link href="/" className="flex shrink-0 items-center gap-3">
               {/* Shore colourway on the light header; never recolour/distort (guide p13/p14) */}
               <Image

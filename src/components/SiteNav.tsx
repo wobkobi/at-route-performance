@@ -27,7 +27,7 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
         // area, sort, lean). A section tab from one of its sub-pages stays a
         // link, since /route/20 > /routes is a real navigation.
         const className = cn(
-          "shrink-0 rounded-full px-2.5 py-1.5 text-sm font-semibold transition-colors sm:px-3",
+          "shrink-0 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
           active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
         );
         return pathname === s.href ? (

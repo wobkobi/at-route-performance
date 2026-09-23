@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.4] - 2026-09-23
+
+### Fixed
+
+- The five section tabs no longer crowd the logo on a narrow phone.
+
 ## [1.54.3] - 2026-09-23
 
 ### Fixed
