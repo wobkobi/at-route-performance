@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.13] - 2026-09-23
+
+### Fixed
+
+- A flame badge's tooltip is now removed from the layout while it is hidden rather than merely made
+  transparent, so a label longer than the badge's room cannot give a shame board a horizontal
+  scrollbar that nothing on screen explains; shown, it wraps inside a bounded box instead of running
+  off the side.
+
 ## [1.55.12] - 2026-09-23
 
 ### Fixed

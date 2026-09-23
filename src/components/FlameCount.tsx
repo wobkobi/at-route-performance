@@ -97,9 +97,20 @@ export function FlameCount({
         {count}
       </span>
       {label && (
+        /*
+          Hidden with `display: none`, not with `opacity-0`: an opacity-0 box is
+          still laid out and still counts toward the page's scrollable width, so
+          a label wider than the badge's room gave the whole board a horizontal
+          scrollbar while the tooltip was invisible. Bounded and wrapping for the
+          same reason - these labels grow with the route name, the day count and
+          the period's own words ("in the last 7 days"). `w-max` before the bound:
+          an absolutely positioned box otherwise shrink-wraps to its containing
+          block, which here is a 30px badge, and the label wrapped one word per
+          line.
+        */
         <span
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-xs font-medium whitespace-nowrap text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/flame:opacity-100 group-focus-visible/flame:opacity-100"
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-max max-w-56 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-center text-xs font-medium text-white shadow-md group-hover/flame:block group-focus-visible/flame:block"
         >
           {label}
         </span>
