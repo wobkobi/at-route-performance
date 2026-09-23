@@ -1,6 +1,13 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheKey, cacheState, rangeIsFinal } from "@/lib/data/cache";
+import {
+  cacheKey,
+  cacheState,
+  rangeIsFinal,
+  runIndependentState,
+  scheduledAtWindow,
+  windowEnd,
+} from "@/lib/data/cache";
 import { nzServiceDayRange, nzWeekRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -94,6 +101,43 @@ describe("cacheState", () => {
   });
 });
 
+describe("runIndependentState", () => {
+  const WEEK = nzWeekRange("2026-09-14");
+  const MID_WEEK = Date.parse("2026-09-16T02:00:00Z");
+
+  it("answers for every window but the single live day", () => {
+    expect(runIndependentState(true, RANGE, END + 86_400_000)).toBe("final");
+    expect(runIndependentState(false, RANGE, END)).toBe("ended");
+    expect(runIndependentState(false, WEEK, MID_WEEK)).toBe("open-2026-09-16");
+    // Only here is the run stamp the deciding part of the key.
+    expect(runIndependentState(false, RANGE, START + 60_000)).toBeNull();
+    expect(runIndependentState(false, null, START)).toBeNull();
+  });
+
+  it("answers exactly when the run stamp cannot change the key", () => {
+    // The guarantee `cachedForRange` relies on to skip the lookup: wherever this
+    // returns a state, passing a run must make no difference to `cacheState`. If
+    // the two ever disagree, a window would be cached under a key built without
+    // a stamp it actually needed.
+    const cases: [boolean, typeof RANGE | null, number][] = [
+      [true, RANGE, END + 86_400_000],
+      [false, RANGE, END],
+      [false, RANGE, END + 1],
+      [false, RANGE, START + 60_000],
+      [false, WEEK, MID_WEEK],
+      [false, WEEK, WEEK.end.getTime()],
+      [false, null, START],
+      [false, nzServiceDayRange("2026-09-15"), MID_WEEK],
+    ];
+    for (const [final, range, now] of cases) {
+      const run = now - 60_000;
+      const withRun = cacheState(final, range, 120, now, run);
+      const withoutRun = cacheState(final, range, 120, now, null);
+      expect(runIndependentState(final, range, now) !== null).toBe(withRun === withoutRun);
+    }
+  });
+});
+
 describe("rangeIsFinal", () => {
   beforeEach(() => {
     findFirst.mockReset();
@@ -126,5 +170,35 @@ describe("cacheKey", () => {
       "152",
       "final",
     ]);
+  });
+});
+
+describe("windowEnd", () => {
+  it("clips an open window to now, so nothing is measured against stops not yet due", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    // 10am NZ on the 24th: the service day runs to 4am on the 25th.
+    const open = nzServiceDayRange("2026-09-24");
+    expect(windowEnd(open).toISOString()).toBe("2026-09-23T22:00:00.000Z");
+    vi.useRealTimers();
+  });
+
+  it("leaves a window that has already ended exactly as it is", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    const past = nzServiceDayRange("2026-09-20");
+    expect(windowEnd(past).getTime()).toBe(past.end.getTime());
+    vi.useRealTimers();
+  });
+
+  it("agrees with the bound scheduledAtWindow sends to MongoDB", () => {
+    // The cancellation penalty stops at windowEnd and the arrivals stop at
+    // scheduledAtWindow's `$lt`. They have to be the same instant, or one side
+    // counts a trip the other does not.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    const open = nzServiceDayRange("2026-09-24");
+    expect(scheduledAtWindow(open).$lt.$date).toBe(windowEnd(open).toISOString());
+    vi.useRealTimers();
   });
 });

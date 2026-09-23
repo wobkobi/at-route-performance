@@ -9,6 +9,7 @@
 
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
+import { ChevronLeft } from "@/components/icons";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { ON_TIME_CAPTION, RankBoard } from "@/components/RankBoard";
 import { StopScheduleSkeleton } from "@/components/SkeletonParts";
@@ -16,14 +17,18 @@ import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { formatDuration } from "@/lib/format";
+import { readFallback } from "@/lib/db";
+import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
@@ -62,11 +67,13 @@ export async function generateMetadata({
   }
   const sp = (await searchParams) ?? {};
   const { range } = await resolveShownDay(resolveRequestedDay(sp.day));
-  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(() => null);
+  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(
+    readFallback("stop-stats", null),
+  );
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
   const card = parseStopCard(id, sp);
-  const description = `On-time performance at ${name} against Auckland Transport's published schedule.`;
+  const description = `On-time performance at ${name} ${MEASURED_AGAINST}`;
   return {
     title: name,
     description,
@@ -140,10 +147,28 @@ export default async function StopPage({
     late_pct: summary?.late_pct ?? null,
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
+    // No stop figure anywhere on the site takes the cancellation penalty: it is
+    // counted per route per service day, and there is no defensible way to
+    // charge one stop its share. A stop served by a route that cancelled half
+    // its trips therefore reads healthy, and the footnote now says so.
+    cancellations: "excluded",
   };
 
   return (
     <main className="space-y-6">
+      {/* The worst-stops board is the only page on the site that lists stops, so
+          it is the one way up from here. Without it a reader who arrived from a
+          shame board or a route's stop table had the top bar and nothing else, and
+          the top bar has no stops in it. Not "back to": a reader may equally have
+          come from a route page or a shared link. */}
+      <Link
+        href={buildHref("/shame/stop", { day: linkDay })}
+        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+        The worst stops {nav.isToday ? "today" : "that day"}
+      </Link>
+
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs tracking-zero text-at-muted uppercase">Stop</p>
@@ -182,7 +207,9 @@ export default async function StopPage({
             variant="average"
             label="Avg off by"
             value={
-              summary?.avg_abs_delay_sec == null ? "—" : formatDuration(summary.avg_abs_delay_sec)
+              summary?.avg_abs_delay_sec == null
+                ? UNKNOWN_VALUE
+                : formatDuration(summary.avg_abs_delay_sec)
             }
             breakdown={punctuality}
           />
@@ -190,10 +217,20 @@ export default async function StopPage({
             bare
             variant="split"
             label="On-time (%)"
-            value={summary?.on_time_pct?.toFixed(1) ?? "—"}
+            value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
             breakdown={punctuality}
           />
         </div>
+        {/* "Arrivals 0" is a fact and the dashes beside it are an admission of
+            ignorance, so side by side they describe one absence two ways and a
+            reader cannot tell a quiet day from a missing one. The aggregation
+            returns no summary row only when nothing matched, so this names which
+            it is rather than leaving the strip to be read either way. */}
+        {summary === null && (
+          <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
+            No arrivals were recorded at this stop on this day, so there is nothing to average.
+          </p>
+        )}
       </section>
 
       <section className="border border-at-border bg-at-surface p-4">
@@ -260,7 +297,7 @@ async function StopScheduleSection({
 }): Promise<JSX.Element> {
   const perStop = await Promise.all(
     // One bad platform must not empty the whole board.
-    stopIds.map((sid) => getStopTrips(sid, serviceDate).catch(() => [])),
+    stopIds.map((sid) => getStopTrips(sid, serviceDate).catch(readFallback("stop-trips", []))),
   );
   const byTrip = new Map<string, (typeof perStop)[number][number]>();
   for (const d of perStop.flat()) if (!byTrip.has(d.tripId)) byTrip.set(d.tripId, d);

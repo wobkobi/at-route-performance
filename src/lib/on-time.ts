@@ -30,6 +30,30 @@ export const CANCELLED_SPLIT_COPY =
   `late when it is longer.`;
 
 /**
+ * Which population a punctuality figure was computed over, so a surface states
+ * the basis it actually used rather than the one most surfaces use.
+ *
+ * `counted` earns {@link CANCELLED_SPLIT_COPY}; `excluded` earns
+ * {@link CANCELLED_EXCLUDED_COPY}.
+ */
+export type CancellationBasis = "counted" | "excluded";
+
+/**
+ * The counterpart to {@link CANCELLED_SPLIT_COPY}, for a figure the penalty was
+ * never applied to.
+ *
+ * Two surfaces need it. A part-of-day filter cannot take the penalty, because it
+ * is counted per service day and charging the morning peak for an evening
+ * cancellation would be worse than leaving it out. Per-stop figures never take
+ * it either, by the same per-day reasoning. Both used to carry the sentence
+ * saying cancellations were counted, so narrowing to a peak lifted a route's
+ * on-time share and the explainer told the reader nothing had changed.
+ */
+export const CANCELLED_EXCLUDED_COPY =
+  `Cancellations are not in this figure: it counts the arrivals that happened, so a route is ` +
+  `judged here only on the trips it ran.`;
+
+/**
  * Early tolerance in seconds, by mode. Buses/trains hold at timepoints (1 min);
  * ferries get the full 5 minutes. Unknown modes fall back to the bus rule.
  */

@@ -24,6 +24,10 @@ export default function ErrorPage({
   reset: () => void;
 }): JSX.Element {
   useEffect(() => {
+    // A browser console line, so it is a debugging aid and not the signal to
+    // alert on: nothing collects it server-side. The server logs the same
+    // failure itself with this digest, and a read that degrades rather than
+    // throwing logs DB_READ_FAILED instead.
     console.error("[PAGE] Render failed", { error: error.message, digest: error.digest });
   }, [error]);
   return (

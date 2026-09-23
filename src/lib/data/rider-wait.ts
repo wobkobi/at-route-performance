@@ -2,7 +2,7 @@
 // The rider-wait penalty of each service day's cancellations (lib/rider-wait.ts),
 // read for the routes that had one: their runs give the gap to the next trip and
 // the usual stop count. Cached under the day, so a week or month reuses each day.
-import { cachedForDay, toIso } from "@/lib/data/cache";
+import { cachedForDay, toIso, windowEnd } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
@@ -46,7 +46,22 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
   return cachedForDay(
     async (classified) => {
       const cancelled = await getNetworkCancelledTrips(range);
-      const flagged = cancelled.filter((c) => c.stage !== "ran");
+      // A cancellation is charged only once its scheduled departure has passed.
+      // The arrivals it is weighed against stop at the same instant
+      // (scheduledAtWindow clips an open day to now), so counting a trip
+      // cancelled for 6pm at 10am this morning put late visits in the numerator
+      // while this evening's arrivals were correctly absent from the
+      // denominator. The live figure was dragged down early and recovered
+      // through the day, beyond any real change in the service.
+      //
+      // A flag with no scheduled start is kept: there is nothing to compare, and
+      // dropping it would lose a real cancellation rather than defer it.
+      const chargeableBefore = windowEnd(range).getTime();
+      const flagged = cancelled.filter(
+        (c) =>
+          c.stage !== "ran" &&
+          (c.scheduled_start == null || Date.parse(c.scheduled_start) < chargeableBefore),
+      );
       if (flagged.length === 0) return { routes: {}, trips: {} };
       const slugs = [...new Set(flagged.map((c) => c.route_id))];
       const routeIds = (await Promise.all(slugs.map(routeIdsForSlug))).flat();

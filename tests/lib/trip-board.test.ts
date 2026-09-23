@@ -196,6 +196,16 @@ describe("sortRuns", () => {
     expect(sortRuns(runs, "early", false).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
     expect(sortRuns(runs, "late", true).map((r) => r.trip_id)).toEqual(["mid", "big", "none"]);
   });
+
+  it("breaks a tie the same way whatever order the runs arrive in", () => {
+    const runs = [run("c", T9, 300), run("a", T7, 300), run("b", T8, 300)];
+    expect(sortRuns(runs, "off", false).map((r) => r.trip_id)).toEqual(["a", "b", "c"]);
+    expect(sortRuns([...runs].reverse(), "off", false).map((r) => r.trip_id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
 });
 
 describe("tripBoardView", () => {
@@ -215,5 +225,9 @@ describe("tripBoardView", () => {
 
   it("skips a repeated param rather than guessing which value", () => {
     expect(tripBoardView({ tsort: ["late", "off"] })).toEqual({});
+  });
+
+  it("carries the part of the day, which narrows the board like the direction does", () => {
+    expect(tripBoardView({ dir: "0", hours: "7-9" })).toEqual({ dir: "0", hours: "7-9" });
   });
 });

@@ -1,13 +1,29 @@
 // src/components/SkeletonParts.tsx
-// Skeleton pieces shared by the loading pages and the in-page Suspense fallbacks.
-// Each mirrors a real component box for box - the same padding, gaps, borders and
-// text line heights, with a bone the height of each text line - so a skeleton
-// fills exactly the space of the page it turns into and nothing jumps on arrival.
-// A change to one of the mirrored components needs the matching change here.
+// Skeleton pieces shared by the loading pages and the in-page Suspense fallbacks,
+// and the Bone primitive they are all built from. Each piece mirrors a real
+// component box for box - the same padding, gaps, borders and text line heights,
+// with a bone the height of each text line - so a skeleton fills exactly the space
+// of the page it turns into and nothing jumps on arrival. A change to one of the
+// mirrored components needs the matching change here.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
+
+/**
+ * Pulse-placeholder skeleton element, the primitive every other piece here is
+ * built from. Classes merge through `cn`, so a caller's shape (`rounded-full`,
+ * `rounded-none`) replaces the default `rounded`.
+ * @param root0 - Props.
+ * @param root0.className - Tailwind size and shape classes.
+ * @returns The bone element.
+ */
+export function Bone({ className }: { className: string }): JSX.Element {
+  return (
+    <div
+      className={cn("animate-pulse rounded bg-at-border motion-reduce:animate-none", className)}
+    />
+  );
+}
 
 /**
  * A `.chip` with a text label: `px-3 py-1 text-sm` plus the 1px `chip-off`
@@ -160,14 +176,18 @@ export function FeatureCardRowSkeleton(): JSX.Element {
  * @param root0 - Props.
  * @param root0.colourKey - Whether the board is the signed one, which adds the
  * late/early colour key under its caption.
+ * @param root0.deltas - Whether the board ranks against a previous period, which
+ * widens the rank column from 20px to 56px to hold the movement badge.
  * @param root0.rows - How many rows to draw (the home boards show ten).
  * @returns The board placeholder.
  */
 export function RankBoardSkeleton({
   colourKey = false,
+  deltas = false,
   rows = 10,
 }: {
   colourKey?: boolean;
+  deltas?: boolean;
   rows?: number;
 }): JSX.Element {
   return (
@@ -188,12 +208,23 @@ export function RankBoardSkeleton({
               i > 0 && "border-t border-at-border",
             )}
           >
-            <Bone className="h-4 w-5" />
+            {deltas ? (
+              // The rank number and its movement badge, in the 56px column the
+              // real row reserves for the pair.
+              <span className="flex w-14 shrink-0 items-center gap-1">
+                <Bone className="h-4 w-5" />
+                <Bone className="h-4 w-8" />
+              </span>
+            ) : (
+              <Bone className="h-4 w-5" />
+            )}
             <Bone className="h-5 w-5 rounded-full" />
             <div className="flex h-6 flex-1 items-center">
               <Bone className="h-4 w-14" />
             </div>
             <Bone className="h-4 w-20" />
+            {/* The row's trailing chevron, which sets where the value ends. */}
+            <Bone className="h-4 w-4 shrink-0" />
           </div>
         ))}
       </div>

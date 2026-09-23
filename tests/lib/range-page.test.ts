@@ -8,6 +8,7 @@ import {
   overviewHeading,
   parseRangeWindow,
   periodAnchorDay,
+  periodForCarriedDay,
   periodInPhrase,
   rangeTabPeriods,
   routeLinkQuery,
@@ -154,6 +155,24 @@ describe("rangeTabPeriods", () => {
       week: "2026-08-17",
       month: "2026-08",
     });
+  });
+});
+
+describe("periodForCarriedDay", () => {
+  it("keeps the period asked for, whichever day is carried beside it", () => {
+    expect(periodForCarriedDay("week", "2026-08-17", "2026-07-02", TODAY)).toBe("2026-08-17");
+    expect(periodForCarriedDay("month", "2026-08", undefined, TODAY)).toBe("2026-08");
+  });
+
+  it("shows the week or month holding a carried day, so a nav link keeps its date", () => {
+    expect(periodForCarriedDay("week", undefined, "2026-08-20", TODAY)).toBe("2026-08-17");
+    expect(periodForCarriedDay("month", undefined, "2026-08-20", TODAY)).toBe("2026-08");
+  });
+
+  it("takes the rolling default for today, for no day, and for a day that is not one", () => {
+    expect(periodForCarriedDay("week", undefined, TODAY, TODAY)).toBeUndefined();
+    expect(periodForCarriedDay("week", undefined, undefined, TODAY)).toBeUndefined();
+    expect(periodForCarriedDay("week", undefined, "2026-02-31", TODAY)).toBeUndefined();
   });
 });
 

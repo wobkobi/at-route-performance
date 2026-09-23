@@ -9,6 +9,7 @@ import {
 } from "@/components/shame/ShameBoard";
 import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
+import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import {
@@ -20,8 +21,7 @@ import {
   MIN_STOP_EVENTS_HOUR,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { formatDuration } from "@/lib/format";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -29,6 +29,7 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
+  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
@@ -43,6 +44,7 @@ import {
   type ShameSearchParams,
 } from "@/lib/shame-page";
 import { weekdayShort, type DateRange } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -119,7 +121,9 @@ async function StopRangeBoard({
     const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
     return (
       <Link
-        href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
+        href={buildHref(`/stop/${encodeURIComponent(s.stop_id)}`, {
+          day: dayLinkParam(s.date),
+        })}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
         <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">
@@ -137,12 +141,11 @@ async function StopRangeBoard({
             </span>
           )}
         </span>
-        <span
-          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
-          title="Average deviation from the scheduled arrival time"
-        >
-          {formatDuration(s.avg_abs_delay_sec)} off
-        </span>
+        <ShameRowDelay
+          avgDelaySec={s.avg_delay_sec}
+          avgAbsDelaySec={s.avg_abs_delay_sec}
+          mode={s.mode}
+        />
       </Link>
     );
   };
@@ -222,12 +225,11 @@ async function StopDayBoard({
             </span>
           )}
         </span>
-        <span
-          className="shrink-0 cursor-help pt-px font-semibold text-at-late tabular-nums"
-          title="Average deviation from the scheduled arrival time"
-        >
-          {formatDuration(s.avg_abs_delay_sec)} off
-        </span>
+        <ShameRowDelay
+          avgDelaySec={s.avg_delay_sec}
+          avgAbsDelaySec={s.avg_abs_delay_sec}
+          mode={s.mode}
+        />
       </Link>
     );
   };
@@ -365,7 +367,11 @@ export default async function StopShamePage({
       />
       <Suspense
         fallback={
-          <ShameBoardSkeleton layout="day" shape={{ icon: false, mobileLines: 2, gridLines: 2 }} />
+          <ShameBoardSkeleton
+            layout="day"
+            shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
+            rows={startedServiceHourCount(serviceDate)}
+          />
         }
       >
         <StopDayBoard

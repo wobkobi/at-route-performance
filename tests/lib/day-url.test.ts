@@ -1,8 +1,9 @@
 // tests/lib/day-url.test.ts
 // The `?day` clamp: a day outside the archive redirects onto the nearest real
 // one, and a clamp onto today drops the param rather than costing a second hop.
+// Plus the link side of the same rule, which keeps a board row off the redirect.
 import { DATA_START_DAY } from "@/lib/data-start";
-import { clampDayParam } from "@/lib/day-url";
+import { clampDayParam, dayLinkParam } from "@/lib/day-url";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -41,5 +42,20 @@ describe("clampDayParam", () => {
     expect(() => {
       clampDayParam("/shame", { day: "2026-02-31" }, TODAY);
     }).not.toThrow();
+  });
+});
+
+describe("dayLinkParam", () => {
+  it("leaves today's day out, so a link to it skips the redirect", () => {
+    expect(dayLinkParam(TODAY, TODAY)).toBeUndefined();
+  });
+
+  it("keeps any other day", () => {
+    expect(dayLinkParam("2026-09-12", TODAY)).toBe("2026-09-12");
+  });
+
+  it("treats a missing day as today's view", () => {
+    expect(dayLinkParam(null, TODAY)).toBeUndefined();
+    expect(dayLinkParam(undefined, TODAY)).toBeUndefined();
   });
 });

@@ -3,8 +3,15 @@
 // Render a punctuality breakdown of early, on-time, and late share bars.
 
 import { cn } from "@/lib/cn";
-import { formatDelay, formatDuration } from "@/lib/format";
-import { CANCELLED_SPLIT_COPY, earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
+import { formatDelay, formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  CANCELLED_EXCLUDED_COPY,
+  CANCELLED_SPLIT_COPY,
+  earlyToleranceFor,
+  ON_TIME_LATE_SEC,
+  type CancellationBasis,
+} from "@/lib/on-time";
 import { useId, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 /**
@@ -27,6 +34,13 @@ export interface PunctualityBreakdown {
   avg_abs_delay_sec: number | null;
   /** Route mode for the net-average "on time" wording (omit for the fleet). */
   mode?: string;
+  /**
+   * Whether the cancellation penalty is inside these percentages. Required, and
+   * deliberately not defaulted: the footnote states which it is, and a default
+   * would let a surface keep the wrong claim by saying nothing. A part-of-day
+   * filter and every stop figure are `"excluded"`; see {@link CANCELLED_SPLIT_COPY}.
+   */
+  cancellations: CancellationBasis;
 }
 
 /** Props for {@link PunctualityStat}. */
@@ -63,7 +77,7 @@ function onTimeWindowDescription(mode: string | undefined): string {
     earlyMin === lateMin
       ? `within ${lateMin} min either side`
       : `${earlyMin} min early to ${lateMin} min late`;
-  return `On time means ${window}. Early and late are both off-schedule.`;
+  return `On time means ${window}. Early and late are both off-schedule. ${ON_TIME_WINDOW_NOTE}`;
 }
 
 /**
@@ -87,7 +101,7 @@ function BandRow({
     <div className="flex items-center gap-2">
       <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colour)} />
       <span className="flex-1 text-at-muted">{label}</span>
-      <span className="font-semibold tabular-nums">{pct == null ? "—" : `${pct}%`}</span>
+      <span className="font-semibold tabular-nums">{pct == null ? UNKNOWN_VALUE : `${pct}%`}</span>
     </div>
   );
 }
@@ -169,7 +183,15 @@ export function PunctualityInfo({
   extra,
 }: PunctualityInfoProps): JSX.Element {
   const [open, setOpen] = useState(false);
-  const { on_time_pct, early_pct, late_pct, avg_delay_sec, avg_abs_delay_sec, mode } = breakdown;
+  const {
+    on_time_pct,
+    early_pct,
+    late_pct,
+    avg_delay_sec,
+    avg_abs_delay_sec,
+    mode,
+    cancellations,
+  } = breakdown;
   const popoverId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -230,19 +252,32 @@ export function PunctualityInfo({
                 <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">
                   Of all arrivals
                 </p>
-                {/* Stacked share bar: on time / late / early. */}
-                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
-                  <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
-                  <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
-                  <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
-                </div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <BandRow colour="bg-at-ontime" label="On time" pct={on_time_pct} />
-                  <BandRow colour="bg-at-late" label="Late" pct={late_pct} />
-                  <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
-                </div>
+                {on_time_pct == null ? (
+                  /* An unknown share used to clamp to 0% and draw the bar empty,
+                     which reads as nothing having arrived on time rather than as
+                     nothing being known - the graphic said catastrophe while the
+                     rows beside it said "—". Say it in words instead. */
+                  <p className="mt-2 text-sm text-at-muted">
+                    No arrivals in this window, so there is no split to show.
+                  </p>
+                ) : (
+                  <>
+                    {/* Stacked share bar: on time / late / early. */}
+                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
+                      <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
+                      <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
+                      <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
+                    </div>
+                    <div className="mt-2 space-y-1 text-sm">
+                      <BandRow colour="bg-at-ontime" label="On time" pct={on_time_pct} />
+                      <BandRow colour="bg-at-late" label="Late" pct={late_pct} />
+                      <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
+                    </div>
+                  </>
+                )}
                 <p className="mt-2 text-xs leading-snug text-at-muted">
-                  {onTimeWindowDescription(mode)} {CANCELLED_SPLIT_COPY}
+                  {onTimeWindowDescription(mode)}{" "}
+                  {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}
                 </p>
                 {extra}
               </>
@@ -256,14 +291,16 @@ export function PunctualityInfo({
                     <span className="text-at-muted">Net (early + late)</span>
                     <span className="font-semibold tabular-nums">
                       {avg_delay_sec == null
-                        ? "—"
+                        ? UNKNOWN_VALUE
                         : formatDelay(avg_delay_sec, mode ? { mode } : {})}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-at-muted">Off by (magnitude)</span>
                     <span className="font-semibold tabular-nums">
-                      {avg_abs_delay_sec == null ? "—" : formatDuration(avg_abs_delay_sec)}
+                      {avg_abs_delay_sec == null
+                        ? UNKNOWN_VALUE
+                        : formatDuration(avg_abs_delay_sec)}
                     </span>
                   </div>
                 </div>

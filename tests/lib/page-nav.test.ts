@@ -15,6 +15,7 @@ import {
   resolveShownDay,
   resolveWeekNav,
   serviceHourSpan,
+  startedServiceHourCount,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { nzServiceDayRange } from "@/lib/time";
@@ -150,6 +151,44 @@ describe("filterLiveHours", () => {
       { hour: 5 },
       { hour: 6 },
     ]);
+  });
+});
+
+describe("startedServiceHourCount", () => {
+  it("counts the whole service day for a finished one", () => {
+    const now = new Date("2026-06-15T22:30:00Z");
+    expect(startedServiceHourCount("2026-06-10", now)).toBe(24);
+  });
+
+  it("counts only the elapsed hours on the live day", () => {
+    // 2026-06-16 04:30 NZST: the day's first hour, so one row.
+    expect(startedServiceHourCount("2026-06-16", new Date("2026-06-15T16:30:00Z"))).toBe(1);
+    // 10:30 NZST: 4am through 10am.
+    expect(startedServiceHourCount("2026-06-16", new Date("2026-06-15T22:30:00Z"))).toBe(7);
+  });
+
+  it("counts past midnight without wrapping back to the start of the day", () => {
+    // 2026-06-16 02:30 NZST is still service day 2026-06-15: 4am to 11pm, then
+    // midnight, 1am and 2am.
+    expect(startedServiceHourCount("2026-06-15", new Date("2026-06-15T14:30:00Z"))).toBe(23);
+  });
+
+  it("never exceeds the hours the board can draw", () => {
+    // 03:30 NZST, the last hour of the service day, is the full 24.
+    expect(startedServiceHourCount("2026-06-15", new Date("2026-06-15T15:30:00Z"))).toBe(24);
+  });
+
+  // The invariant the skeleton rests on: a board covering the whole service day
+  // has exactly this many rows, and one covering less has fewer - never more, so
+  // the placeholder is never short and the page cannot grow on arrival.
+  it("matches the row count of a board spanning the whole service day", () => {
+    const now = new Date("2026-06-15T22:30:00Z"); // 10:30 NZST on 2026-06-16
+    const rows = Array.from({ length: 24 }, (_, i) => ({ hour: (4 + i) % 24 }));
+    const wholeDay = fillServiceHours(rows, "2026-06-16", { first: 4, last: 3 }, now);
+    expect(wholeDay.length).toBe(startedServiceHourCount("2026-06-16", now));
+
+    const shortSpan = fillServiceHours(rows, "2026-06-16", { first: 6, last: 9 }, now);
+    expect(shortSpan.length).toBeLessThan(startedServiceHourCount("2026-06-16", now));
   });
 });
 

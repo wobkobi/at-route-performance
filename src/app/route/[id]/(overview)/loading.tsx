@@ -2,6 +2,7 @@
 // Loading skeleton for the route detail page.
 
 import {
+  Bone,
   ChipBone,
   DayNavSkeleton,
   LineDiagramSkeleton,
@@ -10,7 +11,6 @@ import {
   TitleBone,
   TripBoardSkeleton,
 } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**

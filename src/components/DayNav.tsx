@@ -78,12 +78,16 @@ export function DayNav({
   return (
     <div className="flex items-center gap-1">
       {/* Step links are omitted (not disabled) at the edges of the data range;
-          on the archive's first day the gap gets a reason instead. */}
+          on the archive's first day the gap gets a reason instead. `scroll`
+          is held because the stepper is how the archive is read: stepping from
+          halfway down a board threw the reader back to the top of the next day,
+          while a mode chip beside it did not. */}
       {hasPrev && (
         <Link
           href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
           prefetch
-          className="chip chip-off"
+          scroll={false}
+          className="chip chip-icon chip-off"
           aria-label="Previous day"
         >
           <StepPending>
@@ -104,7 +108,8 @@ export function DayNav({
         <Link
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
           prefetch
-          className="chip chip-off"
+          scroll={false}
+          className="chip chip-icon chip-off"
           aria-label="Next day"
         >
           <StepPending>

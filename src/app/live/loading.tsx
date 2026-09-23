@@ -1,7 +1,6 @@
 // src/app/live/loading.tsx
 import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleton";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
-import { ChipBone, TitleBone } from "@/components/SkeletonParts";
+import { Bone, ChipBone, TitleBone } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**

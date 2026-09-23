@@ -1,10 +1,9 @@
 // src/components/DelayFilter.tsx
 // Chip row filtering rankings by late, early, or all delay directions.
 
-import { cn } from "@/lib/cn";
+import { ChipLink } from "@/components/Chip";
 import type { DelayDirection } from "@/lib/rankings";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link DelayFilter}. */
@@ -39,14 +38,9 @@ export function DelayFilter({ active, basePath, preservedParams }: DelayFilterPr
         const href = buildHref(basePath, { ...preservedParams, dir: d.key || undefined });
         const isActive = (active ?? "") === d.key;
         return (
-          <Link
-            key={d.key || "all"}
-            href={href}
-            scroll={false}
-            className={cn("chip", isActive ? d.activeClass : "chip-off")}
-          >
+          <ChipLink key={d.key || "all"} href={href} active={isActive} activeClass={d.activeClass}>
             {d.label}
-          </Link>
+          </ChipLink>
         );
       })}
     </div>

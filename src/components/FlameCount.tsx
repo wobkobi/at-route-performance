@@ -30,21 +30,23 @@ function flameSeverity(tier: FlameTier, count: number): number {
 
 /**
  * Five visually distinct colours from one normalised severity score.
- * Violet is deliberately excluded - blue is reserved for the most extreme
- * streaks only, keeping adjacent colours clearly apart.
+ * Blue is deliberately excluded, hot though a blue flame is: blue is the
+ * on-time colour everywhere else on the site, so the badge for the worst
+ * routes on it was painted the same shade as its all-clear. Cosmic is the
+ * palette's own step past crimson and stays clearly apart from it.
  *
  *   amber   s < 0.15  day, count 2
  *   orange  s < 0.35  day, count 3-6
  *   red     s < 0.60  day 7-8 / week 2-4
  *   crimson s < 0.85  week 5-7 / streak 2-5
- *   blue    s >= 0.85 streak 6+ (chronic)
+ *   cosmic  s >= 0.85 streak 6+ (chronic)
  * @param tier - Severity tier.
  * @param count - Repeat count or streak length.
  * @returns Hex colour string.
  */
 function flameColour(tier: FlameTier, count: number): string {
   const s = flameSeverity(tier, count);
-  if (s >= 0.85) return "#3B82F6"; // blue-500
+  if (s >= 0.85) return "#773581"; // at-cosmic
   if (s >= 0.6) return "#B91C1C"; // red-700  (crimson)
   if (s >= 0.35) return "#EF4444"; // red-500
   if (s >= 0.15) return "#F97316"; // orange-500
@@ -95,9 +97,20 @@ export function FlameCount({
         {count}
       </span>
       {label && (
+        /*
+          Hidden with `display: none`, not with `opacity-0`: an opacity-0 box is
+          still laid out and still counts toward the page's scrollable width, so
+          a label wider than the badge's room gave the whole board a horizontal
+          scrollbar while the tooltip was invisible. Bounded and wrapping for the
+          same reason - these labels grow with the route name, the day count and
+          the period's own words ("in the last 7 days"). `w-max` before the bound:
+          an absolutely positioned box otherwise shrink-wraps to its containing
+          block, which here is a 30px badge, and the label wrapped one word per
+          line.
+        */
         <span
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-xs font-medium whitespace-nowrap text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/flame:opacity-100 group-focus-visible/flame:opacity-100"
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-max max-w-56 -translate-x-1/2 rounded bg-at-ink px-2 py-1 text-center text-xs font-medium text-white shadow-md group-hover/flame:block group-focus-visible/flame:block"
         >
           {label}
         </span>

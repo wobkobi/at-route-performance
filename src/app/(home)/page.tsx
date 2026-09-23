@@ -484,6 +484,7 @@ export default async function Home({
             cancelled={cancelledByRoute}
             routeQuery={routeLinkQuery("day", linkDay, null)}
             total={offSchedule.length}
+            minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
               ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
@@ -497,6 +498,7 @@ export default async function Home({
             caption={ON_TIME_SHARE_CAPTION}
             routeQuery={routeLinkQuery("day", linkDay, null)}
             total={boards.reliable.length}
+            minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
               ...viewQuery("reliable", { mode, school: includeSchool }),
