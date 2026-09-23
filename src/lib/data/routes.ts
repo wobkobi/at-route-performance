@@ -227,15 +227,32 @@ export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "
  */
 export async function getRouteNames(routeIds: string[]): Promise<Record<string, string>> {
   if (routeIds.length === 0) return {};
+  const all = await allRouteNames();
+  const out: Record<string, string> = {};
+  for (const id of routeIds) {
+    const name = all[id];
+    if (name !== undefined) out[id] = name;
+  }
+  return out;
+}
+
+/**
+ * Every route's display name by id, under a single cache key.
+ *
+ * Caching the requested subset instead keyed on the set of ids asked for, so a
+ * board showing a different set of routes per mode, sort, page and day almost
+ * never met a warm entry and minted a new one each time - an unbounded number of
+ * entries for a table that is only a few hundred rows whole. One key holds for a
+ * day, as {@link getRouteModeMap} does over the same collection.
+ * @returns Map from route id to its short name, falling back to the id.
+ */
+async function allRouteNames(): Promise<Record<string, string>> {
   return unstable_cache(
     async () => {
-      const rows = await prisma.route.findMany({
-        where: { id: { in: routeIds } },
-        select: { id: true, shortName: true },
-      });
+      const rows = await prisma.route.findMany({ select: { id: true, shortName: true } });
       return Object.fromEntries(rows.map((r) => [r.id, r.shortName ?? r.id]));
     },
-    ["route-names", ...[...routeIds].sort()],
+    ["route-names-all"],
     { revalidate: 86400 },
   )();
 }

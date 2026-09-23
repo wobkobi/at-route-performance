@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.8] - 2026-09-23
+
+### Changed
+
+- Route display names were cached under a key built from the exact set of route ids asked for, so a
+  board showing a different set per mode, sort, page and day almost never found a warm entry and
+  left a new one behind each time. The whole name table is a few hundred rows, so it is now held
+  under a single key.
+
 ## [1.54.7] - 2026-09-23
 
 ### Changed
