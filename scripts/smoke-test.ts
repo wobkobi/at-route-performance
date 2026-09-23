@@ -688,9 +688,17 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
     const emptySections = await page.evaluate(() =>
       Array.from(document.querySelectorAll("h2"))
         .filter((h) => {
-          // The section is the nearest sectioning ancestor, or the parent when
-          // the heading sits in none, so a heading wrapped in its own header
-          // element still counts the content beside that wrapper.
+          // A heading labelling a disclosure has its content behind a click, and
+          // a collapsed `details` reports no `innerText` past its summary - so
+          // read the markup there instead, or every closed section reads empty.
+          const summary = h.closest<HTMLElement>("summary");
+          if (summary) {
+            const details = summary.parentElement;
+            return !details || details.textContent?.trim() === h.textContent?.trim();
+          }
+          // Otherwise the section is the nearest sectioning ancestor, or the
+          // parent when the heading sits in none, so a heading wrapped in its own
+          // header element still counts the content beside that wrapper.
           const container = h.closest<HTMLElement>("section, article") ?? h.parentElement;
           if (!container) return false;
           return container.innerText.trim() === h.innerText.trim();

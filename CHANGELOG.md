@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.23] - 2026-09-23
+
+### Fixed
+
+- The pre-release page check no longer reports the route page's Stops section as empty. A collapsed
+  disclosure reports no text past its own label, so the check was reading the section's contents as
+  absent rather than as one click away.
+
 ## [1.55.22] - 2026-09-23
 
 ### Changed
