@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.56.0] - 2026-09-24
+
+### Added
+
+- /rankings and /shame are route handlers rather than pages, so both still answer a real redirect: a
+  page flushes its shell before its component runs, which would have turned each into a 200 that a
+  crawler indexes and a reader without JavaScript never follows.
+
 ## [1.55.23] - 2026-09-23
 
 ### Fixed

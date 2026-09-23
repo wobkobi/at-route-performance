@@ -4,6 +4,7 @@
 import { DataFreshness } from "@/components/DataFreshness";
 import { readFallback } from "@/lib/db";
 import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
+import { connection } from "next/server";
 import type { JSX } from "react";
 
 /**
@@ -21,6 +22,10 @@ import type { JSX } from "react";
  *   figure that could not be read.
  */
 export async function FooterFreshness(): Promise<JSX.Element> {
+  // "Updated N minutes ago" is true only of the moment it is read, so this line
+  // is held out of the prerendered shell rather than baked into it. Every page
+  // carries this footer, so without it no route on the site could prerender.
+  await connection();
   // undefined is the read failing, null is a database with nothing in it yet.
   // Telling a reader "awaiting first data" during an outage would be a lie.
   const freshness = await getDataFreshness().catch(readFallback("data-freshness", undefined));
