@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.17] - 2026-09-23
+
+### Fixed
+
+- A stop page now links up to the worst-stops board - the only page on the site that lists stops -
+  so a reader who arrived from a shame board or a route's stop table is no longer left with the top
+  bar, which has no stops in it. The 404 page lists all nine pages rather than five: Live now and
+  Cancellations are top-bar sections and Day by day and Vehicles have no tab of their own, so the
+  one page whose whole job is being a way out was itself a dead end for four of them.
+
 ## [1.55.16] - 2026-09-23
 
 ### Fixed

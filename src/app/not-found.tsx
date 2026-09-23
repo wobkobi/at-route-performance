@@ -8,14 +8,34 @@ import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import Link from "next/link";
 import type { JSX } from "react";
-import { FaChartBar, FaExclamationTriangle, FaHome, FaMapMarkerAlt, FaRoute } from "react-icons/fa";
+import {
+  FaBan,
+  FaBroadcastTower,
+  FaBus,
+  FaCalendarAlt,
+  FaChartBar,
+  FaExclamationTriangle,
+  FaHome,
+  FaMapMarkerAlt,
+  FaRoute,
+} from "react-icons/fa";
 
+/**
+ * Every page a reader can go to, in the order the top bar and the footer list
+ * them. This is the one page whose whole job is being a way out, so a section
+ * missing from it is a dead end: Live and Cancellations are top-bar sections, and
+ * Day by day and Vehicles have no tab of their own.
+ */
 const PAGES = [
   { href: "/", icon: FaHome, label: "Overview" },
+  { href: "/days", icon: FaCalendarAlt, label: "Day by day" },
   { href: "/routes", icon: FaChartBar, label: "Routes" },
+  { href: "/live", icon: FaBroadcastTower, label: "Live now" },
   { href: "/shame/trip", icon: FaExclamationTriangle, label: "Worst trips" },
   { href: "/shame/route", icon: FaRoute, label: "Worst routes" },
   { href: "/shame/stop", icon: FaMapMarkerAlt, label: "Worst stops" },
+  { href: "/cancellations", icon: FaBan, label: "Cancellations" },
+  { href: "/vehicles", icon: FaBus, label: "Vehicles" },
 ] as const;
 
 /**

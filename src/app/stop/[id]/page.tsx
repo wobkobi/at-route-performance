@@ -9,6 +9,7 @@
 
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
+import { ChevronLeft } from "@/components/icons";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { ON_TIME_CAPTION, RankBoard } from "@/components/RankBoard";
 import { StopScheduleSkeleton } from "@/components/SkeletonParts";
@@ -25,7 +26,9 @@ import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og"
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
@@ -153,6 +156,19 @@ export default async function StopPage({
 
   return (
     <main className="space-y-6">
+      {/* The worst-stops board is the only page on the site that lists stops, so
+          it is the one way up from here. Without it a reader who arrived from a
+          shame board or a route's stop table had the top bar and nothing else, and
+          the top bar has no stops in it. Not "back to": a reader may equally have
+          come from a route page or a shared link. */}
+      <Link
+        href={buildHref("/shame/stop", { day: linkDay })}
+        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+        The worst stops {nav.isToday ? "today" : "that day"}
+      </Link>
+
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs tracking-zero text-at-muted uppercase">Stop</p>
