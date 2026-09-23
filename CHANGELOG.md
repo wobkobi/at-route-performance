@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.2] - 2026-09-23
+
+### Fixed
+
+- Spool replay no longer stalls on a blob response that carries no body.
+
 ## [1.54.1] - 2026-09-23
 
 ### Fixed

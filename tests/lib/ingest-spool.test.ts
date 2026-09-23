@@ -35,9 +35,15 @@ function entry(pathname: string, ageMs = 0): { pathname: string; uploadedAt: Dat
  * @param writes - The batch's writes.
  * @returns A stand-in for the blob `get` result.
  */
-function stored(writes: SpooledWrite[]): { stream: ReadableStream<Uint8Array> } {
+function stored(writes: SpooledWrite[]): {
+  statusCode: 200;
+  stream: ReadableStream<Uint8Array>;
+} {
   const body = gzipSync(new TextEncoder().encode(JSON.stringify(writes)));
-  return { stream: new Response(Buffer.from(body)).body as ReadableStream<Uint8Array> };
+  return {
+    statusCode: 200,
+    stream: new Response(Buffer.from(body)).body as ReadableStream<Uint8Array>,
+  };
 }
 
 beforeEach(() => {
@@ -185,6 +191,7 @@ describe("drainSpool", () => {
     blob.list.mockResolvedValue({ blobs: [entry("ingest-spool/bad.gz")] });
     const junk = gzipSync(new TextEncoder().encode("not json"));
     blob.get.mockResolvedValue({
+      statusCode: 200,
       stream: new Response(Buffer.from(junk)).body as ReadableStream<Uint8Array>,
     });
     blob.del.mockResolvedValue(undefined);
@@ -196,6 +203,23 @@ describe("drainSpool", () => {
     expect(result.stoppedEarly).toBe(false);
     expect(replay).not.toHaveBeenCalled();
     expect(blob.del).toHaveBeenCalledWith("ingest-spool/bad.gz");
+  });
+
+  it("drops a batch the store answered without a body", async () => {
+    // Only a 200 carries a stream. Nothing here sends a conditional request, so
+    // a 304 should not arrive - but reading one as an empty body would fail to
+    // unzip, which is not a parse error, so the drain would stall on that batch
+    // every run from then on. Counting it unreadable clears it instead.
+    blob.list.mockResolvedValue({ blobs: [entry("ingest-spool/unchanged.gz")] });
+    blob.get.mockResolvedValue({ statusCode: 304, stream: null });
+    blob.del.mockResolvedValue(undefined);
+    const replay = vi.fn<(w: SpooledWrite[]) => Promise<number>>();
+
+    const result = await drainSpool(replay);
+
+    expect(result).toEqual({ replayed: 0, rows: 0, dropped: 1, stoppedEarly: false });
+    expect(replay).not.toHaveBeenCalled();
+    expect(blob.del).toHaveBeenCalledWith("ingest-spool/unchanged.gz");
   });
 
   it("gives up quietly when the spool itself cannot be listed", async () => {

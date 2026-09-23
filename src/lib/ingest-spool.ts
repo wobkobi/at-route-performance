@@ -87,13 +87,16 @@ export async function spoolWrites(writes: SpooledWrite[]): Promise<boolean> {
 }
 
 /**
- * Read a spooled batch back.
+ * Read a spooled batch back. The SDK's result is a union keyed on `statusCode`
+ * and only a 200 carries a stream - a 304 answers a conditional request with
+ * `stream: null`, which nothing here asks for but which would read as an empty
+ * body rather than a missing one.
  * @param pathname - The blob's pathname.
  * @returns The writes it holds, or null when it cannot be read.
  */
 async function readBatch(pathname: string): Promise<SpooledWrite[] | null> {
   const found = await get(pathname, { access: "private" });
-  if (!found) return null;
+  if (found?.statusCode !== 200) return null;
   const body = new Uint8Array(await new Response(found.stream).arrayBuffer());
   return JSON.parse(new TextDecoder().decode(gunzipSync(body))) as SpooledWrite[];
 }
