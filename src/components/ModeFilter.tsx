@@ -1,9 +1,8 @@
 // src/components/ModeFilter.tsx
 // Chip row filtering by transport mode - bus, train, ferry, or all.
 
-import { cn } from "@/lib/cn";
+import { ChipLink } from "@/components/Chip";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** A transport mode, or null for "All". */
@@ -57,15 +56,9 @@ export function ModeFilter({
         const href = buildHref(basePath, { ...preservedParams, mode: m.key || undefined });
         const isActive = (active ?? "") === m.key;
         return (
-          <Link
-            key={m.key || "all"}
-            href={href}
-            scroll={false}
-            aria-current={isActive ? "true" : undefined}
-            className={cn("chip", isActive ? "chip-on" : "chip-off")}
-          >
+          <ChipLink key={m.key || "all"} href={href} active={isActive}>
             {m.label}
-          </Link>
+          </ChipLink>
         );
       })}
     </div>

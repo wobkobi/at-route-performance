@@ -2,13 +2,14 @@
 // Hardest-worked vehicles: every bus, train and ferry ranked by how much it ran
 // over a day, week or month - time in service, runs and arrivals.
 
+import { ChipLink } from "@/components/Chip";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SortHeader } from "@/components/SortHeader";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
-import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -188,19 +189,17 @@ export default async function VehiclesPage({
           Rank by
         </span>
         {(Object.keys(SORT_LABEL) as VehicleSort[]).map((s) => (
-          <Link
+          <ChipLink
             key={s}
             href={buildHref("/vehicles", {
               ...view,
               ...filters,
               sort: s === "hours" ? undefined : s,
             })}
-            scroll={false}
-            aria-current={s === sort ? "true" : undefined}
-            className={cn("chip", s === sort ? "chip-on" : "chip-off")}
+            active={s === sort}
           >
             {SORT_LABEL[s]}
-          </Link>
+          </ChipLink>
         ))}
       </nav>
 
@@ -303,38 +302,6 @@ export default async function VehiclesPage({
         {showsTrains && ` ${TRAIN_COUNT_NOTE}`}
       </p>
     </main>
-  );
-}
-
-/**
- * A right-aligned numeric column header, marked when it is the ranking column.
- * @param root0 - Props.
- * @param root0.active - Whether the board is ranked by this column.
- * @param root0.className - Extra classes (responsive visibility).
- * @param root0.children - The header text.
- * @returns The header cell.
- */
-function SortHeader({
-  active = false,
-  className,
-  children,
-}: {
-  active?: boolean;
-  className?: string;
-  children: string;
-}): JSX.Element {
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? "descending" : undefined}
-      className={cn(
-        "p-3 text-right font-semibold whitespace-nowrap",
-        active && "text-at-ink",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }
 

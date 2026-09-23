@@ -1,8 +1,7 @@
 // src/components/TimeOfDayFilter.tsx
 // Chip row narrowing a route's figures to a part of the service day.
-import { cn } from "@/lib/cn";
+import { ChipLink } from "@/components/Chip";
 import { activePreset, hourRangeLabel, TIME_PRESETS, type HourRange } from "@/lib/time-of-day";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link TimeOfDayFilter}. */
@@ -29,28 +28,14 @@ export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.El
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs tracking-zero text-at-muted uppercase">Time</span>
-      <Link
-        href={hrefs.all}
-        scroll={false}
-        aria-current={active == null ? "true" : undefined}
-        className={cn("chip", active == null ? "chip-on" : "chip-off")}
-      >
+      <ChipLink href={hrefs.all} active={active == null}>
         All day
-      </Link>
-      {TIME_PRESETS.map((p) => {
-        const isActive = p === preset;
-        return (
-          <Link
-            key={p.key}
-            href={hrefs[p.key] ?? hrefs.all}
-            scroll={false}
-            aria-current={isActive ? "true" : undefined}
-            className={cn("chip", isActive ? "chip-on" : "chip-off")}
-          >
-            {p.label}
-          </Link>
-        );
-      })}
+      </ChipLink>
+      {TIME_PRESETS.map((p) => (
+        <ChipLink key={p.key} href={hrefs[p.key] ?? hrefs.all} active={p === preset}>
+          {p.label}
+        </ChipLink>
+      ))}
       {/* A range no preset covers - a shame board links the single hour its
           figures came from - would otherwise narrow the whole page with every
           chip unlit, leaving a part-of-day figure to be read as the day's. Named

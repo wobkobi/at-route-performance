@@ -3,10 +3,12 @@
 // a table of the routes running, each with how its vehicles sit against the
 // on-time window. Read from AT's live feed, which the site caches for two minutes.
 
+import { ChipLink } from "@/components/Chip";
 import LiveMapWrapper from "@/components/LiveMapWrapper";
 import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleton";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
+import { SortHeader } from "@/components/SortHeader";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap } from "@/lib/data/routes";
@@ -111,19 +113,17 @@ export default async function LivePage({
           </h2>
           <nav aria-label="Order by" className="flex flex-wrap gap-2">
             {(Object.keys(SORT_LABEL) as LiveSort[]).map((s) => (
-              <Link
+              <ChipLink
                 key={s}
                 href={buildHref("/live", {
                   mode: mode ?? undefined,
                   sort: s === "running" ? undefined : s,
                   all: all ? "1" : undefined,
                 })}
-                aria-current={s === sort ? "true" : undefined}
-                scroll={false}
-                className={cn("chip", s === sort ? "chip-on" : "chip-off")}
+                active={s === sort}
               >
                 {SORT_LABEL[s]}
-              </Link>
+              </ChipLink>
             ))}
           </nav>
         </div>
@@ -284,11 +284,11 @@ async function LiveTable({
               <th scope="col" className="p-3 font-semibold">
                 Route
               </th>
-              <Num active={sort === "running"}>Running</Num>
-              <Num active={sort === "late"}>Late</Num>
-              <Num className="hidden sm:table-cell">On time</Num>
-              <Num className="hidden sm:table-cell">Early</Num>
-              <Num className="hidden md:table-cell">Avg delay</Num>
+              <SortHeader active={sort === "running"}>Running</SortHeader>
+              <SortHeader active={sort === "late"}>Late</SortHeader>
+              <SortHeader className="hidden sm:table-cell">On time</SortHeader>
+              <SortHeader className="hidden sm:table-cell">Early</SortHeader>
+              <SortHeader className="hidden md:table-cell">Avg delay</SortHeader>
             </tr>
           </thead>
           <tbody>
@@ -334,52 +334,18 @@ async function LiveTable({
           <p className="text-sm text-at-muted tabular-nums">
             Showing {shown.length} of {rows.length} routes
           </p>
-          <Link
+          <ChipLink
             href={buildHref("/live", {
               mode: mode ?? undefined,
               sort: sort === "running" ? undefined : sort,
               all: "1",
             })}
-            scroll={false}
-            className="chip chip-off"
           >
             Show all
-          </Link>
+          </ChipLink>
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * A right-aligned numeric column header, marked when the table is ordered by it.
- * @param props - Component props.
- * @param props.active - Whether the table is ordered by this column.
- * @param props.className - Responsive visibility classes.
- * @param props.children - The header text.
- * @returns The header cell.
- */
-function Num({
-  active = false,
-  className,
-  children,
-}: {
-  active?: boolean;
-  className?: string;
-  children: string;
-}): JSX.Element {
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? "descending" : undefined}
-      className={cn(
-        "p-3 text-right font-semibold whitespace-nowrap",
-        active && "text-at-ink",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }
 

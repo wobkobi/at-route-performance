@@ -8,6 +8,7 @@
 // from a trip returns to the same stretch of the list.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
+import { ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import {
@@ -21,6 +22,12 @@ import {
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
+import {
+  TRIP_NAME_CLASS,
+  TRIP_NAME_GROUP_CLASS,
+  TRIP_ROW_CLASS,
+  TRIP_ROW_LINK_CLASS,
+} from "@/lib/trip-row";
 import { useUrlParam } from "@/lib/use-url-param";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -112,18 +119,17 @@ export function CancelledTripList({
         <h2 className="font-ultra tracking-zero text-at-ink">Cancelled trips</h2>
         <div className="flex flex-wrap gap-1">
           {STAGES.map((s) => (
-            <Link
+            <ChipLink
               key={s.label}
               href={buildHref(basePath, { ...preservedParams, stage: s.key })}
-              scroll={false}
-              aria-current={stage === s.key ? "true" : undefined}
-              className={cn("chip text-xs", stage === s.key ? "chip-on" : "chip-off")}
+              active={stage === s.key}
+              className="text-xs"
             >
               {s.label}
               <span className="ml-1 tabular-nums opacity-70">
                 {s.key ? counts[s.key] : trips.length}
               </span>
-            </Link>
+            </ChipLink>
           ))}
         </div>
       </div>
@@ -153,14 +159,11 @@ export function CancelledTripList({
           {visible.slice(0, shown).map((t) => {
             const at = t.scheduled_start ?? nzServiceDayRange(t.service_date).start.toISOString();
             return (
-              <li
-                key={`${t.service_date}-${t.trip_id}`}
-                className="border-t border-at-border first:border-0"
-              >
+              <li key={`${t.service_date}-${t.trip_id}`} className={TRIP_ROW_CLASS}>
                 <Link
                   href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
                   prefetch={false}
-                  className="-mx-4 flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-at-shore-pale"
+                  className={TRIP_ROW_LINK_CLASS}
                 >
                   <span className="w-16 shrink-0 tabular-nums">
                     {multiDay && (
@@ -178,13 +181,8 @@ export function CancelledTripList({
                     longName={t.long_name}
                     colour={t.colour}
                   />
-                  {/* Name and badge share a wrapping line: the badge is `shrink-0`, so
-                      as a sibling of the name it left the name as the only column that
-                      could give, truncating a route to "32 to Manger...". `min-w-40` on
-                      the name is what makes the badge wrap instead - a `flex-1` item has
-                      a zero flex basis, so without a floor nothing would ever wrap. */}
-                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="min-w-40 flex-1 truncate">
+                  <span className={TRIP_NAME_GROUP_CLASS}>
+                    <span className={TRIP_NAME_CLASS}>
                       <span className="font-semibold text-at-ink">
                         {t.short_name ?? t.route_id}
                       </span>

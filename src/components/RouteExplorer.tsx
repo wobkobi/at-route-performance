@@ -7,6 +7,7 @@
 // instant; the state is written back to the query string with replaceState, so
 // the view survives a reload and can be shared without a navigation.
 
+import { ChipToggle } from "@/components/Chip";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -66,38 +67,6 @@ function FilterRow({ label, children }: { label: string; children: ReactNode }):
       </span>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
-  );
-}
-
-/**
- * A filter chip button.
- * @param props - Component props.
- * @param props.on - Whether the chip is active.
- * @param props.onClick - Toggle handler.
- * @param props.children - The label.
- * @param props.activeClass - Classes for the active state (defaults to the chip's own).
- * @returns The chip.
- */
-function Chip({
-  on,
-  onClick,
-  children,
-  activeClass = "chip-on",
-}: {
-  on: boolean;
-  onClick: () => void;
-  children: ReactNode;
-  activeClass?: string;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      className={cn("chip", on ? activeClass : "chip-off")}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -246,9 +215,9 @@ export function RouteExplorer({
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
-            <Chip key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
+            <ChipToggle key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
               {v.label}
-            </Chip>
+            </ChipToggle>
           ))}
         </FilterRow>
         <FilterRow label="Mode">
@@ -260,56 +229,66 @@ export function RouteExplorer({
               ["FERRY", "Ferry"],
             ] as const
           ).map(([key, label]) => (
-            <Chip key={label} on={filters.mode === key} onClick={() => update({ mode: key })}>
+            <ChipToggle key={label} on={filters.mode === key} onClick={() => update({ mode: key })}>
               {label}
-            </Chip>
+            </ChipToggle>
           ))}
         </FilterRow>
         <FilterRow label="Area">
-          <Chip on={filters.areas.length === 0} onClick={() => update({ areas: [] })}>
+          <ChipToggle on={filters.areas.length === 0} onClick={() => update({ areas: [] })}>
             All
-          </Chip>
+          </ChipToggle>
           {AREAS.map((a) => (
-            <Chip key={a.key} on={filters.areas.includes(a.key)} onClick={() => toggleArea(a.key)}>
+            <ChipToggle
+              key={a.key}
+              on={filters.areas.includes(a.key)}
+              onClick={() => toggleArea(a.key)}
+            >
               {a.label}
-            </Chip>
+            </ChipToggle>
           ))}
         </FilterRow>
         <FilterRow label="Running">
-          <Chip on={filters.lean === null} onClick={() => update({ lean: null })}>
+          <ChipToggle on={filters.lean === null} onClick={() => update({ lean: null })}>
             Either way
-          </Chip>
-          <Chip
+          </ChipToggle>
+          <ChipToggle
             on={filters.lean === "late"}
             onClick={() => update({ lean: "late" })}
             activeClass="bg-at-late text-white"
           >
             Late
-          </Chip>
-          <Chip
+          </ChipToggle>
+          <ChipToggle
             on={filters.lean === "early"}
             onClick={() => update({ lean: "early" })}
             activeClass="bg-at-early text-at-ink"
           >
             Early
-          </Chip>
+          </ChipToggle>
         </FilterRow>
         <FilterRow label="Only">
-          <Chip on={filters.enoughData} onClick={() => update({ enoughData: !filters.enoughData })}>
+          <ChipToggle
+            on={filters.enoughData}
+            onClick={() => update({ enoughData: !filters.enoughData })}
+          >
             Enough data to rank
-          </Chip>
-          <Chip
+          </ChipToggle>
+          <ChipToggle
             on={filters.cancelledOnly}
             onClick={() => update({ cancelledOnly: !filters.cancelledOnly })}
           >
             Had cancellations
-          </Chip>
-          <Chip on={filters.school} onClick={() => update({ school: !filters.school })}>
+          </ChipToggle>
+          <ChipToggle on={filters.school} onClick={() => update({ school: !filters.school })}>
             Include school buses
-          </Chip>
-          <Chip on={filters.runningNow} onClick={() => update({ runningNow: !filters.runningNow })}>
+          </ChipToggle>
+          <ChipToggle
+            on={filters.runningNow}
+            onClick={() => update({ runningNow: !filters.runningNow })}
+          >
             Running now
-          </Chip>
+          </ChipToggle>
         </FilterRow>
         {filters.runningNow && !runningSet && (
           <p role="status" className="text-xs text-at-muted">

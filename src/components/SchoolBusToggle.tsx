@@ -1,9 +1,8 @@
 // src/components/SchoolBusToggle.tsx
 // Toggle linking between including and excluding school bus services.
 
-import { cn } from "@/lib/cn";
+import { ChipLink } from "@/components/Chip";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link SchoolBusToggle}. */
@@ -32,13 +31,8 @@ export function SchoolBusToggle({
 }: SchoolBusToggleProps): JSX.Element {
   const href = buildHref(basePath, { ...preservedParams, school: active ? undefined : "1" });
   return (
-    <Link
-      href={href}
-      scroll={false}
-      aria-current={active ? "true" : undefined}
-      className={cn("chip", active ? "chip-on" : "chip-off")}
-    >
+    <ChipLink href={href} active={active}>
       School buses
-    </Link>
+    </ChipLink>
   );
 }

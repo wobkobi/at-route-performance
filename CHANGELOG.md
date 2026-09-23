@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.20] - 2026-09-23
+
+### Changed
+
+- No visible change: the filter, sort and pager chips across the site now come from one definition
+  rather than eleven copies of it, so a chip cannot be added that forgets to hold the reader's
+  scroll position or to tell a screen reader which option is chosen.
+- No visible change: the row layout shared by the shame board's trips and the cancellations list,
+  and the sortable numeric column header shared by Live now and Hardest-worked vehicles, each come
+  from one definition rather than two copies that had already begun to drift.
+
 ## [1.55.19] - 2026-09-23
 
 ### Fixed
