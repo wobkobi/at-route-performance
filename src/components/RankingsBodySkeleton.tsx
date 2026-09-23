@@ -14,8 +14,11 @@ export function RankingsBodySkeleton(): JSX.Element {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
-        <RankBoardSkeleton colourKey />
-        <RankBoardSkeleton />
+        {/* Both boards rank against the period before, so their rows reserve the
+            movement badge - every period but the archive's first, which has none
+            to compare and draws the narrow rank column instead. */}
+        <RankBoardSkeleton colourKey deltas />
+        <RankBoardSkeleton deltas />
       </div>
 
       {/* Refresh note: one text-xs line */}

@@ -77,17 +77,25 @@ function RowBody({
  * Skeleton for a shame board list. The day layout mirrors the hourly board
  * (single column on mobile, two-column grid on desktop); the week layout is the
  * single-column day-per-row list the week and month boards render.
+ *
+ * A day board covers only the hours that have started, so `rows` wants
+ * `startedServiceHourCount` for the day being shown: drawing a full 24 collapsed
+ * the page by three grid rows even in the evening, and by most of the board in
+ * the morning.
  * @param root0 - Props.
  * @param root0.layout - Which board shape to mirror.
  * @param root0.shape - The rows' glyphs and subtitle wrapping (a route row by default).
+ * @param root0.rows - Hours the day board will draw; the whole service day by default.
  * @returns The board placeholder.
  */
 export function ShameBoardSkeleton({
   layout,
   shape = ONE_LINE,
+  rows = 2 * ITEMS_PER_COL,
 }: {
   layout: "day" | "week";
   shape?: ShameRowShape;
+  rows?: number;
 }): JSX.Element {
   // A day row's label is an hour ("7am"); a week or month row's is a weekday
   // and date ("Mon 14/09"), which is half as wide again.
@@ -109,22 +117,26 @@ export function ShameBoardSkeleton({
       </div>
     );
   }
+  // Half the rows down each column, the extra one on the left, as ShameBoard
+  // splits them; an odd count leaves the right column one short, and its last
+  // cell then draws its own bottom rule.
+  const perCol = Math.ceil(rows / 2);
   return (
     <div className="border border-at-border bg-at-surface">
-      <ul className="md:hidden">
-        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => listRow(i))}
-      </ul>
+      <ul className="md:hidden">{Array.from({ length: rows }).map((_, i) => listRow(i))}</ul>
       {/* Desktop: the same explicit two-column grid the real board places cells in */}
       <ul className="hidden md:grid md:grid-cols-2">
-        {Array.from({ length: 2 * ITEMS_PER_COL }).map((_, i) => {
-          const isRight = i >= ITEMS_PER_COL;
-          const rowIdx = isRight ? i - ITEMS_PER_COL : i;
+        {Array.from({ length: rows }).map((_, i) => {
+          const isRight = i >= perCol;
+          const rowIdx = isRight ? i - perCol : i;
+          const closesShortColumn = isRight && i === rows - 1 && rows % 2 === 1;
           return (
             <li
               key={i}
               className={cn(
                 rowIdx > 0 && "border-t border-at-border",
                 isRight && "border-l border-at-border",
+                closesShortColumn && "border-b border-at-border",
               )}
               style={{ gridColumn: isRight ? 2 : 1, gridRow: rowIdx + 1 }}
             >

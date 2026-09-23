@@ -160,14 +160,18 @@ export function FeatureCardRowSkeleton(): JSX.Element {
  * @param root0 - Props.
  * @param root0.colourKey - Whether the board is the signed one, which adds the
  * late/early colour key under its caption.
+ * @param root0.deltas - Whether the board ranks against a previous period, which
+ * widens the rank column from 20px to 56px to hold the movement badge.
  * @param root0.rows - How many rows to draw (the home boards show ten).
  * @returns The board placeholder.
  */
 export function RankBoardSkeleton({
   colourKey = false,
+  deltas = false,
   rows = 10,
 }: {
   colourKey?: boolean;
+  deltas?: boolean;
   rows?: number;
 }): JSX.Element {
   return (
@@ -188,12 +192,23 @@ export function RankBoardSkeleton({
               i > 0 && "border-t border-at-border",
             )}
           >
-            <Bone className="h-4 w-5" />
+            {deltas ? (
+              // The rank number and its movement badge, in the 56px column the
+              // real row reserves for the pair.
+              <span className="flex w-14 shrink-0 items-center gap-1">
+                <Bone className="h-4 w-5" />
+                <Bone className="h-4 w-8" />
+              </span>
+            ) : (
+              <Bone className="h-4 w-5" />
+            )}
             <Bone className="h-5 w-5 rounded-full" />
             <div className="flex h-6 flex-1 items-center">
               <Bone className="h-4 w-14" />
             </div>
             <Bone className="h-4 w-20" />
+            {/* The row's trailing chevron, which sets where the value ends. */}
+            <Bone className="h-4 w-4 shrink-0" />
           </div>
         ))}
       </div>

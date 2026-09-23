@@ -32,6 +32,7 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
+  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import {
@@ -416,7 +417,9 @@ export default async function RoutesShamePage({
           nav: { day: linkDay },
         }}
       />
-      <Suspense fallback={<ShameBoardSkeleton layout="day" />}>
+      <Suspense
+        fallback={<ShameBoardSkeleton layout="day" rows={startedServiceHourCount(serviceDate)} />}
+      >
         <RouteDayBoard
           range={range}
           serviceDate={serviceDate}

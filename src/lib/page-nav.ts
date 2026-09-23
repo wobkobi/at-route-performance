@@ -88,6 +88,25 @@ export function filterLiveHours<H extends { hour: number }>(
   );
 }
 
+/**
+ * How many rows a day board will have: every hour of the service day for a
+ * finished day, and only the hours that have started on the live one. The
+ * skeleton draws this many, so a board arriving at 8am does not collapse the
+ * page by the sixteen hours that have not happened yet.
+ *
+ * It is an upper bound rather than the exact count, because the real board
+ * covers the span its data reaches and the last started hour has no rows until
+ * the ingest run that covers it lands, so a live board can be one hour shorter
+ * than this and a finished day one or two.
+ * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
+ * @param now - The current instant (injectable for tests).
+ * @returns The number of hours to draw, 1-24.
+ */
+export function startedServiceHourCount(serviceDate: string, now: Date = new Date()): number {
+  const dayHours = Array.from({ length: 24 }, (_, i) => ({ hour: (SERVICE_START_HOUR + i) % 24 }));
+  return filterLiveHours(dayHours, serviceDate, now).length;
+}
+
 /** One hour of a day board: the hour of day and its row, or null when nothing qualified. */
 export interface HourSlot<H> {
   hour: number;

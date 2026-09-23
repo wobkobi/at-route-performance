@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.19] - 2026-09-23
+
+### Fixed
+
+- Three loading placeholders now match what replaces them: a shame day board draws the hours that
+  have started rather than a fixed 24, a rank board on the week or month home reserves the rank
+  column its movement badge needs and the row's trailing chevron, and the routes "Only" filter row
+  draws its fourth chip.
+
 ## [1.55.18] - 2026-09-23
 
 ### Fixed

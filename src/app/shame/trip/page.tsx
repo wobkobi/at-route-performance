@@ -32,6 +32,7 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
+  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
@@ -409,7 +410,11 @@ export default async function TripShamePage({
       />
       <Suspense
         fallback={
-          <ShameBoardSkeleton layout="day" shape={{ icon: true, mobileLines: 4, gridLines: 2 }} />
+          <ShameBoardSkeleton
+            layout="day"
+            shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
+            rows={startedServiceHourCount(serviceDate)}
+          />
         }
       >
         <TripDayBoard

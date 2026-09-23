@@ -64,7 +64,8 @@ export default function Loading(): JSX.Element {
             chips={["w-11", "w-19", "w-26", "w-15", "w-15", "w-17", "w-44", "w-36"]}
           />
           <FilterRowSkeleton chips={["w-24", "w-13", "w-15"]} />
-          <FilterRowSkeleton chips={["w-40", "w-36", "w-40"]} />
+          {/* Only: enough data, had cancellations, include school buses, running now */}
+          <FilterRowSkeleton chips={["w-40", "w-36", "w-40", "w-28"]} />
           <div className="flex flex-wrap items-center gap-2 border-t border-at-border pt-3">
             {/* Sort label and the select (35px as rendered), then the direction chip */}
             <Bone className="h-4 w-14" />
