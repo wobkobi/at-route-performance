@@ -49,9 +49,26 @@ afterEach(() => {
   delete process.env.BLOB_READ_WRITE_TOKEN;
 });
 
+describe("authentication", () => {
+  it("counts a store id with an OIDC token, not just a read-write token", () => {
+    // The SDK accepts either, so a check that knew only about the token would
+    // read a working store as no store and lose an outage's data quietly.
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.BLOB_STORE_ID = "store_test";
+    process.env.VERCEL_OIDC_TOKEN = "oidc-test";
+    expect(spoolEnabled()).toBe(true);
+
+    delete process.env.VERCEL_OIDC_TOKEN;
+    expect(spoolEnabled()).toBe(false);
+    delete process.env.BLOB_STORE_ID;
+  });
+});
+
 describe("without a store configured", () => {
   beforeEach(() => {
     delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.BLOB_STORE_ID;
+    delete process.env.VERCEL_OIDC_TOKEN;
   });
 
   it("is off, and every call is a no-op", async () => {

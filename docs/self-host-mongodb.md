@@ -346,10 +346,13 @@ What the app does about it, outermost first:
 - **`/api/health` answers `database: "up" | "down"`** on a five-second bound. Watch that, not `ok` -
   `ok` says the build is serving, which stays true through an outage.
 
-**The spool needs `BLOB_READ_WRITE_TOKEN`.** Create a Blob store in the Vercel dashboard (Storage >
-Create > Blob), connect it to the project, and the token is set for you. Without it `spoolEnabled()`
-is false, every spool call is a no-op, and the ingest behaves as it did before: the rows are lost
-and the run fails loudly. That is deliberate, so the code is safe to deploy before the store exists
+**The spool needs a connected Blob store.** Create one in the Vercel dashboard (Storage > Create >
+Blob) with **Private** access, in the same region as the functions, and tick "add a read-write token
+env var" - the connection otherwise sets only `BLOB_STORE_ID` and `BLOB_WEBHOOK_PUBLIC_KEY`. Either
+`BLOB_READ_WRITE_TOKEN`, or `BLOB_STORE_ID` with `VERCEL_OIDC_TOKEN`, counts as configured. Without
+either, `spoolEnabled()` is false, every spool call is a no-op, and the ingest behaves as it did
+before: the rows are lost and the run fails loudly. That is deliberate, so the code is safe to
+deploy before the store exists
 
 - but until you create it, there is no spool.
 

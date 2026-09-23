@@ -43,13 +43,21 @@ export interface DrainResult {
 }
 
 /**
- * Whether a spool store is configured. Without the token every spool call is a
- * no-op and the ingest behaves as it did before: the rows are lost and the run
- * fails loudly. That is deliberate, so this can ship before the store exists.
- * @returns True when `BLOB_READ_WRITE_TOKEN` is set.
+ * Whether a spool store is configured. Both of the SDK's own auth paths count,
+ * because a check that knew only about the token would read a working
+ * OIDC-authenticated store as no store at all - and this failing quietly means
+ * an outage loses data while the configuration looks right.
+ *
+ * Without either, every spool call is a no-op and the ingest behaves as it did
+ * before: the rows are lost and the run fails loudly. That is deliberate, so
+ * this can ship before the store exists.
+ * @returns True when a read-write token, or a store id with an OIDC token, is set.
  */
 export function spoolEnabled(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ??
+    (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
+  );
 }
 
 /**

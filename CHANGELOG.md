@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.1] - 2026-09-23
+
+### Fixed
+
+- The spool's configuration check accepted only a read-write token, so a Blob store connected
+  through OIDC - which sets a store id instead - would have read as no store at all. The spool would
+  then have sat silently off while the configuration looked right, and an outage would still have
+  lost data. Either form now counts.
+
 ## [1.54.0] - 2026-09-23
 
 ### Added
