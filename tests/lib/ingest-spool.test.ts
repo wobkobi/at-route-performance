@@ -94,13 +94,19 @@ describe("without a store configured", () => {
 });
 
 describe("spoolWrites", () => {
-  it("stores a batch privately and says so", async () => {
+  it("stores a batch privately, under a name no other poll can take", async () => {
     blob.put.mockResolvedValue({});
     await expect(spoolWrites(WRITES)).resolves.toBe(true);
-    const [pathname, , options] = blob.put.mock.calls[0] as [string, unknown, { access: string }];
+    const [pathname, , options] = blob.put.mock.calls[0] as [
+      string,
+      unknown,
+      { access: string; addRandomSuffix: boolean },
+    ];
     expect(pathname.startsWith("ingest-spool/")).toBe(true);
     // The data is not secret, but a spool has no reason to be world-readable.
     expect(options.access).toBe("private");
+    // A put to a name already taken overwrites it, and polls overlap.
+    expect(options.addRandomSuffix).toBe(true);
   });
 
   it("holds nothing when there is nothing to hold", async () => {

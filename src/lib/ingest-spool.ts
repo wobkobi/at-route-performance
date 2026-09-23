@@ -71,10 +71,13 @@ export async function spoolWrites(writes: SpooledWrite[]): Promise<boolean> {
   if (!spoolEnabled() || writes.length === 0) return false;
   try {
     const body = Buffer.from(gzipSync(new TextEncoder().encode(JSON.stringify(writes))));
-    // The timestamp leads the pathname so a prefix listing sorts oldest first,
-    // and the random suffix keeps two polls of the same second apart.
+    // The timestamp leads the pathname so a prefix listing sorts oldest first.
+    // The suffix is not decoration: a put to an existing pathname overwrites it,
+    // and polls do overlap - one takes 53s at p99 against a 120s cadence - so
+    // two of them holding a batch at once must not land on the same name.
     await put(`${PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json.gz`, body, {
       access: "private",
+      addRandomSuffix: true,
       contentType: "application/gzip",
     });
     return true;

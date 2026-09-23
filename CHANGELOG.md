@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.3] - 2026-09-23
+
+### Fixed
+
+- A held batch can no longer be overwritten by another poll holding one in the same millisecond.
+
 ## [1.54.2] - 2026-09-23
 
 ### Fixed
