@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.54.7] - 2026-09-23
+
+### Changed
+
+- Only a single live day's figures are keyed on the last ingest run, but every window was fetching
+  that run before it could read its cache - including the current week and month, which key on the
+  service date and discard it. That lookup is held per worker thread rather than in the shared
+  cache, so a cold instance paid an uncached database round trip in front of every page render.
+
 ## [1.54.6] - 2026-09-23
 
 ### Changed

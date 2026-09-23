@@ -1,6 +1,6 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheKey, cacheState, rangeIsFinal } from "@/lib/data/cache";
+import { cacheKey, cacheState, rangeIsFinal, runIndependentState } from "@/lib/data/cache";
 import { nzServiceDayRange, nzWeekRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,6 +91,43 @@ describe("cacheState", () => {
   it("lets a finished window's state win over the run behind it", () => {
     expect(cacheState(true, RANGE, 120, END + 1, END)).toBe("final");
     expect(cacheState(false, RANGE, 120, END, END - 1)).toBe("ended");
+  });
+});
+
+describe("runIndependentState", () => {
+  const WEEK = nzWeekRange("2026-09-14");
+  const MID_WEEK = Date.parse("2026-09-16T02:00:00Z");
+
+  it("answers for every window but the single live day", () => {
+    expect(runIndependentState(true, RANGE, END + 86_400_000)).toBe("final");
+    expect(runIndependentState(false, RANGE, END)).toBe("ended");
+    expect(runIndependentState(false, WEEK, MID_WEEK)).toBe("open-2026-09-16");
+    // Only here is the run stamp the deciding part of the key.
+    expect(runIndependentState(false, RANGE, START + 60_000)).toBeNull();
+    expect(runIndependentState(false, null, START)).toBeNull();
+  });
+
+  it("answers exactly when the run stamp cannot change the key", () => {
+    // The guarantee `cachedForRange` relies on to skip the lookup: wherever this
+    // returns a state, passing a run must make no difference to `cacheState`. If
+    // the two ever disagree, a window would be cached under a key built without
+    // a stamp it actually needed.
+    const cases: [boolean, typeof RANGE | null, number][] = [
+      [true, RANGE, END + 86_400_000],
+      [false, RANGE, END],
+      [false, RANGE, END + 1],
+      [false, RANGE, START + 60_000],
+      [false, WEEK, MID_WEEK],
+      [false, WEEK, WEEK.end.getTime()],
+      [false, null, START],
+      [false, nzServiceDayRange("2026-09-15"), MID_WEEK],
+    ];
+    for (const [final, range, now] of cases) {
+      const run = now - 60_000;
+      const withRun = cacheState(final, range, 120, now, run);
+      const withoutRun = cacheState(final, range, 120, now, null);
+      expect(runIndependentState(final, range, now) !== null).toBe(withRun === withoutRun);
+    }
   });
 });
 

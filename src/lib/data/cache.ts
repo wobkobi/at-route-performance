@@ -138,13 +138,37 @@ export function cacheState(
   now: number = Date.now(),
   lastIngestMs: number | null = null,
 ): string {
+  const fixed = runIndependentState(final, range, now);
+  if (fixed !== null) return fixed;
+  if (lastIngestMs !== null) return `run-${lastIngestMs}`;
+  return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
+}
+
+/**
+ * The key part for a window whose state does not depend on the ingest run, or
+ * null when only the run can decide it - which is the single live day alone.
+ *
+ * Split out of {@link cacheState} so a caller can skip the run lookup entirely
+ * for the windows that never use it. The lookup is a database read held per
+ * worker thread, so it is not shared the way the aggregations themselves are:
+ * asking for it on every window put an uncached read in front of every render,
+ * including the current week and month, which key on the service date instead.
+ * @param final - Whether every day in the window is summarised.
+ * @param range - The queried half-open window, or null for a rolling live one.
+ * @param now - The current time, epoch ms.
+ * @returns The key part, or null when the run stamp is needed to build one.
+ */
+export function runIndependentState(
+  final: boolean,
+  range: DateRange | null,
+  now: number = Date.now(),
+): string | null {
   if (final) return "final";
   if (range !== null && range.end.getTime() <= now) return "ended";
   if (range !== null && serviceDatesInRange(range).length > 1) {
     return `open-${nzServiceDayString(new Date(now))}`;
   }
-  if (lastIngestMs !== null) return `run-${lastIngestMs}`;
-  return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
+  return null;
 }
 
 /**
@@ -173,15 +197,20 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  // Only a window that can still change needs the run stamp, and the lookup is
-  // held in process for a fraction of the ingest cadence, so this costs a read
-  // per worker per twenty seconds rather than one per board.
-  const lastIngestMs = final
-    ? null
-    : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
+  const now = Date.now();
+  // Only a single live day keys on the run stamp (see runIndependentState).
+  // Fetching it for every window that merely *could* change meant the current
+  // week, the current month and every ended-but-unsummarised window each paid a
+  // read they then discarded. The lookup is held per worker thread rather than in
+  // the shared Data Cache, so a cold instance paid it before any aggregation
+  // could resolve its key - one uncached round trip in front of every render.
+  const lastIngestMs =
+    runIndependentState(final, range, now) !== null
+      ? null
+      : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
   return unstable_cache(
     fn,
-    cacheKey(keyParts, cacheState(final, range, liveRevalidate, Date.now(), lastIngestMs)),
+    cacheKey(keyParts, cacheState(final, range, liveRevalidate, now, lastIngestMs)),
     { revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate },
   )(final);
 }
