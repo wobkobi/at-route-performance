@@ -1,13 +1,29 @@
 // src/components/SkeletonParts.tsx
-// Skeleton pieces shared by the loading pages and the in-page Suspense fallbacks.
-// Each mirrors a real component box for box - the same padding, gaps, borders and
-// text line heights, with a bone the height of each text line - so a skeleton
-// fills exactly the space of the page it turns into and nothing jumps on arrival.
-// A change to one of the mirrored components needs the matching change here.
+// Skeleton pieces shared by the loading pages and the in-page Suspense fallbacks,
+// and the Bone primitive they are all built from. Each piece mirrors a real
+// component box for box - the same padding, gaps, borders and text line heights,
+// with a bone the height of each text line - so a skeleton fills exactly the space
+// of the page it turns into and nothing jumps on arrival. A change to one of the
+// mirrored components needs the matching change here.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
+
+/**
+ * Pulse-placeholder skeleton element, the primitive every other piece here is
+ * built from. Classes merge through `cn`, so a caller's shape (`rounded-full`,
+ * `rounded-none`) replaces the default `rounded`.
+ * @param root0 - Props.
+ * @param root0.className - Tailwind size and shape classes.
+ * @returns The bone element.
+ */
+export function Bone({ className }: { className: string }): JSX.Element {
+  return (
+    <div
+      className={cn("animate-pulse rounded bg-at-border motion-reduce:animate-none", className)}
+    />
+  );
+}
 
 /**
  * A `.chip` with a text label: `px-3 py-1 text-sm` plus the 1px `chip-off`

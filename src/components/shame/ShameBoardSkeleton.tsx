@@ -4,24 +4,10 @@
 // Rows mirror the ShameBoard anchors box for box (padding, rules, line heights)
 // so the list occupies the same height as the rows it turns into.
 
+import { Bone } from "@/components/SkeletonParts";
 import { cn } from "@/lib/cn";
 import { ITEMS_PER_COL } from "@/lib/shame-page";
 import type { JSX } from "react";
-
-/**
- * Pulse-placeholder skeleton element. Classes merge through `cn`, so a caller's
- * shape (`rounded-full`, `rounded-none`) replaces the default `rounded`.
- * @param root0 - Props.
- * @param root0.className - Tailwind size and shape classes.
- * @returns The bone element.
- */
-export function Bone({ className }: { className: string }): JSX.Element {
-  return (
-    <div
-      className={cn("animate-pulse rounded bg-at-border motion-reduce:animate-none", className)}
-    />
-  );
-}
 
 /** How a board's rows are drawn: which glyphs they carry and how their subtitle wraps. */
 export interface ShameRowShape {

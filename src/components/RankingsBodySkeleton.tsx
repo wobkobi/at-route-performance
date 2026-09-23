@@ -2,8 +2,7 @@
 // Pulse-placeholder skeleton for the week or month home's rankings band body,
 // the Suspense fallback under the "Route rankings" heading while the batch streams.
 
-import { RankBoardSkeleton } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone, RankBoardSkeleton } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**

@@ -1,8 +1,13 @@
 // src/app/routes/loading.tsx
 // Loading skeleton for the Routes page.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
-import { ChipBone, DayNavSkeleton, KpiStripSkeleton, TitleBone } from "@/components/SkeletonParts";
+import {
+  Bone,
+  ChipBone,
+  DayNavSkeleton,
+  KpiStripSkeleton,
+  TitleBone,
+} from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /** Route cards drawn on the list placeholder. */

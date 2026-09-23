@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.21] - 2026-09-23
+
+### Changed
+
+- No visible change: the pulse placeholder every loading skeleton is drawn from now lives in the
+  shared skeleton library rather than inside the shame board's own skeleton, which thirteen files
+  had been reaching into for it.
+
 ## [1.55.20] - 2026-09-23
 
 ### Changed

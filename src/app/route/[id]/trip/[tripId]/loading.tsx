@@ -1,8 +1,7 @@
 // src/app/route/[id]/trip/[tripId]/loading.tsx
 // Loading skeleton for the trip timeline page.
 
-import { MapSectionSkeleton } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone, MapSectionSkeleton } from "@/components/SkeletonParts";
 import { cn } from "@/lib/cn";
 import type { JSX } from "react";
 

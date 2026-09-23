@@ -2,7 +2,7 @@
 // Placeholders for the live page's two feed-bound parts. Each must match the
 // real figure strip and table box for box, or the page jumps when the feed lands.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**

@@ -2,6 +2,7 @@
 // Loading skeleton for the stop detail page.
 
 import {
+  Bone,
   DayNavSkeleton,
   MapSectionSkeleton,
   RankBoardSkeleton,
@@ -9,7 +10,6 @@ import {
   StopScheduleSkeleton,
   TitleBone,
 } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**

@@ -1,8 +1,7 @@
 // src/app/vehicles/loading.tsx
 // Loading skeleton for the hardest-worked vehicles page, drawn for the day view.
 
-import { ChipBone, TitleBone } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone, ChipBone, TitleBone } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**
