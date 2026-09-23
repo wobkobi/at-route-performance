@@ -197,6 +197,15 @@ export default async function VehiclePage({
     day: dayParam,
     period: period ?? undefined,
   };
+  // How the vehicles list was left. Every link that stays on this vehicle
+  // carries it, so the back link still returns to the list the reader came from
+  // rather than to the default board.
+  const listState = {
+    mode: sp.mode,
+    school: sp.school,
+    sort: sp.sort,
+    show: sp.show,
+  };
   const rank = vehicleRank(board, id);
   const name = vehicleName(register?.label ?? now?.label, id);
   const plate = register?.plate ?? now?.plate ?? null;
@@ -206,10 +215,7 @@ export default async function VehiclePage({
       <Link
         href={buildHref("/vehicles", {
           ...view,
-          mode: sp.mode,
-          school: sp.school,
-          sort: sp.sort,
-          show: sp.show,
+          ...listState,
         })}
         className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
       >
@@ -292,7 +298,7 @@ export default async function VehiclePage({
         ? runs.length > 0 && (
             <RunsTable runs={runs} mode={mode ?? "BUS"} names={names} routeQuery={routeQuery} />
           )
-        : total && <DaysTable days={days} id={id} basePath={basePath} />}
+        : total && <DaysTable days={days} id={id} basePath={basePath} listState={listState} />}
     </main>
   );
 }
@@ -565,16 +571,19 @@ function RunsTable({
  * @param root0.days - Every day's rows, oldest first.
  * @param root0.id - The vehicle.
  * @param root0.basePath - This page's path.
+ * @param root0.listState - How the vehicles list was left, carried by each day's link.
  * @returns The table.
  */
 function DaysTable({
   days,
   id,
   basePath,
+  listState,
 }: {
   days: { date: string; rows: VehicleDayRow[] }[];
   id: string;
   basePath: string;
+  listState: Readonly<Record<string, string | undefined>>;
 }): JSX.Element {
   return (
     <section className="space-y-3">
@@ -610,6 +619,7 @@ function DaysTable({
                       <Link
                         href={buildHref(basePath, {
                           day: date === nzServiceDayString() ? undefined : date,
+                          ...listState,
                         })}
                         className="text-at-shore hover:underline"
                       >

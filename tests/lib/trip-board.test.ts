@@ -216,4 +216,8 @@ describe("tripBoardView", () => {
   it("skips a repeated param rather than guessing which value", () => {
     expect(tripBoardView({ tsort: ["late", "off"] })).toEqual({});
   });
+
+  it("carries the part of the day, which narrows the board like the direction does", () => {
+    expect(tripBoardView({ dir: "0", hours: "7-9" })).toEqual({ dir: "0", hours: "7-9" });
+  });
 });

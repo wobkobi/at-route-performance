@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.9] - 2026-09-23
+
+### Fixed
+
+- A link now carries exactly the view it was clicked from: a trip opened from a part-of-day board
+  returns to that board rather than the whole day, a vehicle's day link keeps the list state behind
+  it, a card naming today stops paying a redirect for a param that is about to be stripped, /shame
+  passes on only the params its boards read, and /rankings?window=day round-trips instead of landing
+  on the week.
+
 ## [1.55.8] - 2026-09-23
 
 ### Fixed

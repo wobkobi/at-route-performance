@@ -44,6 +44,22 @@ export function clampDayParam(
 }
 
 /**
+ * The `?day` value a link should carry for a service date: the date itself, or
+ * `undefined` for the current service day, whose param {@link dropTodayParam}
+ * redirects away. Every link to a day page goes through this, so a board row
+ * naming today does not cost its reader a 307 before the page renders.
+ * @param date - The service date the link is for, or null/undefined for today's view.
+ * @param today - Today's service date (injectable for tests).
+ * @returns The `day` param, or undefined when it would name today.
+ */
+export function dayLinkParam(
+  date: string | null | undefined,
+  today: string = nzServiceDayString(),
+): string | undefined {
+  return date && date !== today ? date : undefined;
+}
+
+/**
  * When `?day` names the current service day it is redundant: redirect to the
  * same page without it (keeping every other param) so today shows a clean URL.
  * A no-op for any other day or when `?day` is absent. Throws the redirect when

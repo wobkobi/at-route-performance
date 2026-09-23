@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { dayLinkParam } from "@/lib/day-url";
 import { routeSlug } from "@/lib/route-slug";
 import { nzHourLabel, weekdayShort } from "@/lib/time";
 import type { ShameRouteRow } from "@/types/dashboard";
@@ -80,9 +81,12 @@ export function WorstRouteCard({
   const bucket = route.date
     ? `on ${weekdayShort(route.date)}`
     : `in the ${nzHourLabel(route.hour)} hour`;
+  // The day is dropped when it is today's, whose `?day` the route page
+  // redirects away: a card naming today would have cost its reader a 307.
+  const dayParam = dayLinkParam(day);
   const href =
     hrefProp ??
-    `/route/${encodeURIComponent(routeSlug(route.route_id))}${day ? `?day=${day}` : ""}`;
+    `/route/${encodeURIComponent(routeSlug(route.route_id))}${dayParam ? `?day=${dayParam}` : ""}`;
   return (
     <Link
       href={href}

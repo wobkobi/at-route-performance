@@ -20,7 +20,7 @@ import {
   MIN_STOP_EVENTS_HOUR,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
@@ -43,6 +43,7 @@ import {
   type ShameSearchParams,
 } from "@/lib/shame-page";
 import { weekdayShort, type DateRange } from "@/lib/time";
+import { buildHref } from "@/lib/utils";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -119,7 +120,9 @@ async function StopRangeBoard({
     const weekCount = stopDayCounts.get(s.stop_id) ?? 0;
     return (
       <Link
-        href={`/stop/${encodeURIComponent(s.stop_id)}?day=${s.date}`}
+        href={buildHref(`/stop/${encodeURIComponent(s.stop_id)}`, {
+          day: dayLinkParam(s.date),
+        })}
         className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
       >
         <span className="w-16 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums">

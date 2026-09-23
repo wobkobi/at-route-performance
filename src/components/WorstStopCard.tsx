@@ -1,6 +1,7 @@
 // src/components/WorstStopCard.tsx
 // Render a card for the window's worst-performing stop.
 
+import { dayLinkParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import type { WorstStop } from "@/types/dashboard";
 import Link from "next/link";
@@ -64,7 +65,10 @@ export function WorstStopCard({
       </div>
     );
   }
-  const href = hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${day ? `?day=${day}` : ""}`;
+  // Today's `?day` is dropped, as on the route card: the stop page redirects it.
+  const dayParam = dayLinkParam(day);
+  const href =
+    hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${dayParam ? `?day=${dayParam}` : ""}`;
   return (
     <Link
       href={href}
