@@ -23,7 +23,6 @@ import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
-import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -186,6 +185,11 @@ function RouteWeekNav({
  * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
  * side keeps the direction and stays on the period being looked at: a past day's
  * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
+ *
+ * The active side is a `<span>`, not a link, as the nav tabs and the shame
+ * header are: its query is built for a fresh view and leaves out the trip
+ * board's sort and page, so clicking the chip already highlighted threw away
+ * where the reader was on the board and gave nothing back.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
@@ -207,18 +211,28 @@ function ViewToggle({
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <Link
-        href={buildHref(base, dayQuery)}
-        className={cn("chip", isWeekView ? "chip-off" : "chip-on")}
-      >
-        Day
-      </Link>
-      <Link
-        href={buildHref(base, { window: "week", ...weekQuery })}
-        className={cn("chip", isWeekView ? "chip-on" : "chip-off")}
-      >
-        Week
-      </Link>
+      {isWeekView ? (
+        <Link href={buildHref(base, dayQuery)} scroll={false} className="chip chip-off">
+          Day
+        </Link>
+      ) : (
+        <span aria-current="page" className="chip chip-on">
+          Day
+        </span>
+      )}
+      {isWeekView ? (
+        <span aria-current="page" className="chip chip-on">
+          Week
+        </span>
+      ) : (
+        <Link
+          href={buildHref(base, { window: "week", ...weekQuery })}
+          scroll={false}
+          className="chip chip-off"
+        >
+          Week
+        </Link>
+      )}
     </div>
   );
 }

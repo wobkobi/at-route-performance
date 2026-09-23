@@ -191,6 +191,7 @@ export default async function VehiclesPage({
               ...filters,
               sort: s === "hours" ? undefined : s,
             })}
+            scroll={false}
             aria-current={s === sort ? "true" : undefined}
             className={cn("chip", s === sort ? "chip-on" : "chip-off")}
           >

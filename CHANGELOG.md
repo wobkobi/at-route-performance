@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.10] - 2026-09-23
+
+### Fixed
+
+- The highlighted Day/Week chip and the highlighted window tab are no longer links, so clicking the
+  view you are already on cannot reset the board's sort and page; the day and period steppers and
+  the vehicles rank chips hold the scroll position, as the mode chips beside them already did.
+
 ## [1.55.9] - 2026-09-23
 
 ### Fixed
