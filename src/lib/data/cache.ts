@@ -246,6 +246,22 @@ export function scheduledAtWindow(range: DateRange): {
   $gte: { $date: string };
   $lt: { $date: string };
 } {
-  const end = range.end.getTime() > Date.now() ? new Date() : range.end;
-  return { $gte: { $date: range.start.toISOString() }, $lt: { $date: end.toISOString() } };
+  return {
+    $gte: { $date: range.start.toISOString() },
+    $lt: { $date: windowEnd(range).toISOString() },
+  };
+}
+
+/**
+ * How far a window's figures actually reach: its own end once it has passed,
+ * and now while it is still open.
+ *
+ * One definition, because anything weighed against those figures has to stop at
+ * the same instant. The cancellation penalty did not, and charged this evening's
+ * cancellation against a morning's arrivals (see lib/data/rider-wait.ts).
+ * @param range - UTC half-open window.
+ * @returns The end of the window, clipped to now while it is open.
+ */
+export function windowEnd(range: DateRange): Date {
+  return range.end.getTime() > Date.now() ? new Date() : range.end;
 }

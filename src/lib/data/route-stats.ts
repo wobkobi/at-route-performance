@@ -84,13 +84,17 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
 
 /**
  * Run the route-stats aggregations (summary + per-stop) against MongoDB.
- * @param p - Validated parameters; window defaults to the last 7 days.
+ * @param p - Validated parameters.
+ * @param range - The window to aggregate, resolved by {@link getRouteStats}.
  * @param classified - Whether every day in the window has been through the ghost pass.
  * @returns Summary and top stops.
  */
-async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promise<RouteStats> {
-  const start = p.from ?? new Date(Date.now() - 7 * MS_IN_DAY);
-  const end = p.to ?? new Date();
+async function queryRouteStats(
+  p: RouteStatsParams,
+  range: DateRange,
+  classified: boolean,
+): Promise<RouteStats> {
+  const { start, end } = range;
 
   // Resolve the slug to every version's id so the stats cover the whole route's
   // history; read metadata from the newest version.
@@ -231,14 +235,23 @@ async function queryRouteStats(p: RouteStatsParams, classified: boolean): Promis
  * @returns Summary and top stops.
  */
 export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
+  // Resolved once and handed to both halves. The arrivals aggregation used to
+  // fall back to its own rolling 168 hours ending mid-hour while the penalty was
+  // computed over these seven 4am-4am service days, so a caller that passed no
+  // window (the route page's own metadata read does not) charged a penalty
+  // derived from days the arrivals did not cover, and from part of a day the
+  // arrivals cut in half.
   const range: DateRange =
     p.from && p.to ? { start: p.from, end: p.to } : clampRangeToDataStart(nzLast7DaysRange());
   // The cancellation penalty is counted per service day, not per hour, so it
   // cannot be narrowed with the arrivals. Applying the whole day's penalty to
   // one part of it would charge the morning peak for an evening cancellation,
   // so a filtered view stays on measured arrivals alone.
-  if (p.hours) return measuredRouteStats(p);
-  const [stats, penalties] = await Promise.all([measuredRouteStats(p), getRouteRiderWait(range)]);
+  if (p.hours) return measuredRouteStats(p, range);
+  const [stats, penalties] = await Promise.all([
+    measuredRouteStats(p, range),
+    getRouteRiderWait(range),
+  ]);
   const penalty = penaltyForRoute(penalties, p.routeId);
   return stats.summary && penalty
     ? { ...stats, summary: applyPenalty(stats.summary, penalty) }
@@ -248,21 +261,26 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
 /**
  * {@link getRouteStats} on measured arrivals alone, cached.
  * @param p - Validated parameters.
+ * @param range - The resolved window, keyed on and passed to the aggregation.
  * @returns Summary and top stops.
  */
-function measuredRouteStats(p: RouteStatsParams): Promise<RouteStats> {
+function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<RouteStats> {
   return cachedForRange(
-    (classified) => queryRouteStats(p, classified),
+    (classified) => queryRouteStats(p, range, classified),
     [
       "route-stats",
       p.routeId,
-      p.from?.toISOString() ?? "",
-      p.to?.toISOString() ?? "",
+      range.start.toISOString(),
+      range.end.toISOString(),
       String(p.thresholdSec),
       hourRangeParam(p.hours ?? null) ?? "",
     ],
-    // The rolling default (no from/to) tracks the live day.
-    p.from && p.to ? { start: p.from, end: p.to } : null,
+    // The resolved window rather than null for the rolling default: it spans
+    // seven service days, so runIndependentState settles its state from the date
+    // alone and the read stops keying on the ingest run stamp - one fewer
+    // uncached round trip in front of the render. Stable within a service day,
+    // since nzLast7DaysRange ends on the 4am boundary rather than at now.
+    range,
     300,
   );
 }

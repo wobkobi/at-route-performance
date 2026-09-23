@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.6] - 2026-09-23
+
+### Fixed
+
+- An open day's cancellation penalty was charged against arrivals the day had not reached yet, so a
+  trip cancelled for the evening dragged this morning's on-time share down and the figure recovered
+  through the day for no real reason. A cancellation is now counted only once its scheduled
+  departure has passed, from the same clip point the arrivals use. The route stats resolve their
+  window once instead of the arrivals falling back to a rolling 168 hours while the penalty covered
+  seven service days - which the public stats API returned as one figure.
+
 ## [1.55.5] - 2026-09-23
 
 ### Fixed

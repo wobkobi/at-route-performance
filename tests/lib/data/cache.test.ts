@@ -1,6 +1,13 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheKey, cacheState, rangeIsFinal, runIndependentState } from "@/lib/data/cache";
+import {
+  cacheKey,
+  cacheState,
+  rangeIsFinal,
+  runIndependentState,
+  scheduledAtWindow,
+  windowEnd,
+} from "@/lib/data/cache";
 import { nzServiceDayRange, nzWeekRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -163,5 +170,35 @@ describe("cacheKey", () => {
       "152",
       "final",
     ]);
+  });
+});
+
+describe("windowEnd", () => {
+  it("clips an open window to now, so nothing is measured against stops not yet due", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    // 10am NZ on the 24th: the service day runs to 4am on the 25th.
+    const open = nzServiceDayRange("2026-09-24");
+    expect(windowEnd(open).toISOString()).toBe("2026-09-23T22:00:00.000Z");
+    vi.useRealTimers();
+  });
+
+  it("leaves a window that has already ended exactly as it is", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    const past = nzServiceDayRange("2026-09-20");
+    expect(windowEnd(past).getTime()).toBe(past.end.getTime());
+    vi.useRealTimers();
+  });
+
+  it("agrees with the bound scheduledAtWindow sends to MongoDB", () => {
+    // The cancellation penalty stops at windowEnd and the arrivals stop at
+    // scheduledAtWindow's `$lt`. They have to be the same instant, or one side
+    // counts a trip the other does not.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T22:00:00Z"));
+    const open = nzServiceDayRange("2026-09-24");
+    expect(scheduledAtWindow(open).$lt.$date).toBe(windowEnd(open).toISOString());
+    vi.useRealTimers();
   });
 });
