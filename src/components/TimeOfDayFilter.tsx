@@ -1,7 +1,7 @@
 // src/components/TimeOfDayFilter.tsx
 // Chip row narrowing a route's figures to a part of the service day.
 import { cn } from "@/lib/cn";
-import { type HourRange, TIME_PRESETS } from "@/lib/time-of-day";
+import { activePreset, hourRangeLabel, TIME_PRESETS, type HourRange } from "@/lib/time-of-day";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -16,13 +16,16 @@ export interface TimeOfDayFilterProps {
 /**
  * Time-of-day chips for the route page. Like the direction chips, these use
  * `scroll={false}` so choosing a part of the day does not throw the reader back
- * to the top of a page they were already partway down.
+ * to the top of a page they were already partway down. A range outside the
+ * presets is named in a chip of its own rather than offered as a choice, so the
+ * row always says what the figures beside it cover.
  * @param props - Component props.
  * @param props.active - The active range, or null for all day.
  * @param props.hrefs - Pre-built hrefs keyed by preset key, plus "all".
  * @returns The chips row element.
  */
 export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.Element {
+  const preset = activePreset(active);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs tracking-zero text-at-muted uppercase">Time</span>
@@ -34,20 +37,29 @@ export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.El
       >
         All day
       </Link>
-      {TIME_PRESETS.map((preset) => {
-        const isActive = active?.from === preset.range.from && active.to === preset.range.to;
+      {TIME_PRESETS.map((p) => {
+        const isActive = p === preset;
         return (
           <Link
-            key={preset.key}
-            href={hrefs[preset.key] ?? hrefs.all}
+            key={p.key}
+            href={hrefs[p.key] ?? hrefs.all}
             scroll={false}
             aria-current={isActive ? "true" : undefined}
             className={cn("chip", isActive ? "chip-on" : "chip-off")}
           >
-            {preset.label}
+            {p.label}
           </Link>
         );
       })}
+      {/* A range no preset covers - a shame board links the single hour its
+          figures came from - would otherwise narrow the whole page with every
+          chip unlit, leaving a part-of-day figure to be read as the day's. Named
+          rather than offered, since it is the state the page is already in. */}
+      {active && !preset && (
+        <span className="chip chip-on" aria-current="true">
+          {hourRangeLabel(active)}
+        </span>
+      )}
     </div>
   );
 }

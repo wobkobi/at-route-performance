@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.18] - 2026-09-23
+
+### Fixed
+
+- A board or card that names one hour now opens the route page on that hour, and the time-of-day
+  chips name a range no preset covers.
+
 ## [1.55.17] - 2026-09-23
 
 ### Fixed

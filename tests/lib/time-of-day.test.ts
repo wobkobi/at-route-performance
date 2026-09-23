@@ -8,6 +8,7 @@ import {
   hoursInRange,
   isHourInRange,
   parseHourRange,
+  singleHourRange,
   TIME_PRESETS,
 } from "@/lib/time-of-day";
 import { describe, expect, it } from "vitest";
@@ -115,9 +116,28 @@ describe("hourRangeLabel", () => {
     expect(hourRangeLabel({ from: 0, to: 12 })).toBe("12am to 12pm");
   });
 
+  it("names a single hour the way a shame board names one", () => {
+    expect(hourRangeLabel(singleHourRange(14))).toBe("2pm hour");
+    expect(hourRangeLabel(singleHourRange(0))).toBe("12am hour");
+    expect(hourRangeLabel(singleHourRange(23))).toBe("11pm hour");
+  });
+
   it("recognises a preset only on an exact match", () => {
     expect(activePreset({ from: 7, to: 9 })?.key).toBe("am-peak");
     expect(activePreset({ from: 7, to: 10 })).toBeNull();
     expect(activePreset(null)).toBeNull();
+  });
+});
+
+describe("singleHourRange", () => {
+  it("covers the hour and nothing else", () => {
+    expect(singleHourRange(14)).toEqual({ from: 14, to: 15 });
+    expect(hoursInRange(singleHourRange(14))).toEqual([14]);
+  });
+
+  it("wraps at the end of the clock rather than producing 23-24", () => {
+    expect(singleHourRange(23)).toEqual({ from: 23, to: 0 });
+    expect(parseHourRange(hourRangeParam(singleHourRange(23)))).toEqual({ from: 23, to: 0 });
+    expect(hoursInRange(singleHourRange(23))).toEqual([23]);
   });
 });
