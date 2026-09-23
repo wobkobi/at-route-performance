@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.3] - 2026-09-23
+
+### Fixed
+
+- Every surface that states the on-time window now says whose it is: "That window is this site's
+  choice, not AT's." Auckland Transport publishes the schedule, but the threshold a run is judged
+  against is the site's own, and stating it bare under an AT logo read as AT's own standard. The
+  route, stop and trip descriptions now name the schedule and the window separately.
+
 ## [1.55.2] - 2026-09-23
 
 ### Fixed

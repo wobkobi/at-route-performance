@@ -8,6 +8,7 @@ import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleto
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
+import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap } from "@/lib/data/routes";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
@@ -132,8 +133,8 @@ export default async function LivePage({
 
       <p className="text-xs text-at-muted">
         Each vehicle is placed on the same on-time window as the rest of the site, from the delay
-        AT&apos;s trip feed gives for its next stop. Vehicles between runs are left out, and one
-        with no delay in the feed counts as running but in no band.
+        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between runs are
+        left out, and one with no delay in the feed counts as running but in no band.
       </p>
     </main>
   );

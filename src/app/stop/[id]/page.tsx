@@ -16,6 +16,7 @@ import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
@@ -66,7 +67,7 @@ export async function generateMetadata({
   const name = stats?.stop.name;
   if (!name) return { title: "Stop" };
   const card = parseStopCard(id, sp);
-  const description = `On-time performance at ${name} against Auckland Transport's published schedule.`;
+  const description = `On-time performance at ${name} ${MEASURED_AGAINST}`;
   return {
     title: name,
     description,

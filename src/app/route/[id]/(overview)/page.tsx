@@ -24,6 +24,7 @@ import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { cn } from "@/lib/cn";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
@@ -248,7 +249,7 @@ export async function generateMetadata({
   const name = route ? lineName(route.mode, route.shortName) : null;
   const label = route?.shortName ?? slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
-  const description = `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`;
+  const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
   return {
     title,
     description,

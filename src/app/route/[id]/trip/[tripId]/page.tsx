@@ -11,6 +11,7 @@ import { TripGhostRunNote } from "@/components/TripGhostRunNote";
 import { TripLine } from "@/components/TripLine";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   getGhostRun,
   getGhostRunFor,
@@ -73,7 +74,7 @@ export async function generateMetadata({
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
   const title = `${routeSlug(id)} trip${dayPart}`;
-  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`;
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run ${MEASURED_AGAINST}`;
   return {
     title,
     description,

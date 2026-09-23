@@ -3,6 +3,7 @@
 // Render a punctuality breakdown of early, on-time, and late share bars.
 
 import { cn } from "@/lib/cn";
+import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { formatDelay, formatDuration } from "@/lib/format";
 import { CANCELLED_SPLIT_COPY, earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { useId, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
@@ -63,7 +64,7 @@ function onTimeWindowDescription(mode: string | undefined): string {
     earlyMin === lateMin
       ? `within ${lateMin} min either side`
       : `${earlyMin} min early to ${lateMin} min late`;
-  return `On time means ${window}. Early and late are both off-schedule.`;
+  return `On time means ${window}. Early and late are both off-schedule. ${ON_TIME_WINDOW_NOTE}`;
 }
 
 /**
