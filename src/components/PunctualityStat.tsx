@@ -252,17 +252,29 @@ export function PunctualityInfo({
                 <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">
                   Of all arrivals
                 </p>
-                {/* Stacked share bar: on time / late / early. */}
-                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
-                  <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
-                  <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
-                  <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
-                </div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <BandRow colour="bg-at-ontime" label="On time" pct={on_time_pct} />
-                  <BandRow colour="bg-at-late" label="Late" pct={late_pct} />
-                  <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
-                </div>
+                {on_time_pct == null ? (
+                  /* An unknown share used to clamp to 0% and draw the bar empty,
+                     which reads as nothing having arrived on time rather than as
+                     nothing being known - the graphic said catastrophe while the
+                     rows beside it said "—". Say it in words instead. */
+                  <p className="mt-2 text-sm text-at-muted">
+                    No arrivals in this window, so there is no split to show.
+                  </p>
+                ) : (
+                  <>
+                    {/* Stacked share bar: on time / late / early. */}
+                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
+                      <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
+                      <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
+                      <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
+                    </div>
+                    <div className="mt-2 space-y-1 text-sm">
+                      <BandRow colour="bg-at-ontime" label="On time" pct={on_time_pct} />
+                      <BandRow colour="bg-at-late" label="Late" pct={late_pct} />
+                      <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
+                    </div>
+                  </>
+                )}
                 <p className="mt-2 text-xs leading-snug text-at-muted">
                   {onTimeWindowDescription(mode)}{" "}
                   {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}

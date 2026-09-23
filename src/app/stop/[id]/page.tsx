@@ -20,7 +20,7 @@ import { MEASURED_AGAINST } from "@/lib/copy";
 import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -191,7 +191,9 @@ export default async function StopPage({
             variant="average"
             label="Avg off by"
             value={
-              summary?.avg_abs_delay_sec == null ? "—" : formatDuration(summary.avg_abs_delay_sec)
+              summary?.avg_abs_delay_sec == null
+                ? UNKNOWN_VALUE
+                : formatDuration(summary.avg_abs_delay_sec)
             }
             breakdown={punctuality}
           />
@@ -199,10 +201,20 @@ export default async function StopPage({
             bare
             variant="split"
             label="On-time (%)"
-            value={summary?.on_time_pct?.toFixed(1) ?? "—"}
+            value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
             breakdown={punctuality}
           />
         </div>
+        {/* "Arrivals 0" is a fact and the dashes beside it are an admission of
+            ignorance, so side by side they describe one absence two ways and a
+            reader cannot tell a quiet day from a missing one. The aggregation
+            returns no summary row only when nothing matched, so this names which
+            it is rather than leaving the strip to be read either way. */}
+        {summary === null && (
+          <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
+            No arrivals were recorded at this stop on this day, so there is nothing to average.
+          </p>
+        )}
       </section>
 
       <section className="border border-at-border bg-at-surface p-4">

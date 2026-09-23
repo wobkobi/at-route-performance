@@ -42,7 +42,7 @@ import {
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { formatDuration, offScheduleValue } from "@/lib/format";
+import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -728,7 +728,7 @@ export default async function RoutePage({
                 label="Avg off by"
                 value={
                   weekSummary?.avg_abs_delay_sec == null
-                    ? "—"
+                    ? UNKNOWN_VALUE
                     : formatDuration(weekSummary.avg_abs_delay_sec)
                 }
                 breakdown={weekPunctuality}
@@ -737,7 +737,7 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On-time (%)"
-                value={weekSummary?.on_time_pct?.toFixed(1) ?? "—"}
+                value={weekSummary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={weekPunctuality}
               />
             </div>
@@ -807,7 +807,7 @@ export default async function RoutePage({
                 label="Avg off by"
                 value={
                   summary?.avg_abs_delay_sec == null
-                    ? "—"
+                    ? UNKNOWN_VALUE
                     : formatDuration(summary.avg_abs_delay_sec)
                 }
                 breakdown={punctuality}
@@ -816,10 +816,20 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On-time (%)"
-                value={summary?.on_time_pct?.toFixed(1) ?? "—"}
+                value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={punctuality}
               />
             </div>
+            {/* Same reasoning as the stop page's strip: a 0 and three dashes are
+                one absence told two ways. Named here so a quiet day, a day the
+                filters emptied and a day with no data read differently. */}
+            {summary === null && (
+              <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
+                No arrivals were recorded for this route
+                {hours != null ? " in this part of the day" : " on this day"}, so there is nothing
+                to average.
+              </p>
+            )}
           </section>
 
           {/* What the chips above do not reach. Both figures come from one
