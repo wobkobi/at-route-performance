@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { formatDelay, formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import {
   CANCELLED_EXCLUDED_COPY,
   CANCELLED_SPLIT_COPY,
@@ -101,7 +101,7 @@ function BandRow({
     <div className="flex items-center gap-2">
       <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colour)} />
       <span className="flex-1 text-at-muted">{label}</span>
-      <span className="font-semibold tabular-nums">{pct == null ? "—" : `${pct}%`}</span>
+      <span className="font-semibold tabular-nums">{pct == null ? UNKNOWN_VALUE : `${pct}%`}</span>
     </div>
   );
 }
@@ -291,14 +291,16 @@ export function PunctualityInfo({
                     <span className="text-at-muted">Net (early + late)</span>
                     <span className="font-semibold tabular-nums">
                       {avg_delay_sec == null
-                        ? "—"
+                        ? UNKNOWN_VALUE
                         : formatDelay(avg_delay_sec, mode ? { mode } : {})}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-at-muted">Off by (magnitude)</span>
                     <span className="font-semibold tabular-nums">
-                      {avg_abs_delay_sec == null ? "—" : formatDuration(avg_abs_delay_sec)}
+                      {avg_abs_delay_sec == null
+                        ? UNKNOWN_VALUE
+                        : formatDuration(avg_abs_delay_sec)}
                     </span>
                   </div>
                 </div>

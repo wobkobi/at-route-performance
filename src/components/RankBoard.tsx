@@ -21,6 +21,8 @@ import { FaCaretDown, FaCaretUp } from "react-icons/fa";
  */
 function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Element | null {
   if (delta === undefined) return null;
+  // A literal dash rather than `UNKNOWN_VALUE`: this one means "held its place",
+  // which is a known result, not an absent figure.
   if (delta === 0)
     return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
   if (delta === null)

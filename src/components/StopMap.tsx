@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
@@ -483,7 +483,7 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
             weight: 1.5,
           },
     );
-    const net = s.avg_delay_sec == null ? "—" : formatDelay(s.avg_delay_sec, { mode });
+    const net = s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { mode });
     const popup =
       s.avg_abs_delay_sec != null
         ? `<strong>${esc(s.name)}</strong><br>Net: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`

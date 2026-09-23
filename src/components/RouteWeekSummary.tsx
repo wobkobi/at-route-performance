@@ -1,6 +1,6 @@
 // src/components/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
-import { offScheduleValue } from "@/lib/format";
+import { offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import type { RouteDay } from "@/types/api";
 import type { JSX } from "react";
 
@@ -79,7 +79,7 @@ export function RouteWeekSummary({
                   {offScheduleValue(day.avg_delay_sec, null, mode).text}
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
-                  {day.on_time_pct == null ? "—" : `${day.on_time_pct.toFixed(1)}%`}
+                  {day.on_time_pct == null ? UNKNOWN_VALUE : `${day.on_time_pct.toFixed(1)}%`}
                 </td>
               </tr>
             ))}

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.22] - 2026-09-23
+
+### Changed
+
+- No visible change: the dash that stands in for a figure the site does not have is now written from
+  one definition in six more places, rather than as a loose character each time, so it cannot drift
+  to a different glyph on one page.
+
 ## [1.55.21] - 2026-09-23
 
 ### Changed

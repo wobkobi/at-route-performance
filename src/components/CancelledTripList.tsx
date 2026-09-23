@@ -21,6 +21,7 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
+import { UNKNOWN_VALUE } from "@/lib/format";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
 import {
   TRIP_NAME_CLASS,
@@ -172,7 +173,7 @@ export function CancelledTripList({
                       </span>
                     )}
                     <span className="font-semibold text-at-shore">
-                      {t.scheduled_start ? nzClockTime(t.scheduled_start) : "—"}
+                      {t.scheduled_start ? nzClockTime(t.scheduled_start) : UNKNOWN_VALUE}
                     </span>
                   </span>
                   <ModeIcon

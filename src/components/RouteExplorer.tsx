@@ -13,7 +13,12 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/areas";
 import { cn } from "@/lib/cn";
-import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import {
+  formatDuration,
+  OFF_SCHEDULE_TONE_CLASS,
+  offScheduleValue,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { summariseRows } from "@/lib/rankings";
 import {
@@ -397,13 +402,15 @@ export function RouteExplorer({
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
                   <Figure label="On time">
-                    {r.on_time_pct === null ? "—" : `${r.on_time_pct.toFixed(1)}%`}
+                    {r.on_time_pct === null ? UNKNOWN_VALUE : `${r.on_time_pct.toFixed(1)}%`}
                   </Figure>
                   <Figure label="Avg delay" className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}>
                     {offSchedule.text}
                   </Figure>
                   <Figure label="Off by">
-                    {r.avg_abs_delay_sec === null ? "—" : formatDuration(r.avg_abs_delay_sec)}
+                    {r.avg_abs_delay_sec === null
+                      ? UNKNOWN_VALUE
+                      : formatDuration(r.avg_abs_delay_sec)}
                   </Figure>
                   <Figure
                     label="Cancelled"
