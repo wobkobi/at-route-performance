@@ -144,6 +144,11 @@ export default async function StopPage({
     late_pct: summary?.late_pct ?? null,
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
+    // No stop figure anywhere on the site takes the cancellation penalty: it is
+    // counted per route per service day, and there is no defensible way to
+    // charge one stop its share. A stop served by a route that cancelled half
+    // its trips therefore reads healthy, and the footnote now says so.
+    cancellations: "excluded",
   };
 
   return (

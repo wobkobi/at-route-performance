@@ -5,7 +5,13 @@
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { formatDelay, formatDuration } from "@/lib/format";
-import { CANCELLED_SPLIT_COPY, earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import {
+  CANCELLED_EXCLUDED_COPY,
+  CANCELLED_SPLIT_COPY,
+  earlyToleranceFor,
+  ON_TIME_LATE_SEC,
+  type CancellationBasis,
+} from "@/lib/on-time";
 import { useId, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 /**
@@ -28,6 +34,13 @@ export interface PunctualityBreakdown {
   avg_abs_delay_sec: number | null;
   /** Route mode for the net-average "on time" wording (omit for the fleet). */
   mode?: string;
+  /**
+   * Whether the cancellation penalty is inside these percentages. Required, and
+   * deliberately not defaulted: the footnote states which it is, and a default
+   * would let a surface keep the wrong claim by saying nothing. A part-of-day
+   * filter and every stop figure are `"excluded"`; see {@link CANCELLED_SPLIT_COPY}.
+   */
+  cancellations: CancellationBasis;
 }
 
 /** Props for {@link PunctualityStat}. */
@@ -170,7 +183,15 @@ export function PunctualityInfo({
   extra,
 }: PunctualityInfoProps): JSX.Element {
   const [open, setOpen] = useState(false);
-  const { on_time_pct, early_pct, late_pct, avg_delay_sec, avg_abs_delay_sec, mode } = breakdown;
+  const {
+    on_time_pct,
+    early_pct,
+    late_pct,
+    avg_delay_sec,
+    avg_abs_delay_sec,
+    mode,
+    cancellations,
+  } = breakdown;
   const popoverId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -243,7 +264,8 @@ export function PunctualityInfo({
                   <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
                 </div>
                 <p className="mt-2 text-xs leading-snug text-at-muted">
-                  {onTimeWindowDescription(mode)} {CANCELLED_SPLIT_COPY}
+                  {onTimeWindowDescription(mode)}{" "}
+                  {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}
                 </p>
                 {extra}
               </>

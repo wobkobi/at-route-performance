@@ -343,6 +343,11 @@ export default async function RoutePage({
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
+    // getRouteStats drops the penalty for a part-of-day view, because it is
+    // counted per service day and cannot be narrowed to a few hours. The
+    // footnote has to follow it, or choosing "Morning peak" lifts the on-time
+    // share while the explainer still says cancellations are counted.
+    cancellations: hours ? "excluded" : "counted",
   };
 
   // Week view period: an explicit ?period snaps to that week's seven service
@@ -505,6 +510,8 @@ export default async function RoutePage({
     avg_delay_sec: weekSummary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: weekSummary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
+    // getRouteDailyStats applies the penalty to each day before they are merged.
+    cancellations: "counted",
   };
 
   // The chips set `dir` themselves, so everything else about the view carries.
@@ -736,11 +743,17 @@ export default async function RoutePage({
             </div>
           </section>
 
-          {/* The week figures come from per-route daily summaries, which do not
-              split by direction, so say so rather than imply they are filtered. */}
-          {activeDir != null && (
+          {/* The week figures come from per-route daily summaries, which split by
+              neither direction nor part of day, so say so rather than imply they
+              are filtered. The part-of-day chips render in both views, so here
+              the highlighted chip changes no figure on the page at all - which
+              is worth a reader's attention more than the direction caveat is. */}
+          {(activeDir != null || hours != null) && (
             <p className="text-xs text-at-muted">
-              The week&apos;s figures cover both directions; the map and diagram pick out this one.
+              {activeDir != null &&
+                "The week's figures cover both directions; the map and diagram pick out this one. "}
+              {hours != null &&
+                "They cover the whole of each day as well: a part of the day narrows the day view, not the week."}
             </p>
           )}
 
@@ -808,6 +821,22 @@ export default async function RoutePage({
               />
             </div>
           </section>
+
+          {/* What the chips above do not reach. Both figures come from one
+              getRouteStats call, which takes no direction at all and drops the
+              cancellation penalty as soon as hours narrow the window - so
+              "Trips" and the runs below describe one direction while "Arrivals"
+              and "On-time" describe both, and a peak can read better than the
+              day did without anything having improved. The week view has said
+              its half of this since it shipped; the day view said neither. */}
+          {(activeDir != null || hours != null) && (
+            <p className="text-xs text-at-muted">
+              {activeDir != null &&
+                "Arrivals, Avg off by and On-time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
+              {hours != null &&
+                "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
+            </p>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <WorstTripsBoard
@@ -896,6 +925,17 @@ export default async function RoutePage({
                     ))}
                   </tbody>
                 </table>
+                {/* These rows and the strip above them are computed over
+                    different populations: applyPenalty adds a visit per missed
+                    stop to the strip's Arrivals, and no per-stop row takes a
+                    share of it, so the column genuinely does not add up to the
+                    figure above. Only worth saying when a penalty was applied. */}
+                {punctuality.cancellations === "counted" && (
+                  <p className="mt-2 text-xs text-at-muted">
+                    Stop rows count measured arrivals only, so on a day with cancellations they add
+                    up to less than Arrivals above, which counts each missed stop as a rider wait.
+                  </p>
+                )}
               </div>
             </details>
           )}

@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.55.5] - 2026-09-23
+
+### Fixed
+
+- A part-of-day filter drops the cancellation penalty, and every stop figure never had it, but both
+  still carried the sentence saying cancelled trips were counted. Each punctuality figure now states
+  the basis it was actually computed on. A route day view with a direction or a part of the day
+  chosen says what the figures above it do and do not cover, as the week view already did, and the
+  per-stop table says why its arrivals add up to less than the strip above.
+
 ## [1.55.4] - 2026-09-23
 
 ### Fixed

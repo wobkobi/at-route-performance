@@ -148,6 +148,9 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
     late_pct: data.late_pct,
     avg_delay_sec: data.avg_delay_sec,
     avg_abs_delay_sec: data.avg_abs_delay_sec,
+    // The rankings rows these totals come from have already been through
+    // applyRoutePenalties.
+    cancellations: "counted",
   };
 
   return (
