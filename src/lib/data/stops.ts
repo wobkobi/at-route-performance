@@ -10,34 +10,24 @@ import { unstable_cache } from "@/lib/mem-cache";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
 import {
   STATION_PREFIX,
-  type StationRow,
   isLegacyStationId,
   isPlatformStop,
   legacyStationId,
   stationId,
   stationName,
-  stationPartsOf,
   stationProjection,
 } from "@/lib/station";
-import { type StopDaySum, mergeStopDays, rankStopSums } from "@/lib/stop-sums";
 import {
   type DateRange,
   NZ_TZ,
   SERVICE_START_HOUR,
   nzServiceDayRange,
-  nzServiceDayString,
   padScanRange,
   serviceDatesInRange,
-  serviceDayScanRange,
 } from "@/lib/time";
+import { type RankedStopRow, worstStopOfDay } from "@/lib/worst-stop";
 import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
-import type {
-  ShameDayStop,
-  ShameStop,
-  ShameStopOfDay,
-  ShameStopOfWeek,
-  WorstStop,
-} from "@/types/dashboard";
+import type { ShameDayStop, ShameStop, ShameStopOfDay, ShameStopOfWeek } from "@/types/dashboard";
 
 /**
  * The cached worst stops for one service day. Same key/TTL ownership as
@@ -56,7 +46,10 @@ export function cachedWorstStopsOfDay(
 ): Promise<ShameDayStop[]> {
   return cachedForDay(
     (classified) => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool, classified),
-    ["worst-stops-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    // The key names stations because a row is now one station rather than one
+    // platform: a completed day caches for a week, so an entry written before
+    // the merge would keep naming a single platform for that long.
+    ["worst-stops-of-day-stations", date, mode ?? "all", includeSchool ? "school" : "no-school"],
     date,
     revalidate,
   );
@@ -69,118 +62,6 @@ export function cachedWorstStopsOfDay(
  * the scaling the per-route ones do.
  */
 export const MIN_STOP_EVENTS_HOUR = 5;
-
-/** Fewest events - so, calling services - a stop needs to qualify for the worst-stops ranking. */
-const MIN_STOP_EVENTS = 20;
-
-/**
- * Every stop's deviation sums for one service day, cached per day. A multi-day
- * worst-stop board adds these up instead of scanning the whole window, so a
- * completed day is scanned once and held for a week, and the current week or
- * month only rescans today.
- * @param date - Service date (`YYYY-MM-DD`).
- * @param mode - Route mode filter (null = every mode).
- * @param includeSchool - Whether school services are included.
- * @param revalidate - TTL for the live day, in seconds.
- * @returns One row per stop that had an arrival that day.
- */
-function cachedStopSumsOfDay(
-  date: string,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
-  revalidate: number,
-): Promise<StopDaySum[]> {
-  return cachedForDay(
-    async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
-      const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(serviceDayScanRange(date)),
-        serviceDate: date,
-        ...realDeviationMatchFor(classified),
-      };
-      if (routeIds) match.routeId = { $in: routeIds };
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            {
-              $group: {
-                _id: "$stopId",
-                e: { $sum: 1 },
-                d: { $sum: "$deviationSec" },
-                a: { $sum: { $abs: "$deviationSec" } },
-                r: { $addToSet: "$routeId" },
-              },
-            },
-            { $project: { _id: 0, s: { $toString: "$_id" }, e: 1, d: 1, a: 1, r: 1 } },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: StopDaySum[] } };
-      return res.cursor.firstBatch;
-    },
-    ["stop-sums-of-day-v2", date, mode ?? "all", includeSchool ? "school" : "no-school"],
-    date,
-    revalidate,
-  );
-}
-
-/** Raw worst-stop row straight from the aggregation (pre platform-collapse). */
-interface WorstStopRaw extends StationRow {
-  stop_id: string;
-  name: string;
-  events: number;
-  avg_delay_sec: number | null;
-  avg_abs_delay_sec: number;
-  /** Route ids that served this stop in the window; used to resolve dominant mode. */
-  routeIds: string[];
-  mode: "BUS" | "TRAIN" | "FERRY"; // resolved in JS, not from the pipeline
-}
-
-/**
- * Collapse train-platform rows to one station each (summing events and
- * re-averaging both delay figures by event weight), then re-rank worst-first.
- * Mirrors {@link stationId}/{@link stationName} platform collapsing for the
- * cross-route worst-stops board so a station isn't split across its platforms.
- * @param rows - Raw per-stop rows, richest first.
- * @returns Station-collapsed rows, sorted by off-schedule magnitude descending.
- */
-function collapseWorstStops(rows: WorstStopRaw[]): WorstStop[] {
-  const acc = new Map<string, { row: WorstStop; absSum: number; signedSum: number }>();
-  for (const r of rows) {
-    const id = stationId(r.stop_id, r.name, stationPartsOf(r));
-    const absSum = r.avg_abs_delay_sec * r.events;
-    const signedSum = (r.avg_delay_sec ?? 0) * r.events;
-    const cur = acc.get(id);
-    if (cur) {
-      cur.row.events += r.events;
-      cur.absSum += absSum;
-      cur.signedSum += signedSum;
-      // mode already set from the first row - platforms share a mode
-    } else {
-      acc.set(id, {
-        row: {
-          stop_id: id,
-          name: stationName(r.name),
-          events: r.events,
-          avg_delay_sec: r.avg_delay_sec,
-          avg_abs_delay_sec: r.avg_abs_delay_sec,
-          mode: r.mode,
-        },
-        absSum,
-        signedSum,
-      });
-    }
-  }
-  return [...acc.values()]
-    .map(({ row, absSum, signedSum }) => ({
-      ...row,
-      avg_abs_delay_sec: Math.round((absSum / row.events) * 10) / 10,
-      avg_delay_sec: Math.round((signedSum / row.events) * 10) / 10,
-    }))
-    .sort((a, b) => b.avg_abs_delay_sec - a.avg_abs_delay_sec);
-}
 
 /**
  * Pick the most common mode among `routeIds`. Ties resolve BUS > TRAIN > FERRY.
@@ -200,186 +81,6 @@ function dominantMode(
   if (counts.BUS >= counts.TRAIN && counts.BUS >= counts.FERRY) return "BUS";
   if (counts.TRAIN >= counts.FERRY) return "TRAIN";
   return "FERRY";
-}
-
-/**
- * Rank stops by how far off schedule their buses ran across every route - the
- * average absolute deviation per stop, which counts both late and early. Drops
- * stops below {@link MIN_STOP_EVENTS} so a thin sample can't top the board, and
- * collapses train platforms to one station (see {@link collapseWorstStops}). The
- * mode/school filters mirror the home page so the worst stop stays in step with
- * what's shown. Cached briefly.
- * @param range - The window to rank over.
- * @param filter - Mode/school filters mirroring the home page.
- * @param filter.mode - Restrict to this mode; null/undefined means every mode.
- * @param filter.includeSchool - Include school services (default false).
- * @param limit - How many ranked stops to return.
- * @param revalidate - Cache lifetime in seconds.
- * @returns The worst stops, off-schedule magnitude descending.
- */
-export async function getWorstStops(
-  range: DateRange,
-  filter: ShameFilter,
-  limit: number,
-  revalidate: number,
-): Promise<WorstStop[]> {
-  const { mode = null, includeSchool = false } = filter;
-  // Snap the window to whole service days so the worst-stops card counts the
-  // same events as the per-day shame boards. Weeks, months and days already sit
-  // on those edges and map to themselves.
-  const days = serviceDatesInRange(range);
-  const aligned =
-    days.length > 0
-      ? {
-          start: nzServiceDayRange(days[0]).start,
-          end: nzServiceDayRange(days[days.length - 1]).end,
-        }
-      : range;
-  // Fetch a generous candidate set so the post-aggregation platform collapse
-  // can merge stations and still leave `limit` rows after re-ranking.
-  const candidates = Math.max(80, limit * 8);
-  if (days.length > 1) {
-    return cachedForRange(
-      () => worstStopsFromDays(days, mode, includeSchool, limit, candidates, revalidate),
-      [
-        "worst-stops-days-v2",
-        aligned.start.toISOString(),
-        aligned.end.toISOString(),
-        mode ?? "all",
-        includeSchool ? "school" : "no-school",
-        String(limit),
-      ],
-      aligned,
-      revalidate,
-    );
-  }
-  return cachedForRange(
-    async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
-      // A day's readings are its runs' readings, tails past 4am included; a
-      // window with no whole day in it has no stamped date to hold to.
-      const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(days.length > 0 ? padScanRange(aligned) : aligned),
-        ...realDeviationMatchFor(classified),
-      };
-      if (days.length > 0) match.serviceDate = { $in: days };
-      if (routeIds) match.routeId = { $in: routeIds };
-
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            {
-              $group: {
-                _id: "$stopId",
-                events: { $sum: 1 },
-                avg_delay_sec: { $avg: "$deviationSec" },
-                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                routeIds: { $addToSet: "$routeId" },
-              },
-            },
-            { $match: { events: { $gte: MIN_STOP_EVENTS } } },
-            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            { $sort: { avg_abs_delay_sec: -1 as const } },
-            { $limit: candidates },
-            {
-              $project: {
-                _id: 0,
-                stop_id: { $toString: "$_id" },
-                name: "$stop.name",
-                events: 1,
-                avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                routeIds: 1,
-                ...stationProjection,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: Omit<WorstStopRaw, "mode">[] } };
-
-      // Resolve dominant mode per stop from its route ids. When a mode filter is
-      // active every stop already belongs to that mode; otherwise fetch the map.
-      const modeMap = mode ? null : await getRouteModeMap();
-      const enriched: WorstStopRaw[] = res.cursor.firstBatch.map((r) => ({
-        ...r,
-        mode: mode ?? dominantMode(r.routeIds, modeMap!),
-      }));
-      return collapseWorstStops(enriched).slice(0, limit);
-    },
-    [
-      "worst-stops-v2",
-      aligned.start.toISOString(),
-      aligned.end.toISOString(),
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-      String(limit),
-    ],
-    aligned,
-    revalidate,
-  );
-}
-
-/**
- * {@link getWorstStops} for a window of more than one day, added up from each
- * day's cached sums ({@link cachedStopSumsOfDay}) rather than one scan of the
- * whole window: a month scan ran ~9s and, while the month was open, was paid
- * again whenever its cache entry turned over. Days after today are skipped,
- * since they have no arrivals yet. Each day is filtered by its own
- * classification, where the single scan applied the unclassified guard to the
- * whole window until every day in it was classified.
- * @param days - The window's service dates, earliest first.
- * @param mode - Route mode filter (null = every mode).
- * @param includeSchool - Whether school services are included.
- * @param limit - How many ranked stops to return.
- * @param candidates - How many stops to carry into the platform collapse.
- * @param revalidate - TTL for the live day, in seconds.
- * @returns The worst stops, off-schedule magnitude descending.
- */
-async function worstStopsFromDays(
-  days: string[],
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
-  limit: number,
-  candidates: number,
-  revalidate: number,
-): Promise<WorstStop[]> {
-  const today = nzServiceDayString();
-  const perDay = await Promise.all(
-    days
-      .filter((d) => d <= today)
-      .map((d) => cachedStopSumsOfDay(d, mode, includeSchool, revalidate)),
-  );
-  // Over-fetch past the candidate count: a stop missing from the Stop table is
-  // dropped below, as the pipeline's $unwind drops it.
-  const ranked = rankStopSums(mergeStopDays(perDay), MIN_STOP_EVENTS, candidates + 20);
-  const stops = await prisma.stop.findMany({
-    where: { id: { in: ranked.map((r) => r.stopId) } },
-    select: { id: true, name: true, parentStation: true, platformCode: true },
-  });
-  const byId = new Map(stops.map((st) => [st.id, st]));
-  const modeMap = mode ? null : await getRouteModeMap();
-  const rows: WorstStopRaw[] = [];
-  for (const r of ranked) {
-    const stop = byId.get(r.stopId);
-    if (!stop) continue;
-    rows.push({
-      stop_id: r.stopId,
-      name: stop.name,
-      events: r.events,
-      avg_delay_sec: Math.round((r.signedSum / r.events) * 10) / 10,
-      avg_abs_delay_sec: Math.round((r.absSum / r.events) * 10) / 10,
-      routeIds: r.routeIds,
-      parent_station: stop.parentStation,
-      platform_code: stop.platformCode,
-      mode: mode ?? dominantMode(r.routeIds, modeMap!),
-    });
-    if (rows.length === candidates) break;
-  }
-  return collapseWorstStops(rows).slice(0, limit);
 }
 
 /**
@@ -507,22 +208,12 @@ export async function getWorstStopsOfDay(
   );
 }
 
-/** Raw per-(serviceDay,stop) row from the Stop Shame week aggregation. */
-interface ShameDayStopRaw {
-  _id: string; // service date, YYYY-MM-DD
-  stop_id: string;
-  name: string;
-  events: number;
-  avg_delay_sec: number | null;
-  avg_abs_delay_sec: number;
-  routeIds: string[];
-}
-
 /**
  * The week's "Stop Shame": the single most off-schedule stop plus the worst stop
- * of each service day over a multi-day window. Only stops with at least
- * {@link MIN_STOP_EVENTS_HOUR} events on that day qualify. Cached at the supplied
- * revalidate rate.
+ * of each service day over a multi-day window. A day's row is one station, and
+ * only stations clearing the whole-day floor across their platforms qualify -
+ * the floor lives with {@link worstStopOfDay}. Cached at the supplied revalidate
+ * rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
@@ -556,13 +247,16 @@ export async function getWorstStopsOfWeek(
 
 /**
  * The worst stop of each service day within a range (one row per day with data).
- * Used per-day by {@link getWorstStopsOfWeek}; left uncached so the caller owns
- * the per-day cache key.
+ * Platforms merge before the floor applies (see {@link worstStopOfDay}), so a row
+ * names the station a reader would name rather than one of its platforms, and a
+ * station qualifies on all its services rather than its busiest platform's. Used
+ * per-day by {@link getWorstStopsOfWeek}; left uncached so the caller owns the
+ * per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
  * @param classified - Whether the day has been through the ghost pass.
- * @returns The per-service-day worst stops.
+ * @returns The per-service-day worst stops, earliest day first.
  */
 async function worstStopsForRange(
   range: DateRange,
@@ -598,60 +292,50 @@ async function worstStopsForRange(
             routeIds: { $addToSet: "$routeId" },
           },
         },
-        { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
-        // Worst stop per service day via a bounded per-group $top accumulator
-        // (one entry per day) rather than a global blocking $sort, which exceeds
-        // the cluster's 32MB in-memory sort limit (the tier forbids disk spill).
-        {
-          $group: {
-            _id: "$_id.serviceDay",
-            worst: {
-              $top: {
-                sortBy: { avg_abs_delay_sec: -1 },
-                output: {
-                  stop_id: "$_id.stop_id",
-                  events: "$events",
-                  avg_delay_sec: "$avg_delay_sec",
-                  avg_abs_delay_sec: "$avg_abs_delay_sec",
-                  routeIds: "$routeIds",
-                },
-              },
-            },
-          },
-        },
-        // Resolve the stop name for just the per-day winners.
-        { $lookup: { from: "Stop", localField: "worst.stop_id", foreignField: "_id", as: "stop" } },
+        // Every stop the day saw, not a ranked head: a station's average is only
+        // right with all of its platforms present, and the floor cannot apply
+        // until they are merged. One service day per call, so this is a few
+        // thousand rows, and the caller holds them for the day.
+        { $lookup: { from: "Stop", localField: "_id.stop_id", foreignField: "_id", as: "stop" } },
         { $unwind: "$stop" },
         {
           $project: {
-            _id: 1,
-            stop_id: { $toString: "$worst.stop_id" },
+            _id: 0,
+            date: "$_id.serviceDay",
+            stop_id: { $toString: "$_id.stop_id" },
             name: "$stop.name",
-            events: "$worst.events",
-            avg_delay_sec: { $round: ["$worst.avg_delay_sec", 1] },
-            avg_abs_delay_sec: { $round: ["$worst.avg_abs_delay_sec", 1] },
-            routeIds: "$worst.routeIds",
+            events: 1,
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+            routeIds: 1,
+            ...stationProjection,
           },
         },
       ] as never,
       cursor: { batchSize: 100_000 },
     }),
-  )) as unknown as {
-    cursor: {
-      firstBatch: (Omit<ShameDayStopRaw, "_id"> & { _id: string } & { routeIds: string[] })[];
-    };
-  };
+  )) as unknown as { cursor: { firstBatch: (RankedStopRow & { date: string })[] } };
+
+  // Ranked here rather than in the pipeline: merging platforms needs the station
+  // rule in station.ts, and sorting a few thousand rows costs nothing here while
+  // a blocking $sort on this collection exceeds the cluster's 32MB in-memory
+  // limit (the tier forbids disk spill).
+  const byDate = new Map<string, RankedStopRow[]>();
+  for (const row of res.cursor.firstBatch) {
+    const rows = byDate.get(row.date);
+    if (rows) rows.push(row);
+    else byDate.set(row.date, [row]);
+  }
 
   const modeMap = mode ? null : await getRouteModeMap();
-  return res.cursor.firstBatch.map((r) => ({
-    date: r._id,
-    stop_id: r.stop_id,
-    name: r.name,
-    events: r.events,
-    avg_delay_sec: r.avg_delay_sec,
-    avg_abs_delay_sec: r.avg_abs_delay_sec,
-    mode: mode ?? dominantMode(r.routeIds, modeMap!),
-  }));
+  const days: ShameDayStop[] = [];
+  for (const [date, rows] of byDate) {
+    const worst = worstStopOfDay(rows);
+    if (!worst) continue;
+    const { routeIds: stationRouteIds, ...row } = worst;
+    days.push({ date, ...row, mode: mode ?? dominantMode(stationRouteIds, modeMap!) });
+  }
+  return days.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**

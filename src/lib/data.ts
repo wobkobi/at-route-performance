@@ -68,7 +68,6 @@ export {
   cachedWorstStopsOfDay,
   findCurrentStationId,
   getStopStats,
-  getWorstStops,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
 } from "@/lib/data/stops";

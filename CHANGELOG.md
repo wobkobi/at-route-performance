@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.0] - 2026-09-24
+
+### Added
+
+- The worst stop of a day is now a whole station rather than one of its platforms, and it has to
+  have seen twenty arrivals that day before it is named. A train station's platforms used to compete
+  as separate stops, so a board could name "Newmarket Train Station 2" while the station itself was
+  ordinary, and a platform served three times could top a day on noise.
+
 ## [1.57.4] - 2026-09-24
 
 ### Fixed
