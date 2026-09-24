@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.6.0] - 2026-09-25
+
+### Added
+
+- The departures board on a stop page works again. It was reading an Auckland Transport endpoint
+  that has been retired, so every stop page said no trips were scheduled while reporting hundreds of
+  arrivals for the same day. It now asks once for a whole 4am-to-4am service day, drops the
+  departures nobody can board, asks once for a whole station rather than once per platform, and
+  tells a reader which kind of empty a day is: nothing ran, the timetable has been retired, or
+  Auckland Transport could not be reached.
+
 ## [2.5.0] - 2026-09-24
 
 ### Added

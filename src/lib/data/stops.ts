@@ -476,6 +476,12 @@ interface StopGroup {
   id: string;
   /** Underlying GTFS stop ids to match in the events (platforms of a station). */
   ids: string[];
+  /**
+   * The single id AT's schedule answers on: the parent id for a station, the
+   * stop id otherwise. A parent returns every platform's departures in one
+   * call, so a station page asks once rather than once per platform.
+   */
+  scheduleId: string;
   name: string;
   lat: number;
   lon: number;
@@ -505,22 +511,36 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
         // Parent-keyed ids name their station outright, so the platforms are an
         // indexed lookup. Legacy name-keyed ids predate the parent fields and
         // still have to be matched by scanning the (small) set of train stops.
+        const select = {
+          id: true,
+          name: true,
+          lat: true,
+          lon: true,
+          platformCode: true,
+          parentStation: true,
+        };
         const members = isLegacyStationId(id)
           ? (
               await prisma.stop.findMany({
                 where: { name: { contains: "Train Station" } },
-                select: { id: true, name: true, lat: true, lon: true, platformCode: true },
+                select,
               })
             ).filter((s) => legacyStationId(s.name) === id)
           : await prisma.stop.findMany({
               where: { parentStation: id.slice(STATION_PREFIX.length) },
-              select: { id: true, name: true, lat: true, lon: true, platformCode: true },
+              select,
             });
         const first = members[0];
         if (first === undefined) return null;
         return {
           id,
           ids: members.map((s) => s.id),
+          // A legacy id is keyed on the station's name, so the parent it stands
+          // for has to come off a platform. Falling back to one platform's own
+          // id costs that page its other platforms' departures, not the board.
+          scheduleId: isLegacyStationId(id)
+            ? (first.parentStation ?? first.id)
+            : id.slice(STATION_PREFIX.length),
           name: stationNameOf(members),
           lat: first.lat,
           lon: first.lon,
@@ -535,13 +555,14 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
       return {
         id: stop.id,
         ids: [stop.id],
+        scheduleId: stop.id,
         name: stop.name,
         lat: stop.lat,
         lon: stop.lon,
         platforms: [],
       };
     },
-    ["resolve-stop-group-v3", id],
+    ["resolve-stop-group-v4", id],
     { revalidate: 86400 },
   )();
 }
@@ -722,6 +743,7 @@ export async function getStopStats(
       return {
         stop: { stop_id: group.id, name: group.name, lat: group.lat, lon: group.lon },
         platform_ids: group.ids,
+        schedule_stop_id: group.scheduleId,
         summary: facet?.summary[0] ?? null,
         routes: facet?.routes ?? [],
         routes_count: facet?.routeCount[0]?.n ?? 0,

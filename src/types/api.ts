@@ -54,10 +54,16 @@ export interface StopStats {
   stop: { stop_id: string; name: string; lat: number; lon: number };
   /**
    * The raw GTFS stop ids behind `stop` - every platform of a station, or just
-   * the stop itself. AT's service alerts and scheduled departures both key off
-   * raw ids, so a station can only match them through these.
+   * the stop itself. AT's service alerts key off raw ids, so a station can only
+   * match them through these.
    */
   platform_ids: string[];
+  /**
+   * The one id AT's schedule answers on: a station's parent id, or the stop's
+   * own. A parent returns every platform's departures in a single call, so the
+   * departures board asks once for a station rather than once per platform.
+   */
+  schedule_stop_id: string;
   /** Overall punctuality across every route at the stop, or null when no events. */
   summary: RouteSummary | null;
   /** The worst-performing routes at this stop, off-schedule magnitude first. */

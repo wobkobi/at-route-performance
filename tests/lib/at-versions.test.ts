@@ -1,7 +1,12 @@
 // tests/lib/at-versions.test.ts
 // Unit tests for the GTFS feed-version selector in at-versions.ts.
 
-import { pickCurrentVersion, type GtfsVersionAttr } from "@/lib/at-versions";
+import {
+  feedWindowOf,
+  type GtfsVersionAttr,
+  insideFeedWindow,
+  pickCurrentVersion,
+} from "@/lib/at-versions";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -56,5 +61,51 @@ describe("pickCurrentVersion", () => {
       null,
     );
     expect(pickCurrentVersion([{ feed_version: null }, v("real")], "2026-08-07")).toBe("real");
+  });
+});
+
+describe("feedWindowOf", () => {
+  it("dashes AT's compact dates and carries the version", () => {
+    // The live payload on 24 Sep 2026, whose start had rolled forward a week
+    // from the 20260907 measured eight days earlier.
+    const live = [v("VDV_Merge_118_5_H_7_331", "20260917", "20261231")];
+    expect(feedWindowOf(live, "2026-09-24")).toEqual({
+      start: "2026-09-17",
+      end: "2026-12-31",
+      version: "VDV_Merge_118_5_H_7_331",
+    });
+  });
+
+  it("gives nothing when a bound is missing or malformed", () => {
+    // Half a window would either retire a day AT still publishes or skip the
+    // check for one it does not, so neither half is used on its own.
+    expect(feedWindowOf([v("x", "20260917")], "2026-09-24")).toBeNull();
+    expect(feedWindowOf([v("x", undefined, "20261231")], "2026-09-24")).toBeNull();
+    expect(feedWindowOf([v("x", "2026-09-17", "20261231")], "2026-09-24")).toBeNull();
+    expect(feedWindowOf([], "2026-09-24")).toBeNull();
+  });
+});
+
+describe("insideFeedWindow", () => {
+  const window = { start: "2026-09-17", end: "2026-12-31", version: "x" };
+
+  it("includes both bounds", () => {
+    expect(insideFeedWindow(window, "2026-09-17")).toBe(true);
+    expect(insideFeedWindow(window, "2026-12-31")).toBe(true);
+    expect(insideFeedWindow(window, "2026-09-16")).toBe(false);
+    expect(insideFeedWindow(window, "2027-01-01")).toBe(false);
+  });
+
+  it("puts a day the site can still reach outside the window", () => {
+    // The archive floor is 2026-09-11 and AT's feed starts 2026-09-17, so six
+    // service days are readable here and retired at AT. Measured against the
+    // live API: 16 Sep answers 404, 17 Sep answers 200. This state is live, not
+    // theoretical, and it grows as the feed start rolls forward.
+    expect(insideFeedWindow(window, "2026-09-11")).toBe(false);
+  });
+
+  it("calls a day publishable when the window could not be read", () => {
+    // A failed /versions read must not make every day look retired.
+    expect(insideFeedWindow(null, "1999-01-01")).toBe(true);
   });
 });

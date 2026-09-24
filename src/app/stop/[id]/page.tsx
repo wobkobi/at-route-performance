@@ -4,8 +4,10 @@
 // on the same day as every other day page (see resolveShownDay), and the
 // net-average wording stays mode-less because a stop mixes modes
 // (no single on-time window). A station page stands for several GTFS stops, so
-// its alerts and departures are resolved across every platform behind it - AT
-// keys both to raw stop ids, and matching the station's own id hit nothing.
+// its alerts are resolved across every platform behind it: AT keys those to raw
+// stop ids, and matching the station's own id hit nothing. Its departures are
+// the other way round - AT's schedule answers the parent id for every platform
+// at once, so the board asks once.
 
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
@@ -16,7 +18,7 @@ import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
-import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
+import { getStopDepartures } from "@/lib/at-stop-trips";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
@@ -314,7 +316,7 @@ export default async function StopPage({
 
       <Suspense fallback={<StopScheduleSkeleton />}>
         <StopScheduleSection
-          stopIds={stats.platform_ids}
+          scheduleStopId={stats.schedule_stop_id}
           serviceDate={serviceDate}
           routeNames={routeNameMap}
         />
@@ -410,36 +412,29 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
 }
 
 /**
- * Streamed departures board. Awaits the external AT stop-trips calls off the
- * critical path so the stop shell and stats render without waiting on them.
+ * Streamed departures board. Awaits the external AT call off the critical path
+ * so the stop shell and stats render without waiting on it.
  *
- * A station is several GTFS stops, and AT's schedule endpoint only knows the raw
- * platform ids - so each platform is fetched and the results merged, rather than
- * the station showing an empty board. A trip calling at two platforms of the
- * same station is deduped on its trip id.
+ * One call covers a whole station: AT's schedule answers a parent id with every
+ * platform's departures, already in order. Since no trip can appear twice once
+ * the set-down-only rows are dropped, nothing is merged or deduped here.
  * @param root0 - Props.
- * @param root0.stopIds - Raw GTFS stop ids behind the page (a station's platforms).
+ * @param root0.scheduleStopId - The id AT's schedule answers on for this page.
  * @param root0.serviceDate - The resolved service date being shown.
  * @param root0.routeNames - Route id to short-name map for the rows.
  * @returns The departures board.
  */
 async function StopScheduleSection({
-  stopIds,
+  scheduleStopId,
   serviceDate,
   routeNames,
 }: {
-  stopIds: string[];
+  scheduleStopId: string;
   serviceDate: string;
   routeNames: Map<string, string | null>;
 }): Promise<JSX.Element> {
-  const perStop = await Promise.all(
-    // One bad platform must not empty the whole board.
-    stopIds.map((sid) => getStopTrips(sid, serviceDate).catch(readFallback("stop-trips", []))),
-  );
-  const byTrip = new Map<string, (typeof perStop)[number][number]>();
-  for (const d of perStop.flat()) if (!byTrip.has(d.tripId)) byTrip.set(d.tripId, d);
-  const departures = [...byTrip.values()].sort(byServiceDeparture);
-  return <StopSchedule departures={departures} routeNames={routeNames} serviceDate={serviceDate} />;
+  const result = await getStopDepartures(scheduleStopId, serviceDate);
+  return <StopSchedule result={result} routeNames={routeNames} serviceDate={serviceDate} />;
 }
 
 /**
