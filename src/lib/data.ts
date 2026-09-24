@@ -67,6 +67,7 @@ export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,
   findCurrentStationId,
+  getStationSiblings,
   getStopStats,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,

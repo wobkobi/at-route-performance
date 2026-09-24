@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.4.0] - 2026-09-24
+
+### Added
+
+- A station page now links AT's other stations for the same place, so a reader at Manukau's bus
+  station can reach its trains. Two of AT's parent stations count as one place when their names
+  share a base, they sit within 400m, and they differ in name - 49 of 144 parents carry the line.
+
 ## [2.3.0] - 2026-09-24
 
 ### Added

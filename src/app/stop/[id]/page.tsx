@@ -18,7 +18,12 @@ import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
-import { findCurrentStationId, getEarliestDataDay, getStopStats } from "@/lib/data";
+import {
+  findCurrentStationId,
+  getEarliestDataDay,
+  getStationSiblings,
+  getStopStats,
+} from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
@@ -30,7 +35,7 @@ import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Suspense, type JSX } from "react";
+import { Fragment, Suspense, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
 // search params and its data above any Suspense boundary, so it is allowed to
@@ -130,10 +135,12 @@ export default async function StopPage({
   // awaited rather than streamed: it sits above the page's content, and letting
   // it pop in afterwards shoved everything below it down as the reader arrived.
   const alertsPromise = getServiceAlerts();
-  // getEarliestDataDay is independent of the day and the stop query.
-  const [shown, earliestDay] = await Promise.all([
+  // getEarliestDataDay and the sibling lookup are both independent of the day
+  // and of the stop query.
+  const [shown, earliestDay, siblings] = await Promise.all([
     resolveShownDay(resolveRequestedDay(sp.day)),
     getEarliestDataDay(1),
+    getStationSiblings(id),
   ]);
   const { range, serviceDate } = shown;
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
@@ -178,6 +185,27 @@ export default async function StopPage({
         <div className="min-w-0">
           <p className="text-xs tracking-zero text-at-muted uppercase">Stop</p>
           <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
+          {/* AT models an interchange as two or more parent stations and this page
+              stands for one of them, so without these links a reader at Manukau's
+              bus station has no way to its trains. The names are AT's own, which
+              is why a link is only offered when it reads differently from the
+              title above it (see siblingsByStation). */}
+          {siblings && (
+            <p className="mt-1 text-sm text-at-muted">
+              Also at {siblings.place}:{" "}
+              {siblings.siblings.map((s, i) => (
+                <Fragment key={s.id}>
+                  {i > 0 && ", "}
+                  <Link
+                    href={buildHref(`/stop/${encodeURIComponent(s.id)}`, { day: linkDay })}
+                    className="text-at-shore hover:underline"
+                  >
+                    {s.name}
+                  </Link>
+                </Fragment>
+              ))}
+            </p>
+          )}
         </div>
         <DayNav
           basePath={`/stop/${encodeURIComponent(id)}`}

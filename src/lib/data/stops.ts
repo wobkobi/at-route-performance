@@ -11,6 +11,7 @@ import { lateSum, onTimePerEventSum } from "@/lib/on-time";
 import type { DelayDirection } from "@/lib/rankings";
 import {
   STATION_PREFIX,
+  type StationParts,
   isLegacyStationId,
   isPlatformStop,
   legacyStationId,
@@ -18,6 +19,7 @@ import {
   stationNameOf,
   stationProjection,
 } from "@/lib/station";
+import { type StationPlace, type StationSiblings, siblingsByStation } from "@/lib/station-siblings";
 import {
   type DateRange,
   NZ_TZ,
@@ -403,6 +405,67 @@ export async function findCurrentStationId(id: string): Promise<string | null> {
     ["current-station-id-v2", id],
     { revalidate: 86_400 },
   )();
+}
+
+/**
+ * The other parents AT publishes for the same place as this station, so the page
+ * can link them. Auckland's interchanges are several parents - Manukau is a bus
+ * station, a station and a train station - and {@link stationId} keeps them
+ * apart on purpose, so without a link a reader on one has no way to the others.
+ *
+ * The whole 144-parent map is derived under one cache key rather than one entry
+ * per station: the derivation needs every parent to find any one station's
+ * neighbours, so a per-station key would read the same rows 144 times over.
+ * @param id - The canonical stop id from a link.
+ * @returns The place and its other parents, or null for a stop with no siblings.
+ */
+export async function getStationSiblings(id: string): Promise<StationSiblings | null> {
+  if (!id.startsWith(STATION_PREFIX)) return null;
+  const places = await unstable_cache(
+    async (): Promise<StationPlace[]> => {
+      const rows = await prisma.stop.findMany({
+        where: { parentStation: { not: null } },
+        select: {
+          id: true,
+          name: true,
+          lat: true,
+          lon: true,
+          parentStation: true,
+          platformCode: true,
+        },
+      });
+      const acc = new Map<
+        string,
+        { platforms: (StationParts & { name: string })[]; lat: number; lon: number }
+      >();
+      for (const r of rows) {
+        const key = stationId(r.id, r.name, r);
+        const held = acc.get(key);
+        if (held) {
+          held.platforms.push(r);
+          held.lat += r.lat;
+          held.lon += r.lon;
+        } else {
+          acc.set(key, { platforms: [r], lat: r.lat, lon: r.lon });
+        }
+      }
+      // The parent's centre is the mean of its platforms, since AT publishes no
+      // row for the parent itself to take a position from.
+      return [...acc].map(([key, v]) => ({
+        id: key,
+        name: stationNameOf(v.platforms),
+        lat: v.lat / v.platforms.length,
+        lon: v.lon / v.platforms.length,
+        platforms: v.platforms.length,
+      }));
+    },
+    ["station-places-v1"],
+    { revalidate: 86_400 },
+  )();
+  // Cheap enough to redo per request (144 parents, 25 of them sharing a place),
+  // and it keeps the cached value the feed's own parents rather than a Map,
+  // which would not survive the cache's serialisation.
+  return siblingsByStation(places).get(id) ?? null;
 }
 
 /** A canonical stop resolved to its underlying platform ids + display position. */
