@@ -40,6 +40,14 @@ describe("daySlot", () => {
     expect(daySlot("2026-09-20", "2026-09-22", { rows: [], cancelled: 3 }, ALL).kind).toBe("empty");
   });
 
+  it("keeps an empty day's cancellations, which are what explain it", () => {
+    expect(daySlot("2026-09-20", "2026-09-22", { rows: [], cancelled: 3 }, ALL)).toEqual({
+      kind: "empty",
+      date: "2026-09-20",
+      cancelled: 3,
+    });
+  });
+
   it("weights the day by arrivals and reads its verdict off the share", () => {
     const slot = daySlot(
       "2026-09-20",

@@ -34,6 +34,19 @@ export interface ShameSearchParams {
   period?: string;
 }
 
+/**
+ * Every param the boards read, so `/shame` can carry exactly these across and
+ * leave a previous page's sort, search and direction behind. Keep it in step
+ * with {@link ShameSearchParams}: a param missing here is one the redirect drops.
+ */
+export const SHAME_PARAMS = [
+  "day",
+  "mode",
+  "school",
+  "window",
+  "period",
+] as const satisfies ReadonlyArray<keyof ShameSearchParams>;
+
 /** Human label for an active mode filter, used in the page subtitle. */
 export const MODE_LABEL: Record<string, string> = {
   BUS: "Buses",

@@ -11,6 +11,7 @@ import { TripGhostRunNote } from "@/components/TripGhostRunNote";
 import { TripLine } from "@/components/TripLine";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   getGhostRun,
   getGhostRunFor,
@@ -45,10 +46,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JSX } from "react";
 
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
 /**
- * Per-trip page title, so a tab and a shared link name the route, the run and,
- * when the link carries one, the day it ran. AT reuses a trip id every day its
- * timetable runs, so without the day two tabs of one id read the same.
+ * Per-trip page title, so a tab and a shared link name the route and, when the
+ * link carries one, the day the run ran.
+ *
+ * The departure time is what the page's own heading leads with and would read
+ * better here, but it comes from the timeline and the schedule, and the schedule
+ * is an AT API call: putting either in front of the document head would add a
+ * round trip to the site's most prefetched path and take the page down with any
+ * AT outage. The raw trip id is no substitute - it is a 30-character GTFS id,
+ * and the timestamp inside it is the feed version, not the departure.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id, tripId }`.
  * @param root0.searchParams - Optional query params (`d` = the run's instant).
@@ -66,8 +78,8 @@ export async function generateMetadata({
   const dAt = d ? new Date(d) : null;
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
-  const title = `Trip ${tripId} on ${routeSlug(id)}${dayPart}`;
-  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run against Auckland Transport's published schedule.`;
+  const title = `${routeSlug(id)} trip${dayPart}`;
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run ${MEASURED_AGAINST}`;
   return {
     title,
     description,

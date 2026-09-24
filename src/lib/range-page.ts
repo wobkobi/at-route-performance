@@ -240,6 +240,31 @@ export function rangeTabPeriods(
 }
 
 /**
+ * The `?period` a week or month view should show: the one asked for, else the
+ * period holding the day being read, which is what that window's own tab carries
+ * (see {@link rangeTabPeriods}).
+ *
+ * The nav and the footer hand a page the reader's `?day` and no period, so a page
+ * with no day view of its own would otherwise answer an archived day with the
+ * current week.
+ * @param window - "week" or "month".
+ * @param rawPeriod - The raw `?period` value, if any.
+ * @param rawDay - The raw `?day` value, if any.
+ * @param today - Today's service date (injectable for tests).
+ * @returns The period to resolve, or undefined for the rolling default.
+ */
+export function periodForCarriedDay(
+  window: "week" | "month",
+  rawPeriod: string | undefined,
+  rawDay: string | undefined,
+  today: string = nzServiceDayString(),
+): string | undefined {
+  if (rawPeriod) return rawPeriod;
+  const day = resolveRequestedDay(rawDay);
+  return day ? (rangeTabPeriods(day, today)[window] ?? undefined) : undefined;
+}
+
+/**
  * The shown window as the words that end "How bad was it ..." or "No shame
  * ...": "today" or "that day", "over the last 7 days" for the rolling week (the
  * week tab's default is seven days back from today, not the calendar week),

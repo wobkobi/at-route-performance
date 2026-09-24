@@ -13,7 +13,12 @@ import { NextResponse } from "next/server";
  */
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json(await getDirectoryRoutes(), {
-    // The route directory only changes on the daily GTFS sync.
-    headers: { "Cache-Control": "public, max-age=0, s-maxage=3600" },
+    // The rows change on the daily GTFS sync, but the lineage trim inside
+    // `getDirectoryRoutes` turns on `routeHasTraffic`, which holds for 600s and
+    // flips within ten minutes of a successor's first train. This must not
+    // outlast that: a longer s-maxage puts the staleness the data layer was
+    // careful to avoid straight back in front of the reader, and at the CRL
+    // cutover that means listing a retired line beside the one replacing it.
+    headers: { "Cache-Control": "public, max-age=0, s-maxage=600" },
   });
 }

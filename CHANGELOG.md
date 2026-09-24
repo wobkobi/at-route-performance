@@ -32,6 +32,307 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.56.3] - 2026-09-24
+
+### Changed
+
+- Added: the 50 busiest route pages are prerendered, so a link prefetch of one answers from the CDN
+  instead of rendering against the database. Route prefetches were the single biggest path in
+  production traffic.
+
+## [1.56.2] - 2026-09-24
+
+### Fixed
+
+- Fixed: a build with no DATABASE_URL failed on the 404 page, which broke CI's build step and the
+  Dependabot auto-merge signal.
+
+## [1.56.1] - 2026-09-24
+
+### Fixed
+
+- The on-time breakdown popover closes when you navigate away, instead of reappearing open on the
+  way back.
+
+## [1.56.0] - 2026-09-24
+
+### Added
+
+- /rankings and /shame are route handlers rather than pages, so both still answer a real redirect: a
+  page flushes its shell before its component runs, which would have turned each into a 200 that a
+  crawler indexes and a reader without JavaScript never follows.
+
+## [1.55.23] - 2026-09-23
+
+### Fixed
+
+- The pre-release page check no longer reports the route page's Stops section as empty. A collapsed
+  disclosure reports no text past its own label, so the check was reading the section's contents as
+  absent rather than as one click away.
+
+## [1.55.22] - 2026-09-23
+
+### Changed
+
+- No visible change: the dash that stands in for a figure the site does not have is now written from
+  one definition in six more places, rather than as a loose character each time, so it cannot drift
+  to a different glyph on one page.
+
+## [1.55.21] - 2026-09-23
+
+### Changed
+
+- No visible change: the pulse placeholder every loading skeleton is drawn from now lives in the
+  shared skeleton library rather than inside the shame board's own skeleton, which thirteen files
+  had been reaching into for it.
+
+## [1.55.20] - 2026-09-23
+
+### Changed
+
+- No visible change: the filter, sort and pager chips across the site now come from one definition
+  rather than eleven copies of it, so a chip cannot be added that forgets to hold the reader's
+  scroll position or to tell a screen reader which option is chosen.
+- No visible change: the row layout shared by the shame board's trips and the cancellations list,
+  and the sortable numeric column header shared by Live now and Hardest-worked vehicles, each come
+  from one definition rather than two copies that had already begun to drift.
+
+## [1.55.19] - 2026-09-23
+
+### Fixed
+
+- Three loading placeholders now match what replaces them: a shame day board draws the hours that
+  have started rather than a fixed 24, a rank board on the week or month home reserves the rank
+  column its movement badge needs and the row's trailing chevron, and the routes "Only" filter row
+  draws its fourth chip.
+
+## [1.55.18] - 2026-09-23
+
+### Fixed
+
+- A board or card that names one hour now opens the route page on that hour, and the time-of-day
+  chips name a range no preset covers.
+
+## [1.55.17] - 2026-09-23
+
+### Fixed
+
+- A stop page now links up to the worst-stops board - the only page on the site that lists stops -
+  so a reader who arrived from a shame board or a route's stop table is no longer left with the top
+  bar, which has no stops in it. The 404 page lists all nine pages rather than five: Live now and
+  Cancellations are top-bar sections and Day by day and Vehicles have no tab of their own, so the
+  one page whose whole job is being a way out was itself a dead end for four of them.
+
+## [1.55.16] - 2026-09-23
+
+### Fixed
+
+- Day by day is now in the footer's Explore list, carrying the day being read like every other
+  footer link. It previously had a single link on the whole site, on the home page's week and month
+  views only, so a reader on the day view - the default - had no path to it at all.
+
+## [1.55.15] - 2026-09-23
+
+### Fixed
+
+- The day-by-day page reads its window the way every other range page does, so a URL saying
+  `window=day` no longer renders a week: it moves to the week holding the day it was reading,
+  keeping the mode and school filters. A link followed onto the page now keeps the reader's date too
+  - arriving with a day in the URL opens the week or month holding that day rather than the current
+    one. Its table gained the horizontal-scroll wrapper every other table on the site has, so a long
+    day label scrolls the table rather than the page.
+
+## [1.55.14] - 2026-09-23
+
+### Fixed
+
+- The day and period steppers and the board pager - icon-only chips the whole archive is read
+  through - are now 44px targets instead of 42x26. Every filter chip row marks its active chip with
+  aria-current, so a screen reader can tell which mode, direction, part of day or sort is in force.
+  The 4am-to-4am service day is stated in the footer, where it was previously explained only in a
+  tooltip no phone can reach. The route page's Stops section keeps its heading in the outline when
+  it has data, its table and the route week table name their columns to assistive tech, and the
+  vehicles rank row stops announcing its own label twice.
+
+## [1.55.13] - 2026-09-23
+
+### Fixed
+
+- A flame badge's tooltip is now removed from the layout while it is hidden rather than merely made
+  transparent, so a label longer than the badge's room cannot give a shame board a horizontal
+  scrollbar that nothing on screen explains; shown, it wraps inside a bounded box instead of running
+  off the side.
+
+## [1.55.12] - 2026-09-23
+
+### Fixed
+
+- The trip board states what the active sort actually ranks on, so "Most off" and "Latest" stop
+  looking like the same question asked twice - a run 9m early tops one and sits at the far end of
+  the other. Runs on an identical average now break their tie on departure time and then trip id, in
+  the query as well as on the page: the query takes only the first 50, so an unbroken tie decided
+  which runs appeared at all.
+
+## [1.55.11] - 2026-09-23
+
+### Fixed
+
+- A figure and its colour now agree: an off-schedule average is banded on the rounded value it
+  prints, so two rows both reading "5m late" cannot be one green and one red; the worst-stop card
+  and the worst-stops board word their average and take its tone from its direction instead of
+  painting a directionless magnitude red, and that card names the hour its figures are from, as the
+  worst-route card beside it already did; the hottest flame badge leaves the blue that means on time
+  everywhere else.
+
+## [1.55.10] - 2026-09-23
+
+### Fixed
+
+- The highlighted Day/Week chip and the highlighted window tab are no longer links, so clicking the
+  view you are already on cannot reset the board's sort and page; the day and period steppers and
+  the vehicles rank chips hold the scroll position, as the mode chips beside them already did.
+
+## [1.55.9] - 2026-09-23
+
+### Fixed
+
+- A link now carries exactly the view it was clicked from: a trip opened from a part-of-day board
+  returns to that board rather than the whole day, a vehicle's day link keeps the list state behind
+  it, a card naming today stops paying a redirect for a param that is about to be stripped, /shame
+  passes on only the params its boards read, and /rankings?window=day round-trips instead of landing
+  on the week.
+
+## [1.55.8] - 2026-09-23
+
+### Fixed
+
+- Empty states now say whether a figure is absent or unknown: a zero-arrival day on Day by day names
+  the cancellations that explain it, an empty rank board names the arrivals bar a route had to
+  clear, the routes hero says its dashes are blank rather than zero, a stage filter that empties the
+  cancellation list offers a way back out, and the 404 no longer insists a mistyped page was a route
+  or stop.
+
+## [1.55.7] - 2026-09-23
+
+### Fixed
+
+- A route or stop day with no arrivals now says so under its KPI strip, and the on-time popover says
+  there is no split to show instead of drawing an empty bar at 0%.
+
+## [1.55.6] - 2026-09-23
+
+### Fixed
+
+- An open day's cancellation penalty was charged against arrivals the day had not reached yet, so a
+  trip cancelled for the evening dragged this morning's on-time share down and the figure recovered
+  through the day for no real reason. A cancellation is now counted only once its scheduled
+  departure has passed, from the same clip point the arrivals use. The route stats resolve their
+  window once instead of the arrivals falling back to a rolling 168 hours while the penalty covered
+  seven service days - which the public stats API returned as one figure.
+
+## [1.55.5] - 2026-09-23
+
+### Fixed
+
+- A part-of-day filter drops the cancellation penalty, and every stop figure never had it, but both
+  still carried the sentence saying cancelled trips were counted. Each punctuality figure now states
+  the basis it was actually computed on. A route day view with a direction or a part of the day
+  chosen says what the figures above it do and do not cover, as the week view already did, and the
+  per-stop table says why its arrivals add up to less than the strip above.
+
+## [1.55.4] - 2026-09-23
+
+### Fixed
+
+- Every page read that degrades when the database is unreachable now logs at error level under a
+  stable [DB-READ-FAILED] marker, so an outage can be alerted on instead of finishing as a
+  plain 200. A database failure on /live no longer tells the reader AT's feed was at fault. The
+  connection pool is bounded to 10 sockets per instance with a 10s wait, so a saturated pool fails
+  cleanly rather than hanging.
+
+## [1.55.3] - 2026-09-23
+
+### Fixed
+
+- Every surface that states the on-time window now says whose it is: "That window is this site's
+  choice, not AT's." Auckland Transport publishes the schedule, but the threshold a run is judged
+  against is the site's own, and stating it bare under an AT logo read as AT's own standard. The
+  route, stop and trip descriptions now name the schedule and the window separately.
+
+## [1.55.2] - 2026-09-23
+
+### Fixed
+
+- A route's "Avg delay" no longer reads "on time" beside an on-time percentage: it always names a
+  distance, such as "6s late", coloured by band. Applies on the routes explorer, a route's week
+  table and its per-stop table. The verdict sentence and the share card now list the arrival count
+  and the on-time share instead of joining them with "of", which claimed a relationship the two
+  figures do not have.
+
+## [1.55.1] - 2026-09-23
+
+### Fixed
+
+- The site is named AT Route Performance in the masthead, the footer and every tab title, replacing
+  three competing names. A trip's title now reads "NX1 trip, Wed 23 Sep" rather than a raw GTFS id,
+  and the masthead logo no longer announces itself as Auckland Transport.
+
+## [1.55.0] - 2026-09-23
+
+### Added
+
+- The site had no robots.txt and no sitemap, while every page renders against the database, so a
+  crawler following links could walk one route page multiplied by day, window, mode, direction, part
+  of day, sort and page - a distinct uncached render each time. robots.txt now shuts out the
+  query-string permutations, per-run trip pages and per-vehicle pages, and turns away the agents
+  that train models or index backlinks rather than send readers. Search engines are unaffected.
+  sitemap.xml lists the canonical set instead: the nine sections and one URL per current route, with
+  feed versions collapsed, 541 in total. A preview deployment disallows everything, so a throwaway
+  build cannot turn up in search beside the real site.
+
+## [1.54.9] - 2026-09-23
+
+### Fixed
+
+- The route directory computes its lineage trim outside its own hourly cache, because a successor
+  line starts carrying traffic within ten minutes of its first train. /api/routes then wrapped the
+  whole answer in an hour of shared caching, putting that staleness straight back. It now holds for
+  ten minutes, matching the trim. This matters at the CRL cutover, when four train lines retire at
+  once and a stale answer lists a retired line beside the one replacing it.
+
+## [1.54.8] - 2026-09-23
+
+### Changed
+
+- Route display names were cached under a key built from the exact set of route ids asked for, so a
+  board showing a different set per mode, sort, page and day almost never found a warm entry and
+  left a new one behind each time. The whole name table is a few hundred rows, so it is now held
+  under a single key.
+
+## [1.54.7] - 2026-09-23
+
+### Changed
+
+- Only a single live day's figures are keyed on the last ingest run, but every window was fetching
+  that run before it could read its cache - including the current week and month, which key on the
+  service date and discard it. That lookup is held per worker thread rather than in the shared
+  cache, so a cold instance paid an uncached database round trip in front of every page render.
+
+## [1.54.6] - 2026-09-23
+
+### Changed
+
+- Page views are now reported to Vercel Analytics, beside the Speed Insights already collected. Both
+  scripts are served from the deployment's own origin and load only on Vercel, so local builds and
+  the CI smoke are unaffected and the content security policy needs no exception.
+
+## [1.54.5] - 2026-09-23
+
+### Changed
+
+- Dependency update: Next 16.3.6 with its matching bundle-analyzer and eslint-config-next,
+  @vercel/speed-insights 2.0.0, @vercel/analytics 2.0.1, tsx 4.23.15 and typescript-eslint 8.70.1.
+
 ## [1.54.4] - 2026-09-23
 
 ### Fixed

@@ -1,15 +1,20 @@
 // src/components/WorstStopCard.tsx
 // Render a card for the window's worst-performing stop.
 
-import { formatDuration } from "@/lib/format";
-import type { WorstStop } from "@/types/dashboard";
+import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { dayLinkParam } from "@/lib/day-url";
+import { nzHourLabel, weekdayShort } from "@/lib/time";
+import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstStopCard}. */
 export interface WorstStopCardProps {
-  /** The stop the board crowns, or null when no stop was bad enough to crown. */
-  stop: WorstStop | null;
+  /**
+   * The stop the board crowns - an hour's worst on the day view, a day's worst
+   * on the week and month views - or null when no stop was bad enough to crown.
+   */
+  stop: ShameStop | ShameDayStop | null;
   /** Whether the board ranked any stop, which tells a clean window from an empty one. */
   ranked?: boolean;
   /**
@@ -27,8 +32,15 @@ export interface WorstStopCardProps {
  * Home card naming the stop the worst-stops board crowns, linking to its
  * detail page. Sits beside the worst-trip and worst-route cards, and reads
  * through the same three states they do, so the card grid never shows a hole.
+ *
+ * Every figure on it is **one hour's** (or one day's on the range views), not
+ * the period's, for the reason WorstRouteCard names its hour: the same
+ * stop's whole-period average is a click away and the two would otherwise look
+ * like they disagreed. The average is worded by {@link OffScheduleLine} rather
+ * than drawn red, because the sort key is a magnitude with no direction - a
+ * board of stops whose services all ran *early* was being painted as late.
  * @param props - Component props.
- * @param props.stop - The crowned stop (or null).
+ * @param props.stop - The crowned stop row (or null).
  * @param props.ranked - Whether the board ranked any stop.
  * @param props.when - The shown window as words for the clean-window copy ("today" by default).
  * @param props.day - Service day to pin on the link (optional).
@@ -64,7 +76,14 @@ export function WorstStopCard({
       </div>
     );
   }
-  const href = hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${day ? `?day=${day}` : ""}`;
+  // Week and month rows carry a service date and no hour; day rows are the
+  // other way round.
+  const bucket =
+    "date" in stop ? `on ${weekdayShort(stop.date)}` : `in the ${nzHourLabel(stop.hour)} hour`;
+  // Today's `?day` is dropped, as on the route card: the stop page redirects it.
+  const dayParam = dayLinkParam(day);
+  const href =
+    hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${dayParam ? `?day=${dayParam}` : ""}`;
   return (
     <Link
       href={href}
@@ -72,12 +91,14 @@ export function WorstStopCard({
     >
       <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst stop</p>
       <span className="text-2xl font-ultra tracking-zero text-at-ink">{stop.name}</span>
-      <p className="text-sm text-at-muted">
-        Arrivals ran{" "}
-        <span className="font-semibold text-at-late">{formatDuration(stop.avg_abs_delay_sec)}</span>{" "}
-        off schedule on average
+      <OffScheduleLine
+        signedSec={stop.avg_delay_sec}
+        absSec={stop.avg_abs_delay_sec}
+        mode={stop.mode}
+      />
+      <p className="text-xs text-at-muted tabular-nums">
+        {stop.events} arrivals {bucket}
       </p>
-      <p className="text-xs text-at-muted tabular-nums">{stop.events} arrivals</p>
     </Link>
   );
 }

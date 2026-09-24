@@ -23,10 +23,11 @@ import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
 import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
-import { cn } from "@/lib/cn";
+import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
   findSuccessorRouteSlug,
+  getBusiestRouteSlugs,
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
@@ -40,7 +41,8 @@ import {
   type TripSort,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
-import { formatDelay, formatDuration } from "@/lib/format";
+import { readFallback } from "@/lib/db";
+import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -76,6 +78,65 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
+/**
+ * How many route pages are prerendered at build.
+ *
+ * Every route not listed still works; its prefetch is answered by a fresh
+ * render instead of the CDN, which is what every route did before this existed.
+ * So the number is a spend, not a limit: each one is build time and stored
+ * output, and the return falls away past the routes boards actually link to.
+ */
+const PRERENDERED_ROUTES = 50;
+
+/**
+ * Routes prerendered when the database cannot be read at build.
+ *
+ * A build has to produce at least one param or Next fails the route with
+ * `empty-generate-static-params`, and CI builds with no `DATABASE_URL` at all -
+ * the property that lets a deploy proceed while the NAS is unreachable. These
+ * are the busiest slugs at the time of writing, all of them long-lived lines
+ * (the Link services, the Northern Express, the top frequent routes), so a
+ * stale list still names routes that exist.
+ */
+const FALLBACK_ROUTES = [
+  "70",
+  "INN",
+  "OUT",
+  "E-W",
+  "33",
+  "75",
+  "18",
+  "S-C",
+  "65",
+  "NX1",
+  "NX2",
+  "CTY",
+];
+
+/**
+ * The route pages to prerender, busiest first.
+ *
+ * Prefetches were 93% of production traffic and `/route/[id]` was the single
+ * biggest path in it. A prefetch of a route that was not prerendered has to be
+ * rendered on demand, because the answer belongs to one id and nothing generic
+ * is on hand to serve; a prerendered one is a CDN hit that never reaches the
+ * database. The shells are identical and hold no route data - the prerender
+ * stops at this segment's loading skeleton - so what listing an id buys is a
+ * cache entry under its path, not any of its figures.
+ * @returns Params for the busiest routes, or the fallback list if unreadable.
+ */
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  const slugs = await getBusiestRouteSlugs(PRERENDERED_ROUTES).catch(
+    readFallback("busiest-route-slugs", [] as string[]),
+  );
+  return (slugs.length > 0 ? slugs : FALLBACK_ROUTES).map((id) => ({ id }));
+}
 
 /** Trips shown per page on the "of the day" board. */
 const PAGE_SIZE = 10;
@@ -156,7 +217,7 @@ function RouteWeekNav({
           href={prevHref}
           prefetch
           aria-label="Previous week"
-          className="chip chip-off flex items-center"
+          className="chip chip-icon chip-off"
         >
           <StepPending>
             <ChevronLeft className="block h-4 w-4" />
@@ -165,12 +226,7 @@ function RouteWeekNav({
       ) : null}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
-        <Link
-          href={nextHref}
-          prefetch
-          aria-label="Next week"
-          className="chip chip-off flex items-center"
-        >
+        <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
           <StepPending>
             <ChevronRight className="block h-4 w-4" />
           </StepPending>
@@ -184,6 +240,11 @@ function RouteWeekNav({
  * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
  * side keeps the direction and stays on the period being looked at: a past day's
  * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
+ *
+ * The active side is a `<span>`, not a link, as the nav tabs and the shame
+ * header are: its query is built for a fresh view and leaves out the trip
+ * board's sort and page, so clicking the chip already highlighted threw away
+ * where the reader was on the board and gave nothing back.
  * @param props - Component props.
  * @param props.slug - Route slug (for hrefs).
  * @param props.isWeekView - Whether the week segment is active.
@@ -205,18 +266,28 @@ function ViewToggle({
   const base = `/route/${encodeURIComponent(slug)}`;
   return (
     <div className="flex items-center gap-1">
-      <Link
-        href={buildHref(base, dayQuery)}
-        className={cn("chip", isWeekView ? "chip-off" : "chip-on")}
-      >
-        Day
-      </Link>
-      <Link
-        href={buildHref(base, { window: "week", ...weekQuery })}
-        className={cn("chip", isWeekView ? "chip-on" : "chip-off")}
-      >
-        Week
-      </Link>
+      {isWeekView ? (
+        <Link href={buildHref(base, dayQuery)} scroll={false} className="chip chip-off">
+          Day
+        </Link>
+      ) : (
+        <span aria-current="page" className="chip chip-on">
+          Day
+        </span>
+      )}
+      {isWeekView ? (
+        <span aria-current="page" className="chip chip-on">
+          Week
+        </span>
+      ) : (
+        <Link
+          href={buildHref(base, { window: "week", ...weekQuery })}
+          scroll={false}
+          className="chip chip-off"
+        >
+          Week
+        </Link>
+      )}
     </div>
   );
 }
@@ -242,13 +313,13 @@ export async function generateMetadata({
   const slug = routeSlug(id);
   const card = parseRouteCard(id, (await searchParams) ?? {});
   const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
-    () => null,
+    readFallback("route-stats", null),
   );
   const route = stats?.route;
   const name = route ? lineName(route.mode, route.shortName) : null;
   const label = route?.shortName ?? slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
-  const description = `On-time performance for ${name ?? label} against Auckland Transport's published schedule.`;
+  const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
   return {
     title,
     description,
@@ -341,6 +412,11 @@ export default async function RoutePage({
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
+    // getRouteStats drops the penalty for a part-of-day view, because it is
+    // counted per service day and cannot be narrowed to a few hours. The
+    // footnote has to follow it, or choosing "Morning peak" lifts the on-time
+    // share while the explainer still says cancellations are counted.
+    cancellations: hours ? "excluded" : "counted",
   };
 
   // Week view period: an explicit ?period snaps to that week's seven service
@@ -503,6 +579,8 @@ export default async function RoutePage({
     avg_delay_sec: weekSummary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: weekSummary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
+    // getRouteDailyStats applies the penalty to each day before they are merged.
+    cancellations: "counted",
   };
 
   // The chips set `dir` themselves, so everything else about the view carries.
@@ -719,7 +797,7 @@ export default async function RoutePage({
                 label="Avg off by"
                 value={
                   weekSummary?.avg_abs_delay_sec == null
-                    ? "—"
+                    ? UNKNOWN_VALUE
                     : formatDuration(weekSummary.avg_abs_delay_sec)
                 }
                 breakdown={weekPunctuality}
@@ -728,17 +806,23 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On-time (%)"
-                value={weekSummary?.on_time_pct?.toFixed(1) ?? "—"}
+                value={weekSummary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={weekPunctuality}
               />
             </div>
           </section>
 
-          {/* The week figures come from per-route daily summaries, which do not
-              split by direction, so say so rather than imply they are filtered. */}
-          {activeDir != null && (
+          {/* The week figures come from per-route daily summaries, which split by
+              neither direction nor part of day, so say so rather than imply they
+              are filtered. The part-of-day chips render in both views, so here
+              the highlighted chip changes no figure on the page at all - which
+              is worth a reader's attention more than the direction caveat is. */}
+          {(activeDir != null || hours != null) && (
             <p className="text-xs text-at-muted">
-              The week&apos;s figures cover both directions; the map and diagram pick out this one.
+              {activeDir != null &&
+                "The week's figures cover both directions; the map and diagram pick out this one. "}
+              {hours != null &&
+                "They cover the whole of each day as well: a part of the day narrows the day view, not the week."}
             </p>
           )}
 
@@ -792,7 +876,7 @@ export default async function RoutePage({
                 label="Avg off by"
                 value={
                   summary?.avg_abs_delay_sec == null
-                    ? "—"
+                    ? UNKNOWN_VALUE
                     : formatDuration(summary.avg_abs_delay_sec)
                 }
                 breakdown={punctuality}
@@ -801,11 +885,37 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On-time (%)"
-                value={summary?.on_time_pct?.toFixed(1) ?? "—"}
+                value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={punctuality}
               />
             </div>
+            {/* Same reasoning as the stop page's strip: a 0 and three dashes are
+                one absence told two ways. Named here so a quiet day, a day the
+                filters emptied and a day with no data read differently. */}
+            {summary === null && (
+              <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
+                No arrivals were recorded for this route
+                {hours != null ? " in this part of the day" : " on this day"}, so there is nothing
+                to average.
+              </p>
+            )}
           </section>
+
+          {/* What the chips above do not reach. Both figures come from one
+              getRouteStats call, which takes no direction at all and drops the
+              cancellation penalty as soon as hours narrow the window - so
+              "Trips" and the runs below describe one direction while "Arrivals"
+              and "On-time" describe both, and a peak can read better than the
+              day did without anything having improved. The week view has said
+              its half of this since it shipped; the day view said neither. */}
+          {(activeDir != null || hours != null) && (
+            <p className="text-xs text-at-muted">
+              {activeDir != null &&
+                "Arrivals, Avg off by and On-time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
+              {hours != null &&
+                "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
+            </p>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <WorstTripsBoard
@@ -862,14 +972,25 @@ export default async function RoutePage({
             </section>
           ) : (
             <details className="border border-at-border bg-at-surface">
-              <summary className="cursor-pointer px-4 py-3 font-semibold">Stops</summary>
+              {/* The heading goes inside the summary, which `summary` allows: as
+                  bare text it was the one section on the page with no heading in
+                  the outline, and only in the state that has something to say. */}
+              <summary className="cursor-pointer px-4 py-3">
+                <h2 className="inline font-semibold">Stops</h2>
+              </summary>
               <div className="overflow-x-auto px-4 pb-4">
                 <table className="min-w-full text-sm">
                   <thead className="bg-at-bg text-at-muted">
                     <tr>
-                      <th className="px-3 py-2 text-left">Stop</th>
-                      <th className="px-3 py-2 text-right">Arrivals</th>
-                      <th className="px-3 py-2 text-right">Avg delay</th>
+                      <th scope="col" className="px-3 py-2 text-left">
+                        Stop
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Arrivals
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Avg delay
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -888,14 +1009,23 @@ export default async function RoutePage({
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {s.avg_delay_sec == null
-                            ? "—"
-                            : formatDelay(s.avg_delay_sec, { mode: routeMode })}
+                          {offScheduleValue(s.avg_delay_sec, null, routeMode).text}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {/* These rows and the strip above them are computed over
+                    different populations: applyPenalty adds a visit per missed
+                    stop to the strip's Arrivals, and no per-stop row takes a
+                    share of it, so the column genuinely does not add up to the
+                    figure above. Only worth saying when a penalty was applied. */}
+                {punctuality.cancellations === "counted" && (
+                  <p className="mt-2 text-xs text-at-muted">
+                    Stop rows count measured arrivals only, so on a day with cancellations they add
+                    up to less than Arrivals above, which counts each missed stop as a rider wait.
+                  </p>
+                )}
               </div>
             </details>
           )}

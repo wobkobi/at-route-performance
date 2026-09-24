@@ -32,6 +32,7 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
+  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import {
@@ -54,10 +55,17 @@ import {
   type ShameSearchParams,
 } from "@/lib/shame-page";
 import { weekdayShort, type DateRange } from "@/lib/time";
+import { hourRangeParam, HOURS_PARAM, singleHourRange } from "@/lib/time-of-day";
+import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
 
 /**
  * Title and shared-link card, built from the query alone so the metadata
@@ -227,9 +235,12 @@ async function RouteDayBoard({
     const isWorst = worstKey === `${r.hour}-${r.route_id}`;
     const name = r.short_name || r.long_name || routeSlug(r.route_id);
     const slug = routeSlug(r.route_id);
-    const href = linkDay
-      ? `/route/${encodeURIComponent(slug)}?day=${linkDay}`
-      : `/route/${encodeURIComponent(slug)}`;
+    // The row is one hour's, so the route page opens on that hour: its whole-day
+    // figures are a different number under the same route name.
+    const href = buildHref(`/route/${encodeURIComponent(slug)}`, {
+      day: linkDay,
+      [HOURS_PARAM]: hourRangeParam(singleHourRange(r.hour)),
+    });
     const hourCount = routeHourCounts.get(r.route_id) ?? 0;
     const streakInfo = routeStreakMap.get(r.route_id);
     const streakDays = streakInfo?.count ?? 1;
@@ -411,7 +422,9 @@ export default async function RoutesShamePage({
           nav: { day: linkDay },
         }}
       />
-      <Suspense fallback={<ShameBoardSkeleton layout="day" />}>
+      <Suspense
+        fallback={<ShameBoardSkeleton layout="day" rows={startedServiceHourCount(serviceDate)} />}
+      >
         <RouteDayBoard
           range={range}
           serviceDate={serviceDate}

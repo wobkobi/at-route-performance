@@ -1,7 +1,7 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
 import { MS_IN_DAY } from "@/lib/data/cache";
-import { prisma } from "@/lib/db";
+import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import {
   allSuccessorSlugs,
@@ -227,15 +227,78 @@ export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "
  */
 export async function getRouteNames(routeIds: string[]): Promise<Record<string, string>> {
   if (routeIds.length === 0) return {};
+  const all = await allRouteNames();
+  const out: Record<string, string> = {};
+  for (const id of routeIds) {
+    const name = all[id];
+    if (name !== undefined) out[id] = name;
+  }
+  return out;
+}
+
+/**
+ * Every route's display name by id, under a single cache key.
+ *
+ * Caching the requested subset instead keyed on the set of ids asked for, so a
+ * board showing a different set of routes per mode, sort, page and day almost
+ * never met a warm entry and minted a new one each time - an unbounded number of
+ * entries for a table that is only a few hundred rows whole. One key holds for a
+ * day, as {@link getRouteModeMap} does over the same collection.
+ * @returns Map from route id to its short name, falling back to the id.
+ */
+async function allRouteNames(): Promise<Record<string, string>> {
   return unstable_cache(
     async () => {
-      const rows = await prisma.route.findMany({
-        where: { id: { in: routeIds } },
-        select: { id: true, shortName: true },
-      });
+      const rows = await prisma.route.findMany({ select: { id: true, shortName: true } });
       return Object.fromEntries(rows.map((r) => [r.id, r.shortName ?? r.id]));
     },
-    ["route-names", ...[...routeIds].sort()],
+    ["route-names-all"],
+    { revalidate: 86400 },
+  )();
+}
+
+/**
+ * The slugs of the routes with the most arrivals over the last week, busiest
+ * first. Read from `DailyRouteSummary`, which is already aggregated per route
+ * per day, so this never scans `ArrivalEvent`.
+ *
+ * Used to pick which route pages are prerendered at build. Arrivals are the
+ * right ranking for that: a route needs `MIN_BOARD_EVENTS` before any board
+ * will list it, so the busiest routes are the ones the boards link to and
+ * therefore the ones a reader's browser prefetches.
+ *
+ * Slugs rather than ids, because that is what a route URL carries - and two
+ * feed versions of one route share a slug, so the list is deduplicated after
+ * stripping and can come back shorter than `limit`.
+ * @param limit - How many slugs to return.
+ * @returns Version-stripped slugs, busiest first.
+ */
+export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
+  return unstable_cache(
+    async () => {
+      const since = new Date(Date.now() - 7 * MS_IN_DAY);
+      const result = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "DailyRouteSummary",
+          pipeline: [
+            { $match: { date: { $gte: { $date: since.toISOString() } } } },
+            { $group: { _id: "$routeId", events: { $sum: "$events" } } },
+            { $sort: { events: -1 } },
+            // Room for the slug fold below to collapse republished versions.
+            { $limit: limit * 2 },
+          ] as never,
+          cursor: { batchSize: 1000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      const slugs: string[] = [];
+      for (const row of result.cursor.firstBatch) {
+        const slug = routeSlug(row._id);
+        if (!slugs.includes(slug)) slugs.push(slug);
+        if (slugs.length === limit) break;
+      }
+      return slugs;
+    },
+    ["busiest-route-slugs", String(limit)],
     { revalidate: 86400 },
   )();
 }

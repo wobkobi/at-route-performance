@@ -84,6 +84,17 @@ export function hourRangeParam(range: HourRange | null): string | undefined {
 }
 
 /**
+ * One hour as a range, so a card or a row that names an hour can open a page on
+ * it. Hour 23 gives `23-0`, which wraps and is still one stretch of the same
+ * service day.
+ * @param hour - Auckland clock hour, 0-23.
+ * @returns The range covering that hour alone.
+ */
+export function singleHourRange(hour: number): HourRange {
+  return { from: hour, to: (hour + 1) % 24 };
+}
+
+/**
  * Whether an hour falls in a range, wrapping included.
  * @param hour - Auckland clock hour, 0-23.
  * @param range - The range.
@@ -124,13 +135,15 @@ export function activePreset(range: HourRange | null): TimePreset | null {
 
 /**
  * A range in words, for a chip or a heading. A preset gives its own name; any
- * other range is written as its clock hours.
+ * other range is written as its clock hours, and a single hour is named the way
+ * the shame boards name one, so a link from a board and the page it opens agree.
  * @param range - The range, or null for all day.
- * @returns The label, e.g. "Morning peak", "10pm to 2am" or "All day".
+ * @returns The label, e.g. "Morning peak", "2pm hour", "10pm to 2am" or "All day".
  */
 export function hourRangeLabel(range: HourRange | null): string {
   if (!range) return "All day";
   const preset = activePreset(range);
   if (preset) return preset.label;
+  if ((range.from + 1) % 24 === range.to) return `${nzHourLabel(range.from)} hour`;
   return `${nzHourLabel(range.from)} to ${nzHourLabel(range.to)}`;
 }

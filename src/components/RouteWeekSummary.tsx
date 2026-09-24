@@ -1,6 +1,6 @@
 // src/components/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
-import { formatDelay } from "@/lib/format";
+import { offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import type { RouteDay } from "@/types/api";
 import type { JSX } from "react";
 
@@ -56,10 +56,18 @@ export function RouteWeekSummary({
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-at-bg text-left text-xs tracking-zero text-at-muted uppercase">
-              <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2 text-right">Arrivals</th>
-              <th className="px-4 py-2 text-right">Avg delay</th>
-              <th className="px-4 py-2 text-right">On time</th>
+              <th scope="col" className="px-4 py-2">
+                Date
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Arrivals
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Avg delay
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                On time
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -68,10 +76,10 @@ export function RouteWeekSummary({
                 <td className="px-4 py-2 text-at-muted tabular-nums">{shortDate(day.date)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{day.events}</td>
                 <td className="px-4 py-2 text-right tabular-nums">
-                  {day.avg_delay_sec == null ? "—" : formatDelay(day.avg_delay_sec, { mode })}
+                  {offScheduleValue(day.avg_delay_sec, null, mode).text}
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
-                  {day.on_time_pct == null ? "—" : `${day.on_time_pct.toFixed(1)}%`}
+                  {day.on_time_pct == null ? UNKNOWN_VALUE : `${day.on_time_pct.toFixed(1)}%`}
                 </td>
               </tr>
             ))}

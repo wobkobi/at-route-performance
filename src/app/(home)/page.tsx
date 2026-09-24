@@ -92,6 +92,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
+
 // Late bound for the on-time window + cache-key versioning; early side is per-mode.
 const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 /** Routes each board shows; the full ranking is on the Routes page. */
@@ -484,6 +489,7 @@ export default async function Home({
             cancelled={cancelledByRoute}
             routeQuery={routeLinkQuery("day", linkDay, null)}
             total={offSchedule.length}
+            minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
               ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
@@ -497,6 +503,7 @@ export default async function Home({
             caption={ON_TIME_SHARE_CAPTION}
             routeQuery={routeLinkQuery("day", linkDay, null)}
             total={boards.reliable.length}
+            minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
               ...viewQuery("reliable", { mode, school: includeSchool }),

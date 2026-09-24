@@ -1,8 +1,8 @@
 // src/app/cancellations/loading.tsx
 // Loading skeleton for the Cancellations page.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import {
+  Bone,
   CancelledBoardSkeleton,
   ChipBone,
   DayNavSkeleton,

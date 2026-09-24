@@ -41,12 +41,17 @@ export interface WorstTripsParams {
 /** Ordering for {@link getWorstTripsOfDay}. */
 export type TripSort = "off" | "late" | "early" | "departure";
 
-/** Mongo `$sort` stage for each trip ordering. */
+/**
+ * Mongo `$sort` stage for each trip ordering. Every one carries the same
+ * tie-break, because a `$limit` follows: without a total order, two runs on the
+ * same average do not merely swap places between requests, they decide which of
+ * them is on the board at all. `_id` is the trip id, so the break is stable.
+ */
 const TRIP_SORTS: Record<TripSort, Record<string, 1 | -1>> = {
-  off: { avg_abs_delay_sec: -1 },
-  late: { avg_delay_sec: -1 },
-  early: { avg_delay_sec: 1 },
-  departure: { scheduled_start: 1 },
+  off: { avg_abs_delay_sec: -1, scheduled_start: 1, _id: 1 },
+  late: { avg_delay_sec: -1, scheduled_start: 1, _id: 1 },
+  early: { avg_delay_sec: 1, scheduled_start: 1, _id: 1 },
+  departure: { scheduled_start: 1, _id: 1 },
 };
 
 /** Raw worst-trips row before the `scheduled_start` date is normalised. */

@@ -6,6 +6,7 @@
 // figures are the rows of a list on the same 32px pitch, so CSS wraps or cuts a name to fit and
 // the figure columns size to their widest figure.
 
+import { ChipToggle } from "@/components/Chip";
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import {
@@ -287,24 +288,13 @@ export function RouteStrip({
       {chips.length > 1 && (
         <div role="group" aria-label="Version" className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-at-muted">Version</span>
-          <button
-            type="button"
-            aria-pressed={version == null}
-            onClick={() => setVersion(null)}
-            className={cn("chip", version == null ? "chip-on" : "chip-off")}
-          >
+          <ChipToggle on={version == null} onClick={() => setVersion(null)}>
             {chips.length === 2 ? "Both" : "All"}
-          </button>
+          </ChipToggle>
           {chips.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              aria-pressed={version === v.key}
-              onClick={() => setVersion(v.key)}
-              className={cn("chip", version === v.key ? "chip-on" : "chip-off")}
-            >
+            <ChipToggle key={v.key} on={version === v.key} onClick={() => setVersion(v.key)}>
               {v.from} to {v.to}
-            </button>
+            </ChipToggle>
           ))}
         </div>
       )}

@@ -310,6 +310,8 @@ export async function PeriodBoards({
 }): Promise<JSX.Element> {
   const { window, mode, dir, includeSchool, period } = view;
   const b = await batch.core;
+  // The same bar loadPeriodCore ranked by, so an empty board can name it.
+  const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   return (
     <>
       {b.noModeData && mode && (
@@ -330,6 +332,7 @@ export async function PeriodBoards({
           deltas={b.offScheduleDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
           total={b.offSchedule.length}
+          minEvents={boardMin}
           seeAllHref={buildHref("/routes", {
             window,
             period,
@@ -345,6 +348,7 @@ export async function PeriodBoards({
           deltas={b.reliableDeltas}
           routeQuery={routeLinkQuery(window, null, period)}
           total={b.reliable.length}
+          minEvents={boardMin}
           seeAllHref={buildHref("/routes", {
             window,
             period,

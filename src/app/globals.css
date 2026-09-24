@@ -119,6 +119,15 @@
 .chip-off {
   @apply border border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore;
 }
+/*
+  Icon-only chips: the day and period steppers and the board pager hold a bare
+  chevron, so `.chip`'s text padding left a 42x26 target on the controls the
+  whole archive is read through - a third of a fingertip. Squared up to 44px,
+  which grows those rows once rather than every chip on the site.
+*/
+.chip-icon {
+  @apply min-h-11 min-w-11 justify-center;
+}
 
 /*
   Stepper chevron while its click waits on the server (StepPending). The pulse

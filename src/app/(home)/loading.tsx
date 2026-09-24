@@ -2,6 +2,7 @@
 // Loading skeleton for the home page.
 
 import {
+  Bone,
   ChipBone,
   DayNavSkeleton,
   FeatureCardRowSkeleton,
@@ -12,7 +13,6 @@ import {
   TitleBone,
   VehicleCardsSkeleton,
 } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
 import type { JSX } from "react";
 
 /**

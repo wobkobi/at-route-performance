@@ -3,12 +3,16 @@
 // a table of the routes running, each with how its vehicles sit against the
 // on-time window. Read from AT's live feed, which the site caches for two minutes.
 
+import { ChipLink } from "@/components/Chip";
 import LiveMapWrapper from "@/components/LiveMapWrapper";
 import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleton";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
+import { SortHeader } from "@/components/SortHeader";
 import { cn } from "@/lib/cn";
+import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap } from "@/lib/data/routes";
+import { logReadFailure, readFallback } from "@/lib/db";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import {
@@ -24,6 +28,11 @@ import { getLiveVehicles } from "@/lib/vehicles";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
 
 export const metadata: Metadata = {
   title: "Live now",
@@ -109,19 +118,17 @@ export default async function LivePage({
           </h2>
           <nav aria-label="Order by" className="flex flex-wrap gap-2">
             {(Object.keys(SORT_LABEL) as LiveSort[]).map((s) => (
-              <Link
+              <ChipLink
                 key={s}
                 href={buildHref("/live", {
                   mode: mode ?? undefined,
                   sort: s === "running" ? undefined : s,
                   all: all ? "1" : undefined,
                 })}
-                aria-current={s === sort ? "true" : undefined}
-                scroll={false}
-                className={cn("chip", s === sort ? "chip-on" : "chip-off")}
+                active={s === sort}
               >
                 {SORT_LABEL[s]}
-              </Link>
+              </ChipLink>
             ))}
           </nav>
         </div>
@@ -132,16 +139,17 @@ export default async function LivePage({
 
       <p className="text-xs text-at-muted">
         Each vehicle is placed on the same on-time window as the rest of the site, from the delay
-        AT&apos;s trip feed gives for its next stop. Vehicles between runs are left out, and one
-        with no delay in the feed counts as running but in no band.
+        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between runs are
+        left out, and one with no delay in the feed counts as running but in no band.
       </p>
     </main>
   );
 }
 
 /**
- * The feed folded into route rows for one mode. Throws when AT's feed is down,
- * so each caller can say so in its own place.
+ * The feed folded into route rows for one mode. Throws when either source is
+ * down - AT's feed or the database behind the mode map - so each caller can say
+ * so in its own place.
  * @param mode - The mode filter.
  * @param sort - The table's order.
  * @returns The rows.
@@ -172,10 +180,15 @@ async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Ele
   let rows: LiveRouteRow[];
   try {
     rows = await loadRows(mode, "running");
-  } catch {
+  } catch (err) {
+    // loadRows reads the route mode map from the database as well as AT's feed,
+    // so this catches an outage of either. Naming AT would blame a third party
+    // for what may be this site's own database, and the log is what makes the
+    // database case visible at all - the reader still gets the page.
+    logReadFailure("live-figures", err);
     return (
       <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        AT&apos;s live feed could not be read just now. Try again in a couple of minutes.
+        The live figures could not be read just now. Try again in a couple of minutes.
       </div>
     );
   }
@@ -244,16 +257,18 @@ async function LiveTable({
   try {
     const [r, directory] = await Promise.all([
       loadRows(mode, sort),
-      getDirectoryRoutes().catch(() => []),
+      getDirectoryRoutes().catch(readFallback("directory-routes", [])),
     ]);
     rows = r;
     names = new Map(
       directory.map((d) => [routeSlug(d.id), lineName(d.mode, d.shortName) ?? d.longName ?? ""]),
     );
-  } catch {
+  } catch (err) {
+    // Same pair of sources as LiveFigures above, so the same reasoning applies.
+    logReadFailure("live-routes", err);
     return (
       <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        No live positions to list: AT&apos;s feed could not be read just now.
+        No live positions to list: they could not be read just now.
       </div>
     );
   }
@@ -274,11 +289,11 @@ async function LiveTable({
               <th scope="col" className="p-3 font-semibold">
                 Route
               </th>
-              <Num active={sort === "running"}>Running</Num>
-              <Num active={sort === "late"}>Late</Num>
-              <Num className="hidden sm:table-cell">On time</Num>
-              <Num className="hidden sm:table-cell">Early</Num>
-              <Num className="hidden md:table-cell">Avg delay</Num>
+              <SortHeader active={sort === "running"}>Running</SortHeader>
+              <SortHeader active={sort === "late"}>Late</SortHeader>
+              <SortHeader className="hidden sm:table-cell">On time</SortHeader>
+              <SortHeader className="hidden sm:table-cell">Early</SortHeader>
+              <SortHeader className="hidden md:table-cell">Avg delay</SortHeader>
             </tr>
           </thead>
           <tbody>
@@ -324,52 +339,18 @@ async function LiveTable({
           <p className="text-sm text-at-muted tabular-nums">
             Showing {shown.length} of {rows.length} routes
           </p>
-          <Link
+          <ChipLink
             href={buildHref("/live", {
               mode: mode ?? undefined,
               sort: sort === "running" ? undefined : sort,
               all: "1",
             })}
-            scroll={false}
-            className="chip chip-off"
           >
             Show all
-          </Link>
+          </ChipLink>
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * A right-aligned numeric column header, marked when the table is ordered by it.
- * @param props - Component props.
- * @param props.active - Whether the table is ordered by this column.
- * @param props.className - Responsive visibility classes.
- * @param props.children - The header text.
- * @returns The header cell.
- */
-function Num({
-  active = false,
-  className,
-  children,
-}: {
-  active?: boolean;
-  className?: string;
-  children: string;
-}): JSX.Element {
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? "descending" : undefined}
-      className={cn(
-        "p-3 text-right font-semibold whitespace-nowrap",
-        active && "text-at-ink",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }
 

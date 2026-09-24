@@ -3,7 +3,7 @@
 
 // From the leaf rather than time.ts, which imports this module.
 import { NZ_TZ } from "@/lib/nz-tz";
-import { isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
+import { delayBand, type DelayBand, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
 
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";
@@ -79,8 +79,12 @@ export function formatHours(sec: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-/** How an {@link offScheduleValue} reads at a glance: its colour band, or mixed. */
-export type OffScheduleTone = "ontime" | "early" | "late" | "mixed" | "unknown";
+/**
+ * How an {@link offScheduleValue} reads at a glance: the {@link DelayBand} a map
+ * pin would give it, plus the two states a single deviation cannot be in - a
+ * mixed average, and no figure at all.
+ */
+export type OffScheduleTone = DelayBand | "mixed" | "unknown";
 
 /** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
 export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
@@ -115,7 +119,10 @@ export function offScheduleValue(
   if (!isConsistentlyLateOrEarly(signed, abs)) {
     return { text: `${formatDuration(abs)} off`, tone: "mixed" };
   }
-  const tone = isOnTime(signed, mode) ? "ontime" : signed < 0 ? "early" : "late";
+  // Banded, not compared raw: `delayBand` rounds first, as the text does, so two
+  // rows both reading "5m late" (299.6s and 300.4s) get one colour - and the
+  // same colour the map pin and the vehicle page give that run.
+  const tone = delayBand(signed, mode);
   // A zero threshold names the distance even inside the window; only a run
   // that rounds to exactly 0s still reads "on time".
   return { text: formatDelay(signed, { thresholdSec: 0 }), tone };

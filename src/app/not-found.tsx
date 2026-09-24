@@ -3,24 +3,52 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { getDirectoryRoutes, type DirectoryRoute } from "@/lib/data";
+import { logReadFailure } from "@/lib/db";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import Link from "next/link";
 import type { JSX } from "react";
-import { FaChartBar, FaExclamationTriangle, FaHome, FaMapMarkerAlt, FaRoute } from "react-icons/fa";
+import {
+  FaBan,
+  FaBroadcastTower,
+  FaBus,
+  FaCalendarAlt,
+  FaChartBar,
+  FaExclamationTriangle,
+  FaHome,
+  FaMapMarkerAlt,
+  FaRoute,
+} from "react-icons/fa";
 
+/**
+ * Every page a reader can go to, in the order the top bar and the footer list
+ * them. This is the one page whose whole job is being a way out, so a section
+ * missing from it is a dead end: Live and Cancellations are top-bar sections, and
+ * Day by day and Vehicles have no tab of their own.
+ */
 const PAGES = [
   { href: "/", icon: FaHome, label: "Overview" },
+  { href: "/days", icon: FaCalendarAlt, label: "Day by day" },
   { href: "/routes", icon: FaChartBar, label: "Routes" },
+  { href: "/live", icon: FaBroadcastTower, label: "Live now" },
   { href: "/shame/trip", icon: FaExclamationTriangle, label: "Worst trips" },
   { href: "/shame/route", icon: FaRoute, label: "Worst routes" },
   { href: "/shame/stop", icon: FaMapMarkerAlt, label: "Worst stops" },
+  { href: "/cancellations", icon: FaBan, label: "Cancellations" },
+  { href: "/vehicles", icon: FaBus, label: "Vehicles" },
 ] as const;
+
+// Not yet converted to a prerendered shell: the route list is read above any
+// Suspense boundary, so this segment is allowed to block, as the thirteen real
+// pages are. Without it a build cannot prerender this page at all unless the
+// route read happens to answer, which is why CI - which builds with no
+// DATABASE_URL - could not build it.
+export const instant = false;
 
 /**
  * Global 404 page - rendered by Next.js when `notFound()` is called from any
  * route or stop page, or when a path matches no route segment. Loads the route
- * directory from Prisma; silently skips it when `DATABASE_URL` is unset (CI).
+ * directory from Prisma; renders without it when that read fails.
  * @returns 404 markup.
  */
 export default async function NotFound(): Promise<JSX.Element> {
@@ -28,8 +56,11 @@ export default async function NotFound(): Promise<JSX.Element> {
 
   try {
     rawRoutes = await getDirectoryRoutes();
-  } catch {
-    // DATABASE_URL not configured (CI builds, static export) - show page without route list.
+  } catch (err) {
+    // DATABASE_URL not configured (CI builds, static export) - show page without
+    // route list. Logged because the same catch takes an unreachable database,
+    // which is not an expected state and would otherwise pass unremarked.
+    logReadFailure("not-found-routes", err);
   }
 
   // Deduplicate by slug (same route across feed versions), keep first encountered.
@@ -59,7 +90,13 @@ export default async function NotFound(): Promise<JSX.Element> {
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-6xl font-ultra tracking-zero text-at-muted">404</p>
         <h1 className="text-2xl font-ultra tracking-zero text-at-ink">Page not found</h1>
-        <p className="text-sm text-at-muted">That route or stop doesn&apos;t exist.</p>
+        {/* This page answers an unmatched path as well as a notFound() from a
+            route or stop, and Next gives it no way to tell which, so it names
+            all three rather than asserting the one it cannot know. */}
+        <p className="text-sm text-at-muted">
+          That address doesn&apos;t match a page, a route or a stop. Everything the site has is
+          below.
+        </p>
       </div>
 
       {/* Page directory */}

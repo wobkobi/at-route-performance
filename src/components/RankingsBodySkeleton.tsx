@@ -2,8 +2,7 @@
 // Pulse-placeholder skeleton for the week or month home's rankings band body,
 // the Suspense fallback under the "Route rankings" heading while the batch streams.
 
-import { RankBoardSkeleton } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone, RankBoardSkeleton } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**
@@ -14,8 +13,11 @@ export function RankingsBodySkeleton(): JSX.Element {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
-        <RankBoardSkeleton colourKey />
-        <RankBoardSkeleton />
+        {/* Both boards rank against the period before, so their rows reserve the
+            movement badge - every period but the archive's first, which has none
+            to compare and draws the narrow rank column instead. */}
+        <RankBoardSkeleton colourKey deltas />
+        <RankBoardSkeleton deltas />
       </div>
 
       {/* Refresh note: one text-xs line */}

@@ -10,7 +10,6 @@
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
-import { cn } from "@/lib/cn";
 import { DATA_START_SHORT } from "@/lib/data-start";
 import type { RangeNav, RangeWindow } from "@/lib/range-page";
 import { buildHref } from "@/lib/utils";
@@ -65,22 +64,33 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
-        {TABS.filter((t) => !windows || windows.includes(t.key)).map((t) => (
-          <Link
-            key={t.key}
-            href={buildHref(basePath, {
-              ...carried,
-              window: t.key === "day" ? undefined : t.key,
-              // Each tab carries the date being read across, so switching
-              // window keeps the day/week/month instead of jumping to now.
-              day: t.key === "day" ? nav.tabs.day : undefined,
-              period: t.key === "day" ? undefined : nav.tabs[t.key],
-            })}
-            className={cn("chip", nav.window === t.key ? "chip-on" : "chip-off")}
-          >
-            {t.label}
-          </Link>
-        ))}
+        {TABS.filter((t) => !windows || windows.includes(t.key)).map((t) =>
+          // The active tab is a span, as the nav tabs are: its href resets the
+          // window's own params, so clicking the tab already highlighted moved
+          // the reader off the period they were reading and, on a list page,
+          // back to its first page.
+          nav.window === t.key ? (
+            <span key={t.key} aria-current="page" className="chip chip-on">
+              {t.label}
+            </span>
+          ) : (
+            <Link
+              key={t.key}
+              href={buildHref(basePath, {
+                ...carried,
+                window: t.key === "day" ? undefined : t.key,
+                // Each tab carries the date being read across, so switching
+                // window keeps the day/week/month instead of jumping to now.
+                day: t.key === "day" ? nav.tabs.day : undefined,
+                period: t.key === "day" ? undefined : nav.tabs[t.key],
+              })}
+              scroll={false}
+              className="chip chip-off"
+            >
+              {t.label}
+            </Link>
+          ),
+        )}
       </div>
       {nav.window === "day" ? (
         <DayNav
@@ -101,7 +111,8 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             <Link
               href={withCarried(nav.prevHref, carried)}
               prefetch
-              className="chip chip-off"
+              scroll={false}
+              className="chip chip-icon chip-off"
               aria-label={`Previous ${nav.window}`}
             >
               <StepPending>
@@ -117,7 +128,8 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             <Link
               href={withCarried(nav.nextHref, carried)}
               prefetch
-              className="chip chip-off"
+              scroll={false}
+              className="chip chip-icon chip-off"
               aria-label={`Next ${nav.window}`}
             >
               <StepPending>

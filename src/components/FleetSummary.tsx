@@ -12,8 +12,8 @@ import {
   type PunctualityBreakdown,
 } from "@/components/PunctualityStat";
 import { cn } from "@/lib/cn";
-import { formatDuration } from "@/lib/format";
-import { VERDICT_BANDS, dayVerdict, verdictIndex } from "@/lib/verdict";
+import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import { dayVerdict, VERDICT_BANDS, verdictIndex } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -97,7 +97,7 @@ function VerdictPanel({
           band?.toneClass ?? "text-at-muted",
         )}
       >
-        {band?.label ?? "—"}
+        {band?.label ?? UNKNOWN_VALUE}
       </p>
       <div
         role="img"
@@ -114,10 +114,19 @@ function VerdictPanel({
           />
         ))}
       </div>
+      {/* The count and the percentage have different denominators on purpose:
+          arrivals include readings the nightly ghost pass hid, and every rate
+          divides by the real ones (see aggregate.ts). "X% of N arrivals" welded
+          them into one claim neither number supports, so they are listed. */}
       <p className="text-sm text-at-muted">
         {data.on_time_pct === null
-          ? "Not enough data"
-          : `${data.on_time_pct.toFixed(1)}% of ${data.events.toLocaleString()} arrivals were on time` +
+          ? // Zero arrivals and too few measured ones both leave the share null,
+            // and the verdict reads the same blank either way. Which one it was
+            // is the difference between a quiet window and an unmeasurable one.
+            data.events === 0
+            ? "No arrivals were recorded, so there is no verdict to give."
+            : "Too few measured arrivals for a verdict."
+          : `${data.events.toLocaleString()} arrivals, ${data.on_time_pct.toFixed(1)}% of those measured on time` +
             (data.avg_abs_delay_sec === null
               ? ""
               : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
@@ -144,6 +153,9 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
     late_pct: data.late_pct,
     avg_delay_sec: data.avg_delay_sec,
     avg_abs_delay_sec: data.avg_abs_delay_sec,
+    // The rankings rows these totals come from have already been through
+    // applyRoutePenalties.
+    cancellations: "counted",
   };
 
   return (
@@ -165,7 +177,7 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
             size="sm"
             variant="split"
             label="On-time"
-            value={data.on_time_pct === null ? "—" : `${data.on_time_pct.toFixed(1)}%`}
+            value={data.on_time_pct === null ? UNKNOWN_VALUE : `${data.on_time_pct.toFixed(1)}%`}
             breakdown={breakdown}
           />
         )}
@@ -174,7 +186,9 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
           size="sm"
           variant="average"
           label="Avg off by"
-          value={data.avg_abs_delay_sec === null ? "—" : formatDuration(data.avg_abs_delay_sec)}
+          value={
+            data.avg_abs_delay_sec === null ? UNKNOWN_VALUE : formatDuration(data.avg_abs_delay_sec)
+          }
           breakdown={breakdown}
         />
         <div className="p-3">
@@ -183,7 +197,7 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
               note is part of the figure rather than a footnote to it. */}
           <div className={LABEL_CLASS}>Flagged cancelled</div>
           <div className={cn(VALUE_CLASS, data.cancelled ? "text-at-late" : undefined)}>
-            {data.cancelled === null ? "—" : data.cancelled.toLocaleString()}
+            {data.cancelled === null ? UNKNOWN_VALUE : data.cancelled.toLocaleString()}
           </div>
           <div className="text-xs text-at-muted">Reinstated trips included</div>
         </div>
@@ -192,6 +206,18 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
           <div className={VALUE_CLASS}>{data.route_count.toLocaleString()}</div>
         </div>
       </div>
+      {/* A route with cancellations but no arrivals still counts under Routes, so
+          the strip can read a real 0 beside four dashes - and a filter that
+          leaves only such routes makes that the whole strip. The dashes mean
+          there is nothing to measure, not that the measurement is missing.
+          Only without the verdict panel, whose own sentence says it already. */}
+      {!verdict && data.events === 0 && (
+        <p className="border-t border-at-border p-3 text-sm text-at-muted">
+          {data.route_count === 0
+            ? "No routes match, so there is nothing to summarise."
+            : "None of these routes recorded an arrival, so the punctuality figures are blank rather than zero."}
+        </p>
+      )}
     </div>
   );
 }

@@ -4,7 +4,8 @@
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
+import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
@@ -20,6 +21,8 @@ import { FaCaretDown, FaCaretUp } from "react-icons/fa";
  */
 function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Element | null {
   if (delta === undefined) return null;
+  // A literal dash rather than `UNKNOWN_VALUE`: this one means "held its place",
+  // which is a known result, not an absent figure.
   if (delta === 0)
     return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
   if (delta === null)
@@ -37,8 +40,8 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
   );
 }
 
-/** Plain-English on-time window, for the board captions. */
-export const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way)`;
+/** Plain-English on-time window, for the board captions, and whose window it is. */
+export const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way). ${ON_TIME_WINDOW_NOTE}`;
 
 /**
  * Caption for the reliable board, whose column is the on-time share itself.
@@ -105,6 +108,12 @@ export interface RankBoardProps {
   seeAllHref?: string;
   /** How many routes the full ranking holds, for the "See all" link. */
   total?: number;
+  /**
+   * The arrivals bar a route had to clear to be ranked here, named in the empty
+   * state. Omit for a board with no bar (a stop's routes), which then says the
+   * window recorded nothing rather than that something was not enough.
+   */
+  minEvents?: number;
 }
 
 /**
@@ -122,6 +131,7 @@ export interface RankBoardProps {
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.seeAllHref - Link to the full ranking (optional).
  * @param props.total - How many routes the full ranking holds (optional).
+ * @param props.minEvents - The arrivals bar a route had to clear to be ranked (optional).
  * @returns The board element.
  */
 export function RankBoard({
@@ -135,6 +145,7 @@ export function RankBoard({
   cancelled,
   seeAllHref,
   total,
+  minEvents,
 }: RankBoardProps): JSX.Element {
   return (
     <section className="border border-at-border bg-at-surface p-4">
@@ -162,14 +173,25 @@ export function RankBoard({
         {metric === "delay" && <DelayColourKey />}
       </div>
       {rows.length === 0 ? (
-        <p className="text-base text-at-muted">Not enough data yet.</p>
+        <p className="text-base text-at-muted">
+          {minEvents === undefined
+            ? "No arrivals were recorded in this window, so there is nothing to rank."
+            : `No route reached ${minEvents} arrivals in this window, so there is nothing to rank.`}
+        </p>
       ) : (
         <ol>
           {rows.map((r, i) => {
             // Ranked by abs deviation, so the value always names a distance and
             // the column reads in descending order.
             const off = offScheduleValue(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode);
-            const value = metric === "delay" ? off.text : `${r.on_time_pct?.toFixed(1) ?? "—"}%`;
+            // An unknown share is the placeholder alone: a percent sign welded to
+            // it read "—%", which looks like a measured figure that failed to print.
+            const value =
+              metric === "delay"
+                ? off.text
+                : r.on_time_pct === null
+                  ? UNKNOWN_VALUE
+                  : `${r.on_time_pct.toFixed(1)}%`;
             const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];

@@ -3,8 +3,11 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { dayLinkParam } from "@/lib/day-url";
 import { routeSlug } from "@/lib/route-slug";
 import { nzHourLabel, weekdayShort } from "@/lib/time";
+import { HOURS_PARAM, hourRangeParam, singleHourRange } from "@/lib/time-of-day";
+import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -35,7 +38,10 @@ export interface WorstRouteCardProps {
  * over per-hour `(route, hour)` rows, so the winner is a route at its worst
  * hour; the last line names that hour, because the same route's whole-day
  * average appears on the home boards and the two would otherwise look like they
- * disagreed. The eyebrow stays "Worst route", the name its board goes by.
+ * disagreed. The link carries that hour too, so the route page opens narrowed to
+ * it rather than on a whole-day figure that would answer the card's own sentence
+ * with a different number. The eyebrow stays "Worst route", the name its board
+ * goes by.
  * @param props - Component props.
  * @param props.route - The crowned route row (or null).
  * @param props.ranked - Whether the board ranked any route.
@@ -80,9 +86,17 @@ export function WorstRouteCard({
   const bucket = route.date
     ? `on ${weekdayShort(route.date)}`
     : `in the ${nzHourLabel(route.hour)} hour`;
+  // The day is dropped when it is today's, whose `?day` the route page
+  // redirects away: a card naming today would have cost its reader a 307. A day
+  // row's hour goes with it, since every figure above is that hour's and opening
+  // the whole day would answer the card's own sentence with a different number.
+  // A week row names a day instead, and its `hour` is a placeholder 0.
   const href =
     hrefProp ??
-    `/route/${encodeURIComponent(routeSlug(route.route_id))}${day ? `?day=${day}` : ""}`;
+    buildHref(`/route/${encodeURIComponent(routeSlug(route.route_id))}`, {
+      day: dayLinkParam(day),
+      [HOURS_PARAM]: route.date ? undefined : hourRangeParam(singleHourRange(route.hour)),
+    });
   return (
     <Link
       href={href}

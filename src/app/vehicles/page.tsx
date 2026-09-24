@@ -2,13 +2,14 @@
 // Hardest-worked vehicles: every bus, train and ferry ranked by how much it ran
 // over a day, week or month - time in service, runs and arrivals.
 
+import { ChipLink } from "@/components/Chip";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SortHeader } from "@/components/SortHeader";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
-import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -17,6 +18,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -40,6 +42,11 @@ import { getLiveVehicleMap } from "@/lib/vehicles";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
 
 export const metadata: Metadata = {
   title: "Hardest-worked vehicles",
@@ -133,7 +140,9 @@ export default async function VehiclesPage({
   const live = getLiveVehicleMap();
   const [names, fleet] = await Promise.all([
     getRouteNames([...new Set(rows.flatMap((v) => v.routes))]),
-    getFleet(rows.map((v) => v.vehicleId)).catch(() => new Map<string, FleetVehicle>()),
+    getFleet(rows.map((v) => v.vehicleId)).catch(
+      readFallback("fleet", new Map<string, FleetVehicle>()),
+    ),
   ]);
   const multiDay = window !== "day";
   const routeQuery = routeLinkQuery(window, dayParam, period);
@@ -178,21 +187,24 @@ export default async function VehiclesPage({
         />
       </div>
 
-      <nav aria-label="Rank by" className="flex flex-wrap items-center gap-2">
-        <span className="text-xs tracking-zero text-at-muted uppercase">Rank by</span>
+      {/* Named from the visible label rather than by an aria-label repeating it,
+          which had a screen reader announce "Rank by" twice over. */}
+      <nav aria-labelledby="rank-by" className="flex flex-wrap items-center gap-2">
+        <span id="rank-by" className="text-xs tracking-zero text-at-muted uppercase">
+          Rank by
+        </span>
         {(Object.keys(SORT_LABEL) as VehicleSort[]).map((s) => (
-          <Link
+          <ChipLink
             key={s}
             href={buildHref("/vehicles", {
               ...view,
               ...filters,
               sort: s === "hours" ? undefined : s,
             })}
-            aria-current={s === sort ? "true" : undefined}
-            className={cn("chip", s === sort ? "chip-on" : "chip-off")}
+            active={s === sort}
           >
             {SORT_LABEL[s]}
-          </Link>
+          </ChipLink>
         ))}
       </nav>
 
@@ -295,38 +307,6 @@ export default async function VehiclesPage({
         {showsTrains && ` ${TRAIN_COUNT_NOTE}`}
       </p>
     </main>
-  );
-}
-
-/**
- * A right-aligned numeric column header, marked when it is the ranking column.
- * @param root0 - Props.
- * @param root0.active - Whether the board is ranked by this column.
- * @param root0.className - Extra classes (responsive visibility).
- * @param root0.children - The header text.
- * @returns The header cell.
- */
-function SortHeader({
-  active = false,
-  className,
-  children,
-}: {
-  active?: boolean;
-  className?: string;
-  children: string;
-}): JSX.Element {
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? "descending" : undefined}
-      className={cn(
-        "p-3 text-right font-semibold whitespace-nowrap",
-        active && "text-at-ink",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }
 

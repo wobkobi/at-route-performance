@@ -34,6 +34,21 @@ const cspDev =
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  /**
+   * Partial prerendering for every route: each page ships a static shell (the
+   * masthead, the nav, the footer and its loading skeleton) and streams the
+   * figures in behind it. The shell carries no data, so it holds nothing that
+   * can go stale and a build needs no database to produce one.
+   *
+   * The reason it is on: a link prefetch of a prerendered route is deterministic,
+   * so it answers from the CDN with `s-maxage` instead of `no-store`. Prefetches
+   * were 93% of production requests, and each one was a full render against the
+   * database.
+   *
+   * It also makes Next hold a route you navigate away from in React `<Activity>`
+   * rather than unmounting it, so client state survives Back.
+   */
+  cacheComponents: true,
   // Drop the X-Powered-By: Next.js header so responses don't advertise the framework/version.
   poweredByHeader: false,
   output: "standalone",
@@ -120,10 +135,11 @@ const nextConfig: NextConfig = {
   },
 
   experimental: {
-    // Hold a visited page in the client for one ingest cycle, so stepping back to
-    // a day just seen needs no server round trip. Every page is dynamic, and the
-    // default of 0 refetched each one on every visit. A live page cannot sit on
-    // stale figures for long: the footer's refresh on a new run clears this cache.
+    // Hold a visited page's streamed figures in the client for one ingest cycle,
+    // so stepping back to a day just seen needs no server round trip. This covers
+    // the part that streams; a prerendered shell carries its own stale time. The
+    // default of 0 refetched every visit. A live page cannot sit on stale figures
+    // for long: the footer's refresh on a new run clears this cache.
     staleTimes: { dynamic: 120 },
   },
 } satisfies NextConfig;

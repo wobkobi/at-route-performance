@@ -2,8 +2,7 @@
 // Loading skeleton for a vehicle page, drawn for the day view of a vehicle on
 // a run.
 
-import { ChipBone, TitleBone } from "@/components/SkeletonParts";
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
+import { Bone, ChipBone, TitleBone } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**

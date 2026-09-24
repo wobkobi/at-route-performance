@@ -18,9 +18,14 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY } from "@/lib/data-start";
 import { daySlot, type DaySlot } from "@/lib/day-series";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { periodRangeNav, type RangeWindow } from "@/lib/range-page";
+import {
+  parseRangeWindow,
+  periodForCarriedDay,
+  periodRangeNav,
+  type RangeWindow,
+} from "@/lib/range-page";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -31,7 +36,13 @@ import {
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense, type JSX } from "react";
+
+// Not yet converted to a prerendered shell: this segment still reads its
+// search params and its data above any Suspense boundary, so it is allowed to
+// block. Removing this line is what converts the route.
+export const instant = false;
 
 export const metadata: Metadata = {
   title: "Day by day",
@@ -46,6 +57,7 @@ const WINDOWS: readonly RangeWindow[] = ["week", "month"];
 interface DaysSearchParams {
   window?: string;
   period?: string;
+  day?: string;
   mode?: string;
   school?: string;
 }
@@ -53,7 +65,7 @@ interface DaysSearchParams {
 /**
  * Day by day page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `period`) and filter (`mode`, `school`) params.
+ * @param root0.searchParams - Window (`window`, `period`, `day`) and filter (`mode`, `school`) params.
  * @returns Page markup.
  */
 export default async function DaysPage({
@@ -62,18 +74,43 @@ export default async function DaysPage({
   searchParams?: Promise<DaysSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const window = sp.window === "month" ? "month" : "week";
+  // An explicit window is read the way every range page reads it, so this page
+  // cannot disagree with the rest about what a value means; only an absent one
+  // takes the week default, as `/rankings` does. A bare `/days` stays bare rather
+  // than redirecting to `?window=week`: it is the URL the sitemap advertises, and
+  // robots.txt disallows every query string, so the redirect would send a crawler
+  // from the canonical page to one it may not fetch.
+  const requested = sp.window ? parseRangeWindow(sp.window) : "week";
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
+  // One day is one column here, so there is no day view to honour and a
+  // `?window=day` would render a week under a URL saying otherwise. It becomes the
+  // week holding the day it was reading, before any read runs. The segment's
+  // loading shell has already flushed by the time a page component runs, so Next
+  // lands this as a client navigation rather than a status code - the same way the
+  // home page drops a `?day=<today>`.
+  if (requested === "day") {
+    redirect(
+      buildHref("/days", {
+        window: "week",
+        period: periodForCarriedDay("week", sp.period, sp.day),
+        mode: mode ?? undefined,
+        school: includeSchool ? "1" : undefined,
+      }),
+    );
+  }
+  const window = requested;
   // Anchored on the latest day with data, as the home week and month are, so the
   // two name the same period.
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
   const { range, period, nav } = periodRangeNav(
     "/days",
     window,
-    sp.period,
+    // The nav and the footer carry the day being read, so the week or month shown
+    // is the one holding it rather than the current one.
+    periodForCarriedDay(window, sp.period, sp.day),
     latest ?? new Date(),
     earliest,
   );
@@ -177,7 +214,9 @@ async function DaysBody({
       mode: mode ?? undefined,
       school: includeSchool ? "1" : undefined,
     });
-  const past = slots.filter((s) => s.kind !== "future");
+  // Narrowed, not just filtered, so the table's rows can read an empty day's
+  // cancellation count without a second check for a variant it never holds.
+  const past = slots.filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future");
 
   return (
     <div className="space-y-4">
@@ -190,7 +229,7 @@ async function DaysBody({
         </p>
       </div>
 
-      <div className="border border-at-border bg-at-surface">
+      <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
@@ -228,16 +267,16 @@ async function DaysBody({
                 {s.kind === "day" ? (
                   <>
                     <td className={`p-3 font-semibold ${s.verdict?.toneClass ?? "text-at-muted"}`}>
-                      {s.verdict?.label ?? "-"}
+                      {s.verdict?.label ?? UNKNOWN_VALUE}
                     </td>
                     <td className="p-3 text-right tabular-nums">
                       {s.summary.on_time_pct === null
-                        ? "-"
+                        ? UNKNOWN_VALUE
                         : `${s.summary.on_time_pct.toFixed(1)}%`}
                     </td>
                     <td className="p-3 text-right tabular-nums">
                       {s.summary.avg_abs_delay_sec === null
-                        ? "-"
+                        ? UNKNOWN_VALUE
                         : formatDuration(s.summary.avg_abs_delay_sec)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
@@ -250,6 +289,12 @@ async function DaysBody({
                 ) : (
                   <td colSpan={5} className="p-3 text-at-muted">
                     No arrivals recorded
+                    {/* The cancellations are the only thing that separates the
+                        worst possible day - every trip cancelled, so nothing
+                        arrived - from an ingest outage. Named here rather than
+                        in the column beside it, which a phone does not render. */}
+                    {s.cancelled > 0 &&
+                      `, and ${s.cancelled.toLocaleString()} trip${s.cancelled === 1 ? "" : "s"} flagged cancelled`}
                   </td>
                 )}
               </tr>

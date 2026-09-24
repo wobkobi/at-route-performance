@@ -9,8 +9,13 @@ import type { FleetSummary } from "@/types/dashboard";
 /** One service day on the chart and in the table. */
 export type DaySlot =
   | { kind: "day"; date: string; summary: FleetSummary; verdict: VerdictBand | null }
-  /** A day that has happened but recorded no arrivals under the filters. */
-  | { kind: "empty"; date: string }
+  /**
+   * A day that has happened but recorded no arrivals under the filters. Carries
+   * the cancellation count because it is the only thing that can explain the
+   * absence: a day whose trips were all cancelled looks exactly like an ingest
+   * outage until the number beside it is named.
+   */
+  | { kind: "empty"; date: string; cancelled: number }
   /** A day of the window still to come. */
   | { kind: "future"; date: string };
 
@@ -41,8 +46,8 @@ export function daySlot(
   filter: { mode: string | null; includeSchool: boolean },
 ): DaySlot {
   if (date > today) return { kind: "future", date };
-  if (!data) return { kind: "empty", date };
+  if (!data) return { kind: "empty", date, cancelled: 0 };
   const summary = { ...summariseRows(visibleRows(data.rows, filter)), cancelled: data.cancelled };
-  if (summary.events === 0) return { kind: "empty", date };
+  if (summary.events === 0) return { kind: "empty", date, cancelled: data.cancelled };
   return { kind: "day", date, summary, verdict: dayVerdict(summary.on_time_pct) };
 }

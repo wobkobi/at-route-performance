@@ -2,8 +2,7 @@
 // Placeholders for the Day by day page, mirroring DayChart and the day table
 // box for box so neither jumps when the days arrive.
 
-import { Bone } from "@/components/shame/ShameBoardSkeleton";
-import { ChipBone, IconChipBone, TitleBone } from "@/components/SkeletonParts";
+import { Bone, ChipBone, IconChipBone, TitleBone } from "@/components/SkeletonParts";
 import type { JSX } from "react";
 
 /**

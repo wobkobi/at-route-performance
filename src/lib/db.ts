@@ -7,8 +7,58 @@ import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-// Reuse a single client across hot reloads; reads DATABASE_URL via the schema.
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ log: ["error", "warn"] });
+/**
+ * Connection-pool bounds appended to the datasource URL.
+ *
+ * These are MongoDB driver options, not Prisma's `connection_limit` and
+ * `pool_timeout`: those two are relational-connector arguments, and on a
+ * `provider = "mongodb"` datasource Prisma hands pooling to the driver, which
+ * would ignore them.
+ *
+ * The default pool is 100 sockets **per instance**. Fluid spawns an instance
+ * per burst of concurrency, so a prefetch storm across a dozen instances can
+ * point four figures of connections at a self-hosted NAS over the public
+ * internet, and the pool clears rather than queues (`P2010`). Ten is ample for
+ * the handful of concurrent renders an instance actually serves, and bounds the
+ * fleet to something the NAS can hold. `waitQueueTimeoutMS` is the backstop:
+ * without it a saturated pool waits forever and the render hangs, where a
+ * bounded wait fails cleanly and {@link readFallback} makes it alertable.
+ */
+const POOL_BOUNDS = { maxPoolSize: "10", waitQueueTimeoutMS: "10000" };
+
+/**
+ * The datasource URL with the pool bounds applied, leaving any the URL already
+ * sets alone so the environment can still overrule this.
+ *
+ * Appended as text rather than through `new URL`: a replica-set URI names its
+ * hosts comma-separated (`mongodb://h1:27017,h2:27017/db`), which the driver
+ * accepts and WHATWG parsing rejects outright, so parsing would skip the bound
+ * on exactly the deployments most likely to need it. Option names are matched
+ * case-insensitively because the driver treats them that way.
+ * @param raw - `DATABASE_URL`, absent on a build with no database.
+ * @returns The bounded URL, or undefined to let the schema read the env itself.
+ */
+export function boundedUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const mark = raw.indexOf("?");
+  const query = mark === -1 ? "" : raw.slice(mark + 1);
+  const missing = Object.entries(POOL_BOUNDS)
+    .filter(([key]) => !new RegExp(`(^|&)${key}=`, "i").test(query))
+    .map(([key, value]) => `${key}=${value}`);
+  if (missing.length === 0) return raw;
+  return `${raw}${mark === -1 ? "?" : "&"}${missing.join("&")}`;
+}
+
+const datasourceUrl = boundedUrl(process.env.DATABASE_URL);
+
+// Reuse a single client across hot reloads; falls back to the schema's own
+// env("DATABASE_URL") when there is no URL to bound, so a build still works.
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ["error", "warn"],
+    ...(datasourceUrl ? { datasources: { db: { url: datasourceUrl } } } : {}),
+  });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
@@ -101,6 +151,45 @@ export async function runWriteCommand<T>(fn: () => Promise<T>): Promise<T> {
       await new Promise<void>((r) => setTimeout(r, wait));
     }
   }
+}
+
+/**
+ * Marker every degraded page read logs, so an alert keys on one stable string
+ * rather than on message text that changes with the driver.
+ */
+export const DB_READ_FAILED = "[DB-READ-FAILED]";
+
+/**
+ * Record a degraded database read at error level under {@link DB_READ_FAILED}.
+ *
+ * Keeping the page is deliberate and stays: a reader gets a site even when the
+ * database is unreachable. What did not work was swallowing the failure
+ * outright, because the request then finished as a plain 200 and a pool timeout
+ * mid-render was invisible to anything watching status codes. What the reader
+ * sees is unchanged; the failure now leaves a trace.
+ *
+ * For database reads only. An AT feed read that fails is an ordinary outage the
+ * pages already expect, and logging those here would bury the signal. Use this
+ * directly from a `try`/`catch` and {@link readFallback} from a `.catch`.
+ * @param read - Names the read in the log line.
+ * @param err - The thrown value; an Error contributes its message only.
+ */
+export function logReadFailure(read: string, err: unknown): void {
+  console.error(`${DB_READ_FAILED} ${read}`, err instanceof Error ? err.message : err);
+}
+
+/**
+ * A `.catch` handler for a page read that degrades instead of failing, logging
+ * through {@link logReadFailure} and substituting a value.
+ * @param read - Names the read in the log line.
+ * @param fallback - What the caller renders instead.
+ * @returns A catch handler returning `fallback`.
+ */
+export function readFallback<T>(read: string, fallback: T): (err: unknown) => T {
+  return (err) => {
+    logReadFailure(read, err);
+    return fallback;
+  };
 }
 
 /** MongoDB's duplicate-key error code, the expected outcome of an idempotent insert. */
