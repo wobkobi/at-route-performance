@@ -24,6 +24,7 @@ import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
   findCurrentStationId,
   getEarliestDataDay,
+  getRouteNames,
   getStationSiblings,
   getStopStats,
 } from "@/lib/data";
@@ -165,7 +166,6 @@ export default async function StopPage({
   const linkDay = nav.isToday ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
-  const routeNameMap = new Map(routes.map((r) => [r.route_id, r.short_name ?? null]));
   // Net-average wording stays mode-less: a stop mixes modes, so no single window.
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -315,11 +315,7 @@ export default async function StopPage({
       />
 
       <Suspense fallback={<StopScheduleSkeleton />}>
-        <StopScheduleSection
-          scheduleStopId={stats.schedule_stop_id}
-          serviceDate={serviceDate}
-          routeNames={routeNameMap}
-        />
+        <StopScheduleSection scheduleStopId={stats.schedule_stop_id} serviceDate={serviceDate} />
       </Suspense>
     </main>
   );
@@ -418,23 +414,35 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
  * One call covers a whole station: AT's schedule answers a parent id with every
  * platform's departures, already in order. Since no trip can appear twice once
  * the set-down-only rows are dropped, nothing is merged or deduped here.
+ *
+ * Names are resolved from the route table once the departures are known, not
+ * from the "Worst routes here" board above. That board is the twelve worst by
+ * off-schedule magnitude among routes that recorded an arrival, which differs
+ * from "routes with a departure" in both directions: a thirteenth route, or one
+ * whose every trip was cancelled, has a departure and no row there, and would
+ * have printed its raw GTFS id. One cached read covers the whole table.
  * @param root0 - Props.
  * @param root0.scheduleStopId - The id AT's schedule answers on for this page.
  * @param root0.serviceDate - The resolved service date being shown.
- * @param root0.routeNames - Route id to short-name map for the rows.
  * @returns The departures board.
  */
 async function StopScheduleSection({
   scheduleStopId,
   serviceDate,
-  routeNames,
 }: {
   scheduleStopId: string;
   serviceDate: string;
-  routeNames: Map<string, string | null>;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
-  return <StopSchedule result={result} routeNames={routeNames} serviceDate={serviceDate} />;
+  const departures = result.status === "ok" ? result.departures : [];
+  const names = await getRouteNames([...new Set(departures.map((d) => d.routeId))]);
+  return (
+    <StopSchedule
+      result={result}
+      routeNames={new Map(Object.entries(names))}
+      serviceDate={serviceDate}
+    />
+  );
 }
 
 /**

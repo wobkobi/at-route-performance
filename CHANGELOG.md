@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.6.1] - 2026-09-25
+
+### Fixed
+
+- A departure's route is named from the route table rather than from the worst-routes board above
+  it, which lists only the twelve worst routes that recorded an arrival. A stop with more routes
+  than that, or a route whose trips were all cancelled, could show a departure under a raw feed id.
+
 ## [2.6.0] - 2026-09-25
 
 ### Added
