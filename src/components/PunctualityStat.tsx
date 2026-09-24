@@ -3,13 +3,11 @@
 // Render a punctuality breakdown of early, on-time, and late share bars.
 
 import { cn } from "@/lib/cn";
-import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
+import { onTimeWindowSentence } from "@/lib/copy";
 import { formatDelay, formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import {
   CANCELLED_EXCLUDED_COPY,
   CANCELLED_SPLIT_COPY,
-  earlyToleranceFor,
-  ON_TIME_LATE_SEC,
   type CancellationBasis,
 } from "@/lib/on-time";
 import {
@@ -69,23 +67,6 @@ export interface PunctualityStatProps {
   size?: "sm" | "lg";
   /** Drop the card's own border so it can sit inside a shared KPI box. */
   bare?: boolean;
-}
-
-/**
- * Describe the on-time window for the popover footnote. Ferry uses a symmetric
- * window; all other modes (and the fleet/stop strip, which passes no mode) use
- * the asymmetric bus/train window.
- * @param mode - Route mode from `PunctualityBreakdown.mode`, or undefined.
- * @returns A plain-English description of the window.
- */
-function onTimeWindowDescription(mode: string | undefined): string {
-  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
-  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
-  const window =
-    earlyMin === lateMin
-      ? `within ${lateMin} min either side`
-      : `${earlyMin} min early to ${lateMin} min late`;
-  return `On time means ${window}. Early and late are both off schedule. ${ON_TIME_WINDOW_NOTE}`;
 }
 
 /**
@@ -294,7 +275,7 @@ export function PunctualityInfo({
                   </>
                 )}
                 <p className="mt-2 text-xs leading-snug text-at-muted">
-                  {onTimeWindowDescription(mode)}{" "}
+                  {onTimeWindowSentence(mode)}{" "}
                   {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}
                 </p>
                 {extra}

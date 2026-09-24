@@ -26,7 +26,7 @@ import {
   type PeriodView,
 } from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
-import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
+import { RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
@@ -42,6 +42,7 @@ import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/V
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
   getCancelledCount,

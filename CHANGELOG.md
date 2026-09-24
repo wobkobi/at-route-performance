@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.5] - 2026-09-24
+
+### Changed
+
+- The sentence stating the on-time window is now written once, in the shared copy module, instead of
+  once as a board caption and again inside the on-time popover in different words. The popover on a
+  page covering every mode now names the ferry window too, which it used to leave out.
+
 ## [2.0.4] - 2026-09-24
 
 ### Fixed
