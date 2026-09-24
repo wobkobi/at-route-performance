@@ -194,7 +194,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
     }
     idToCanon.set(s.id, cid);
     if (!canonName.has(cid)) {
-      canonName.set(cid, buswayBase ?? stationName(s.name));
+      canonName.set(cid, buswayBase ?? stationName(s.name, s));
       canonCoord.set(cid, { lat: s.lat, lon: s.lon });
     }
   }

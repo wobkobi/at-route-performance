@@ -1,5 +1,5 @@
 // tests/lib/station.test.ts
-// Unit tests for train-station platform collapsing in station.ts.
+/// Unit tests for collapsing a place's platforms, bays and piers in station.ts.
 import {
   isLegacyStationId,
   isPlatformStop,
@@ -7,6 +7,7 @@ import {
   normaliseHeadsign,
   stationId,
   stationName,
+  stationNameOf,
 } from "@/lib/station";
 import { describe, expect, it } from "vitest";
 
@@ -39,6 +40,78 @@ describe("stationName", () => {
   it("passes other names through unchanged", () => {
     expect(stationName("Onehunga Train Station")).toBe("Onehunga Train Station");
     expect(stationName("Great North Road/Ash Street")).toBe("Great North Road/Ash Street");
+  });
+
+  // The four shapes AT writes a platform code in, each taken from a real row.
+  it("strips a labelled prefix", () => {
+    expect(stationName("Bay 23 Manukau Bus Station", { platformCode: "23" })).toBe(
+      "Manukau Bus Station",
+    );
+    expect(stationName("Stop A Hibiscus Coast", { platformCode: "A" })).toBe("Hibiscus Coast");
+  });
+
+  it("strips a labelled suffix", () => {
+    expect(stationName("Downtown Ferry Terminal Pier 1", { platformCode: "1" })).toBe(
+      "Downtown Ferry Terminal",
+    );
+  });
+
+  it("strips a bare suffix", () => {
+    expect(stationName("Newmarket Train Station 1", { platformCode: "1" })).toBe(
+      "Newmarket Train Station",
+    );
+  });
+
+  it("leaves a name that does not contain its own code, which is already the place", () => {
+    expect(stationName("Onehunga Train Station", { platformCode: "1" })).toBe(
+      "Onehunga Train Station",
+    );
+  });
+
+  it("takes a multi-character code off, without eating a longer number", () => {
+    expect(stationName("Bay 2 Manukau Bus Station", { platformCode: "2" })).toBe(
+      "Manukau Bus Station",
+    );
+    // "23" must not be shortened to "3" by a rule that matched a single digit.
+    expect(stationName("Bay 23 Manukau Bus Station", { platformCode: "2" })).toBe(
+      "Bay 23 Manukau Bus Station",
+    );
+  });
+});
+
+describe("stationNameOf", () => {
+  it("names a place from its platforms", () => {
+    expect(
+      stationNameOf([
+        { name: "Stop A Hibiscus Coast", platformCode: "A" },
+        { name: "Stop B Hibiscus Coast", platformCode: "B" },
+      ]),
+    ).toBe("Hibiscus Coast");
+  });
+
+  it("takes the name most of the platforms agree on", () => {
+    // One real parent holds both of these; without a rule the title would
+    // depend on which row the merge happened to see first.
+    expect(
+      stationNameOf([
+        { name: "Stop C Westfield Newmarket", platformCode: "C" },
+        { name: "Stop E Newmarket Station", platformCode: "E" },
+        { name: "Stop F Newmarket Station", platformCode: "F" },
+      ]),
+    ).toBe("Newmarket Station");
+  });
+
+  it("breaks an even split alphabetically, so the title does not move between renders", () => {
+    const split = [
+      { name: "Stop B Commerce Street/Quay Street", platformCode: "B" },
+      { name: "Stop A Commerce Street/Galway Street", platformCode: "A" },
+    ];
+    expect(stationNameOf(split)).toBe("Commerce Street/Galway Street");
+    expect(stationNameOf([...split].reverse())).toBe("Commerce Street/Galway Street");
+  });
+
+  it("returns an empty string when given no platforms", () => {
+    expect(stationNameOf([])).toBe("");
   });
 });
 
@@ -111,7 +184,7 @@ describe("normaliseHeadsign", () => {
 describe("City Rail Link stations (real feed rows)", () => {
   // Platforms are published as "<name> Train Station <n>" under the station's
   // parent id; the "Stop <letter> <name> Station" rows are bus poles under a
-  // separate bus-station parent and must stay on their own ids.
+  // separate bus-station parent, so the two collapse to two different places.
   it("collapses every CRL train platform onto its parent station", () => {
     expect(
       stationId("9297-5284e223", "Te Waihorotiu Train Station 1", {
@@ -127,14 +200,25 @@ describe("City Rail Link stations (real feed rows)", () => {
     ).toBe("station:133-08da14b5");
   });
 
-  it("keeps the bus poles at a CRL station on their own ids", () => {
-    expect(isPlatformStop("Stop C Te Waihorotiu Station", { platformCode: "C" })).toBe(false);
+  it("sends the bus poles at a CRL station to the bus parent, not the rail one", () => {
+    // AT models Te Waihorotiu as two parents, so the bus station and the train
+    // station stay two places rather than being joined on their shared name.
     expect(
       stationId("7086-df733283", "Stop C Te Waihorotiu Station", {
         parentStation: "11014-9f0f7375",
         platformCode: "C",
       }),
-    ).toBe("7086-df733283");
+    ).toBe("station:11014-9f0f7375");
+    expect(
+      stationId("9297-5284e223", "Te Waihorotiu Train Station 1", {
+        parentStation: "131-50330e47",
+        platformCode: "1",
+      }),
+    ).not.toBe("station:11014-9f0f7375");
+  });
+
+  it("leaves a pole the feed gave no parent on its own id", () => {
+    expect(isPlatformStop("Stop C Te Waihorotiu Station", { platformCode: "C" })).toBe(false);
     expect(stationId("11011-9f0f7375", "Te Waihorotiu Station")).toBe("11011-9f0f7375");
   });
 

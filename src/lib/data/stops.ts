@@ -15,7 +15,7 @@ import {
   isPlatformStop,
   legacyStationId,
   stationId,
-  stationName,
+  stationNameOf,
   stationProjection,
 } from "@/lib/station";
 import {
@@ -400,7 +400,7 @@ export async function findCurrentStationId(id: string): Promise<string | null> {
       const current = stationId(member.id, member.name, member);
       return current === id ? null : current;
     },
-    ["current-station-id", id],
+    ["current-station-id-v2", id],
     { revalidate: 86_400 },
   )();
 }
@@ -450,7 +450,7 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
         return {
           id,
           ids: members.map((s) => s.id),
-          name: stationName(first.name),
+          name: stationNameOf(members),
           lat: first.lat,
           lon: first.lon,
         };
@@ -462,7 +462,7 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
       if (!stop) return null;
       return { id: stop.id, ids: [stop.id], name: stop.name, lat: stop.lat, lon: stop.lon };
     },
-    ["resolve-stop-group", id],
+    ["resolve-stop-group-v2", id],
     { revalidate: 86400 },
   )();
 }
@@ -603,7 +603,7 @@ export async function getStopStats(
         routes_count: facet?.routeCount[0]?.n ?? 0,
       };
     },
-    ["stop-stats-v2", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    ["stop-stats-v3", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
     range,
     revalidate,
   );

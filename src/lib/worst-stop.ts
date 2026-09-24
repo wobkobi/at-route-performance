@@ -5,7 +5,13 @@
 // in src/lib/data/stops.ts.
 
 import type { DelayDirection } from "@/lib/rankings";
-import { stationId, stationName, stationPartsOf, type StationRow } from "@/lib/station";
+import {
+  stationId,
+  stationNameOf,
+  stationPartsOf,
+  type StationParts,
+  type StationRow,
+} from "@/lib/station";
 import type { WorstStop } from "@/types/dashboard";
 
 /**
@@ -35,7 +41,7 @@ export type MergedStopRow = Omit<WorstStop, "mode"> & { routeIds: string[] };
 /**
  * Merge each station's platform rows into one row, re-averaging both figures by
  * event weight, and sort worst-first. Mirrors {@link stationId} and
- * {@link stationName} so a board row names the station a reader would name,
+ * {@link stationNameOf} so a board row names the station a reader would name,
  * rather than one of its platforms competing with its siblings.
  * @param rows - Raw per-stop rows for a single day.
  * @returns One row per station, off-schedule magnitude descending.
@@ -43,10 +49,18 @@ export type MergedStopRow = Omit<WorstStop, "mode"> & { routeIds: string[] };
 export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedStopRow[] {
   const acc = new Map<
     string,
-    { row: MergedStopRow; absSum: number; signedSum: number; routeIds: Set<string> }
+    {
+      row: MergedStopRow;
+      absSum: number;
+      signedSum: number;
+      routeIds: Set<string>;
+      /** Every platform's name, so the station's own name does not depend on row order. */
+      platforms: (StationParts & { name: string })[];
+    }
   >();
   for (const r of rows) {
-    const id = stationId(r.stop_id, r.name, stationPartsOf(r));
+    const parts = stationPartsOf(r);
+    const id = stationId(r.stop_id, r.name, parts);
     const absSum = r.avg_abs_delay_sec * r.events;
     const signedSum = (r.avg_delay_sec ?? 0) * r.events;
     const cur = acc.get(id);
@@ -54,12 +68,13 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
       cur.row.events += r.events;
       cur.absSum += absSum;
       cur.signedSum += signedSum;
+      cur.platforms.push({ ...parts, name: r.name });
       for (const routeId of r.routeIds) cur.routeIds.add(routeId);
     } else {
       acc.set(id, {
         row: {
           stop_id: id,
-          name: stationName(r.name),
+          name: r.name,
           events: r.events,
           avg_delay_sec: r.avg_delay_sec,
           avg_abs_delay_sec: r.avg_abs_delay_sec,
@@ -68,12 +83,14 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
         absSum,
         signedSum,
         routeIds: new Set(r.routeIds),
+        platforms: [{ ...parts, name: r.name }],
       });
     }
   }
   return [...acc.values()]
-    .map(({ row, absSum, signedSum, routeIds }) => ({
+    .map(({ row, absSum, signedSum, routeIds, platforms }) => ({
       ...row,
+      name: stationNameOf(platforms),
       routeIds: [...routeIds],
       avg_abs_delay_sec: Math.round((absSum / row.events) * 10) / 10,
       avg_delay_sec: Math.round((signedSum / row.events) * 10) / 10,

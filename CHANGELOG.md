@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.2.0] - 2026-09-24
+
+### Added
+
+- Bus stations and ferry terminals now get one page for the whole place, named from AT's own
+  platform code rather than a guessed name shape.
+
 ## [2.1.0] - 2026-09-24
 
 ### Added

@@ -1,22 +1,43 @@
 // src/lib/station.ts
-// Collapse Auckland train-station platform stops into one logical
-// station. AT exposes each platform as its own GTFS stop ("Newmarket Train
-// Station 1/2/4") and bakes the platform number into trip headsigns, so a line
-// otherwise splits into near-duplicate variants and one station shows up as
-// several stops; these helpers normalise platforms to a single stop for the
-// diagram, map and stats. Only train platforms are affected.
+// Collapse the platforms of one place into a single logical stop. AT exposes
+// every platform, bay and pier as its own GTFS stop ("Newmarket Train Station
+// 1/2/4", "Bay 23 Manukau Bus Station", "Downtown Ferry Terminal Pier 1") and
+// bakes the platform number into train headsigns, so a line otherwise splits
+// into near-duplicate variants and one place shows up as several stops; these
+// helpers normalise platforms to a single stop for the diagram, map and stats.
 //
-// The station's identity is AT's own `parent_station` id wherever the feed
+// The place's identity is AT's own `parent_station` id wherever the feed
 // supplies it, and only falls back to the station's name when it doesn't. AT
 // renames stations (Britomart > Waitemata, Mount Eden > Maungawhau, and the
 // City Rail Link adds more), and a name-keyed id would change with them -
-// forking a station's history and breaking every shared link.
+// forking a station's history and breaking every shared link. That is also why
+// a place AT models as two parents stays two: Otahuhu is a bus "Otahuhu
+// Station" and a rail "Otahuhu Train Station", and joining them would have to
+// be done on the name, which is the thing that moves.
 
 /** Matches a platform-numbered train-station name, capturing the station part. */
 const PLATFORM_RE = /^(.*\bTrain Station)\s+\d+\s*$/i;
 
 /** Matches an unnumbered train-station name; a platform only when AT gives it a platform code. */
 const STATION_RE = /\bTrain Station\s*$/i;
+
+/**
+ * The words AT puts beside a platform code inside a stop's name. All four
+ * shapes occur: "Bay 23 Manukau Bus Station", "Stop A Hibiscus Coast",
+ * "Downtown Ferry Terminal Pier 1" and the bare "Newmarket Train Station 1".
+ */
+const CODE_LABELS = "Stop|Bay|Pier|Platform|Gate";
+
+/**
+ * Escape a platform code for use inside a regex. Codes are alphanumeric today
+ * ("1", "2B", "A"), so this is insurance against a feed that widens them rather
+ * than a case that occurs.
+ * @param code - The raw platform code.
+ * @returns The code with regex metacharacters escaped.
+ */
+function escapeCode(code: string): string {
+  return code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /** Prefix marking a canonical station id, distinguishing it from a real GTFS stop id. */
 export const STATION_PREFIX = "station:";
@@ -30,35 +51,87 @@ export interface StationParts {
 }
 
 /**
- * Whether a stop is one platform of a train station.
+ * Whether a stop is one platform, bay or pier of a larger place.
  *
- * Numbered names ("Newmarket Train Station 2") are platforms outright. An
- * unnumbered name is one only when AT also gives it a platform code - which is
- * how single-platform stations appear (Onehunga is "Onehunga Train Station"
- * with `platform_code: "1"`, and so never collapsed while every other station
- * did).
+ * AT's own `parent_station` settles it wherever the feed supplies one, which is
+ * every mode: rail platforms, the bays of a bus station and the piers of a ferry
+ * terminal all carry it. The two name rules below are the fallback for rows read
+ * before those fields were stored - a numbered name ("Newmarket Train Station 2")
+ * is a platform outright, and an unnumbered one is a platform only when AT also
+ * gives it a platform code, which is how single-platform stations appear
+ * (Onehunga is "Onehunga Train Station" with `platform_code: "1"`).
  * @param name - The stop's display name.
  * @param parts - AT's grouping fields for the stop, when known.
- * @returns True when the stop is a train-station platform.
+ * @returns True when the stop is one platform of a parent place.
  */
 export function isPlatformStop(name: string, parts?: StationParts): boolean {
+  if (parts?.parentStation) return true;
   if (PLATFORM_RE.test(name)) return true;
   return Boolean(parts?.platformCode) && STATION_RE.test(name);
 }
 
 /**
- * Drop the platform number from a train-station name; other names pass through.
+ * Drop the platform label from a stop's name, leaving the place it belongs to.
+ *
+ * AT writes the platform code into the name itself, but in four different
+ * shapes, so the code is removed rather than any one shape matched: it is the
+ * one token the feed hands over verbatim, in `platform_code`. It appears as a
+ * prefix with a label ("Bay 23 Manukau Bus Station", "Stop A Hibiscus Coast"),
+ * as a suffix with one ("Downtown Ferry Terminal Pier 1") and as a bare suffix
+ * ("Newmarket Train Station 1"). A name that does not contain its own code -
+ * "Onehunga Train Station" with `platform_code: "1"` - passes through, which is
+ * right: that is already the station's name.
+ *
+ * Only one end is stripped, the leading one first, so a place whose name both
+ * begins and ends with its code cannot be eaten from both sides.
  * @param name - The stop's display name.
- * @returns "Newmarket Train Station 2" > "Newmarket Train Station"; else unchanged.
+ * @param parts - AT's grouping fields for the stop, when known.
+ * @returns The parent place's name, or the name unchanged.
  */
-export function stationName(name: string): string {
+export function stationName(name: string, parts?: StationParts): string {
+  const code = parts?.platformCode?.trim();
+  if (code) {
+    const c = escapeCode(code);
+    const lead = new RegExp(`^(?:(?:${CODE_LABELS})\\s+)?${c}\\s+`, "i");
+    const trail = new RegExp(`\\s+(?:(?:${CODE_LABELS})\\s+)?${c}$`, "i");
+    const stripped = (lead.test(name) ? name.replace(lead, "") : name.replace(trail, "")).trim();
+    if (stripped) return stripped;
+  }
   return PLATFORM_RE.exec(name)?.[1] ?? name;
 }
 
 /**
- * Canonical id for a stop: train platforms collapse to one id per station, so
- * the diagram, map, and per-stop stats merge them. Every other stop keeps its
- * real id, so same-named bus stops are never merged.
+ * The name to show for a parent place, chosen across all of its platforms.
+ *
+ * Two of AT's parents disagree with themselves - one holds both
+ * "Stop F Newmarket Station" and "Stop C Westfield Newmarket" - so taking any
+ * one platform's name would make the page's title depend on row order. The most
+ * common name wins, and an even split is broken alphabetically so the title is
+ * the same on every render.
+ * @param platforms - The parent's platforms, each with its name and code.
+ * @returns The place's name, or an empty string when given no platforms.
+ */
+export function stationNameOf(platforms: readonly (StationParts & { name: string })[]): string {
+  const counts = new Map<string, number>();
+  for (const p of platforms) {
+    const n = stationName(p.name, p);
+    counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  let best = "";
+  let bestCount = 0;
+  for (const [n, c] of [...counts].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (c > bestCount) {
+      best = n;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Canonical id for a stop: a parent place's platforms collapse to one id, so
+ * the diagram, map and per-stop stats merge them. A stop AT gives no parent
+ * keeps its real id, so same-named stops are never merged on their name.
  *
  * The id is built from AT's `parent_station` when the feed supplies it, so it
  * survives a station rename; the name-derived form is the fallback for rows
