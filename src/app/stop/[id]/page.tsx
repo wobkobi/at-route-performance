@@ -29,6 +29,7 @@ import {
   getStopIdentity,
   getStopStats,
 } from "@/lib/data";
+import { getRouteModeMap } from "@/lib/data/routes";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import {
@@ -434,11 +435,15 @@ async function StopScheduleSection({
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
-  const names = await getRouteNames([...new Set(departures.map((d) => d.routeId))]);
+  const routeIds = [...new Set(departures.map((d) => d.routeId))];
+  // A route's mode decides how its headsign is read, so it is looked up beside
+  // the names, from the same table and under its own single cache key.
+  const [names, modes] = await Promise.all([getRouteNames(routeIds), getRouteModeMap()]);
   return (
     <StopSchedule
       result={result}
       routeNames={new Map(Object.entries(names))}
+      routeModes={modes}
       serviceDate={serviceDate}
     />
   );

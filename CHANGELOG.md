@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.7.0] - 2026-09-25
+
+### Added
+
+- A stop's departures board names where each service is going, with the road or station it goes by
+  on a second line, instead of printing AT's raw headsign with its origin and platform numbers in
+  it.
+
 ## [2.6.3] - 2026-09-25
 
 ### Fixed

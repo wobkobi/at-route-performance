@@ -6,6 +6,7 @@
 // would read it as a quiet stop.
 
 import type { StopDepartures } from "@/lib/at-stop-trips";
+import { departureLabel } from "@/lib/departure-label";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
 import {
   afterMidnightNote,
@@ -22,6 +23,8 @@ export interface StopScheduleProps {
   result: StopDepartures;
   /** Maps route_id to short_name for display. */
   routeNames: Map<string, string | null>;
+  /** Maps route_id to its mode, which decides how its headsign is read. */
+  routeModes: Map<string, "BUS" | "TRAIN" | "FERRY">;
   /** Service date as YYYY-MM-DD. */
   serviceDate: string;
 }
@@ -56,10 +59,16 @@ function noticeFor(result: StopDepartures, serviceDate: string): string | null {
  * @param props - Component props.
  * @param props.result - The departures, or the state that stopped them loading.
  * @param props.routeNames - Route ID to short name map.
+ * @param props.routeModes - Route ID to mode map, for reading headsigns.
  * @param props.serviceDate - Service date string (YYYY-MM-DD).
  * @returns The schedule table, or a notice in place of it.
  */
-export function StopSchedule({ result, routeNames, serviceDate }: StopScheduleProps): JSX.Element {
+export function StopSchedule({
+  result,
+  routeNames,
+  routeModes,
+  serviceDate,
+}: StopScheduleProps): JSX.Element {
   const isToday = serviceDate === nzServiceDayString();
   const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDayLabel(serviceDate)}`;
   const notice = noticeFor(result, serviceDate);
@@ -91,26 +100,38 @@ export function StopSchedule({ result, routeNames, serviceDate }: StopSchedulePr
               </tr>
             </thead>
             <tbody>
-              {departures.map((dep, i) => (
-                <Fragment key={dep.tripId || i}>
-                  {i === firstAfterMidnight && (
-                    <tr className="border-b border-at-border/40">
-                      <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
-                        {afterMidnightNote(serviceDate)}
+              {departures.map((dep, i) => {
+                const bound = departureLabel(
+                  dep.headsign,
+                  dep.stopHeadsign,
+                  routeModes.get(dep.routeId) ?? "BUS",
+                );
+                return (
+                  <Fragment key={dep.tripId || i}>
+                    {i === firstAfterMidnight && (
+                      <tr className="border-b border-at-border/40">
+                        <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
+                          {afterMidnightNote(serviceDate)}
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="border-b border-at-border/40 last:border-0">
+                      <td className="py-1.5 pr-4 font-semibold text-at-ink">
+                        {routeNames.get(dep.routeId) ?? dep.routeId}
+                      </td>
+                      <td className="py-1.5 pr-4 text-at-ink">
+                        {bound.destination ?? UNKNOWN_VALUE}
+                        {bound.via !== null && (
+                          <span className="block text-xs text-at-muted">via {bound.via}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-at-ink tabular-nums">
+                        {formatGtfsTime(dep.departureTime) ?? UNKNOWN_VALUE}
                       </td>
                     </tr>
-                  )}
-                  <tr className="border-b border-at-border/40 last:border-0">
-                    <td className="py-1.5 pr-4 font-semibold text-at-ink">
-                      {routeNames.get(dep.routeId) ?? dep.routeId}
-                    </td>
-                    <td className="py-1.5 pr-4 text-at-muted">{dep.headsign ?? UNKNOWN_VALUE}</td>
-                    <td className="py-1.5 text-at-ink tabular-nums">
-                      {formatGtfsTime(dep.departureTime) ?? UNKNOWN_VALUE}
-                    </td>
-                  </tr>
-                </Fragment>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
