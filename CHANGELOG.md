@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.57.2] - 2026-09-24
+
+### Fixed
+
+- Three places printed "on time" for an average: the averages panel on route and stop pages, the
+  stop map popups and the route strip. A stop that runs as early as it runs late averages out near
+  zero, so it read as punctual right above a figure saying it was 9 minutes off. Those now print how
+  far off the average was, and keep the on-time colour when it is inside the window.
+
 ## [1.57.1] - 2026-09-24
 
 ### Changed

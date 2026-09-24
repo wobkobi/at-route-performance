@@ -305,12 +305,15 @@ export function PunctualityInfo({
                   Average delay
                 </p>
                 <div className="mt-2 space-y-1 text-sm">
+                  {/* Both figures are means, so neither applies the on-time window: a stop that runs
+                      as early as it runs late nets near zero, and "on time" above a magnitude of
+                      9m would contradict it. */}
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-at-muted">Net (early + late)</span>
                     <span className="font-semibold tabular-nums">
                       {avg_delay_sec == null
                         ? UNKNOWN_VALUE
-                        : formatDelay(avg_delay_sec, mode ? { mode } : {})}
+                        : formatDelay(avg_delay_sec, { thresholdSec: 0 })}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
