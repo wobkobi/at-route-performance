@@ -17,6 +17,7 @@ import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
 import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
 import { byServiceDeparture, getStopTrips } from "@/lib/at-stop-trips";
+import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
   findCurrentStationId,
@@ -26,11 +27,22 @@ import {
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  formatDuration,
+  OFF_SCHEDULE_TONE_CLASS,
+  offScheduleValue,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import {
+  MIN_PLATFORM_EVENTS,
+  platformNoun,
+  platformsDiffer,
+  type PlatformRow,
+} from "@/lib/station-platforms";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -266,6 +278,12 @@ export default async function StopPage({
         )}
       </section>
 
+      {/* Empty unless the platforms earn the space - the gate is in
+          platformBreakdown. It sits straight under the strip because what it
+          says is about the strip: the single figure above covers platforms that
+          did not agree. */}
+      {stats.platforms.length > 0 && <PlatformTable stopName={stop.name} rows={stats.platforms} />}
+
       <section className="border border-at-border bg-at-surface p-4">
         <h2 className="mb-2 text-lg font-ultra tracking-zero">Where it is</h2>
         <StopMapWrapper
@@ -302,6 +320,92 @@ export default async function StopPage({
         />
       </Suspense>
     </main>
+  );
+}
+
+/**
+ * Per-platform figures for a grouped station, rendered only for the platforms
+ * platformBreakdown has already decided are worth listing and in the order it
+ * put them.
+ * @param root0 - Props.
+ * @param root0.stopName - The station's name, for the sentence above the table.
+ * @param root0.rows - The platforms to list.
+ * @returns The section.
+ */
+function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow[] }): JSX.Element {
+  const noun = platformNoun(rows);
+  // Two different facts get a station here, so the sentence names the one that
+  // applies: platforms that ran differently, or platforms that agree and differ
+  // only in which routes leave from them.
+  const differ = platformsDiffer(rows);
+  return (
+    <section className="border border-at-border bg-at-surface">
+      <div className="px-4 py-3">
+        <h2 className="font-semibold">By {noun}</h2>
+        {/* One template string rather than several expressions, so the sentence
+            is a single text node: React separates adjacent ones with a comment
+            marker, which reads as a stray space to anything parsing the page. */}
+        <p className="mt-1 text-sm text-at-muted">
+          {`${stopName} is several ${noun}s ${
+            differ
+              ? "and they did not all run the same way, so the figures above average them together."
+              : "and some of its routes leave from one of them only."
+          }`}
+        </p>
+      </div>
+      <div className="overflow-x-auto px-4 pb-4">
+        <table className="min-w-full text-sm">
+          <thead className="bg-at-bg text-at-muted">
+            <tr>
+              <th scope="col" className="px-3 py-2 text-left">
+                {noun.replace(/^./, (c) => c.toUpperCase())}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right">
+                Arrivals
+              </th>
+              <th scope="col" className="px-3 py-2 text-right">
+                On time
+              </th>
+              <th scope="col" className="px-3 py-2 text-right">
+                Early or late
+              </th>
+              <th scope="col" className="px-3 py-2 text-left">
+                Only from here
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => {
+              const value = offScheduleValue(p.avg_delay_sec, p.avg_abs_delay_sec, p.mode);
+              return (
+                <tr key={p.stop_id} className="border-t border-at-border">
+                  <td className="px-3 py-2 font-semibold tabular-nums">{p.label}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{p.events}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {p.on_time_pct == null ? UNKNOWN_VALUE : `${p.on_time_pct.toFixed(1)}%`}
+                  </td>
+                  <td
+                    className={cn(
+                      "px-3 py-2 text-right font-semibold tabular-nums",
+                      OFF_SCHEDULE_TONE_CLASS[value.tone],
+                    )}
+                  >
+                    {value.text}
+                  </td>
+                  {/* Blank rather than a dash: no route being exclusive to a
+                      platform is a fact about it, where the dash elsewhere on the
+                      site means a figure the site does not have. */}
+                  <td className="px-3 py-2">{p.only_routes.join(", ")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-at-muted">
+          {`${MIN_PLATFORM_EVENTS} arrivals needed to be listed, so a ${noun} used a handful of times that day is not shown.`}
+        </p>
+      </div>
+    </section>
   );
 }
 

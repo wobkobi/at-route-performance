@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.5.0] - 2026-09-24
+
+### Added
+
+- A station page now breaks its figures down per platform, where the merged figure is hiding
+  something: either the platforms' on-time shares differ by 10 points or more, or a route leaves
+  from one platform only. 63 of the 94 stations with two measurable platforms carry the table - at
+  Te Waihorotiu one stop ran 19.4% on time while another ran 91.5%. A platform needs 10 arrivals to
+  be listed, and the heading uses AT's own word for it.
+
 ## [2.4.0] - 2026-09-24
 
 ### Added

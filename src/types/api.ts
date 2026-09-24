@@ -1,5 +1,6 @@
 // src/types/api.ts
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
+import type { PlatformRow } from "@/lib/station-platforms";
 
 // Top routes row returned by /api/routes/top
 export interface TopRouteRow {
@@ -63,6 +64,12 @@ export interface StopStats {
   routes: TopRouteRow[];
   /** How many distinct routes called at the stop in the window. */
   routes_count: number;
+  /**
+   * Per-platform rows for a station whose platforms earn a breakdown, worst off
+   * schedule first, and empty otherwise (see `platformBreakdown`). A plain stop
+   * is always empty: it has no platforms to differ from each other.
+   */
+  platforms: PlatformRow[];
 }
 
 // One run (trip) of a route on a day, for the "worst bus of the day" ranking.

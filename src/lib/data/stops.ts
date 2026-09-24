@@ -15,10 +15,12 @@ import {
   isLegacyStationId,
   isPlatformStop,
   legacyStationId,
+  platformLabelOf,
   stationId,
   stationNameOf,
   stationProjection,
 } from "@/lib/station";
+import { type PlatformStats, platformBreakdown } from "@/lib/station-platforms";
 import { type StationPlace, type StationSiblings, siblingsByStation } from "@/lib/station-siblings";
 import {
   type DateRange,
@@ -477,6 +479,12 @@ interface StopGroup {
   name: string;
   lat: number;
   lon: number;
+  /**
+   * Each platform's id and AT's own label for it, for the per-platform
+   * breakdown. Empty for a stop that is not a station: there is nothing to break
+   * a single stop down into.
+   */
+  platforms: { id: string; label: string }[];
 }
 
 /**
@@ -516,6 +524,7 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
           name: stationNameOf(members),
           lat: first.lat,
           lon: first.lon,
+          platforms: members.map((s) => ({ id: s.id, label: platformLabelOf(s.name, s) })),
         };
       }
       const stop = await prisma.stop.findUnique({
@@ -523,9 +532,16 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
         select: { id: true, name: true, lat: true, lon: true },
       });
       if (!stop) return null;
-      return { id: stop.id, ids: [stop.id], name: stop.name, lat: stop.lat, lon: stop.lon };
+      return {
+        id: stop.id,
+        ids: [stop.id],
+        name: stop.name,
+        lat: stop.lat,
+        lon: stop.lon,
+        platforms: [],
+      };
     },
-    ["resolve-stop-group-v2", id],
+    ["resolve-stop-group-v3", id],
     { revalidate: 86400 },
   )();
 }
@@ -534,6 +550,8 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
 interface StopStatsFacet {
   summary: RouteSummary[];
   routes: TopRouteRow[];
+  /** Per-platform rows, before the labels are joined on and the gate is applied. */
+  platforms: (Omit<PlatformStats, "label"> & { routes: (string | null)[] })[];
   routeCount: { n: number }[];
 }
 
@@ -559,6 +577,7 @@ export async function getStopStats(
     async (classified) => {
       const group = await resolveStopGroup(id);
       if (!group) return null;
+      const labels = new Map(group.platforms.map((p) => [p.id, p.label]));
 
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
@@ -649,6 +668,48 @@ export async function getStopStats(
                     },
                   },
                 ],
+                // Per platform, for the breakdown a station page shows when its
+                // platforms disagree (see platformBreakdown). It rides in this
+                // facet rather than its own query: the scan is already paid for,
+                // and a plain stop returns a single row the gate discards.
+                platforms: [
+                  {
+                    $group: {
+                      _id: "$stopId",
+                      events: { $sum: 1 },
+                      avg_delay_sec: { $avg: "$deviationSec" },
+                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                      on_time_count: onTimePerEventSum(),
+                      // By the name a rider uses, not the feed id: two feed
+                      // versions of one route are one route to whoever is
+                      // waiting, and "only route 33 leaves from here" has to
+                      // count them as one or it never holds.
+                      routes: { $addToSet: "$route.shortName" },
+                      // Not an arbitrary pick from the group: all 311 platforms
+                      // that recorded arrivals on a measured day served exactly
+                      // one mode, since a bay is buses and a pier is ferries.
+                      // It decides the early tolerance behind the row colour.
+                      mode: { $first: "$route.mode" },
+                    },
+                  },
+                  {
+                    $addFields: {
+                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                    },
+                  },
+                  {
+                    $project: {
+                      _id: 0,
+                      stop_id: { $toString: "$_id" },
+                      events: 1,
+                      routes: 1,
+                      mode: 1,
+                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                      on_time_pct: { $round: ["$on_time_pct", 1] },
+                    },
+                  },
+                ],
                 routeCount: [{ $group: { _id: "$routeId" } }, { $count: "n" }],
               },
             },
@@ -664,9 +725,19 @@ export async function getStopStats(
         summary: facet?.summary[0] ?? null,
         routes: facet?.routes ?? [],
         routes_count: facet?.routeCount[0]?.n ?? 0,
+        platforms: platformBreakdown(
+          (facet?.platforms ?? []).flatMap((p) => {
+            const label = labels.get(p.stop_id);
+            // A platform the group does not know is one the feed dropped between
+            // the events being recorded and this read; leave it out rather than
+            // label it with a raw id.
+            if (label === undefined) return [];
+            return [{ ...p, label, routes: p.routes.filter((r): r is string => r != null) }];
+          }),
+        ),
       };
     },
-    ["stop-stats-v3", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    ["stop-stats-v4", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
     range,
     revalidate,
   );

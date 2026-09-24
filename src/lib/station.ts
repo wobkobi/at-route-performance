@@ -101,6 +101,33 @@ export function stationName(name: string, parts?: StationParts): string {
 }
 
 /**
+ * How to label one platform within its own station: AT's platform code, carrying
+ * the word AT put beside it. The inverse of {@link stationName}, which removes
+ * exactly this - so "Bay 23 Manukau Bus Station" labels as "Bay 23", "Downtown
+ * Ferry Terminal Pier 1" as "Pier 1", and "Newmarket Train Station 1", which AT
+ * writes with no word at all, as the bare "1".
+ *
+ * The word is AT's own, in AT's casing, so a station names its platforms the way
+ * its signs do and none is invented. All 383 platforms AT gives a parent also
+ * carry a `platform_code`; the fallbacks are insurance against a feed that stops
+ * doing so.
+ * @param name - The stop's display name.
+ * @param parts - AT's grouping fields for the stop, when known.
+ * @returns The platform's label.
+ */
+export function platformLabelOf(name: string, parts?: StationParts): string {
+  const code = parts?.platformCode?.trim();
+  if (!code) return /\s(\d+)\s*$/.exec(name)?.[1] ?? name;
+  const c = escapeCode(code);
+  // Capture group 1 is AT's word for the platform, when the name puts one beside
+  // the code; a bare code leaves it undefined.
+  const word =
+    new RegExp(`^(?:(${CODE_LABELS})\\s+)?${c}\\s`, "i").exec(name)?.[1] ??
+    new RegExp(`\\s(?:(${CODE_LABELS})\\s+)?${c}\\s*$`, "i").exec(name)?.[1];
+  return word ? `${word} ${code}` : code;
+}
+
+/**
  * The name to show for a parent place, chosen across all of its platforms.
  *
  * Two of AT's parents disagree with themselves - one holds both

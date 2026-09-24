@@ -5,11 +5,54 @@ import {
   isPlatformStop,
   legacyStationId,
   normaliseHeadsign,
+  platformLabelOf,
   stationId,
   stationName,
   stationNameOf,
 } from "@/lib/station";
 import { describe, expect, it } from "vitest";
+
+describe("platformLabelOf", () => {
+  it("keeps the word AT put beside the code, in AT's own casing", () => {
+    expect(platformLabelOf("Bay 23 Manukau Bus Station", { platformCode: "23" })).toBe("Bay 23");
+    expect(platformLabelOf("Stop A Hibiscus Coast", { platformCode: "A" })).toBe("Stop A");
+    expect(platformLabelOf("Downtown Ferry Terminal Pier 1", { platformCode: "1" })).toBe("Pier 1");
+  });
+
+  it("labels a bare code with the code alone, inventing no word", () => {
+    expect(platformLabelOf("Newmarket Train Station 1", { platformCode: "1" })).toBe("1");
+    expect(platformLabelOf("Maungawhau Train Station 4", { platformCode: "4" })).toBe("4");
+  });
+
+  it("labels a single-platform station from its code, which the name never carries", () => {
+    // Onehunga is "Onehunga Train Station" with platform_code "1".
+    expect(platformLabelOf("Onehunga Train Station", { platformCode: "1" })).toBe("1");
+  });
+
+  it("does not shorten a multi-character code to its last digit", () => {
+    expect(platformLabelOf("Bay 13 Manukau Bus Station", { platformCode: "13" })).toBe("Bay 13");
+    expect(platformLabelOf("Stop 2B Somewhere", { platformCode: "2B" })).toBe("Stop 2B");
+  });
+
+  it("falls back to a trailing number, then the name, when AT gives no code", () => {
+    expect(platformLabelOf("Newmarket Train Station 2")).toBe("2");
+    expect(platformLabelOf("Mayoral Dr/Queen St")).toBe("Mayoral Dr/Queen St");
+  });
+
+  it("is the inverse of stationName on the same row", () => {
+    const rows = [
+      { name: "Bay 23 Manukau Bus Station", platformCode: "23" },
+      { name: "Stop A Hibiscus Coast", platformCode: "A" },
+      { name: "Downtown Ferry Terminal Pier 1", platformCode: "1" },
+      { name: "Newmarket Train Station 1", platformCode: "1" },
+    ];
+    for (const r of rows) {
+      // Between them the two halves account for the code and the place, so
+      // neither can silently drop it.
+      expect(`${stationName(r.name, r)} ${platformLabelOf(r.name, r)}`).toContain(r.platformCode);
+    }
+  });
+});
 
 describe("isPlatformStop", () => {
   it("matches numbered train-station platforms on the name alone", () => {
