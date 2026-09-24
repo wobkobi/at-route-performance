@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.3.0] - 2026-09-24
+
+### Added
+
+- A route strip's interchange nodes now group the way stop pages do, so a node opens the place it
+  draws.
+
 ## [2.2.0] - 2026-09-24
 
 ### Added

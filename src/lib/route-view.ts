@@ -167,34 +167,38 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
   });
   if (stopDocs.length === 0) return empty;
 
-  // Canonical-station remap: collapse each train platform to its station id,
-  // keeping one display name + coordinate per station. Interchange poles that
-  // share a physical station ("Stop A Albany Bus Station", "Stop B Albany Bus
-  // Station") are also collapsed so variants using different poles do not split
-  // into separate diagram directions.
+  // Canonical-place remap: collapse each platform, bay and pier onto its parent
+  // id, keeping one display name + coordinate per place. Variants that use
+  // different poles of one interchange then draw as one node instead of
+  // splitting into separate directions.
   //
-  // Poles are matched on name, not on AT's `parent_station`, even though train
-  // platforms now key off it. AT's parents are reliable for stations (platforms
-  // sit within ~140 m) but group bus and ferry stops up to ~465 m apart, and
-  // sometimes span distinct intersections - merging those would pull real
-  // geography out of the diagram. The place name is the tighter grouping here.
-  const BUSWAY_STOP_RE = /^Stop\s+[A-Z]{1,2}\s+(.*)$/i;
-  const buswayBaseToFirstId = new Map<string, string>();
+  // AT's `parent_station` decides it, so a node and the `/stop/` page it opens
+  // are the same place. That is the trade this makes: AT's parents are tight for
+  // rail (platforms within ~140 m) but reach ~465 m for a bus interchange, and
+  // one parent spans three Commerce Street corners, so a few nodes now cover
+  // more ground than the drawing implies. A node that opened a page for a
+  // different set of stops was the worse of the two.
+  //
+  // The name rule below is only a fallback for the eight poles AT gave neither a
+  // parent nor a platform code - Westgate Te Waiarohia, Warkworth and Avondale -
+  // which would otherwise draw one node each.
+  const POLE_NAME_RE = /^Stop\s+[A-Z]{1,2}\s+(.*)$/i;
+  const poleBaseToFirstId = new Map<string, string>();
   const idToCanon = new Map<string, string>();
   const canonName = new Map<string, string>();
   const canonCoord = new Map<string, { lat: number; lon: number }>();
   for (const s of stopDocs) {
     let cid = stationId(s.id, s.name, s);
-    // Capture group 1 is the station name after the "Stop X" pole prefix.
-    const buswayBase = BUSWAY_STOP_RE.exec(s.name)?.[1];
-    if (buswayBase !== undefined) {
-      const firstId = buswayBaseToFirstId.get(buswayBase);
-      if (firstId === undefined) buswayBaseToFirstId.set(buswayBase, cid);
+    // Capture group 1 is the place name after the "Stop X" pole prefix.
+    const poleBase = s.parentStation ? undefined : POLE_NAME_RE.exec(s.name)?.[1];
+    if (poleBase !== undefined) {
+      const firstId = poleBaseToFirstId.get(poleBase);
+      if (firstId === undefined) poleBaseToFirstId.set(poleBase, cid);
       else cid = firstId;
     }
     idToCanon.set(s.id, cid);
     if (!canonName.has(cid)) {
-      canonName.set(cid, buswayBase ?? stationName(s.name, s));
+      canonName.set(cid, poleBase ?? stationName(s.name, s));
       canonCoord.set(cid, { lat: s.lat, lon: s.lon });
     }
   }
