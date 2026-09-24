@@ -265,7 +265,7 @@ async function StopDayBoard({
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage="No stop data recorded for this day."
-      footerMessage="No stops were notably off-schedule during these hours."
+      footerMessage="No stops were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
     />

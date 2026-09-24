@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.3] - 2026-09-24
+
+### Fixed
+
+- "Off schedule" is now two words where it follows a verb ("No runs were notably off schedule") and
+  stays hyphenated where it describes a noun ("the most off-schedule run"), and the tooltip on a
+  mixed row says the figure is the average distance from schedule ignoring direction, instead of
+  naming it as an absolute deviation.
+
 ## [2.0.2] - 2026-09-24
 
 ### Fixed

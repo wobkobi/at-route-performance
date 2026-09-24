@@ -85,7 +85,7 @@ function onTimeWindowDescription(mode: string | undefined): string {
     earlyMin === lateMin
       ? `within ${lateMin} min either side`
       : `${earlyMin} min early to ${lateMin} min late`;
-  return `On time means ${window}. Early and late are both off-schedule. ${ON_TIME_WINDOW_NOTE}`;
+  return `On time means ${window}. Early and late are both off schedule. ${ON_TIME_WINDOW_NOTE}`;
 }
 
 /**

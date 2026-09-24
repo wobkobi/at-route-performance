@@ -324,7 +324,7 @@ async function RouteDayBoard({
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage="No route data recorded for this day."
-      footerMessage="No routes were notably off-schedule during these hours."
+      footerMessage="No routes were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
     />
