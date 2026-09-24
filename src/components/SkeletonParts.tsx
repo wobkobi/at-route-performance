@@ -37,11 +37,12 @@ export function ChipBone({ className }: { className: string }): JSX.Element {
 }
 
 /**
- * A `.chip` holding only a 16px chevron: 26px tall and 42px wide.
+ * A `.chip-icon` holding only a chevron: a 44px square, the same as the slot a
+ * stepper reserves when it cannot offer that step.
  * @returns The chip placeholder.
  */
 export function IconChipBone(): JSX.Element {
-  return <Bone className="h-6.5 w-10.5 rounded-full" />;
+  return <Bone className="h-11 w-11 rounded-full" />;
 }
 
 /**
@@ -55,8 +56,9 @@ export function TitleBone({ className }: { className: string }): JSX.Element {
 }
 
 /**
- * Mirrors DayNav on the current day: the previous-day chip and the `px-2
- * text-sm` date label (the next-day chip only appears on past days).
+ * Mirrors DayNav: a chip on each side of the `min-w-24 px-2 text-sm` date label.
+ * Both sides are drawn because the real stepper holds the space of a step it
+ * cannot offer, so its width is the same on the newest day as on any other.
  * @returns The stepper placeholder.
  */
 export function DayNavSkeleton(): JSX.Element {
@@ -64,8 +66,9 @@ export function DayNavSkeleton(): JSX.Element {
     <div className="flex items-center gap-1">
       <IconChipBone />
       <div className="px-2">
-        <Bone className="h-5 w-18" />
+        <Bone className="h-5 w-20" />
       </div>
+      <IconChipBone />
     </div>
   );
 }

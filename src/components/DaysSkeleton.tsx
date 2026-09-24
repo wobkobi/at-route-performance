@@ -21,11 +21,14 @@ export function DaysHeaderSkeleton(): JSX.Element {
             <ChipBone className="w-16" />
             <ChipBone className="w-18" />
           </div>
+          {/* A chip each side: the real stepper holds the space of a step it
+              cannot offer, so the present period is no narrower than any other. */}
           <div className="flex items-center gap-1">
             <IconChipBone />
             <div className="px-1">
               <Bone className="h-5 w-24" />
             </div>
+            <IconChipBone />
           </div>
         </div>
       </header>

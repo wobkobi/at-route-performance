@@ -210,7 +210,8 @@ function RouteWeekNav({
   nextHref: string | null;
 }): JSX.Element {
   return (
-    // Week steps prefetch in full for the reason DayNav's do.
+    // Week steps prefetch in full for the reason DayNav's do, and an absent one
+    // leaves a `.step-slot` so the present week does not shift the row.
     <div className="flex items-center gap-1">
       {prevHref ? (
         <Link
@@ -223,7 +224,9 @@ function RouteWeekNav({
             <ChevronLeft className="block h-4 w-4" />
           </StepPending>
         </Link>
-      ) : null}
+      ) : (
+        <span className="step-slot" aria-hidden />
+      )}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
         <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
@@ -231,7 +234,9 @@ function RouteWeekNav({
             <ChevronRight className="block h-4 w-4" />
           </StepPending>
         </Link>
-      ) : null}
+      ) : (
+        <span className="step-slot" aria-hidden />
+      )}
     </div>
   );
 }

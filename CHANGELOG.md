@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.6.3] - 2026-09-25
+
+### Fixed
+
+- Day, week and period steppers keep the space of a step they cannot offer, so reaching the newest
+  or oldest day no longer slides the date and the Day/Week/Month tabs 48px sideways.
+
 ## [2.6.2] - 2026-09-25
 
 ### Changed

@@ -128,6 +128,15 @@
 .chip-icon {
   @apply min-h-11 min-w-11 justify-center;
 }
+/*
+  Holds the space of a stepper chevron that is not offered. Without it, reaching
+  the newest or oldest day collapsed a 44px chip plus the row's 4px gap and slid
+  the date and the window tabs beside it 48px sideways, on the one control a
+  reader clicks repeatedly.
+*/
+.step-slot {
+  @apply block min-h-11 min-w-11;
+}
 
 /*
   Stepper chevron while its click waits on the server (StepPending). The pulse
