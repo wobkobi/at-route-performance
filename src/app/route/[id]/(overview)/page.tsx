@@ -805,7 +805,7 @@ export default async function RoutePage({
               <PunctualityStat
                 bare
                 variant="split"
-                label="On-time (%)"
+                label="On time"
                 value={weekSummary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={weekPunctuality}
               />
@@ -884,7 +884,7 @@ export default async function RoutePage({
               <PunctualityStat
                 bare
                 variant="split"
-                label="On-time (%)"
+                label="On time"
                 value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={punctuality}
               />
@@ -905,13 +905,13 @@ export default async function RoutePage({
               getRouteStats call, which takes no direction at all and drops the
               cancellation penalty as soon as hours narrow the window - so
               "Trips" and the runs below describe one direction while "Arrivals"
-              and "On-time" describe both, and a peak can read better than the
+              and "On time" describe both, and a peak can read better than the
               day did without anything having improved. The week view has said
               its half of this since it shipped; the day view said neither. */}
           {(activeDir != null || hours != null) && (
             <p className="text-xs text-at-muted">
               {activeDir != null &&
-                "Arrivals, Avg off by and On-time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
+                "Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
               {hours != null &&
                 "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
             </p>

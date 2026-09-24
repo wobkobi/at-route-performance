@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.2] - 2026-09-24
+
+### Fixed
+
+- Every on-time caption now reads "On time" rather than a mix of "On-time" and "On-time (%)", and
+  the averages popover names its two rows "Early or late, net" and "Off by, ignoring direction"
+  under the heading "Averages". A reader crossing two pages met the same figure under three
+  spellings, and the popover's bracketed annotations explained the labels instead of the labels
+  saying it.
+
 ## [2.0.1] - 2026-09-24
 
 ### Fixed

@@ -53,7 +53,7 @@ export interface PunctualityBreakdown {
 
 /** Props for {@link PunctualityStat}. */
 export interface PunctualityStatProps {
-  /** KPI caption, e.g. "On-time" or "Avg off by". */
+  /** KPI caption, e.g. "On time" or "Avg off by". */
   label: string;
   /** Pre-formatted KPI value. */
   value: string;
@@ -302,14 +302,14 @@ export function PunctualityInfo({
             ) : (
               <>
                 <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">
-                  Average delay
+                  Averages
                 </p>
                 <div className="mt-2 space-y-1 text-sm">
                   {/* Both figures are means, so neither applies the on-time window: a stop that runs
                       as early as it runs late nets near zero, and "on time" above a magnitude of
                       9m would contradict it. */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-at-muted">Net (early + late)</span>
+                    <span className="text-at-muted">Early or late, net</span>
                     <span className="font-semibold tabular-nums">
                       {avg_delay_sec == null
                         ? UNKNOWN_VALUE
@@ -317,7 +317,7 @@ export function PunctualityInfo({
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-at-muted">Off by (magnitude)</span>
+                    <span className="text-at-muted">Off by, ignoring direction</span>
                     <span className="font-semibold tabular-nums">
                       {avg_abs_delay_sec == null
                         ? UNKNOWN_VALUE
@@ -327,8 +327,8 @@ export function PunctualityInfo({
                 </div>
                 <p className="mt-2 text-xs leading-snug text-at-muted">
                   Earlies and lates cancel in the net average, so it nears zero even when many runs
-                  are off. &ldquo;Off by&rdquo; ignores direction - the typical distance from
-                  schedule.
+                  are off. &ldquo;Off by&rdquo; is the typical distance from schedule, whichever way
+                  a run was out.
                 </p>
               </>
             )}

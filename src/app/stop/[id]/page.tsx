@@ -221,7 +221,7 @@ export default async function StopPage({
           <PunctualityStat
             bare
             variant="split"
-            label="On-time (%)"
+            label="On time"
             value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
             breakdown={punctuality}
           />
