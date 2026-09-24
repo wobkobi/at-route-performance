@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.4] - 2026-09-24
+
+### Fixed
+
+- The two home headings that read "Shame of the day" and "Shame of the week" now say "Worst of the
+  day" and "Worst of the week", matching the boards they open, which are headed "Worst trips",
+  "Worst routes" and "Worst stops". "Shame" now survives only in the URL.
+
 ## [2.0.3] - 2026-09-24
 
 ### Fixed

@@ -280,7 +280,7 @@ async function PeriodHome({
 
       <section className="space-y-4">
         <SectionLink
-          title={`Shame of the ${window}`}
+          title={`Worst of the ${window}`}
           href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -439,7 +439,7 @@ export default async function Home({
 
       <section className="space-y-4">
         <SectionLink
-          title="Shame of the day"
+          title="Worst of the day"
           href={buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool })}
         />
         <Suspense fallback={<FeatureCardRowSkeleton />}>
