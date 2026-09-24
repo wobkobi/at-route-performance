@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.6] - 2026-09-24
+
+### Fixed
+
+- The tab description now reads "How close Auckland's buses, trains and ferries run to their
+  timetable, measured every day" instead of "route and stop performance analytics", and the footer
+  says the site is built from Auckland Transport's public GTFS feeds rather than calling itself
+  live, which only its two live pages are.
+
 ## [2.0.5] - 2026-09-24
 
 ### Changed

@@ -31,7 +31,8 @@ export const metadata: Metadata = {
   // It does not reach a title set in this same segment, which is why the home
   // page sets none and takes the default.
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description: "Auckland Transport route and stop performance analytics.",
+  description:
+    "How close Auckland's buses, trains and ferries run to their timetable, measured every day.",
 };
 
 /**
@@ -118,7 +119,7 @@ export default function RootLayout({
                 <span className="font-ultra tracking-zero">{SITE_NAME}</span>
               </div>
               <p className="max-w-xs text-sm text-white/70">
-                Live performance from Auckland Transport&apos;s GTFS feeds. Times are Auckland
+                Built from Auckland Transport&apos;s public GTFS feeds. All times are Auckland
                 local.
               </p>
             </div>
