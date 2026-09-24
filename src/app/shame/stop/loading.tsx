@@ -14,7 +14,7 @@ import type { JSX } from "react";
 export default function Loading(): JSX.Element {
   return (
     <main className="space-y-6">
-      <ShameHeaderSkeleton />
+      <ShameHeaderSkeleton twoLineSubtitle />
     </main>
   );
 }

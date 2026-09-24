@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.57.3] - 2026-09-24
+
+### Fixed
+
+- The worst-stops board's placeholder left room for a one-line subtitle where the page paints two,
+  so the board jumped down as it finished loading. It now matches the worst-trips and worst-routes
+  placeholders.
+
 ## [1.57.2] - 2026-09-24
 
 ### Fixed
