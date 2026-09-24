@@ -63,7 +63,7 @@ export function RouteWeekSummary({
                 Arrivals
               </th>
               <th scope="col" className="px-4 py-2 text-right">
-                Avg delay
+                Early or late
               </th>
               <th scope="col" className="px-4 py-2 text-right">
                 On time

@@ -489,8 +489,8 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
       s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { thresholdSec: 0 });
     const popup =
       s.avg_abs_delay_sec != null
-        ? `<strong>${esc(s.name)}</strong><br>Net: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
-        : `<strong>${esc(s.name)}</strong><br>Avg delay: ${net}`;
+        ? `<strong>${esc(s.name)}</strong><br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
+        : `<strong>${esc(s.name)}</strong><br>Early or late: ${net}`;
     marker.bindPopup(popup);
     marker.addTo(stopLayer);
     markerById.set(s.stop_id, marker);

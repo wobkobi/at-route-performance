@@ -989,7 +989,7 @@ export default async function RoutePage({
                         Arrivals
                       </th>
                       <th scope="col" className="px-3 py-2 text-right">
-                        Avg delay
+                        Early or late
                       </th>
                     </tr>
                   </thead>

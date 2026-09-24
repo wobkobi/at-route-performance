@@ -293,7 +293,7 @@ async function LiveTable({
               <SortHeader active={sort === "late"}>Late</SortHeader>
               <SortHeader className="hidden sm:table-cell">On time</SortHeader>
               <SortHeader className="hidden sm:table-cell">Early</SortHeader>
-              <SortHeader className="hidden md:table-cell">Avg delay</SortHeader>
+              <SortHeader className="hidden md:table-cell">Early or late, avg</SortHeader>
             </tr>
           </thead>
           <tbody>

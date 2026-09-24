@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.0.1] - 2026-09-24
+
+### Fixed
+
+- The figure that can be either early or late is now labelled "Early or late" rather than "Avg
+  delay": it is an average that carries a direction, and a route running early under a heading that
+  says delay read as a contradiction. On the live page it says "Early or late, avg", because the
+  columns beside it count vehicles rather than measuring time.
+
 ## [2.0.0] - 2026-09-24
 
 ### Added
