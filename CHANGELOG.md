@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.57.0] - 2026-09-24
+
+### Added
+
+- Behind the scenes: the health check at /api/health now makes a real database read instead of
+  sending a cheap ping, and reports how long that read took. A ping is answered promptly while the
+  queries behind real pages are queueing, so the check could call the database healthy during
+  exactly the slowdown it exists to catch. A monitor can now alert on the reported time and see
+  trouble before it becomes an outage.
+
 ## [1.56.3] - 2026-09-24
 
 ### Changed
