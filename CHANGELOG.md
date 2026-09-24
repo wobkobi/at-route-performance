@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.57.1] - 2026-09-24
+
+### Changed
+
+- Updated prettier and puppeteer to their current releases. Both are build-time tools, so nothing on
+  the site changes.
+
 ## [1.57.0] - 2026-09-24
 
 ### Added
