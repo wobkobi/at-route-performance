@@ -4,9 +4,10 @@
 import { STATION_PREFIX } from "@/lib/station";
 import {
   MIN_STOP_EVENTS,
-  type RankedStopRow,
+  matchesDelayDirection,
   mergeStationPlatforms,
   worstStopOfDay,
+  type RankedStopRow,
 } from "@/lib/worst-stop";
 import { describe, expect, it } from "vitest";
 
@@ -218,7 +219,84 @@ describe("worstStopOfDay", () => {
 
   it("takes the floor as given, so the hour board can pass its own smaller one", () => {
     const rows = [row({ stop_id: "1401", name: "Queen Street", events: 5, avg_abs_delay_sec: 90 })];
-    expect(worstStopOfDay(rows, 5)?.stop_id).toBe("1401");
+    expect(worstStopOfDay(rows, { minEvents: 5 })?.stop_id).toBe("1401");
     expect(worstStopOfDay(rows)).toBeNull();
+  });
+
+  it("skips the worst stop when it ran the other way from the chosen direction", () => {
+    const rows = [
+      row({
+        stop_id: "early",
+        name: "Ran early",
+        events: MIN_STOP_EVENTS,
+        avg_delay_sec: -400,
+        avg_abs_delay_sec: 400,
+      }),
+      row({ stop_id: "late", name: "Ran late", events: MIN_STOP_EVENTS, avg_abs_delay_sec: 100 }),
+    ];
+
+    expect(worstStopOfDay(rows)?.stop_id).toBe("early");
+    expect(worstStopOfDay(rows, { direction: "late" })?.stop_id).toBe("late");
+    expect(worstStopOfDay(rows, { direction: "early" })?.stop_id).toBe("early");
+  });
+
+  it("names nothing when every qualifying stop ran the other way", () => {
+    const rows = [
+      row({
+        stop_id: "1401",
+        name: "Queen Street",
+        events: MIN_STOP_EVENTS,
+        avg_delay_sec: -400,
+        avg_abs_delay_sec: 400,
+      }),
+    ];
+
+    expect(worstStopOfDay(rows, { direction: "late" })).toBeNull();
+  });
+
+  it("judges a station on its merged direction, not on a platform running the other way", () => {
+    // Platform 1 averages 300s early and platform 2 420s late over the same
+    // sample, so the station nets 60s late while one of its platforms did not.
+    const rows = [
+      row({
+        stop_id: "133-a",
+        name: "Newmarket Train Station 1",
+        events: MIN_STOP_EVENTS,
+        avg_delay_sec: -300,
+        avg_abs_delay_sec: 300,
+        parent_station: "133",
+        platform_code: "1",
+      }),
+      row({
+        stop_id: "133-b",
+        name: "Newmarket Train Station 2",
+        events: MIN_STOP_EVENTS,
+        avg_delay_sec: 420,
+        avg_abs_delay_sec: 420,
+        parent_station: "133",
+        platform_code: "2",
+      }),
+    ];
+
+    expect(worstStopOfDay(rows, { direction: "late" })?.avg_delay_sec).toBe(60);
+    expect(worstStopOfDay(rows, { direction: "early" })).toBeNull();
+  });
+});
+
+describe("matchesDelayDirection", () => {
+  it("keeps every row when no direction is set", () => {
+    expect(matchesDelayDirection({ avg_delay_sec: -60 }, null)).toBe(true);
+    expect(matchesDelayDirection({ avg_delay_sec: 60 }, null)).toBe(true);
+    expect(matchesDelayDirection({ avg_delay_sec: 0 }, null)).toBe(true);
+  });
+
+  it("drops a row that averaged exactly on time, which is neither way", () => {
+    expect(matchesDelayDirection({ avg_delay_sec: 0 }, "late")).toBe(false);
+    expect(matchesDelayDirection({ avg_delay_sec: 0 }, "early")).toBe(false);
+  });
+
+  it("reads a missing signed average as neither way rather than as early", () => {
+    expect(matchesDelayDirection({ avg_delay_sec: null }, "late")).toBe(false);
+    expect(matchesDelayDirection({ avg_delay_sec: null }, "early")).toBe(false);
   });
 });

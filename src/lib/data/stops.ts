@@ -8,6 +8,7 @@ import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
+import type { DelayDirection } from "@/lib/rankings";
 import {
   STATION_PREFIX,
   isLegacyStationId,
@@ -35,6 +36,8 @@ import type { ShameDayStop, ShameStop, ShameStopOfDay, ShameStopOfWeek } from "@
  * @param date - Service date (`YYYY-MM-DD`).
  * @param mode - Route mode filter (null = every mode).
  * @param includeSchool - Whether school services are included.
+ * @param direction - Keep only days whose worst station ran late or early on
+ *   average; null keeps both, which is what every surface but `/shame/stop` asks for.
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's worst stops.
  */
@@ -42,14 +45,22 @@ export function cachedWorstStopsOfDay(
   date: string,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
   includeSchool: boolean,
+  direction: DelayDirection,
   revalidate: number,
 ): Promise<ShameDayStop[]> {
   return cachedForDay(
-    (classified) => worstStopsForRange(nzServiceDayRange(date), mode, includeSchool, classified),
+    (classified) =>
+      worstStopsForRange(nzServiceDayRange(date), mode, includeSchool, direction, classified),
     // The key names stations because a row is now one station rather than one
     // platform: a completed day caches for a week, so an entry written before
     // the merge would keep naming a single platform for that long.
-    ["worst-stops-of-day-stations", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    [
+      "worst-stops-of-day-stations",
+      date,
+      mode ?? "all",
+      includeSchool ? "school" : "no-school",
+      direction ?? "both",
+    ],
     date,
     revalidate,
   );
@@ -88,9 +99,11 @@ function dominantMode(
  * of each hour for a service window. Only stops with at least
  * {@link MIN_STOP_EVENTS_HOUR} events in that hour qualify. Cached briefly.
  * @param range - The service-day window.
- * @param filter - Mode/school filters.
+ * @param filter - Mode/school/direction filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
  * @param filter.includeSchool - Include school services (default false).
+ * @param filter.direction - Rank only stops running late or early on average;
+ *   null/undefined ranks both.
  * @param revalidate - Cache lifetime in seconds.
  * @returns The hour's worst stop and the per-hour worst list, earliest hour first.
  */
@@ -99,7 +112,7 @@ export async function getWorstStopsOfDay(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameStopOfDay> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, includeSchool = false, direction = null } = filter;
   return cachedForRange(
     async (classified) => {
       const routeIds = await worstStopRouteIds(mode, includeSchool);
@@ -138,6 +151,26 @@ export async function getWorstStopsOfDay(
               },
             },
             { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
+            // Direction narrows the candidates, not the board: one row per hour
+            // survives the `$group` below, so filtering the rows this returns
+            // would leave a Late board holding only the hours whose overall
+            // worst also ran late - most of a day blank on a day that ran early.
+            // Tested on the rounded average, the figure the row prints, so the
+            // board cannot hold a row reading as on time.
+            ...(direction
+              ? [
+                  {
+                    $match: {
+                      $expr: {
+                        [direction === "late" ? "$gt" : "$lt"]: [
+                          { $round: ["$avg_delay_sec", 1] },
+                          0,
+                        ],
+                      },
+                    },
+                  },
+                ]
+              : []),
             {
               $lookup: {
                 from: "Stop",
@@ -202,6 +235,7 @@ export async function getWorstStopsOfDay(
       range.end.toISOString(),
       mode ?? "all",
       includeSchool ? "school" : "no-school",
+      direction ?? "both",
     ],
     range,
     revalidate,
@@ -215,9 +249,11 @@ export async function getWorstStopsOfDay(
  * the floor lives with {@link worstStopOfDay}. Cached at the supplied revalidate
  * rate.
  * @param range - The week (or multi-day) window.
- * @param filter - Mode/school filters.
+ * @param filter - Mode/school/direction filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
  * @param filter.includeSchool - Include school services (default false).
+ * @param filter.direction - Name only stations running late or early on average;
+ *   null/undefined names both.
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst stop and the per-day worst list, earliest day first.
  */
@@ -226,14 +262,14 @@ export async function getWorstStopsOfWeek(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameStopOfWeek> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, includeSchool = false, direction = null } = filter;
   // Resolve each service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation. Past days stay
   // cached; only the current day recomputes.
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstStopsOfDay(date, mode, includeSchool, revalidate),
+        cachedWorstStopsOfDay(date, mode, includeSchool, direction, revalidate),
       ),
     )
   ).flat();
@@ -255,6 +291,8 @@ export async function getWorstStopsOfWeek(
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
  * @param includeSchool - Whether to include school services.
+ * @param direction - Name only stations running late or early on average; null
+ *   names both. A day whose qualifying stations all ran the other way has no row.
  * @param classified - Whether the day has been through the ghost pass.
  * @returns The per-service-day worst stops, earliest day first.
  */
@@ -262,6 +300,7 @@ async function worstStopsForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
   includeSchool: boolean,
+  direction: DelayDirection,
   classified: boolean,
 ): Promise<ShameDayStop[]> {
   const routeIds = await worstStopRouteIds(mode, includeSchool);
@@ -330,7 +369,7 @@ async function worstStopsForRange(
   const modeMap = mode ? null : await getRouteModeMap();
   const days: ShameDayStop[] = [];
   for (const [date, rows] of byDate) {
-    const worst = worstStopOfDay(rows);
+    const worst = worstStopOfDay(rows, { direction });
     if (!worst) continue;
     const { routeIds: stationRouteIds, ...row } = worst;
     days.push({ date, ...row, mode: mode ?? dominantMode(stationRouteIds, modeMap!) });

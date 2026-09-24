@@ -4,6 +4,7 @@
 // the rule is testable without the database; the aggregations that feed it live
 // in src/lib/data/stops.ts.
 
+import type { DelayDirection } from "@/lib/rankings";
 import { stationId, stationName, stationPartsOf, type StationRow } from "@/lib/station";
 import type { WorstStop } from "@/types/dashboard";
 
@@ -81,18 +82,51 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
 }
 
 /**
+ * Whether a row belongs on a board narrowed to one direction. Tested on the
+ * merged signed average, already rounded to the figure the row prints, so the
+ * Late board cannot hold a station whose own row reads as on time. A station
+ * whose platforms disagree is judged on the station's total, which is the number
+ * the row shows.
+ * @param row - A merged station row.
+ * @param direction - The direction to keep, or null to keep both.
+ * @returns True when the row belongs on that board.
+ */
+export function matchesDelayDirection(
+  row: Pick<MergedStopRow, "avg_delay_sec">,
+  direction: DelayDirection,
+): boolean {
+  if (direction === null) return true;
+  const signed = row.avg_delay_sec ?? 0;
+  return direction === "late" ? signed > 0 : signed < 0;
+}
+
+/** Which rows {@link worstStopOfDay} will consider. */
+export interface WorstStopOptions {
+  /** Fewest events a station needs to qualify (default {@link MIN_STOP_EVENTS}). */
+  minEvents?: number;
+  /** Keep only stations running late or early on average; null keeps both. */
+  direction?: DelayDirection;
+}
+
+/**
  * The worst station in one day's rows. Platforms merge first and the floor
  * applies second, so a station clears it on all its platforms' services
  * together rather than on whichever platform happened to be busiest - and a
  * station cannot be named on one platform's thin sample while its own total was
- * ordinary.
+ * ordinary. A direction filter runs after the merge for the same reason: a
+ * station's direction is the one its merged row prints.
  * @param rows - Raw per-stop rows for a single day.
- * @param minEvents - Fewest events a station needs to qualify.
- * @returns The day's worst station, or null when none clears the floor.
+ * @param options - The floor and the direction to keep.
+ * @returns The day's worst station, or null when none qualifies.
  */
 export function worstStopOfDay(
   rows: readonly RankedStopRow[],
-  minEvents: number = MIN_STOP_EVENTS,
+  options: WorstStopOptions = {},
 ): MergedStopRow | null {
-  return mergeStationPlatforms(rows).find((r) => r.events >= minEvents) ?? null;
+  const { minEvents = MIN_STOP_EVENTS, direction = null } = options;
+  return (
+    mergeStationPlatforms(rows).find(
+      (r) => r.events >= minEvents && matchesDelayDirection(r, direction),
+    ) ?? null
+  );
 }

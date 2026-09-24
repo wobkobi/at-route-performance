@@ -57,6 +57,7 @@ import {
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -143,39 +144,6 @@ export async function generateMetadata({
 }
 
 /**
- * Query params each home filter keeps when it links, so the filters compose:
- * every control carries the other two filters plus the page's own view params
- * (the day, or the window and period), and drops only the one it sets itself.
- * @param filters - The active filters.
- * @param filters.mode - Active mode, or null for every mode.
- * @param filters.includeSchool - Whether school services are included.
- * @param filters.dir - Delay-direction filter.
- * @param view - The view params every control keeps; undefined values are left out.
- * @returns One param set per control.
- */
-function preservedFor(
-  filters: { mode: ModeFilterValue; includeSchool: boolean; dir: DelayDirection },
-  view: Record<string, string | undefined>,
-): Record<"mode" | "school" | "dir", Record<string, string>> {
-  const all: Record<string, string | undefined> = {
-    ...view,
-    mode: filters.mode ?? undefined,
-    school: filters.includeSchool ? "1" : undefined,
-    dir: filters.dir ?? undefined,
-  };
-  /**
-   * The full set minus one control's own param and any unset value.
-   * @param key - The param the control sets itself.
-   * @returns The params that control keeps.
-   */
-  const without = (key: string): Record<string, string> =>
-    Object.fromEntries(
-      Object.entries(all).filter((e): e is [string, string] => e[0] !== key && e[1] !== undefined),
-    );
-  return { mode: without("mode"), school: without("school"), dir: without("dir") };
-}
-
-/**
  * Name a week or month for the vehicles card: the month's name, or a week's
  * first and last day.
  * @param window - "week" or "month".
@@ -238,10 +206,12 @@ async function PeriodHome({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFor({ mode, includeSchool, dir }, { window, period: view.period });
+  } = preservedFilters({ mode, includeSchool, dir }, { window, period: view.period });
   // The shame boards take the same window and filters, so their links carry both.
   const shameNav = { window, period: view.period };
-  const shameFilter = { mode, includeSchool };
+  // No direction: the home page's `dir` narrows its own route boards, and the
+  // link goes to the trips board, which ranks whole runs and reads none.
+  const shameFilter = { mode, includeSchool, direction: null };
 
   // The same three bands as the day view; see its render for the layout rule.
   return (
@@ -396,7 +366,7 @@ export default async function Home({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFor({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
+  } = preservedFilters({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
   const nav = dayRangeNav(shown, earliestDay);
 
@@ -441,7 +411,11 @@ export default async function Home({
       <section className="space-y-4">
         <SectionLink
           title="Worst of the day"
-          href={buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool })}
+          href={buildShameHref(
+            "/shame/trip",
+            { day: linkDay },
+            { mode, includeSchool, direction: null },
+          )}
         />
         <Suspense fallback={<FeatureCardRowSkeleton />}>
           <HomeShameCards

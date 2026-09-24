@@ -33,12 +33,14 @@ import {
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
+import type { DelayDirection } from "@/lib/rankings";
 import {
   buildShameHref,
   countById,
   isCrownable,
   parseShameParams,
   pickWorst,
+  subtitleWithDirection,
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
@@ -86,12 +88,39 @@ function badTimes(count: number): string {
 }
 
 /**
+ * Why a board came back empty. With a direction set an empty board is an
+ * ordinary result rather than missing data, so it says which direction found
+ * nothing instead of claiming nothing was recorded.
+ * @param direction - The active direction, or null for both.
+ * @param period - What the board covers: "day", "week" or "month".
+ * @returns The message under an empty board.
+ */
+function emptyBoardMessage(direction: DelayDirection, period: string): string {
+  return direction
+    ? `No stop ran ${direction} on average this ${period}.`
+    : `No stop data recorded for this ${period}.`;
+}
+
+/**
+ * Why one hour of the day board has no row. The arrivals floor is only half the
+ * reason once a direction is set: an hour can hold plenty of busy stops and
+ * still have none running the way the board is filtered to.
+ * @param direction - The active direction, or null for both.
+ * @returns The reason line for an empty hour.
+ */
+function emptyHourReason(direction: DelayDirection): string {
+  return direction
+    ? `No stop with ${MIN_STOP_EVENTS_HOUR} arrivals ran ${direction} this hour`
+    : `No stop had ${MIN_STOP_EVENTS_HOUR} arrivals this hour`;
+}
+
+/**
  * Week/month board body: runs the per-day worst-stop fan-out and renders one
  * row per service day. Streams in behind the header so the shell never waits on
  * a cold period.
  * @param root0 - Props.
  * @param root0.range - The active window.
- * @param root0.filter - Active mode/school filter.
+ * @param root0.filter - Active mode, school and direction filter.
  * @param root0.periodNoun - Copy noun for the period ("week" / "month").
  * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
@@ -160,7 +189,7 @@ async function StopRangeBoard({
       layout="week"
       items={shame.days}
       keyOf={(s) => s.date}
-      emptyMessage={`No stop data recorded for this ${periodNoun}.`}
+      emptyMessage={emptyBoardMessage(filter.direction, periodNoun)}
       renderRow={renderWeekRow}
     />
   );
@@ -173,7 +202,7 @@ async function StopRangeBoard({
  * @param root0 - Props.
  * @param root0.range - The shown day's 4am-to-4am window.
  * @param root0.serviceDate - The shown service date.
- * @param root0.filter - Active mode/school filter.
+ * @param root0.filter - Active mode, school and direction filter.
  * @param root0.dayWhen - The day as the row copy names it ("today" / "that day").
  * @param root0.linkDay - The `?day` a row's link carries, or undefined on today.
  * @returns The board.
@@ -193,7 +222,10 @@ async function StopDayBoard({
 }): Promise<JSX.Element> {
   const [shame, dayHours] = await Promise.all([
     getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
-    getShameDayHours(range, filter, TODAY_REVALIDATE),
+    // The span is which hours the day ran, shared with the trips and routes
+    // boards, so it is read without the direction: narrowed, a Late board would
+    // lose the hours whose worst stop ran early rather than showing them empty.
+    getShameDayHours(range, { ...filter, direction: null }, TODAY_REVALIDATE),
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
@@ -254,7 +286,7 @@ async function StopDayBoard({
         hour={slot.hour}
         serviceDate={serviceDate}
         title="No stop fits this hour"
-        reason={`No stop had ${MIN_STOP_EVENTS_HOUR} arrivals this hour`}
+        reason={emptyHourReason(filter.direction)}
         ctx={ctx}
       />
     );
@@ -264,7 +296,7 @@ async function StopDayBoard({
       layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
-      emptyMessage="No stop data recorded for this day."
+      emptyMessage={emptyBoardMessage(filter.direction, "day")}
       footerMessage="No stops were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
@@ -288,7 +320,8 @@ export default async function StopShamePage({
   const sp = (await searchParams) ?? {};
   clampDayParam(BASE, sp);
   dropTodayParam(BASE, sp);
-  const { filter, view, subtitle } = parseShameParams(sp);
+  const { filter, view, subtitle: modeSubtitle } = parseShameParams(sp);
+  const subtitle = subtitleWithDirection(modeSubtitle, filter.direction);
 
   if (view !== "day") {
     // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
@@ -321,6 +354,7 @@ export default async function StopShamePage({
             mode: filter.mode,
             includeSchool: filter.includeSchool,
             nav: rangeNav,
+            direction: { active: filter.direction },
           }}
         />
         <Suspense
@@ -368,6 +402,7 @@ export default async function StopShamePage({
           mode: filter.mode,
           includeSchool: filter.includeSchool,
           nav: { day: linkDay },
+          direction: { active: filter.direction },
         }}
       />
       <Suspense

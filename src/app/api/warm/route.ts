@@ -77,7 +77,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     const [trips, routes, stops] = await Promise.all([
       cachedWorstTripsOfDay(yesterday, null, false, WEEK_REVALIDATE),
       cachedWorstRoutesOfDay(yesterday, null, false, WEEK_REVALIDATE),
-      cachedWorstStopsOfDay(yesterday, null, false, WEEK_REVALIDATE),
+      // Both directions: that is what every card and the board's own default read.
+      cachedWorstStopsOfDay(yesterday, null, false, null, WEEK_REVALIDATE),
     ]);
     after(() => warmPages(new URL(req.url).origin, yesterday));
     return NextResponse.json(
