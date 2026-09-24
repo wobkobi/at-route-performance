@@ -26,6 +26,7 @@ import {
   getEarliestDataDay,
   getRouteNames,
   getStationSiblings,
+  getStopIdentity,
   getStopStats,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
@@ -69,8 +70,10 @@ interface StopSearchParams {
 /**
  * Per-stop page title, so a tab and a shared link name the stop rather than
  * repeating the site title. The shared link's card and title name the day the
- * link carries. The name comes from the same stats read as the page's, on the
- * same shown day, so the two share one cached query.
+ * link carries, which the card reads from the query rather than from the
+ * resolved day - so nothing here needs to know which day the page will show.
+ * The name comes from {@link getStopIdentity}, a day-independent lookup, rather
+ * than from the day's figures: the title says which stop this is, not how it ran.
  * @param root0 - Page props.
  * @param root0.params - Promise resolving to the dynamic params `{ id }`.
  * @param root0.searchParams - Optional query params (`day`).
@@ -91,11 +94,7 @@ export async function generateMetadata({
     id = raw;
   }
   const sp = (await searchParams) ?? {};
-  const { range } = await resolveShownDay(resolveRequestedDay(sp.day));
-  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE).catch(
-    readFallback("stop-stats", null),
-  );
-  const name = stats?.stop.name;
+  const name = (await getStopIdentity(id).catch(readFallback("stop-identity", null)))?.name;
   if (!name) return { title: "Stop" };
   const card = parseStopCard(id, sp);
   const description = `On-time performance at ${name} ${MEASURED_AGAINST}`;

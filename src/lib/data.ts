@@ -68,6 +68,7 @@ export {
   cachedWorstStopsOfDay,
   findCurrentStationId,
   getStationSiblings,
+  getStopIdentity,
   getStopStats,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,

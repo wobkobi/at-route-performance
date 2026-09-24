@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.6.2] - 2026-09-25
+
+### Changed
+
+- A stop page's title no longer waits on a whole day of arrivals being aggregated. The name does not
+  change with the day, so it is read from the stop itself.
+
 ## [2.6.1] - 2026-09-25
 
 ### Fixed

@@ -471,6 +471,24 @@ export async function getStationSiblings(id: string): Promise<StationSiblings | 
 }
 
 /** A canonical stop resolved to its underlying platform ids + display position. */
+/**
+ * A stop's name alone, for a caller that needs to say which stop it is without
+ * measuring it.
+ *
+ * `generateMetadata` used {@link getStopStats} for this, which costs a
+ * day-scoped aggregation over every arrival at every platform, and a
+ * `resolveShownDay` database read before it to settle which day to aggregate -
+ * all in front of the document head, for one string. The name does not depend on
+ * the day, so this reads only the stop, and the entry it hits is the day-long
+ * one the page itself already warms.
+ * @param id - The canonical stop id from a link (raw stop id or `station:` id).
+ * @returns The stop's display name, or null when no such stop exists.
+ */
+export async function getStopIdentity(id: string): Promise<{ name: string } | null> {
+  const group = await resolveStopGroup(id);
+  return group === null ? null : { name: group.name };
+}
+
 interface StopGroup {
   /** Canonical id (a `station:` id for collapsed train platforms, else the stop id). */
   id: string;
