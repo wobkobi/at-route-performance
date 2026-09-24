@@ -3,7 +3,12 @@
 import { byServiceDeparture, stopTripsTtl, type ScheduledDeparture } from "@/lib/at-stop-trips";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/at-static", () => ({ getJson: vi.fn() }));
+// Only the fetcher is stubbed: `AtHttpError` stays real, because the module under test branches on
+// `instanceof` and a stubbed class would make that test itself.
+vi.mock("@/lib/at-static", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/at-static")>()),
+  getJson: vi.fn(),
+}));
 
 /**
  * A departure at a GTFS time, the rest filler.

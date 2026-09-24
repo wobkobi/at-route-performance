@@ -1,7 +1,7 @@
 // src/lib/at-stop-trips.ts
 // Fetches scheduled departures at a stop for a service date from AT's GTFS v3 feed.
 
-import { getJson } from "@/lib/at-static";
+import { AtHttpError, getJson } from "@/lib/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
 import { gtfsServiceSeconds, nzServiceDayString } from "@/lib/time";
 
@@ -58,8 +58,10 @@ async function queryStopTrips(stopId: string, date: string): Promise<ScheduledDe
       "filter[date]": date,
     });
   } catch (err) {
-    // 404 means the stop has no trips on this date or is not in the schedule.
-    if (err instanceof Error && err.message.includes("404")) return [];
+    // 404 means the stop has no trips on this date or is not in the schedule. Read off the status,
+    // not the message: the message carries the URL, so a stop id such as "1404" made every failure
+    // at that stop - a 500, or exhausted retries - look like an empty schedule.
+    if (err instanceof AtHttpError && err.status === 404) return [];
     throw err;
   }
   if (!page) return [];

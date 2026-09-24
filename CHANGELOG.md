@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [1.57.4] - 2026-09-24
+
+### Fixed
+
+- A stop's departures board could say "no scheduled trips found" when the request to Auckland
+  Transport had in fact failed. The test for "this stop has no trips today" looked for 404 anywhere
+  in the error, and the error carries the web address it tried - which contains the stop's own
+  number, so at a stop numbered 1404 an outage read as an empty timetable. Failures are now told
+  apart by their status code, so a real one is reported and logged instead of being drawn as a quiet
+  empty board.
+
 ## [1.57.3] - 2026-09-24
 
 ### Fixed
