@@ -1,8 +1,15 @@
 // tests/lib/ingest-spool.test.ts
-// Unit tests for the outage spool: what gets held, what gets replayed, and the
-// two ways a batch leaves the spool without being replayed (too old, unreadable).
-// The blob store is mocked; nothing here touches Vercel.
-import { drainSpool, spoolEnabled, spoolWrites, type SpooledWrite } from "@/lib/ingest-spool";
+// Unit tests for the outage spool: what gets held, what gets replayed, the two
+// ways a batch leaves the spool without being replayed (too old, unreadable), and
+// when the spool is worth listing at all, since each listing is a billed blob
+// operation. The blob store is mocked; nothing here touches Vercel.
+import {
+  drainSpool,
+  spoolEnabled,
+  spoolMayHold,
+  spoolWrites,
+  type SpooledWrite,
+} from "@/lib/ingest-spool";
 import { gzipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -86,10 +93,16 @@ describe("without a store configured", () => {
       rows: 0,
       dropped: 0,
       stoppedEarly: false,
+      pending: false,
     });
     expect(blob.put).not.toHaveBeenCalled();
     expect(blob.list).not.toHaveBeenCalled();
     expect(replay).not.toHaveBeenCalled();
+  });
+
+  it("never asks for a drain, whatever the run stamps say", () => {
+    expect(spoolMayHold(null)).toBe(false);
+    expect(spoolMayHold({ completedAt: new Date(0), spoolPending: true })).toBe(false);
   });
 });
 
@@ -133,7 +146,13 @@ describe("drainSpool", () => {
 
     const result = await drainSpool(replay);
 
-    expect(result).toEqual({ replayed: 2, rows: 6, dropped: 0, stoppedEarly: false });
+    expect(result).toEqual({
+      replayed: 2,
+      rows: 6,
+      dropped: 0,
+      stoppedEarly: false,
+      pending: false,
+    });
     // Sorted by pathname, which leads with the timestamp, so a.gz goes first.
     expect(blob.get.mock.calls.map((c) => c[0])).toEqual([
       "ingest-spool/a.gz",
@@ -173,6 +192,9 @@ describe("drainSpool", () => {
     expect(result.replayed).toBe(1);
     expect(result.rows).toBe(2);
     expect(result.stoppedEarly).toBe(true);
+    // The two it could not replay are still there, so the next run must ask again
+    // rather than wait for a gap in the run stamps to prompt it.
+    expect(result.pending).toBe(true);
     expect(replay).toHaveBeenCalledTimes(2);
     // Only the batch that actually landed is gone.
     expect(blob.del).toHaveBeenCalledTimes(1);
@@ -187,7 +209,13 @@ describe("drainSpool", () => {
 
     const result = await drainSpool(replay);
 
-    expect(result).toEqual({ replayed: 0, rows: 0, dropped: 1, stoppedEarly: false });
+    expect(result).toEqual({
+      replayed: 0,
+      rows: 0,
+      dropped: 1,
+      stoppedEarly: false,
+      pending: false,
+    });
     expect(blob.get).not.toHaveBeenCalled();
     expect(replay).not.toHaveBeenCalled();
     expect(blob.del).toHaveBeenCalledWith("ingest-spool/old.gz");
@@ -223,7 +251,13 @@ describe("drainSpool", () => {
 
     const result = await drainSpool(replay);
 
-    expect(result).toEqual({ replayed: 0, rows: 0, dropped: 1, stoppedEarly: false });
+    expect(result).toEqual({
+      replayed: 0,
+      rows: 0,
+      dropped: 1,
+      stoppedEarly: false,
+      pending: false,
+    });
     expect(replay).not.toHaveBeenCalled();
     expect(blob.del).toHaveBeenCalledWith("ingest-spool/unchanged.gz");
   });
@@ -237,7 +271,68 @@ describe("drainSpool", () => {
       rows: 0,
       dropped: 0,
       stoppedEarly: false,
+      // Nothing was read, so nothing is ruled out.
+      pending: true,
     });
     expect(replay).not.toHaveBeenCalled();
+  });
+
+  it("reports more waiting when the listing came back full", async () => {
+    // The listing is capped, so a full page cannot rule out a ninth batch behind
+    // it. Saying so is what stops a drain stalling after a long outage.
+    blob.list.mockResolvedValue({
+      blobs: Array.from({ length: 8 }, (_, i) => entry(`ingest-spool/${i}.gz`)),
+    });
+    blob.get.mockImplementation(() => Promise.resolve(stored(WRITES)));
+    blob.del.mockResolvedValue(undefined);
+    const replay = vi.fn<(w: SpooledWrite[]) => Promise<number>>().mockResolvedValue(1);
+
+    const result = await drainSpool(replay);
+
+    expect(result.replayed).toBe(8);
+    expect(result.stoppedEarly).toBe(false);
+    expect(result.pending).toBe(true);
+  });
+});
+
+describe("spoolMayHold", () => {
+  // Every run that asks costs a blob listing, and the spool is empty except after
+  // an outage, so the default answer has to be no.
+  const NOW = Date.parse("2026-09-25T10:00:00Z");
+
+  /**
+   * A run stamp that landed a given time ago.
+   * @param agoMs - How long before NOW the run finished.
+   * @param spoolPending - Whether it left batches behind.
+   * @returns The stamp.
+   */
+  function stamp(
+    agoMs: number,
+    spoolPending = false,
+  ): { completedAt: Date; spoolPending: boolean } {
+    return { completedAt: new Date(NOW - agoMs), spoolPending };
+  }
+
+  it("says no on a healthy cadence", () => {
+    // A poll runs every two minutes, so the previous stamp is always about that
+    // old by the time the next one asks.
+    expect(spoolMayHold(stamp(120_000), NOW)).toBe(false);
+    expect(spoolMayHold(stamp(179_000), NOW)).toBe(false);
+  });
+
+  it("says yes once a poll has gone unrecorded", () => {
+    // A poll that could not reach the database could not record itself either, so
+    // a stamp older than a cycle and a half is the evidence a batch is held.
+    expect(spoolMayHold(stamp(181_000), NOW)).toBe(true);
+    expect(spoolMayHold(stamp(3_600_000), NOW)).toBe(true);
+  });
+
+  it("says yes while the last run reports batches still waiting", () => {
+    // A drain is capped per run, so a fresh stamp does not mean an empty spool.
+    expect(spoolMayHold(stamp(10_000, true), NOW)).toBe(true);
+  });
+
+  it("says yes when nothing has been recorded at all", () => {
+    expect(spoolMayHold(null, NOW)).toBe(true);
   });
 });

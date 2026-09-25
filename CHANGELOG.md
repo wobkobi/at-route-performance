@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.3] - 2026-09-25
+
+### Fixed
+
+- Behind the scenes: the realtime ingest no longer lists the outage spool on every poll. A listing
+  is a billed blob operation and the spool is empty except after a database outage, so a poll every
+  two minutes was spending about 720 operations a day asking a question whose answer was almost
+  always no. The ingest run stamps answer it instead: a poll that cannot reach the database cannot
+  record itself either, so a gap in the stamps is what prompts a drain, and a run that leaves
+  batches behind records that so the next one collects them.
+
 ## [2.9.2] - 2026-09-25
 
 ### Fixed
