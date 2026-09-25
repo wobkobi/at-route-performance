@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.1] - 2026-09-25
+
+### Changed
+
+- The page now spans at.govt.nz's own grid - content capped at 96rem with 1rem side margins that
+  widen to 2rem from 1024px - and sits on white rather than a grey tint, with table heads taking
+  AT's pale Shore band colour.
+
 ## [2.9.0] - 2026-09-25
 
 ### Added

@@ -373,7 +373,7 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
       </div>
       <div className="overflow-x-auto px-4 pb-4">
         <table className="min-w-full text-sm">
-          <thead className="bg-at-bg text-at-muted">
+          <thead className="bg-at-shore-pale text-at-muted">
             <tr>
               <th scope="col" className="px-3 py-2 text-left">
                 {noun.replace(/^./, (c) => c.toUpperCase())}
