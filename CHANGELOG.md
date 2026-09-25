@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.2] - 2026-09-25
+
+### Fixed
+
+- Ten pages stopped abandoning their prerendered shell and switching to client rendering: a page
+  that places a day against today now reads the clock once at request time, rather than in a helper
+  default argument where Cache Components treats it as an unstable value. A route page title reads
+  the route number and mode directly, so naming a route no longer runs a seven-day aggregation in
+  the document head.
+
 ## [2.9.1] - 2026-09-25
 
 ### Changed

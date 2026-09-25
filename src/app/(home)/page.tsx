@@ -56,7 +56,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
@@ -79,16 +79,11 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { parseRankingsParams } from "@/lib/rankings-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref, crownedRow } from "@/lib/shame-page";
-import {
-  monthRangeLabel,
-  nzServiceDayString,
-  serviceDatesInRange,
-  serviceDayLabel,
-  type DateRange,
-} from "@/lib/time";
+import { monthRangeLabel, serviceDatesInRange, serviceDayLabel, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -132,7 +127,7 @@ export async function generateMetadata({
   const sp = (await searchParams) ?? {};
   const card = parseHomeCard(sp);
   if (card.window === "day" && card.day === null) {
-    const today = nzServiceDayString();
+    const today = await requestServiceDay();
     const { serviceDate } = await resolveShownDay(null, today);
     if (serviceDate !== today) card.day = serviceDate;
   }
@@ -186,10 +181,15 @@ async function PeriodHome({
 }): Promise<JSX.Element> {
   const { mode, dir, includeSchool } = parseRankingsParams(sp);
   // Anchor every window to the latest day with data so a quiet "today" still
-  // shows a populated period.
-  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  // shows a populated period. Today itself is one request-time clock read for
+  // the whole render (see lib/request-now.ts).
+  const [today, latest, earliest] = await Promise.all([
+    requestServiceDay(),
+    getLatestEventDate(),
+    getEarliestDataDay(1),
+  ]);
   const anchor = latest ?? new Date();
-  const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest);
+  const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest, today);
   const view: PeriodView = {
     window,
     mode,
@@ -319,10 +319,13 @@ export default async function Home({
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
+  // One request-time clock read for the whole render, handed to every helper
+  // that places a day against today (see lib/request-now.ts).
+  const today = await requestServiceDay();
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).
   const requestedDay = resolveRequestedDay(sp.day);
-  const shown = await resolveShownDay(requestedDay);
+  const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;
   const rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
@@ -335,7 +338,7 @@ export default async function Home({
   const earliestDay = await getEarliestDataDay(1);
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
-  const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered

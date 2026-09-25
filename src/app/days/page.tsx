@@ -26,9 +26,9 @@ import {
   periodRangeNav,
   type RangeWindow,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   nzServiceDayRange,
-  nzServiceDayString,
   serviceDatesInRange,
   serviceDayLabel,
   type DateRange,
@@ -85,6 +85,10 @@ export default async function DaysPage({
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
+  // One request-time clock read for the whole render, handed to every helper that
+  // places a day against today (see lib/request-now.ts). Resolved before the
+  // redirect below, which needs it to place a carried day in its week.
+  const today = await requestServiceDay();
   // One day is one column here, so there is no day view to honour and a
   // `?window=day` would render a week under a URL saying otherwise. It becomes the
   // week holding the day it was reading, before any read runs. The segment's
@@ -95,7 +99,7 @@ export default async function DaysPage({
     redirect(
       buildHref("/days", {
         window: "week",
-        period: periodForCarriedDay("week", sp.period, sp.day),
+        period: periodForCarriedDay("week", sp.period, sp.day, today),
         mode: mode ?? undefined,
         school: includeSchool ? "1" : undefined,
       }),
@@ -110,9 +114,10 @@ export default async function DaysPage({
     window,
     // The nav and the footer carry the day being read, so the week or month shown
     // is the one holding it rather than the current one.
-    periodForCarriedDay(window, sp.period, sp.day),
+    periodForCarriedDay(window, sp.period, sp.day, today),
     latest ?? new Date(),
     earliest,
+    today,
   );
   const view = { window, period: period ?? undefined };
   const filters = { mode: mode ?? undefined, school: includeSchool ? "1" : undefined };
@@ -147,6 +152,7 @@ export default async function DaysPage({
           monthView={window === "month"}
           mode={mode}
           includeSchool={includeSchool}
+          today={today}
         />
       </Suspense>
     </main>
@@ -172,6 +178,7 @@ function stripUnset(params: Record<string, string | undefined>): Record<string, 
  * @param root0.monthView - Whether the window is a month.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.includeSchool - Whether school services count.
+ * @param root0.today - Today's service date, resolved once by the page.
  * @returns The chart and table.
  */
 async function DaysBody({
@@ -179,13 +186,14 @@ async function DaysBody({
   monthView,
   mode,
   includeSchool,
+  today,
 }: {
   range: DateRange;
   monthView: boolean;
   mode: ModeFilterValue;
   includeSchool: boolean;
+  today: string;
 }): Promise<JSX.Element> {
-  const today = nzServiceDayString();
   // A month that starts before capture began leaves those days off entirely,
   // rather than drawing them as gaps; the stepper label already says "from".
   const dates = serviceDatesInRange(range).filter((d) => d >= DATA_START_DAY);

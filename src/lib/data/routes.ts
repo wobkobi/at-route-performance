@@ -203,6 +203,34 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
 }
 
 /**
+ * The two fields that name a line: its short name and its mode, off the newest
+ * version of the route (see {@link routeIdsForSlug}).
+ *
+ * This is what a page title or a share card needs, and it is all they need, so
+ * it is read on its own rather than off a full summary - a title has no use for
+ * arrivals, and a summary would cost a seven-day aggregation and a window to
+ * aggregate over, which is a clock read the prerendered head cannot make.
+ * @param slug - A version-stripped route slug (or a full route id).
+ * @returns The route's short name and mode, or null when the slug matches nothing.
+ */
+export async function getRouteLabel(
+  slug: string,
+): Promise<{ shortName: string | null; mode: string } | null> {
+  // Never empty (it falls back to the slug), but read with one so the newest id
+  // is a plain string for the cache key.
+  const newest = (await routeIdsForSlug(slug))[0] ?? slug;
+  return unstable_cache(
+    async () =>
+      prisma.route.findUnique({
+        where: { id: newest },
+        select: { shortName: true, mode: true },
+      }),
+    ["route-label", newest],
+    { revalidate: 3600 },
+  )();
+}
+
+/**
  * All routes as a `routeId > mode` map. Cached with a long TTL since routes
  * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
  * @returns Map from route id to its mode.

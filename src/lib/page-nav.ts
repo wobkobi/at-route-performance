@@ -9,6 +9,7 @@
 // these helpers stay pure and unit-testable.
 import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/data-start";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -342,14 +343,17 @@ export interface ShownDay {
  * home page, the shame boards and a quiet stop never disagree about the day in
  * the early morning.
  * @param requestedDay - The validated `?day=`, or null when none was given.
- * @param today - The current service date (injectable for tests).
+ * @param today - The current service date; read at request time through
+ *   {@link requestServiceDay} when omitted (injectable for tests, and for a page
+ *   that has already resolved it for its other helpers).
  * @returns The day, its window, and whether its next day is still pending.
  */
 export async function resolveShownDay(
   requestedDay: string | null,
-  today: string = nzServiceDayString(),
+  today?: string,
 ): Promise<ShownDay> {
-  const yesterday = shiftWeek(today, -1);
+  const now = today ?? (await requestServiceDay());
+  const yesterday = shiftWeek(now, -1);
   // Only the day before today steps onto today, so any other asked-for day
   // skips the open test.
   if (requestedDay && requestedDay !== yesterday) return shownDay(requestedDay, false);
@@ -358,14 +362,14 @@ export async function resolveShownDay(
   const { currentDayIsOpen, getMostRecentDataDay, TODAY_REVALIDATE } = await import("@/lib/data");
   const open = await currentDayIsOpen(TODAY_REVALIDATE);
   if (requestedDay) return shownDay(requestedDay, !open);
-  if (open) return shownDay(today, false);
+  if (open) return shownDay(now, false);
   // Before today opens: the latest earlier day with enough data. An ingest gap
   // can make that older than yesterday, and then yesterday is still a step on.
   const recent = await getMostRecentDataDay(MIN_BOARD_EVENTS);
   const recentDay = recent ? nzServiceDayString(recent) : null;
-  const day = recentDay && recentDay < today ? recentDay : yesterday;
+  const day = recentDay && recentDay < now ? recentDay : yesterday;
   // The archive's first morning has nothing earlier to stand in.
-  if (day < DATA_START_DAY) return shownDay(today, false);
+  if (day < DATA_START_DAY) return shownDay(now, false);
   return shownDay(day, day === yesterday);
 }
 

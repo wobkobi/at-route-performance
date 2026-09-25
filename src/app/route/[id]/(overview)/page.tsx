@@ -33,6 +33,7 @@ import {
   getEarliestDataDay,
   getRouteClosures,
   getRouteDailyStats,
+  getRouteLabel,
   getRouteNames,
   getRouteStats,
   getRouteStopSplit,
@@ -45,9 +46,9 @@ import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildStrip, type StripSide } from "@/lib/route-strip";
@@ -55,13 +56,7 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
-import {
-  nzLocalHour,
-  nzServiceDayString,
-  nzWeekRange,
-  weekRangeLabel,
-  type DateRange,
-} from "@/lib/time";
+import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
 import {
   hourRangeParam,
   isHourInRange,
@@ -317,10 +312,10 @@ export async function generateMetadata({
   const { id } = await params;
   const slug = routeSlug(id);
   const card = parseRouteCard(id, (await searchParams) ?? {});
-  const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
-    readFallback("route-stats", null),
-  );
-  const route = stats?.route;
+  // The line's own two fields, not a summary of its week: a title names the
+  // route, and reading it this way keeps the head clear of both the aggregation
+  // and the clock a default window would need.
+  const route = await getRouteLabel(slug).catch(readFallback("route-label", null));
   const name = route ? lineName(route.mode, route.shortName) : null;
   const label = route?.shortName ?? slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
@@ -396,8 +391,9 @@ export default async function RoutePage({
 
   // Service day from ?day, or the one every day page opens on. In week view the
   // day stats are not displayed but the route metadata from getRouteStats is
-  // still needed.
-  const today = nzServiceDayString();
+  // still needed. Today is one request-time clock read for the whole render,
+  // handed to every helper that places a day against it (see lib/request-now.ts).
+  const today = await requestServiceDay();
   const requestedDay = resolveRequestedDay(sp.day);
   const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;

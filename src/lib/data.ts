@@ -41,6 +41,7 @@ export {
   findSuccessorRouteSlug,
   getBusiestRouteSlugs,
   getDirectoryRoutes,
+  getRouteLabel,
   getRouteNames,
   ownRouteIds,
   routeHasTraffic,
