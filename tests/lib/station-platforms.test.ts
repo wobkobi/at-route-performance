@@ -52,10 +52,10 @@ describe("platformNoun", () => {
     expect(platformNoun([])).toBe("platform");
   });
 
-  it("will not say stop, because the page it heads is itself a stop", () => {
-    // AT's word for a bus pole. The rows still read "Stop A"; the heading cannot,
-    // or one screen uses one word for the station and for one pole of it.
-    expect(platformNoun([{ label: "Stop A" }, { label: "Stop C" }])).toBe("platform");
+  it("says stop for a bus interchange, matching the page's own eyebrow", () => {
+    // AT's word for a bus pole, and the eyebrow above now counts them ("2 bus
+    // stops"), so the heading can use it without claiming the whole place.
+    expect(platformNoun([{ label: "Stop A" }, { label: "Stop C" }])).toBe("stop");
   });
 });
 

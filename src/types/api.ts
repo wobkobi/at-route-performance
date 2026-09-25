@@ -59,6 +59,12 @@ export interface StopStats {
    */
   platform_ids: string[];
   /**
+   * AT's own label for each of those platforms ("Stop C", "Pier 3", "1"), so the
+   * page can name a pole the way AT does. Empty for a stop that is not a station,
+   * which has no platforms to label.
+   */
+  platform_labels: string[];
+  /**
    * The one id AT's schedule answers on: a station's parent id, or the stop's
    * own. A parent returns every platform's departures in a single call, so the
    * departures board asks once for a station rather than once per platform.

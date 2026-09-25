@@ -761,6 +761,7 @@ export async function getStopStats(
       return {
         stop: { stop_id: group.id, name: group.name, lat: group.lat, lon: group.lon },
         platform_ids: group.ids,
+        platform_labels: group.platforms.map((p) => p.label),
         schedule_stop_id: group.scheduleId,
         summary: facet?.summary[0] ?? null,
         routes: facet?.routes ?? [],

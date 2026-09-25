@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.0] - 2026-09-25
+
+### Added
+
+- A stop page now says what its figures cover - "Bus stop" for one pole, "23 bus bays" for Manukau
+  Bus Station - instead of labelling every page "Stop".
+
 ## [2.8.0] - 2026-09-25
 
 ### Added

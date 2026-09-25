@@ -55,23 +55,32 @@ export const MIN_PLATFORM_EVENTS = 10;
 export const PLATFORM_SPREAD_PCT = 10;
 
 /**
- * What to call this station's platforms, taken from the labels themselves so a
- * heading uses AT's own word: "bay" at Manukau, "pier" at the Downtown Ferry
- * Terminal. A station whose platforms AT numbers without a word ("Newmarket
- * Train Station 1") falls back to "platform".
+ * AT's own word for these poles, taken from the labels themselves: "bay" at
+ * Manukau, "pier" at the Downtown Ferry Terminal, "stop" at a bus interchange.
+ * Empty when the labels do not share one, which includes every station AT numbers
+ * without a word ("Newmarket Train Station 1" gives the bare label "1").
  *
- * AT's word for a bus pole is **"Stop"**, and that one is not used: the page this
- * heads is itself headed "Stop", so "By stop" on a stop page is the same word for
- * the whole place and for one pole of it, on one screen. The rows still carry
- * AT's labels unchanged ("Stop C"); only the noun above them gives way, since a
- * heading has to say which of the two it means.
+ * Measured across all 144 parents: 70 say "stop", 49 say nothing, and one each
+ * says "bay", "pier" and "platform".
+ * @param labels - AT's label for each pole ("Stop C", "Pier 3", "1").
+ * @returns The word, lowercased and singular, or "" when there is no shared one.
+ */
+function poleWord(labels: readonly string[]): string {
+  const words = new Set(labels.map((l) => /^([A-Za-z]+)\s/.exec(l)?.[1]?.toLowerCase() ?? ""));
+  return words.size === 1 ? ([...words][0] ?? "") : "";
+}
+
+/**
+ * What to call this station's platforms in the breakdown's heading. AT's own word
+ * where the labels carry one, and "platform" where they do not - which is a
+ * generic the site supplies, not a word AT used, because a heading cannot read
+ * "By 1".
  * @param rows - The platform rows being shown.
  * @returns The noun, lowercased and singular.
  */
 export function platformNoun(rows: readonly { label: string }[]): string {
-  const words = new Set(rows.map((r) => /^([A-Za-z]+)\s/.exec(r.label)?.[1]?.toLowerCase() ?? ""));
-  const only = words.size === 1 ? ([...words][0] ?? "") : "";
-  return only === "" || only === "stop" ? "platform" : only;
+  const word = poleWord(rows.map((r) => r.label));
+  return word === "" ? "platform" : word;
 }
 
 /**

@@ -49,6 +49,7 @@ import {
   platformsDiffer,
   type PlatformRow,
 } from "@/lib/station-platforms";
+import { dominantStopMode, stopGrain } from "@/lib/stop-grain";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -200,7 +201,17 @@ export default async function StopPage({
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs tracking-zero text-at-muted uppercase">Stop</p>
+          {/* What the figures below cover: one pole, or every pole of a place
+              averaged together. A grouped page says how many, because its single
+              on-time figure is their average and nothing else on the page says
+              so unless the per-platform table earned its space. */}
+          <p className="text-xs tracking-zero text-at-muted uppercase">
+            {stopGrain(
+              dominantStopMode(stats.routes),
+              stats.platform_labels,
+              stats.platform_ids.length,
+            )}
+          </p>
           <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
           {/* AT models an interchange as two or more parent stations and this page
               stands for one of them, so without these links a reader at Manukau's
