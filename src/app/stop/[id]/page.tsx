@@ -32,6 +32,7 @@ import {
 import { getRouteModeMap } from "@/lib/data/routes";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
+import { serviceClockNow } from "@/lib/departure-board";
 import {
   formatDuration,
   OFF_SCHEDULE_TONE_CLASS,
@@ -66,6 +67,8 @@ const REVALIDATE = 300; // 5 minutes
 /** Query params for the stop detail page. */
 interface StopSearchParams {
   day?: string;
+  /** `all` asks the departures board for the whole service day. */
+  sched?: string;
 }
 
 /**
@@ -315,7 +318,13 @@ export default async function StopPage({
       />
 
       <Suspense fallback={<StopScheduleSkeleton />}>
-        <StopScheduleSection scheduleStopId={stats.schedule_stop_id} serviceDate={serviceDate} />
+        <StopScheduleSection
+          scheduleStopId={stats.schedule_stop_id}
+          serviceDate={serviceDate}
+          showAll={sp.sched === "all"}
+          nowHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: undefined })}
+          allHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: "all" })}
+        />
       </Suspense>
     </main>
   );
@@ -421,17 +430,30 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
  * from "routes with a departure" in both directions: a thirteenth route, or one
  * whose every trip was cancelled, has a departure and no row there, and would
  * have printed its raw GTFS id. One cached read covers the whole table.
+ * Today opens on what is still to come: a busy station is roughly 844 boardable
+ * rows and a platform over 100, so the reader starts at the part of the day they
+ * can still catch. The clock is read here rather than in the component so the
+ * whole board renders from one instant.
  * @param root0 - Props.
  * @param root0.scheduleStopId - The id AT's schedule answers on for this page.
  * @param root0.serviceDate - The resolved service date being shown.
+ * @param root0.showAll - Whether the reader asked for the whole day.
+ * @param root0.nowHref - This page without the whole-day param.
+ * @param root0.allHref - This page with it.
  * @returns The departures board.
  */
 async function StopScheduleSection({
   scheduleStopId,
   serviceDate,
+  showAll,
+  nowHref,
+  allHref,
 }: {
   scheduleStopId: string;
   serviceDate: string;
+  showAll: boolean;
+  nowHref: string;
+  allHref: string;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
@@ -445,6 +467,10 @@ async function StopScheduleSection({
       routeNames={new Map(Object.entries(names))}
       routeModes={modes}
       serviceDate={serviceDate}
+      nowSeconds={serviceClockNow(serviceDate)}
+      showAll={showAll}
+      nowHref={nowHref}
+      allHref={allHref}
     />
   );
 }

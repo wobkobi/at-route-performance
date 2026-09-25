@@ -512,14 +512,23 @@ export function LineDiagramSkeleton(): JSX.Element {
 }
 
 /**
- * Mirrors StopSchedule: the uppercase `text-sm` heading, then the departures
- * table's `text-xs` head row and its `py-1.5 text-sm` rows.
+ * Mirrors StopSchedule: the uppercase `text-sm` heading beside the two view
+ * chips, then the departures table's `text-xs` head row and its `py-1.5 text-sm`
+ * rows. The chips are drawn because the shell's own day is today, the one day
+ * that offers them; an archived day loses that 30px row, which is the last
+ * section on the page and so shoves nothing.
  * @returns The schedule placeholder.
  */
 export function StopScheduleSkeleton(): JSX.Element {
   return (
     <div className="flex flex-col gap-3">
-      <Bone className="h-5 w-36" />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Bone className="h-5 w-36" />
+        <div className="flex items-center gap-1">
+          <Bone className="h-7 w-29" />
+          <Bone className="h-7 w-29" />
+        </div>
+      </div>
       <div>
         <div className="border-b border-at-border pb-1">
           <Bone className="h-4 w-48" />

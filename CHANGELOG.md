@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.8.0] - 2026-09-25
+
+### Added
+
+- The stop page's departures board opens on the departures still ahead of you rather than the whole
+  service day, with a chip to see all of it.
+
 ## [2.7.0] - 2026-09-25
 
 ### Added
