@@ -51,12 +51,33 @@ export interface StopAttr {
 }
 
 /**
+ * An AT v3 response that was not OK, carrying the status so a caller can branch
+ * on the code. The message holds the request URL for the log, and a URL can
+ * contain digits that read as a status - a stop id of "1404", a trip id with
+ * "500" in it - so testing the message for a code is not safe.
+ */
+export class AtHttpError extends Error {
+  readonly status: number;
+
+  /**
+   * Build the error for one failed AT response.
+   * @param status - Status AT answered with.
+   * @param url - Request URL, kept in the message.
+   */
+  constructor(status: number, url: string) {
+    super(`AT v3 ${status} ${url}`);
+    this.name = "AtHttpError";
+    this.status = status;
+  }
+}
+
+/**
  * Fetch an absolute AT v3 URL as JSON:API, retrying 429/5xx and network/timeout
  * errors with exponential backoff (1s, 2s, 4s; capped at 60s).
  * @template T - Payload attribute type.
  * @param url - Absolute request URL.
  * @returns Parsed JSON:API response.
- * @throws {Error} On a non-retryable status or once attempts are exhausted.
+ * @throws {AtHttpError} On a non-retryable status or once attempts are exhausted.
  */
 async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
   let lastError: Error | null = null;
@@ -74,9 +95,9 @@ async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
           await sleep(Math.min(60_000, 1000 * 2 ** attempt));
           continue;
         }
-        throw new Error(`AT v3 ${res.status} ${url}`);
+        throw new AtHttpError(res.status, url);
       }
-      if (!res.ok) throw new Error(`AT v3 ${res.status} ${url}`);
+      if (!res.ok) throw new AtHttpError(res.status, url);
       return (await res.json()) as JsonApi<T>;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));

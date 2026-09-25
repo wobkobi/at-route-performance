@@ -309,7 +309,7 @@ async function TripDayBoard({
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage="No runs recorded for this day."
-      footerMessage="No runs were notably off-schedule during these hours."
+      footerMessage="No runs were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
     />

@@ -2,6 +2,7 @@
 // The mode and school-service filter every shame, stop and cancellation read shares.
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { DelayDirection } from "@/lib/rankings";
 import { isSchoolBus } from "@/lib/school-bus";
 
 /** School-service code regex (mirrors `isSchoolBus`) for the Shame filter. */
@@ -13,6 +14,12 @@ export interface ShameFilter {
   mode?: "BUS" | "TRAIN" | "FERRY" | null;
   /** Include school services (default false, matching the home page default). */
   includeSchool?: boolean;
+  /**
+   * Keep only stops running late or early on average; null/undefined keeps both.
+   * Only the worst-stop reads honour it: the trip and route boards take the same
+   * filter object and ignore this field.
+   */
+  direction?: DelayDirection;
 }
 
 /**

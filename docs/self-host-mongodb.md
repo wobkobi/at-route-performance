@@ -343,8 +343,12 @@ What the app does about it, outermost first:
 - **Reads fail fast**, so a reader meets a page's error boundary instead of a minute of nothing.
 - **The site stays up.** Every page keeps its masthead, nav and footer; the footer's freshness line
   reads "Last update unknown" rather than claiming the site is awaiting its first data.
-- **`/api/health` answers `database: "up" | "down"`** on a five-second bound. Watch that, not `ok` -
-  `ok` says the build is serving, which stays true through an outage.
+- **`/api/health` answers `database: "up" | "down"` and `databaseMs`** on a five-second bound. Watch
+  those, not `ok` - `ok` says the build is serving, which stays true through an outage. The probe is
+  a one-field `Route` read rather than a ping, so it travels the path a page render travels; alert
+  on `databaseMs` as well as the status, because saturation degrades latency well before it fails
+  and the last outage stayed a 200 throughout. One caveat: each instance has its own connection
+  pool, so the answer describes the instance that served the probe rather than the fleet.
 
 **The spool needs a connected Blob store.** Create one in the Vercel dashboard (Storage > Create >
 Blob) with **Private** access, in the same region as the functions, and tick "add a read-write token

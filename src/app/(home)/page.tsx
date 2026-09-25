@@ -26,7 +26,7 @@ import {
   type PeriodView,
 } from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
-import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
+import { RankBoard } from "@/components/RankBoard";
 import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
@@ -42,6 +42,7 @@ import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/V
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
   getCancelledCount,
@@ -55,7 +56,8 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
+import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -77,16 +79,11 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { parseRankingsParams } from "@/lib/rankings-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { viewQuery } from "@/lib/route-explorer";
 import { isSchoolBus } from "@/lib/school-bus";
 import { buildShameHref, crownedRow } from "@/lib/shame-page";
-import {
-  monthRangeLabel,
-  nzServiceDayString,
-  serviceDatesInRange,
-  serviceDayLabel,
-  type DateRange,
-} from "@/lib/time";
+import { monthRangeLabel, serviceDatesInRange, serviceDayLabel, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -130,7 +127,7 @@ export async function generateMetadata({
   const sp = (await searchParams) ?? {};
   const card = parseHomeCard(sp);
   if (card.window === "day" && card.day === null) {
-    const today = nzServiceDayString();
+    const today = await requestServiceDay();
     const { serviceDate } = await resolveShownDay(null, today);
     if (serviceDate !== today) card.day = serviceDate;
   }
@@ -139,39 +136,6 @@ export async function generateMetadata({
     "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
     homeCardPath(sp),
   );
-}
-
-/**
- * Query params each home filter keeps when it links, so the filters compose:
- * every control carries the other two filters plus the page's own view params
- * (the day, or the window and period), and drops only the one it sets itself.
- * @param filters - The active filters.
- * @param filters.mode - Active mode, or null for every mode.
- * @param filters.includeSchool - Whether school services are included.
- * @param filters.dir - Delay-direction filter.
- * @param view - The view params every control keeps; undefined values are left out.
- * @returns One param set per control.
- */
-function preservedFor(
-  filters: { mode: ModeFilterValue; includeSchool: boolean; dir: DelayDirection },
-  view: Record<string, string | undefined>,
-): Record<"mode" | "school" | "dir", Record<string, string>> {
-  const all: Record<string, string | undefined> = {
-    ...view,
-    mode: filters.mode ?? undefined,
-    school: filters.includeSchool ? "1" : undefined,
-    dir: filters.dir ?? undefined,
-  };
-  /**
-   * The full set minus one control's own param and any unset value.
-   * @param key - The param the control sets itself.
-   * @returns The params that control keeps.
-   */
-  const without = (key: string): Record<string, string> =>
-    Object.fromEntries(
-      Object.entries(all).filter((e): e is [string, string] => e[0] !== key && e[1] !== undefined),
-    );
-  return { mode: without("mode"), school: without("school"), dir: without("dir") };
 }
 
 /**
@@ -217,10 +181,15 @@ async function PeriodHome({
 }): Promise<JSX.Element> {
   const { mode, dir, includeSchool } = parseRankingsParams(sp);
   // Anchor every window to the latest day with data so a quiet "today" still
-  // shows a populated period.
-  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  // shows a populated period. Today itself is one request-time clock read for
+  // the whole render (see lib/request-now.ts).
+  const [today, latest, earliest] = await Promise.all([
+    requestServiceDay(),
+    getLatestEventDate(),
+    getEarliestDataDay(1),
+  ]);
   const anchor = latest ?? new Date();
-  const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest);
+  const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest, today);
   const view: PeriodView = {
     window,
     mode,
@@ -237,10 +206,12 @@ async function PeriodHome({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFor({ mode, includeSchool, dir }, { window, period: view.period });
+  } = preservedFilters({ mode, includeSchool, dir }, { window, period: view.period });
   // The shame boards take the same window and filters, so their links carry both.
   const shameNav = { window, period: view.period };
-  const shameFilter = { mode, includeSchool };
+  // No direction: the home page's `dir` narrows its own route boards, and the
+  // link goes to the trips board, which ranks whole runs and reads none.
+  const shameFilter = { mode, includeSchool, direction: null };
 
   // The same three bands as the day view; see its render for the layout rule.
   return (
@@ -280,7 +251,7 @@ async function PeriodHome({
 
       <section className="space-y-4">
         <SectionLink
-          title={`Shame of the ${window}`}
+          title={`Worst of the ${window}`}
           href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -348,10 +319,13 @@ export default async function Home({
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
+  // One request-time clock read for the whole render, handed to every helper
+  // that places a day against today (see lib/request-now.ts).
+  const today = await requestServiceDay();
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).
   const requestedDay = resolveRequestedDay(sp.day);
-  const shown = await resolveShownDay(requestedDay);
+  const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;
   const rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
   // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
@@ -364,7 +338,7 @@ export default async function Home({
   const earliestDay = await getEarliestDataDay(1);
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
-  const linkDay = serviceDate === nzServiceDayString() ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = includeSchool
     ? modeFiltered
@@ -395,7 +369,7 @@ export default async function Home({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFor({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
+  } = preservedFilters({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
   const nav = dayRangeNav(shown, earliestDay);
 
@@ -439,8 +413,12 @@ export default async function Home({
 
       <section className="space-y-4">
         <SectionLink
-          title="Shame of the day"
-          href={buildShameHref("/shame/trip", { day: linkDay }, { mode, includeSchool })}
+          title="Worst of the day"
+          href={buildShameHref(
+            "/shame/trip",
+            { day: linkDay },
+            { mode, includeSchool, direction: null },
+          )}
         />
         <Suspense fallback={<FeatureCardRowSkeleton />}>
           <HomeShameCards

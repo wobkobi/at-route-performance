@@ -4,6 +4,13 @@
 // names the current service day, so today always shows a clean URL while every
 // other param is preserved. Both throw (Next navigation), so they must run
 // before any rendering, and the clamp must run first.
+//
+// Each helper takes today's date as an optional argument and reads the clock
+// only on the branch that needs it, never as a default parameter value. A
+// default is evaluated at every call, before the body decides whether it wants
+// the value - so `today = nzServiceDayString()` read the clock even for a URL
+// carrying no `?day` at all. Under Cache Components that read is an unstable
+// value, and it aborted the static shell of every page calling one of these.
 
 import { clampServiceDate } from "@/lib/data-start";
 import { resolveRequestedDay } from "@/lib/page-nav";
@@ -21,16 +28,15 @@ import { redirect } from "next/navigation";
  * @param basePath - The page path (e.g. "/", "/shame", "/route/501").
  * @param sp - The raw search params.
  * @param sp.day - The current `?day` value, if any.
- * @param today - Today's service date (injectable for tests).
+ * @param today - Today's service date; read from the clock when omitted
+ *   (injectable for tests).
  */
-export function clampDayParam(
-  basePath: string,
-  sp: { day?: string },
-  today: string = nzServiceDayString(),
-): void {
+export function clampDayParam(basePath: string, sp: { day?: string }, today?: string): void {
   const day = resolveRequestedDay(sp.day);
   if (day === null) return;
-  const clamped = clampServiceDate(day, today);
+  // Past the no-op return, so a page with no `?day` prerenders without a clock.
+  const now = today ?? nzServiceDayString();
+  const clamped = clampServiceDate(day, now);
   if (clamped === day) return;
   const entries = Object.entries(sp as Record<string, string | undefined>);
   const params = new URLSearchParams(
@@ -38,7 +44,7 @@ export function clampDayParam(
   );
   // Landing on today drops the param entirely, which is what dropTodayParam
   // would do on the next request anyway.
-  if (clamped !== today) params.set("day", clamped);
+  if (clamped !== now) params.set("day", clamped);
   const qs = params.toString();
   redirect(qs ? `${basePath}?${qs}` : basePath);
 }
@@ -49,14 +55,14 @@ export function clampDayParam(
  * redirects away. Every link to a day page goes through this, so a board row
  * naming today does not cost its reader a 307 before the page renders.
  * @param date - The service date the link is for, or null/undefined for today's view.
- * @param today - Today's service date (injectable for tests).
+ * @param today - Today's service date; read from the clock when omitted
+ *   (injectable for tests).
  * @returns The `day` param, or undefined when it would name today.
  */
-export function dayLinkParam(
-  date: string | null | undefined,
-  today: string = nzServiceDayString(),
-): string | undefined {
-  return date && date !== today ? date : undefined;
+export function dayLinkParam(date: string | null | undefined, today?: string): string | undefined {
+  // A link for today's view names no date, so it needs no clock to say so.
+  if (!date) return undefined;
+  return date === (today ?? nzServiceDayString()) ? undefined : date;
 }
 
 /**

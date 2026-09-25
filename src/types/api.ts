@@ -1,5 +1,6 @@
 // src/types/api.ts
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
+import type { PlatformRow } from "@/lib/station-platforms";
 
 // Top routes row returned by /api/routes/top
 export interface TopRouteRow {
@@ -53,16 +54,34 @@ export interface StopStats {
   stop: { stop_id: string; name: string; lat: number; lon: number };
   /**
    * The raw GTFS stop ids behind `stop` - every platform of a station, or just
-   * the stop itself. AT's service alerts and scheduled departures both key off
-   * raw ids, so a station can only match them through these.
+   * the stop itself. AT's service alerts key off raw ids, so a station can only
+   * match them through these.
    */
   platform_ids: string[];
+  /**
+   * AT's own label for each of those platforms ("Stop C", "Pier 3", "1"), so the
+   * page can name a pole the way AT does. Empty for a stop that is not a station,
+   * which has no platforms to label.
+   */
+  platform_labels: string[];
+  /**
+   * The one id AT's schedule answers on: a station's parent id, or the stop's
+   * own. A parent returns every platform's departures in a single call, so the
+   * departures board asks once for a station rather than once per platform.
+   */
+  schedule_stop_id: string;
   /** Overall punctuality across every route at the stop, or null when no events. */
   summary: RouteSummary | null;
   /** The worst-performing routes at this stop, off-schedule magnitude first. */
   routes: TopRouteRow[];
   /** How many distinct routes called at the stop in the window. */
   routes_count: number;
+  /**
+   * Per-platform rows for a station whose platforms earn a breakdown, worst off
+   * schedule first, and empty otherwise (see `platformBreakdown`). A plain stop
+   * is always empty: it has no platforms to differ from each other.
+   */
+  platforms: PlatformRow[];
 }
 
 // One run (trip) of a route on a day, for the "worst bus of the day" ranking.

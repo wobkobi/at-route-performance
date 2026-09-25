@@ -33,6 +33,7 @@ import {
   getEarliestDataDay,
   getRouteClosures,
   getRouteDailyStats,
+  getRouteLabel,
   getRouteNames,
   getRouteStats,
   getRouteStopSplit,
@@ -45,9 +46,9 @@ import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { buildStrip, type StripSide } from "@/lib/route-strip";
@@ -55,13 +56,7 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
-import {
-  nzLocalHour,
-  nzServiceDayString,
-  nzWeekRange,
-  weekRangeLabel,
-  type DateRange,
-} from "@/lib/time";
+import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
 import {
   hourRangeParam,
   isHourInRange,
@@ -210,7 +205,8 @@ function RouteWeekNav({
   nextHref: string | null;
 }): JSX.Element {
   return (
-    // Week steps prefetch in full for the reason DayNav's do.
+    // Week steps prefetch in full for the reason DayNav's do, and an absent one
+    // leaves a `.step-slot` so the present week does not shift the row.
     <div className="flex items-center gap-1">
       {prevHref ? (
         <Link
@@ -223,7 +219,9 @@ function RouteWeekNav({
             <ChevronLeft className="block h-4 w-4" />
           </StepPending>
         </Link>
-      ) : null}
+      ) : (
+        <span className="step-slot" aria-hidden />
+      )}
       <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
       {nextHref ? (
         <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
@@ -231,7 +229,9 @@ function RouteWeekNav({
             <ChevronRight className="block h-4 w-4" />
           </StepPending>
         </Link>
-      ) : null}
+      ) : (
+        <span className="step-slot" aria-hidden />
+      )}
     </div>
   );
 }
@@ -312,10 +312,10 @@ export async function generateMetadata({
   const { id } = await params;
   const slug = routeSlug(id);
   const card = parseRouteCard(id, (await searchParams) ?? {});
-  const stats = await getRouteStats({ routeId: slug, thresholdSec: ON_TIME_LATE_SEC }).catch(
-    readFallback("route-stats", null),
-  );
-  const route = stats?.route;
+  // The line's own two fields, not a summary of its week: a title names the
+  // route, and reading it this way keeps the head clear of both the aggregation
+  // and the clock a default window would need.
+  const route = await getRouteLabel(slug).catch(readFallback("route-label", null));
   const name = route ? lineName(route.mode, route.shortName) : null;
   const label = route?.shortName ?? slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
@@ -391,8 +391,9 @@ export default async function RoutePage({
 
   // Service day from ?day, or the one every day page opens on. In week view the
   // day stats are not displayed but the route metadata from getRouteStats is
-  // still needed.
-  const today = nzServiceDayString();
+  // still needed. Today is one request-time clock read for the whole render,
+  // handed to every helper that places a day against it (see lib/request-now.ts).
+  const today = await requestServiceDay();
   const requestedDay = resolveRequestedDay(sp.day);
   const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;
@@ -805,7 +806,7 @@ export default async function RoutePage({
               <PunctualityStat
                 bare
                 variant="split"
-                label="On-time (%)"
+                label="On time"
                 value={weekSummary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={weekPunctuality}
               />
@@ -884,7 +885,7 @@ export default async function RoutePage({
               <PunctualityStat
                 bare
                 variant="split"
-                label="On-time (%)"
+                label="On time"
                 value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
                 breakdown={punctuality}
               />
@@ -905,13 +906,13 @@ export default async function RoutePage({
               getRouteStats call, which takes no direction at all and drops the
               cancellation penalty as soon as hours narrow the window - so
               "Trips" and the runs below describe one direction while "Arrivals"
-              and "On-time" describe both, and a peak can read better than the
+              and "On time" describe both, and a peak can read better than the
               day did without anything having improved. The week view has said
               its half of this since it shipped; the day view said neither. */}
           {(activeDir != null || hours != null) && (
             <p className="text-xs text-at-muted">
               {activeDir != null &&
-                "Arrivals, Avg off by and On-time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
+                "Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
               {hours != null &&
                 "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
             </p>
@@ -980,7 +981,7 @@ export default async function RoutePage({
               </summary>
               <div className="overflow-x-auto px-4 pb-4">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-at-bg text-at-muted">
+                  <thead className="bg-at-shore-pale text-at-muted">
                     <tr>
                       <th scope="col" className="px-3 py-2 text-left">
                         Stop
@@ -989,7 +990,7 @@ export default async function RoutePage({
                         Arrivals
                       </th>
                       <th scope="col" className="px-3 py-2 text-right">
-                        Avg delay
+                        Early or late
                       </th>
                     </tr>
                   </thead>

@@ -1,6 +1,6 @@
 {
   "name": "at-route-performance",
-  "version": "1.56.3",
+  "version": "2.9.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -70,12 +70,12 @@
     "eslint-plugin-tailwind-canonical-classes": "^1.4.1",
     "globals": "^17.12.0",
     "lint-staged": "^17.5.1",
-    "prettier": "^3.9.8",
+    "prettier": "^3.9.9",
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-packagejson": "^3.0.2",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "prisma": "6.19.3",
-    "puppeteer": "^25.11.0",
+    "puppeteer": "^25.12.0",
     "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",

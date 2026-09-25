@@ -1,6 +1,6 @@
 // src/lib/data/trips.ts
 // Runs of a route: the day's worst trips board, one trip's timeline and its schedule.
-import { fetchAll, getJson } from "@/lib/at-static";
+import { AtHttpError, fetchAll, getJson } from "@/lib/at-static";
 import { cachedForRange, scheduledAtWindow, toIso } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
@@ -335,7 +335,7 @@ export async function getTripTimeline(
         if (isGhostDeviation(r.deviation_sec, runMedian)) continue;
         stops.push({
           stop_id: stationId(r.stop_id, r.name, stationPartsOf(r)),
-          name: stationName(r.name),
+          name: stationName(r.name, stationPartsOf(r)),
           lat: r.lat,
           lon: r.lon,
           scheduled_at: toIso(r.scheduled_at),
@@ -356,7 +356,7 @@ export async function getTripTimeline(
         stops,
       };
     },
-    ["trip-timeline-v2", tripId, routeId, day?.start.toISOString() ?? "all"],
+    ["trip-timeline-v3", tripId, routeId, day?.start.toISOString() ?? "all"],
     // The "all" variant follows the trip's latest day and stays short-lived.
     day ?? null,
     300,
@@ -415,7 +415,7 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
         if (!stop) continue;
         out.push({
           stop_id: stationId(stop.id, stop.name, stop),
-          name: stationName(stop.name),
+          name: stationName(stop.name, stop),
           lat: stop.lat,
           lon: stop.lon,
           stop_sequence: st.stop_sequence,
@@ -424,7 +424,7 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
       }
       return out;
     },
-    ["trip-scheduled-stops", tripId],
+    ["trip-scheduled-stops-v2", tripId],
     { revalidate: 86_400 },
   )();
 }
@@ -446,7 +446,7 @@ export async function getTripShape(tripId: string): Promise<Array<[number, numbe
       const trip = await getJson<{ shape_id?: string | null }>(
         `/trips/${encodeURIComponent(tripId)}`,
       ).catch((err: unknown) => {
-        if (err instanceof Error && err.message.startsWith("AT v3 404 ")) return null;
+        if (err instanceof AtHttpError && err.status === 404) return null;
         throw err;
       });
       // A single-resource JSON:API response carries one object in `data`, not a list.

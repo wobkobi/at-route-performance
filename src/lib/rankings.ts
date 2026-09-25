@@ -134,6 +134,16 @@ export function deriveBoards(rows: TopRouteRow[], options: DeriveBoardsOptions):
 /** Delay direction filter: late only, early only, or null for both. */
 export type DelayDirection = "late" | "early" | null;
 
+/**
+ * Read a `dir` query param as a delay direction. Anything else is null, which
+ * is both directions and the state that writes no param.
+ * @param raw - The raw param value.
+ * @returns The direction, or null for both.
+ */
+export function parseDelayDirection(raw: string | undefined): DelayDirection {
+  return raw === "late" || raw === "early" ? raw : null;
+}
+
 /** Options for {@link deriveOffSchedule}. */
 export interface OffScheduleOptions {
   /** Minimum events for a route to qualify. */

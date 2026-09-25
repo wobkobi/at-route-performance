@@ -40,10 +40,10 @@ export interface RouteStats {
 }
 
 /**
- * Collapse multi-platform train stations into one row per station: sum events
- * and event-weight the average delay and on-time %. Non-platform stops pass
- * through unchanged (see {@link stationId}). Keeps the per-stop table, map, and
- * line diagram from showing the same station once per platform.
+ * Collapse a parent place's platforms into one row: sum events and event-weight
+ * the average delay and on-time %. A stop AT gives no parent passes through
+ * unchanged (see {@link stationId}). Keeps the per-stop table, map and strip from
+ * showing one station, bus interchange or ferry terminal once per platform.
  * @param rows - Per-stop rows for the window (busiest first).
  * @returns Rows with train platforms merged by station, re-sorted busiest first.
  */
@@ -64,7 +64,7 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
         row: {
           ...r,
           stop_id: id,
-          name: stationName(r.name),
+          name: stationName(r.name, stationPartsOf(r)),
           parent_station: undefined,
           platform_code: undefined,
         },
@@ -268,7 +268,7 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
   return cachedForRange(
     (classified) => queryRouteStats(p, range, classified),
     [
-      "route-stats",
+      "route-stats-v2",
       p.routeId,
       range.start.toISOString(),
       range.end.toISOString(),

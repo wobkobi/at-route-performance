@@ -149,9 +149,11 @@ function side(
   const f = figures ? rowFigure(figures, row, dirIds) : null;
   const kind = mark?.kind ?? null;
   if (f) {
+    // The tone carries the window, the text carries the distance: an average inside the window
+    // prints how far off it was in the on-time colour, rather than reading as "on time".
     return {
       tone: delayBand(f.avg_delay_sec, mode),
-      text: `${formatDelay(f.avg_delay_sec, { mode })}${kind ? "*" : ""}`,
+      text: `${formatDelay(f.avg_delay_sec, { thresholdSec: 0 })}${kind ? "*" : ""}`,
       mark: kind,
     };
   }

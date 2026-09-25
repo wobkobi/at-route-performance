@@ -55,7 +55,7 @@ export function RouteWeekSummary({
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-at-bg text-left text-xs tracking-zero text-at-muted uppercase">
+            <tr className="bg-at-shore-pale text-left text-xs tracking-zero text-at-muted uppercase">
               <th scope="col" className="px-4 py-2">
                 Date
               </th>
@@ -63,7 +63,7 @@ export function RouteWeekSummary({
                 Arrivals
               </th>
               <th scope="col" className="px-4 py-2 text-right">
-                Avg delay
+                Early or late
               </th>
               <th scope="col" className="px-4 py-2 text-right">
                 On time

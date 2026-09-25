@@ -7,10 +7,11 @@
 
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
-import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, RankBoard } from "@/components/RankBoard";
+import { RankBoard } from "@/components/RankBoard";
 import { ShameOfDay } from "@/components/ShameOfDay";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
   getCancelledCount,

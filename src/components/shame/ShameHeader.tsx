@@ -3,10 +3,13 @@
 // controls every other range page uses, the Trips/Routes/Stops tabs, and the
 // mode and school chips.
 
+import { DelayFilter } from "@/components/DelayFilter";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { preservedFilters } from "@/lib/filter-params";
 import type { RangeNav } from "@/lib/range-page";
+import type { DelayDirection } from "@/lib/rankings";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -32,6 +35,14 @@ export interface ShameFilterControls {
   includeSchool: boolean;
   /** Window/period/day params the chips carry through. */
   nav: { window?: string; period?: string; day?: string };
+  /**
+   * The direction switch, on a board whose rows have a direction. Omitted on a
+   * board that ranks whole runs or whole routes, which keeps the chip row off it
+   * rather than offering one that changes nothing. Wrapped in an object so
+   * "no switch here" cannot be confused with "the switch is on All", which is
+   * what a bare `null` would have meant.
+   */
+  direction?: { active: DelayDirection };
 }
 
 /** Props for {@link ShameHeader}. */
@@ -56,13 +67,15 @@ export interface ShameHeaderProps {
  * Shared header for the shame boards, in three rows: the title and its subtitle
  * beside {@link RangeControls} (Day | Week | Month and the matching stepper, as
  * on the home, Routes and Cancellations pages); the three board tabs; then the
- * mode and school chips.
+ * mode and school chips, and on the stops board a fourth row for the direction
+ * switch.
  *
  * The tabs sit on their own row rather than among the window controls, because
  * the three boards are three views of one question while the window is a
  * setting over all of them. The active tab is a plain element, not a link, for
- * the reason the nav's is (`SiteNav.tsx`). Each chip keeps the other control's
- * param, so switching mode does not silently drop school services.
+ * the reason the nav's is (`SiteNav.tsx`). Each chip keeps the other controls'
+ * params through {@link preservedFilters}, so switching mode does not silently
+ * drop school services or widen a direction.
  * @param props - Component props.
  * @param props.title - Heading text.
  * @param props.subtitle - Composed sub-heading text.
@@ -82,13 +95,15 @@ export function ShameHeader({
   nav,
   filter,
 }: ShameHeaderProps): JSX.Element {
-  // The window/period/day the page is on rides through both chips.
-  const navParams: Record<string, string> = {};
-  if (filter.nav.window) navParams.window = filter.nav.window;
-  if (filter.nav.period) navParams.period = filter.nav.period;
-  if (filter.nav.day) navParams.day = filter.nav.day;
-  const modePreserved = filter.includeSchool ? { ...navParams, school: "1" } : navParams;
-  const schoolPreserved = filter.mode ? { ...navParams, mode: filter.mode } : navParams;
+  // Every chip carries the page's window/period/day and the other chips' filters.
+  const preserved = preservedFilters(
+    {
+      mode: filter.mode,
+      includeSchool: filter.includeSchool,
+      dir: filter.direction?.active ?? null,
+    },
+    filter.nav,
+  );
   return (
     <header className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -112,13 +127,22 @@ export function ShameHeader({
         )}
       </nav>
       <div className="flex flex-wrap items-center gap-3">
-        <ModeFilter active={filter.mode} basePath={basePath} preservedParams={modePreserved} />
+        <ModeFilter active={filter.mode} basePath={basePath} preservedParams={preserved.mode} />
         <SchoolBusToggle
           active={filter.includeSchool}
           basePath={basePath}
-          preservedParams={schoolPreserved}
+          preservedParams={preserved.school}
         />
       </div>
+      {/* Its own row, so a filter on the rows is not read as another filter on
+          which modes are counted. */}
+      {filter.direction && (
+        <DelayFilter
+          active={filter.direction.active}
+          basePath={basePath}
+          preservedParams={preserved.dir}
+        />
+      )}
     </header>
   );
 }

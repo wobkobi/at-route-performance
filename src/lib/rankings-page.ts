@@ -6,7 +6,7 @@
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
 import { clampRangeToDataStart } from "@/lib/data-start";
-import { type DelayDirection } from "@/lib/rankings";
+import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -50,7 +50,7 @@ export interface ParsedRankingsParams {
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
   const window: RankWindow = sp.window === "month" ? "month" : "week";
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as RankMode;
-  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
+  const dir = parseDelayDirection(sp.dir);
   const includeSchool = sp.school === "1";
   return { window, mode, dir, includeSchool };
 }
