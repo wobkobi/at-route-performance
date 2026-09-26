@@ -24,6 +24,7 @@ import {
 } from "@/lib/db";
 import { arrivalWriteStages, NO_DELAY_SOURCE, type ArrivalWrite } from "@/lib/deviation";
 import { recordFleet } from "@/lib/fleet-store";
+import { claimIngestLease, releaseIngestLease, UNLEASED } from "@/lib/ingest-lease";
 import { lastRecordedRun, recordIngestRun } from "@/lib/ingest-run";
 import {
   drainSpool,
@@ -217,6 +218,13 @@ export async function POST(req: Request): Promise<NextResponse> {
   const loose = url.searchParams.get("loose") === "1";
   const wantDebug = url.searchParams.has("debug");
   const wantPeek = url.searchParams.get("peek") === "1";
+
+  // One poll writes at a time; a peek writes nothing, so it never waits on one.
+  const lease = wantPeek ? UNLEASED : await claimIngestLease();
+  if (lease === null) {
+    console.log("[INGEST] Skipped: the previous poll is still running");
+    return NextResponse.json({ skipped: "previous poll still running" });
+  }
 
   /** Writes this poll could not make because the database was unreachable. */
   const heldBack: SpooledWrite[] = [];
@@ -599,5 +607,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     });
 
     return NextResponse.json({ error: msg }, { status: 502 });
+  } finally {
+    await releaseIngestLease(lease).catch(() => {});
   }
 }

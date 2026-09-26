@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.3] - 2026-09-26
+
+### Fixed
+
+- Behind the scenes: a realtime poll now takes a lease before it writes, and a poll that finds the
+  previous one still running skips instead of writing alongside it. On a slow database the polls
+  were stacking up two and three deep, each slowing the others until every one was stopped at the
+  five-minute limit without recording anything, and the site went half an hour without new data.
+
 ## [2.11.2] - 2026-09-26
 
 ### Fixed
