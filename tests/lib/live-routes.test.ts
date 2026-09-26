@@ -1,6 +1,12 @@
 // tests/lib/live-routes.test.ts
 // Unit tests for the fold of the live vehicle feed into routes running now.
-import { liveRouteSlugs, liveRoutes, liveTotals, parseLiveSort } from "@/lib/live-routes";
+import {
+  liveRouteSlugs,
+  liveRoutes,
+  liveTotals,
+  mapVehicles,
+  parseLiveSort,
+} from "@/lib/live-routes";
 import type { LiveVehicle } from "@/lib/vehicles";
 import { describe, expect, it } from "vitest";
 
@@ -107,5 +113,16 @@ describe("parseLiveSort", () => {
     expect(parseLiveSort(undefined)).toBe("running");
     expect(parseLiveSort("bogus")).toBe("running");
     expect(parseLiveSort("late")).toBe("late");
+  });
+});
+
+describe("mapVehicles", () => {
+  it("tags each vehicle on a run with its route's operator code, by slug", () => {
+    const out = mapVehicles(
+      [veh("70-202", 30), veh("999-1", 0), veh("70-202", null, null)],
+      new Map([["70-202", "BUS"]]),
+      { "70": "HE" },
+    );
+    expect(out.map((v) => v.op)).toEqual(["HE", null]);
   });
 });

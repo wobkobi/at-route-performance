@@ -7,6 +7,7 @@ import { delayColour } from "@/lib/delay-colour";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
@@ -300,8 +301,16 @@ function glide(marker: Leaflet.Marker): void {
  * @param state - The map state holding the vehicle layer and markers.
  * @param vehicles - The vehicles to show, already filtered to this map.
  * @param mode - The route's mode, which sets the glyph and the on-time window.
+ * @param opCode - The route's operator code, for the popup's "Run by" line; null when unrecorded.
  */
-function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode): void {
+function syncVehicles(
+  state: MapState,
+  vehicles: LiveVehicle[],
+  mode: RouteMode,
+  opCode: string | null,
+): void {
+  const op = operatorOf(opCode);
+  const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
   const { L, colours } = state;
   const seen = new Set<string>();
   for (const veh of vehicles) {
@@ -328,6 +337,7 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
       `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
       (cars ? ` &middot; ${cars}` : "") +
       `<br>${esc(status.detail)}` +
+      runBy +
       `<br>${links.join(" &middot; ")}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
@@ -760,7 +770,7 @@ export default function StopMap({
           setVehiclesFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveVehicle[] };
+        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: string | null };
         if (dead) return;
         setVehiclesFailed(false);
 
@@ -770,7 +780,7 @@ export default function StopMap({
           lines: pollLines,
           stops: pollStops,
         });
-        syncVehicles(state, vehicles, pollMode);
+        syncVehicles(state, vehicles, pollMode, data.op ?? null);
       } catch {
         // An abort on cleanup is not a failure; anything else is.
         if (!dead) setVehiclesFailed(true);

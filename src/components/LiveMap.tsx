@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
 import type { NetworkLine } from "@/types/api";
@@ -72,7 +73,7 @@ function cssVar(name: string): string {
 
 /**
  * A vehicle's popup: its route and name, its delay in the words the route maps
- * use, and links to its run and its own page.
+ * use, its operator, and links to its run and its own page.
  * @param v - The vehicle.
  * @param detail - Its delay line.
  * @returns Popup HTML.
@@ -81,8 +82,10 @@ function popupHtml(v: LiveMapVehicle, detail: string): string {
   const name = `${MODE_WORD[v.mode]} ${v.label ?? v.id}`;
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
+  const op = operatorOf(v.op);
+  const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
   return (
-    `<strong>Route ${esc(v.slug)}</strong><br>${esc(name)}${cars}<br>${esc(detail)}<br>` +
+    `<strong>Route ${esc(v.slug)}</strong><br>${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
     `<a href="${esc(run)}">Open this run</a> &middot; ` +
     `<a href="/vehicle/${encodeURIComponent(v.id)}">This vehicle</a>`
   );

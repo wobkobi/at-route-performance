@@ -13,6 +13,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getRouteNames,
+  getRouteOperators,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -31,6 +32,8 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { vehicleOperatorCodes } from "@/lib/operator-stats";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -145,12 +148,13 @@ export default async function VehiclePage({
   // Every mode and school runs too, so a school bus's own page is not empty; the
   // rank is then against that board, which the rank links to.
   const filter = { mode: null, includeSchool: true };
-  const [latest, earliest, fleet, live, modeOf] = await Promise.all([
+  const [latest, earliest, fleet, live, modeOf, operators] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
     getRouteModeMap(),
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
 
   let range: DateRange;
@@ -213,6 +217,7 @@ export default async function VehiclePage({
     show: sp.show,
     op: sp.op,
   };
+  const runBy = vehicleOperatorCodes({ routes: routeIds }, operators).map((c) => operatorOf(c)!);
   const rank = vehicleRank(board, id);
   const name = vehicleName(register?.label ?? now?.label, id);
   const plate = register?.plate ?? now?.plate ?? null;
@@ -240,6 +245,22 @@ export default async function VehiclePage({
             {mode && <span>{MODE_NAME[mode]}</span>}
             <span className="tabular-nums">Feed id {id}</span>
             {plate && <span>Plate {plate}</span>}
+            {runBy.length > 0 && (
+              <span>
+                Run by{" "}
+                {runBy.map((op, i) => (
+                  <span key={op.code}>
+                    {i > 0 && " and "}
+                    <Link
+                      href={buildHref(operatorHref(op), view)}
+                      className="text-at-shore hover:underline"
+                    >
+                      {op.name}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+            )}
           </p>
         </div>
         <RangeControls basePath={basePath} nav={nav} />

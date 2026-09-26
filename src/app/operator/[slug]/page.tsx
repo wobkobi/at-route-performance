@@ -70,7 +70,9 @@ interface OperatorSearchParams {
  * @returns The operator, or null.
  */
 async function resolveOperator(slug: string): Promise<Operator | null> {
-  const operators = await getRouteOperators().catch(readFallback("route-operators", {}));
+  const operators = await getRouteOperators().catch(
+    readFallback<Record<string, string>>("route-operators", {}),
+  );
   return operatorBySlug(slug, new Set(Object.values(operators)));
 }
 

@@ -35,6 +35,7 @@ import {
   getRouteDailyStats,
   getRouteLabel,
   getRouteNames,
+  getRouteOperators,
   getRouteStats,
   getRouteStopSplit,
   getTripRiderWait,
@@ -46,6 +47,7 @@ import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
@@ -409,6 +411,10 @@ export default async function RoutePage({
     hours,
   });
   const { route, summary, byStop } = stats;
+  // Started here and awaited at the header, so it never holds up the stats.
+  const operatorsP = getRouteOperators().catch(
+    readFallback<Record<string, string>>("route-operators", {}),
+  );
   const routeMode = route?.mode ?? "BUS";
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -691,6 +697,7 @@ export default async function RoutePage({
   // AT sets every train route's long name to its bare code ("STH", "S-C"), so
   // the published line name is the only readable label the header can show.
   const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const operator = operatorOf((await operatorsP)[slug]);
 
   return (
     <main className="space-y-6">
@@ -711,6 +718,22 @@ export default async function RoutePage({
             </h1>
             {subtitle && subtitle !== title && (
               <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
+            )}
+            {operator && (
+              <p className="mt-0.5 text-sm text-at-muted">
+                Run by{" "}
+                <Link
+                  href={buildHref(
+                    operatorHref(operator),
+                    isWeekView
+                      ? { window: "week", period: periodParam ?? undefined }
+                      : { day: requestedDay ?? undefined },
+                  )}
+                  className="text-at-shore hover:underline"
+                >
+                  {operator.name}
+                </Link>
+              </p>
             )}
           </div>
           <div className="flex items-center gap-3">

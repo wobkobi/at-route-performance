@@ -112,7 +112,7 @@ export default async function VehiclesPage({
     requestServiceDay(),
     getLatestEventDate(),
     getEarliestDataDay(1),
-    getRouteOperators().catch(readFallback("route-operators", {})),
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
   const operator = sp.op ? operatorBySlug(sp.op, new Set(Object.values(operators))) : null;
 
