@@ -61,6 +61,7 @@ export function routeUpsertOps(routes: RouteAttr[], seenAt: Date): UpsertOp[] {
           mode: mapRouteType(r.route_type),
           colour: r.route_color ? r.route_color.replace(/^#/, "") : null,
           textColour: r.route_text_color ? r.route_text_color.replace(/^#/, "") : null,
+          agencyId: r.agency_id || null,
           lastSeenAt: { $date: seenAt.toISOString() },
         },
       },
