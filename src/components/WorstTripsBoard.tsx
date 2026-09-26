@@ -26,6 +26,7 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
+import { boundFor } from "@/lib/departure-label";
 import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
 import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time";
@@ -333,7 +334,7 @@ export function WorstTripsBoard({
                               {nzClockTime(c.scheduled_start)}{" "}
                             </span>
                           )}
-                          {c.headsign ? `to ${c.headsign}` : `Trip ${c.trip_id}`}
+                          {boundFor(c.headsign, mode ?? "BUS") ?? `Trip ${c.trip_id}`}
                         </span>
                         <span
                           title={CANCELLATION_BADGE_MEANING.before}
@@ -360,6 +361,7 @@ export function WorstTripsBoard({
               }
               const t = row.trip;
               const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
+              const bound = boundFor(t.headsign, mode ?? "BUS");
               return (
                 <li key={t.trip_id} className={TRIP_ROW_CLASS}>
                   <Link
@@ -378,7 +380,7 @@ export function WorstTripsBoard({
                           {nzClockTime(t.scheduled_start)}
                         </span>
                         <span className="text-at-muted">
-                          {t.headsign ? ` to ${t.headsign}` : ""}
+                          {bound ? ` ${bound}` : ""}
                           {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
                           {t.cars ? ` · ${t.cars} cars` : ""}
                           {" · "}

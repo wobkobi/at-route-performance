@@ -25,6 +25,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { boundFor } from "@/lib/departure-label";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -154,7 +155,7 @@ async function TripRangeBoard({
             )}
           </span>
           <span className="block text-xs text-at-muted tabular-nums">
-            {t.headsign && /\D/.test(t.headsign) ? `to ${t.headsign} · ` : ""}
+            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
             {nzClockTime(t.scheduled_start)} · {t.stops} stops
           </span>
         </span>
@@ -269,7 +270,7 @@ async function TripDayBoard({
             ) : null}
           </span>
           <span className="block text-xs text-at-muted tabular-nums">
-            {t.headsign && /\D/.test(t.headsign) ? `to ${t.headsign} · ` : ""}
+            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
             {nzClockTime(t.scheduled_start)} · {t.stops} stops
           </span>
         </span>

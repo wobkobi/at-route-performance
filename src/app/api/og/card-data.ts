@@ -27,6 +27,7 @@ import {
   getWorstStopsOfWeek,
   TODAY_REVALIDATE,
 } from "@/lib/data";
+import { boundFor } from "@/lib/departure-label";
 import {
   formatDuration,
   formatGtfsTime,
@@ -380,7 +381,7 @@ function routeNameOf(r: ShameTrip | ShameRouteRow): string {
  * @returns "to Britomart", or null.
  */
 function destinationOf(t: ShameTrip): string | null {
-  return t.headsign && /\D/.test(t.headsign) ? `to ${t.headsign}` : null;
+  return boundFor(t.headsign, t.mode);
 }
 
 /**

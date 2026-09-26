@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { boundFor } from "@/lib/departure-label";
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
@@ -77,6 +78,7 @@ export function ShameOfDay({
   }
 
   const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
+  const bound = boundFor(trip.headsign, trip.mode);
   const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
   // The card names one run, so it opens that run. `?d` is the run's own instant,
   // which is how the trip page tells this day's run from the same trip id on
@@ -102,7 +104,7 @@ export function ShameOfDay({
       </div>
       {/* The anchor line holds only the route, so it sits level with the stop
           card's name beside it; the headsign takes its own line. */}
-      {trip.headsign && <p className="text-base text-at-muted">to {trip.headsign}</p>}
+      {bound && <p className="text-base text-at-muted">{bound}</p>}
       <OffScheduleLine
         signedSec={trip.avg_delay_sec}
         absSec={trip.avg_abs_delay_sec}

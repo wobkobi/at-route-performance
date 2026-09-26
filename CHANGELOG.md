@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.4] - 2026-09-26
+
+### Fixed
+
+- A run's line on the worst trips boards, a route's list of the day's buses and the home page's
+  worst trip card names where it is going ("to New Lynn via Henderson") rather than printing AT's
+  whole headsign after "to" ("to Lincoln Rd to New Lynn via Henderson"). On a phone the row was cut
+  short at the origin, so it read as the opposite direction.
+
 ## [2.11.3] - 2026-09-26
 
 ### Fixed
