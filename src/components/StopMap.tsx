@@ -7,6 +7,8 @@ import { delayColour } from "@/lib/delay-colour";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { routeSlug } from "@/lib/route-slug";
+import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
@@ -311,10 +313,22 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
     const cars = veh.cars ? `${veh.cars} cars` : null;
+    // Links to what the vehicle is: its route, the run it is on, and itself. The
+    // same popup serves the route, trip, stop and vehicle pages, so one of the
+    // three may point back at the page it is on; that costs a line, not a wrong turn.
+    const slug = routeSlug(veh.routeId);
+    const links = [
+      `<a href="/route/${encodeURIComponent(slug)}">Route ${esc(slug)}</a>`,
+      veh.tripId
+        ? `<a href="${esc(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
+        : null,
+      `<a href="/vehicle/${encodeURIComponent(veh.vehicleId)}">This vehicle</a>`,
+    ].filter(Boolean);
     const popup =
       `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
       (cars ? ` &middot; ${cars}` : "") +
-      `<br>${esc(status.detail)}`;
+      `<br>${esc(status.detail)}` +
+      `<br>${links.join(" &middot; ")}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
     const name = [

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.14.0] - 2026-09-27
+
+### Added
+
+- Tapping a vehicle on a route, trip, stop or vehicle map now links to its route, the run it is on,
+  and the vehicle's own page, as the live map already did.
+
 ## [2.13.0] - 2026-09-27
 
 ### Added
