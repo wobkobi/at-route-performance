@@ -1,10 +1,11 @@
 "use client";
 // src/components/LiveMap.tsx
 // The live page's network map: every vehicle on a run as a dot in its delay
-// colour, redrawn from /api/live every two minutes. Dots are drawn on one canvas
-// rather than as DOM markers, since a weekday peak puts well over a thousand
-// vehicles on the map at once. The table under the map carries the same service
-// for keyboard and screen-reader readers, so the dots are not focusable.
+// colour, redrawn from /api/live every two minutes, over the road paths the
+// routes follow. Dots are drawn on one canvas rather than as DOM markers, since
+// a weekday peak puts well over a thousand vehicles on the map at once. The
+// table under the map carries the same service for keyboard and screen-reader
+// readers, so the dots are not focusable.
 
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
@@ -12,6 +13,7 @@ import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
+import type { NetworkLine } from "@/types/api";
 import type * as Leaflet from "leaflet";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type JSX } from "react";
@@ -21,6 +23,12 @@ const POLL_MS = 120_000;
 
 /** Central Auckland, for the view before the first poll lands. */
 const AUCKLAND: [number, number] = [-36.8485, 174.7633];
+
+/**
+ * The pane the road paths draw in. Leaflet puts tiles at 200 and the vehicle
+ * dots at 400, so 350 leaves a dot on top of the line it is running along.
+ */
+const LINE_PANE = "network-lines";
 
 /** The word a vehicle's popup names it by. */
 const MODE_WORD: Record<LiveMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
@@ -87,9 +95,14 @@ export default function LiveMap({
     map: Leaflet.Map;
     layer: Leaflet.LayerGroup;
     renderer: Leaflet.Canvas;
+    lineLayer: Leaflet.LayerGroup;
+    lineRenderer: Leaflet.Canvas;
   } | null>(null);
   // The last poll's vehicles, so a mode change redraws without refetching.
   const [vehicles, setVehicles] = useState<LiveMapVehicle[] | null>(null);
+  // The routes' road paths: fetched once, since they are the same for every
+  // reader and only change when the GTFS shapes sync runs.
+  const [lines, setLines] = useState<NetworkLine[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const framed = useRef(false);
@@ -114,9 +127,23 @@ export default function LiveMap({
           referrerPolicy: "strict-origin-when-cross-origin",
         },
       ).addTo(map);
+      // The road paths get a pane of their own under the dots (see LINE_PANE),
+      // and a canvas with room to spare so a pan does not tear the lines at the
+      // edge of the drawn area.
+      map.createPane(LINE_PANE);
+      const linePane = map.getPane(LINE_PANE);
+      if (linePane) linePane.style.zIndex = "350";
+      const lineRenderer = L.canvas({ pane: LINE_PANE, padding: 0.3 });
       // A bigger hit tolerance, so a tap near a 5px dot still opens it.
       const renderer = L.canvas({ tolerance: 6 });
-      mapRef.current = { L, map, layer: L.layerGroup().addTo(map), renderer };
+      mapRef.current = {
+        L,
+        map,
+        layer: L.layerGroup().addTo(map),
+        renderer,
+        lineLayer: L.layerGroup().addTo(map),
+        lineRenderer,
+      };
       setReady(true);
     })();
     return () => {
@@ -189,6 +216,61 @@ export default function LiveMap({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [ready]);
+
+  // The road paths, fetched once the map exists. A failure costs the underlay
+  // and nothing else, so it is not reported: the dots draw without it.
+  useEffect(() => {
+    if (!ready) return;
+    let dead = false;
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch("/api/network-lines", { signal: ctrl.signal });
+        if (dead || !res.ok) return;
+        const data = (await res.json()) as { lines: NetworkLine[] };
+        if (!dead) setLines(data.lines);
+      } catch {
+        // Leave the map to its dots.
+      }
+    })();
+    return () => {
+      dead = true;
+      ctrl.abort();
+    };
+  }, [ready]);
+
+  // Draw the road paths, and redraw them on a mode change so the lines match the
+  // dots. Rebuilt rather than filtered in place: it is one pass over a few
+  // hundred paths, against holding a layer per route to toggle.
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m || !lines) return;
+    const { L, lineLayer, lineRenderer } = m;
+    lineLayer.clearLayers();
+    const colour = cssVar("--color-at-muted");
+    for (const line of lines) {
+      if (mode && line.mode !== mode) continue;
+      const points: [number, number][] = [];
+      for (let i = 0; i + 1 < line.path.length; i += 2) {
+        const lat = line.path[i];
+        const lon = line.path[i + 1];
+        if (lat === undefined || lon === undefined) continue;
+        points.push([lat, lon]);
+      }
+      if (points.length < 2) continue;
+      L.polyline(points, {
+        renderer: lineRenderer,
+        pane: LINE_PANE,
+        color: colour,
+        // Rail and ferry lines are few and long, so they carry a little more
+        // weight without crowding; bus roads overlap and stay hairlines.
+        weight: line.mode === "BUS" ? 1.5 : 2.5,
+        opacity: 0.4,
+        // Background, not a target: the dots and the table carry every link.
+        interactive: false,
+      }).addTo(lineLayer);
+    }
+  }, [lines, mode, ready]);
 
   // Redraw on each poll and on a mode change. An open popup closes with its
   // dot; a two-minute redraw is rare enough that keying dots by id is not worth it.

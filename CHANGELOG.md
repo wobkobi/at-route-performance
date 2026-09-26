@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.10.0] - 2026-09-26
+
+### Added
+
+- The live map draws every route's line in grey beneath the vehicle dots, so a dot reads against the
+  road or rail it is on. Each route is drawn once, along its busiest path, thinned to about 30m
+  detail so the whole network loads as one small file that is kept for a day.
+
 ## [2.9.6] - 2026-09-26
 
 ### Fixed

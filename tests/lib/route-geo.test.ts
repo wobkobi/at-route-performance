@@ -1,6 +1,7 @@
 // tests/lib/route-geo.test.ts
-// Unit tests for the road-line offset geometry helper in route-geo.ts.
-import { offsetPath } from "@/lib/route-geo";
+// Unit tests for the road-line geometry helpers in route-geo.ts: the sideways
+// offset and the simplification the network overlay thins a stored shape with.
+import { offsetPath, simplifyPath } from "@/lib/route-geo";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -50,5 +51,56 @@ describe("offsetPath", () => {
       expect(pa[0] - orig[0]).toBeCloseTo(-(pb[0] - orig[0]), 9);
       expect(pa[1] - orig[1]).toBeCloseTo(-(pb[1] - orig[1]), 9);
     }
+  });
+});
+
+describe("simplifyPath", () => {
+  it("returns a path of fewer than three points unchanged", () => {
+    const two: [number, number][] = [
+      [-36.85, 174.7],
+      [-36.85, 174.8],
+    ];
+    expect(simplifyPath(two, 30)).toEqual(two);
+    expect(simplifyPath([], 30)).toEqual([]);
+  });
+
+  it("drops the interior of a straight run and keeps both ends", () => {
+    // Five points on one line of longitude, about 110m apart.
+    const straight: [number, number][] = [
+      [-36.85, 174.7],
+      [-36.849, 174.7],
+      [-36.848, 174.7],
+      [-36.847, 174.7],
+      [-36.846, 174.7],
+    ];
+    expect(simplifyPath(straight, 30)).toEqual([
+      [-36.85, 174.7],
+      [-36.846, 174.7],
+    ]);
+  });
+
+  it("keeps a corner the tolerance cannot swallow", () => {
+    // A right-angle turn: the corner sits about 1.1km off the line joining the
+    // ends, so no sane tolerance may drop it.
+    const corner: [number, number][] = [
+      [-36.85, 174.7],
+      [-36.85, 174.72],
+      [-36.83, 174.72],
+    ];
+    expect(simplifyPath(corner, 30)).toEqual(corner);
+  });
+
+  it("thins in proportion to the tolerance, endpoints intact", () => {
+    // A gentle zigzag: each step wanders about 11m off the straight line.
+    const zigzag: [number, number][] = Array.from({ length: 21 }, (_, i): [number, number] => [
+      -36.85 + i * 0.001,
+      174.7 + (i % 2 === 0 ? 0 : 0.000125),
+    ]);
+    const fine = simplifyPath(zigzag, 5);
+    const coarse = simplifyPath(zigzag, 30);
+    expect(fine.length).toBeGreaterThan(coarse.length);
+    expect(coarse).toEqual([zigzag[0], zigzag[20]]);
+    expect(at(fine, 0)).toEqual(zigzag[0]);
+    expect(at(fine, fine.length - 1)).toEqual(zigzag[20]);
   });
 });

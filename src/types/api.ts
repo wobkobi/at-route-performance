@@ -2,6 +2,17 @@
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
 import type { PlatformRow } from "@/lib/station-platforms";
 
+// One route's road path, returned by /api/network-lines for the live map's underlay
+export interface NetworkLine {
+  /** The mode that drives it, so the map's mode filter can hide the rest. */
+  mode: "BUS" | "TRAIN" | "FERRY";
+  /**
+   * The path as flat `[lat, lon, lat, lon, ...]`. Flat rather than pairs because
+   * five hundred paths pay for every bracket twice over.
+   */
+  path: number[];
+}
+
 // Top routes row returned by /api/routes/top
 export interface TopRouteRow {
   route_id: string;
