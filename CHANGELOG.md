@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.4] - 2026-09-26
+
+### Changed
+
+- Behind the scenes only: patch updates to four development tools - @types/node, lint-staged, vite
+  and vitest. Nothing on the site changes.
+
 ## [2.9.3] - 2026-09-25
 
 ### Fixed
