@@ -36,6 +36,7 @@ function route(slug: string, extra: Partial<ExplorerRoute> = {}): ExplorerRoute 
     early_pct: 5,
     late_pct: 15,
     areas: ["central"],
+    zones: ["city"],
     cancelled: 0,
     school: false,
     operator: null,
@@ -63,7 +64,7 @@ function slugs(rows: ExplorerRoute[]): string[] {
 
 describe("filterRoutes", () => {
   const rows = [
-    route("NX1", { areas: ["central", "north"] }),
+    route("NX1", { areas: ["central", "north"], zones: ["city", "lower-north-shore"] }),
     route("70", {
       areas: ["central", "east"],
       avg_delay_sec: -30,
@@ -73,6 +74,15 @@ describe("filterRoutes", () => {
     route("S-C", { mode: "TRAIN", areas: ["central", "south"] }),
     route("046", { long_name: "S046", school: true, events: 40 }),
   ];
+
+  it("keeps routes serving any chosen fare zone", () => {
+    expect(slugs(filterRoutes(rows, filters({ zones: ["lower-north-shore"] })))).toEqual(["NX1"]);
+    expect(slugs(filterRoutes(rows, filters({ zones: ["waiheke", "city"] })))).toEqual([
+      "NX1",
+      "70",
+      "S-C",
+    ]);
+  });
 
   it("keeps only the chosen operator's routes", () => {
     expect(slugs(filterRoutes(rows, filters({ op: "howick-and-eastern" })))).toEqual(["70"]);
@@ -132,20 +142,33 @@ describe("query round trip", () => {
   it("writes only what differs from the defaults and reads it back", () => {
     const f = filters({
       areas: ["west", "north"],
+      zones: ["isthmus", "city"],
       op: "go-bus",
       mode: "BUS",
       sort: "off_by",
       dir: "desc",
     });
     const q = explorerQuery(f);
-    expect(q).toEqual({ mode: "BUS", area: "west,north", op: "go-bus", sort: "off_by" });
+    expect(q).toEqual({
+      mode: "BUS",
+      area: "west,north",
+      zone: "isthmus,city",
+      op: "go-bus",
+      sort: "off_by",
+    });
     expect(parseExplorerFilters(q)).toEqual(f);
     expect(explorerQuery(DEFAULT_FILTERS)).toEqual({});
   });
 
   it("drops invalid values", () => {
     expect(
-      parseExplorerFilters({ area: "mars,west", sort: "vibes", mode: "BOAT", op: "<b>" }),
+      parseExplorerFilters({
+        area: "mars,west",
+        zone: "moon",
+        sort: "vibes",
+        mode: "BOAT",
+        op: "<b>",
+      }),
     ).toEqual(filters({ areas: ["west"] }));
   });
 });

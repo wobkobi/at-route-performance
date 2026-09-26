@@ -33,6 +33,8 @@ import { getRouteModeMap } from "@/lib/data/routes";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { serviceClockNow } from "@/lib/departure-board";
+import { fareZonesOf } from "@/lib/fare-zone-geo";
+import { FARE_ZONE_LABEL } from "@/lib/fare-zones";
 import {
   formatDuration,
   OFF_SCHEDULE_TONE_CLASS,
@@ -170,6 +172,7 @@ export default async function StopPage({
   const linkDay = nav.isToday ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
+  const zones = fareZonesOf(stop.lat, stop.lon);
   // Net-average wording stays mode-less: a stop mixes modes, so no single window.
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -213,6 +216,22 @@ export default async function StopPage({
             )}
           </p>
           <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
+          {zones.length > 0 && (
+            <p className="mt-0.5 text-sm text-at-muted">
+              {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
+              {zones.map((z, i) => (
+                <Fragment key={z}>
+                  {i > 0 && " and "}
+                  <Link
+                    href={buildHref("/routes", { day: linkDay, zone: z })}
+                    className="text-at-shore hover:underline"
+                  >
+                    {FARE_ZONE_LABEL[z]}
+                  </Link>
+                </Fragment>
+              ))}
+            </p>
+          )}
           {/* AT models an interchange as two or more parent stations and this page
               stands for one of them, so without these links a reader at Manukau's
               bus station has no way to its trains. The names are AT's own, which

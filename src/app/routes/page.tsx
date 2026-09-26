@@ -1,7 +1,7 @@
 // src/app/routes/page.tsx
 // Routes page: every route with arrivals in a day, week or month, with filters
-// (mode, area, operator, late or early, enough data, cancellations, school
-// services, running now),
+// (mode, area, fare zone, operator, late or early, enough data, cancellations,
+// school services, running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
 // RouteExplorer. The day view opens on the same day as every other day page
@@ -14,7 +14,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getRankings,
-  getRouteAreas,
+  getRouteGeography,
   getRouteOperators,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -127,9 +127,9 @@ export default async function RoutesPage({
   }
 
   // Every mode and school services too: the explorer filters those itself.
-  const [cancelledRoutes, areas, operators] = await Promise.all([
+  const [cancelledRoutes, geo, operators] = await Promise.all([
     getCancelledRoutes(range, { mode: null, includeSchool: true }, ALL_ROUTES, revalidate),
-    getRouteAreas(),
+    getRouteGeography(),
     getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
   const rowSlugs = new Set(rows.map((r) => routeSlug(r.route_id)));
@@ -152,7 +152,8 @@ export default async function RoutesPage({
     return {
       ...r,
       slug,
-      areas: areas[slug] ?? [],
+      areas: geo.areas[slug] ?? [],
+      zones: geo.zones[slug] ?? [],
       cancelled: cancelledBySlug.get(slug) ?? 0,
       school: isSchoolBus(r.short_name, r.long_name),
       operator: operatorOf(operators[slug])?.slug ?? null,
@@ -196,9 +197,10 @@ export default async function RoutesPage({
       />
 
       <p className="text-xs text-at-muted">
-        Areas come from the stops each route served over the last seven days, placed against
-        approximate boundaries; a route is listed under every area it serves. Routes with
-        cancellations but no recorded arrivals are listed without punctuality figures.{" "}
+        Areas and fare zones come from the stops each route served over the last seven days. Areas
+        are placed against approximate boundaries, and a route is listed under every area it serves;
+        fare zones are AT&apos;s own, and a route is listed under every zone one of its stops is in.
+        Routes with cancellations but no recorded arrivals are listed without punctuality figures.{" "}
         {CANCELLED_SPLIT_COPY}
       </p>
     </main>

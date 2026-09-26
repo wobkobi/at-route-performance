@@ -13,6 +13,7 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/areas";
 import { cn } from "@/lib/cn";
+import { FARE_ZONES, type FareZoneKey } from "@/lib/fare-zones";
 import {
   formatDuration,
   OFF_SCHEDULE_TONE_CLASS,
@@ -192,6 +193,22 @@ export function RouteExplorer({
     });
   };
 
+  /**
+   * Add or remove a zone from the fare zone filter.
+   * @param key - The zone.
+   */
+  const toggleZone = (key: FareZoneKey): void => {
+    update({
+      zones: filters.zones.includes(key)
+        ? filters.zones.filter((z) => z !== key)
+        : FARE_ZONES.map((z) => z.key).filter((z) => z === key || filters.zones.includes(z)),
+    });
+  };
+
+  // Only the zones some route in the window serves: a chip for a zone none of
+  // them reaches could only ever empty the list.
+  const servedZones = useMemo(() => new Set(rows.flatMap((r) => r.zones)), [rows]);
+
   // The operators behind the window's routes, by name. Seventeen make too long a
   // chip row, so this one filter is a select.
   const operatorOptions = useMemo(
@@ -261,6 +278,20 @@ export function RouteExplorer({
               onClick={() => toggleArea(a.key)}
             >
               {a.label}
+            </ChipToggle>
+          ))}
+        </FilterRow>
+        <FilterRow label="Fare zone">
+          <ChipToggle on={filters.zones.length === 0} onClick={() => update({ zones: [] })}>
+            All
+          </ChipToggle>
+          {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
+            <ChipToggle
+              key={z.key}
+              on={filters.zones.includes(z.key)}
+              onClick={() => toggleZone(z.key)}
+            >
+              {z.label}
             </ChipToggle>
           ))}
         </FilterRow>
