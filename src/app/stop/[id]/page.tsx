@@ -278,7 +278,9 @@ export default async function StopPage({
             bare
             variant="split"
             label="On time"
-            value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
+            value={
+              summary?.on_time_pct == null ? UNKNOWN_VALUE : `${summary.on_time_pct.toFixed(1)}%`
+            }
             breakdown={punctuality}
           />
         </div>

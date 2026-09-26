@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.5] - 2026-09-26
+
+### Fixed
+
+- The On time figure on a route page and a stop page reads as a percentage again ("69.8%"); it lost
+  its unit when the label dropped its "(%)".
+
 ## [2.11.4] - 2026-09-26
 
 ### Fixed
