@@ -5,7 +5,7 @@
 
 import { ChipLink } from "@/components/Chip";
 import LiveMapWrapper from "@/components/LiveMapWrapper";
-import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleton";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
@@ -93,7 +93,7 @@ export default async function LivePage({
         }}
       />
 
-      <Suspense fallback={<LiveFiguresSkeleton />}>
+      <Suspense fallback={<LoadingBlock label="Loading the live figures" />}>
         <LiveFigures mode={mode} />
       </Suspense>
 
@@ -132,7 +132,7 @@ export default async function LivePage({
             ))}
           </nav>
         </div>
-        <Suspense fallback={<LiveTableSkeleton />}>
+        <Suspense fallback={<LoadingBlock label="Loading the routes running" />}>
           <LiveTable mode={mode} sort={sort} all={all} />
         </Suspense>
       </section>

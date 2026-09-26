@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.5] - 2026-09-26
+
+### Changed
+
+- A page now waits on one loading wheel rather than a box-for-box skeleton of itself, and a section
+  still loading inside a page says what it is waiting for ("Loading the board"). The skeletons were
+  thirteen hand-kept copies of the pages they stood in for; the trade is that a page now arrives on
+  the wheel and moves more as it fills in.
+
 ## [2.9.4] - 2026-09-26
 
 ### Changed

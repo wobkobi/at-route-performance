@@ -5,7 +5,7 @@
 // reads, through the same summary, so a column always says what `/?day=` does.
 
 import { CHART_FLOOR, DayChart } from "@/components/DayChart";
-import { DaysBodySkeleton } from "@/components/DaysSkeleton";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
@@ -146,7 +146,7 @@ export default async function DaysPage({
         </Link>
       </div>
 
-      <Suspense fallback={<DaysBodySkeleton window={window} />}>
+      <Suspense fallback={<LoadingBlock label="Loading the days" />}>
         <DaysBody
           range={range}
           monthView={window === "month"}

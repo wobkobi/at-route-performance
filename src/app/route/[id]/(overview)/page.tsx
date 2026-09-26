@@ -13,12 +13,12 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DirectionFilter } from "@/components/DirectionFilter";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
-import { LineDiagramSkeleton } from "@/components/SkeletonParts";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
@@ -842,7 +842,7 @@ export default async function RoutePage({
               diagram's own empty state reads "no stopping pattern yet", which
               is the wrong story, and the note above already tells the right one. */}
           {!view.patternFailed && (
-            <Suspense fallback={<LineDiagramSkeleton />}>
+            <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
               <RouteDiagramSection
                 alertsPromise={alertsPromise}
                 live={isLiveView}
@@ -950,7 +950,7 @@ export default async function RoutePage({
 
           {/* Hidden, not empty, when the pattern failed - see the week view above. */}
           {!view.patternFailed && (
-            <Suspense fallback={<LineDiagramSkeleton />}>
+            <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
               <RouteDiagramSection
                 alertsPromise={alertsPromise}
                 live={isLiveView}

@@ -2,6 +2,7 @@
 // Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
 
 import { FlameCount } from "@/components/FlameCount";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
 import {
   ShameBoard,
@@ -9,7 +10,6 @@ import {
   ShameHourLabel,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
@@ -32,7 +32,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import {
@@ -382,7 +381,7 @@ export default async function RoutesShamePage({
             nav: rangeNav,
           }}
         />
-        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+        <Suspense fallback={<LoadingBlock label="Loading the board" />}>
           <RouteRangeBoard
             range={activeRange}
             filter={filter}
@@ -422,9 +421,7 @@ export default async function RoutesShamePage({
           nav: { day: linkDay },
         }}
       />
-      <Suspense
-        fallback={<ShameBoardSkeleton layout="day" rows={startedServiceHourCount(serviceDate)} />}
-      >
+      <Suspense fallback={<LoadingBlock label="Loading the board" />}>
         <RouteDayBoard
           range={range}
           serviceDate={serviceDate}

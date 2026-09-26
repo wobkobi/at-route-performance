@@ -2,6 +2,7 @@
 // Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
 
 import { FlameCount } from "@/components/FlameCount";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
 import {
   ShameBoard,
@@ -9,7 +10,6 @@ import {
   ShameHourLabel,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
@@ -32,7 +32,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
@@ -366,14 +365,7 @@ export default async function TripShamePage({
             nav: rangeNav,
           }}
         />
-        <Suspense
-          fallback={
-            <ShameBoardSkeleton
-              layout="week"
-              shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
-            />
-          }
-        >
+        <Suspense fallback={<LoadingBlock label="Loading the board" />}>
           <TripRangeBoard
             range={activeRange}
             filter={filter}
@@ -413,15 +405,7 @@ export default async function TripShamePage({
           nav: { day: linkDay },
         }}
       />
-      <Suspense
-        fallback={
-          <ShameBoardSkeleton
-            layout="day"
-            shape={{ icon: true, mobileLines: 4, gridLines: 2 }}
-            rows={startedServiceHourCount(serviceDate)}
-          />
-        }
-      >
+      <Suspense fallback={<LoadingBlock label="Loading the board" />}>
         <TripDayBoard
           range={range}
           serviceDate={serviceDate}
