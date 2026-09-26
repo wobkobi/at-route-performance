@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.16.0] - 2026-09-27
+
+### Added
+
+- An Operators page compares the companies that run AT's routes on punctuality, cancellations and
+  fleet, each operator has its own page listing its routes and vehicles, and the vehicles board can
+  be narrowed to one operator.
+
 ## [2.15.0] - 2026-09-27
 
 ### Added

@@ -5,6 +5,7 @@
 import { ChipLink } from "@/components/Chip";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
+import { OperatorSelect } from "@/components/OperatorSelect";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SortHeader } from "@/components/SortHeader";
@@ -14,6 +15,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getRouteNames,
+  getRouteOperators,
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -21,6 +23,8 @@ import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
+import { vehicleOperatorCodes } from "@/lib/operator-stats";
+import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -32,7 +36,7 @@ import {
 import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import type { DateRange } from "@/lib/time";
-import { buildHref } from "@/lib/utils";
+import { buildHref, stripUnset } from "@/lib/utils";
 import {
   parseVehicleSort,
   sortVehicles,
@@ -74,17 +78,8 @@ interface VehiclesSearchParams {
   school?: string;
   sort?: string;
   show?: string;
-}
-
-/**
- * Drop the unset entries from a param set, for a control's preserved params.
- * @param params - The params, some unset.
- * @returns The set ones.
- */
-function stripUnset(params: Record<string, string | undefined>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined),
-  );
+  /** Operator slug, to list only the vehicles that ran its routes. */
+  op?: string;
 }
 
 /**
@@ -113,11 +108,13 @@ export default async function VehiclesPage({
   const filter = { mode, includeSchool };
   // One request-time clock read for the whole render, handed to every helper
   // that places a day against today (see lib/request-now.ts).
-  const [today, latest, earliest] = await Promise.all([
+  const [today, latest, earliest, operators] = await Promise.all([
     requestServiceDay(),
     getLatestEventDate(),
     getEarliestDataDay(1),
+    getRouteOperators().catch(readFallback("route-operators", {})),
   ]);
+  const operator = sp.op ? operatorBySlug(sp.op, new Set(Object.values(operators))) : null;
 
   let range: DateRange;
   let nav: RangeNav;
@@ -142,7 +139,20 @@ export default async function VehiclesPage({
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
   }
 
-  const ranked = sortVehicles(vehicles, sort);
+  // The operators that ran anything in the window, for the drop-down, counted
+  // before the operator filter narrows the list.
+  const vehicleOps = new Map(
+    vehicles.map((v) => [v.vehicleId, vehicleOperatorCodes(v, operators)]),
+  );
+  const opOptions = [...new Set([...vehicleOps.values()].flat())]
+    .map((code) => operatorOf(code)!)
+    .sort((a, b) => a.name.localeCompare(b.name, "en-NZ"));
+  const ranked = sortVehicles(
+    operator
+      ? vehicles.filter((v) => vehicleOps.get(v.vehicleId)?.includes(operator.code))
+      : vehicles,
+    sort,
+  );
   const rows = ranked.slice(0, shown);
   // Started now and awaited per row, so AT's feed never holds up the board.
   const live = getLiveVehicleMap();
@@ -160,7 +170,11 @@ export default async function VehiclesPage({
     day: dayParam,
     period: period ?? undefined,
   };
-  const filters = { mode: mode ?? undefined, school: includeSchool ? "1" : undefined };
+  const filters = {
+    mode: mode ?? undefined,
+    school: includeSchool ? "1" : undefined,
+    op: operator?.slug,
+  };
   const sortParam = sort === "hours" ? undefined : sort;
   // How the list is being read, for a vehicle's link to hand back on its way out.
   const listState = stripUnset({
@@ -168,8 +182,18 @@ export default async function VehiclesPage({
     sort: sortParam,
     show: shown > PAGE_SIZE ? String(shown) : undefined,
   });
-  const modePreserved = stripUnset({ ...view, school: filters.school, sort: sortParam });
-  const schoolPreserved = stripUnset({ ...view, mode: filters.mode, sort: sortParam });
+  const modePreserved = stripUnset({
+    ...view,
+    school: filters.school,
+    op: filters.op,
+    sort: sortParam,
+  });
+  const schoolPreserved = stripUnset({
+    ...view,
+    mode: filters.mode,
+    op: filters.op,
+    sort: sortParam,
+  });
   const showsTrains = mode === null || mode === "TRAIN";
 
   return (
@@ -180,7 +204,20 @@ export default async function VehiclesPage({
             Hardest-worked vehicles
           </h1>
           <p className="mt-0.5 text-sm text-at-muted">
-            Every vehicle that ran, ranked by how much it ran.
+            {operator ? (
+              <>
+                Every vehicle that ran {/^[AEIOU]/.test(operator.name) ? "an" : "a"}{" "}
+                <Link
+                  href={buildHref(operatorHref(operator), { ...view, school: filters.school })}
+                  className="text-at-shore hover:underline"
+                >
+                  {operator.name}
+                </Link>{" "}
+                route, ranked by how much it ran.
+              </>
+            ) : (
+              "Every vehicle that ran, ranked by how much it ran."
+            )}
           </p>
         </div>
         <RangeControls basePath="/vehicles" nav={nav} />
@@ -192,6 +229,12 @@ export default async function VehiclesPage({
           active={includeSchool}
           basePath="/vehicles"
           preservedParams={schoolPreserved}
+        />
+        <OperatorSelect
+          options={opOptions}
+          active={operator?.slug ?? null}
+          basePath="/vehicles"
+          preservedParams={stripUnset({ ...view, ...filters, sort: sortParam })}
         />
       </div>
 

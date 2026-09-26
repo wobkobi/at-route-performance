@@ -21,7 +21,7 @@ export interface NavSection {
 export const NAV_SECTIONS: readonly NavSection[] = [
   // `/vehicle/` too: a vehicle's page is not a prefix match of the list it opens from.
   { href: "/", label: "Overview", under: ["/days", "/vehicles", "/vehicle/"] },
-  { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
+  { href: "/routes", label: "Routes", under: ["/route/", "/stop/", "/operator"] },
   { href: "/live", label: "Live", under: [], carries: ["mode"] },
   // The section's own tab: /shame redirects here, and the other two boards sit beside it.
   { href: "/shame/trip", label: "Shame", under: ["/shame"] },

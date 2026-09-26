@@ -248,6 +248,37 @@ export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "
 }
 
 /**
+ * Every route's operator code by slug. A slug spans every feed version of one
+ * route, and a new contract can hand a route to another operator, so the newest
+ * version's code wins. Routes with no code yet (synced before the field
+ * existed) are left out. Cached for an hour, as {@link getRouteModeMap}.
+ * @returns Route slug to AT agency code.
+ */
+export async function getRouteOperators(): Promise<Record<string, string>> {
+  return unstable_cache(
+    async () => {
+      const rows = await prisma.route.findMany({
+        where: { agencyId: { not: null } },
+        select: { id: true, agencyId: true },
+      });
+      const out: Record<string, string> = {};
+      const version: Record<string, number> = {};
+      for (const r of rows) {
+        const slug = routeSlug(r.id);
+        const v = routeVersion(r.id);
+        if (r.agencyId && (version[slug] === undefined || v > version[slug])) {
+          out[slug] = r.agencyId;
+          version[slug] = v;
+        }
+      }
+      return out;
+    },
+    ["route-operators"],
+    { revalidate: 3600 },
+  )();
+}
+
+/**
  * Look up short names for a set of route ids. Returns a map of id to shortName,
  * falling back to the raw id when the route has no shortName set.
  * @param routeIds - Route ids to look up.

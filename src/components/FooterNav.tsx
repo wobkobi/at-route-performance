@@ -14,12 +14,15 @@ import { Suspense, type JSX } from "react";
  *
  * `/days` is here because this is its only unconditional link: the home page
  * offers it from the week and month views only, and it has no tab of its own, so
- * a reader on the day view had no path to it at all.
+ * a reader on the day view had no path to it at all. `/operators` has no tab
+ * either; beyond this list it is reached from the "Run by" links on route and
+ * vehicle pages.
  */
 const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },
   { href: "/days", label: "Day by day" },
   { href: "/routes", label: "Routes" },
+  { href: "/operators", label: "Operators" },
   { href: "/shame/trip", label: "Worst trips" },
   { href: "/shame/route", label: "Worst routes" },
   { href: "/shame/stop", label: "Worst stops" },

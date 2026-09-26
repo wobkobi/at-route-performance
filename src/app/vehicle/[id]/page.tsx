@@ -91,6 +91,7 @@ interface VehicleSearchParams {
   school?: string;
   sort?: string;
   show?: string;
+  op?: string;
 }
 
 /**
@@ -122,7 +123,7 @@ export async function generateMetadata({
  * @param root0 - Page props.
  * @param root0.params - Route params (`id`, the feed vehicle id).
  * @param root0.searchParams - Window (`window`, `day`, `period`), and the vehicles list's
- *   `mode`, `school`, `sort` and `show` for the back link.
+ *   `mode`, `school`, `sort`, `show` and `op` for the back link.
  * @returns Page markup.
  */
 export default async function VehiclePage({
@@ -210,6 +211,7 @@ export default async function VehiclePage({
     school: sp.school,
     sort: sp.sort,
     show: sp.show,
+    op: sp.op,
   };
   const rank = vehicleRank(board, id);
   const name = vehicleName(register?.label ?? now?.label, id);

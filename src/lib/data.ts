@@ -43,6 +43,7 @@ export {
   getDirectoryRoutes,
   getRouteLabel,
   getRouteNames,
+  getRouteOperators,
   ownRouteIds,
   routeHasTraffic,
   routeIdsForSlug,
