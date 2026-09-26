@@ -406,12 +406,15 @@ function Column({
       className={cn(
         // content-start: a column shorter than its neighbour keeps its rows at the top, level
         // with the neighbour's, rather than spreading the extra height between them.
+        // A figure column is min-content: as wide as its widest figure (they never wrap) or the
+        // longest word of its heading, which wraps inside it. WebKit sizes an auto track from a
+        // w-min heading's one-line width, which left a phone's names no room at all.
         "grid content-start gap-x-2 sm:gap-x-3",
         !figures
           ? "grid-cols-1"
           : twoWay
-            ? "grid-cols-[minmax(0,1fr)_auto_auto]"
-            : "grid-cols-[minmax(0,1fr)_auto]",
+            ? "grid-cols-[minmax(0,1fr)_min-content_min-content]"
+            : "grid-cols-[minmax(0,1fr)_min-content]",
       )}
     >
       {figures && (
@@ -420,12 +423,11 @@ function Column({
           className="col-span-full grid grid-cols-subgrid items-end border-b border-at-border pb-1.5 text-xs font-semibold text-at-muted"
         >
           <span />
-          {/* w-min: a heading widens its column only to its longest word, and wraps within it. */}
-          <span className={cn("w-min min-w-full text-right text-balance", DIM_TEXT.down)}>
+          <span className={cn("text-right text-balance", DIM_TEXT.down)}>
             {view.downHeading}&nbsp;▾
           </span>
           {twoWay && (
-            <span className={cn("w-min min-w-full text-right text-balance", DIM_TEXT.up)}>
+            <span className={cn("text-right text-balance", DIM_TEXT.up)}>
               {view.upHeading}&nbsp;▴
             </span>
           )}

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.2] - 2026-09-26
+
+### Fixed
+
+- On an iPhone a route's line diagram showed its stop names one letter wide, because Safari sized
+  the figure columns from their headings' full one-line width. The figure columns now take the width
+  of their widest figure or the longest word of their heading, which wraps, in every browser.
+
 ## [2.11.1] - 2026-09-26
 
 ### Fixed
