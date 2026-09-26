@@ -7,6 +7,7 @@
 // table under the map carries the same service for keyboard and screen-reader
 // readers, so the dots are not focusable.
 
+import { LocateArrow } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
@@ -23,6 +24,19 @@ const POLL_MS = 120_000;
 
 /** Central Auckland, for the view before the first poll lands. */
 const AUCKLAND: [number, number] = [-36.8485, 174.7633];
+
+/**
+ * Roughly the region AT serves, Wellsford to Pukekohe and out to Great Barrier.
+ * A reader outside it has no vehicle nearby, so the map stays on the network
+ * rather than flying to an empty patch of sea or another city.
+ */
+const AUCKLAND_BOUNDS: [[number, number], [number, number]] = [
+  [-37.45, 174.1],
+  [-35.85, 175.6],
+];
+
+/** The zoom a located reader lands on: a few streets either way, so the nearby dots stand apart. */
+const NEAR_ZOOM = 15;
 
 /**
  * The pane the road paths draw in. Leaflet puts tiles at 200 and the vehicle
@@ -97,6 +111,7 @@ export default function LiveMap({
     renderer: Leaflet.Canvas;
     lineLayer: Leaflet.LayerGroup;
     lineRenderer: Leaflet.Canvas;
+    hereLayer: Leaflet.LayerGroup;
   } | null>(null);
   // The last poll's vehicles, so a mode change redraws without refetching.
   const [vehicles, setVehicles] = useState<LiveMapVehicle[] | null>(null);
@@ -105,6 +120,9 @@ export default function LiveMap({
   const [lines, setLines] = useState<NetworkLine[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [locating, setLocating] = useState(false);
+  // Why the last locate did not move the map, if it did not.
+  const [locateNote, setLocateNote] = useState<string | null>(null);
   const framed = useRef(false);
 
   // Build the map once.
@@ -143,6 +161,7 @@ export default function LiveMap({
         renderer,
         lineLayer: L.layerGroup().addTo(map),
         lineRenderer,
+        hereLayer: L.layerGroup().addTo(map),
       };
       setReady(true);
     })();
@@ -307,9 +326,84 @@ export default function LiveMap({
     }
   }, [vehicles, mode]);
 
+  /**
+   * Ask for the reader's position and fly to it, marking where they are with a
+   * dot and a ring for how sure the browser is. Asked on the press rather than on
+   * load: a prompt nobody asked for gets refused, and iOS only shows it after a tap.
+   */
+  const locate = (): void => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!("geolocation" in navigator)) {
+      setLocateNote("This browser cannot share a location.");
+      return;
+    }
+    setLocating(true);
+    setLocateNote(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const { L, map, hereLayer } = m;
+        const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
+          setLocateNote("You look to be outside Auckland, so there is nothing nearby to show.");
+          return;
+        }
+        hereLayer.clearLayers();
+        // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
+        const ink = cssVar("--color-at-ink");
+        L.circle(here, {
+          radius: pos.coords.accuracy,
+          color: ink,
+          weight: 1,
+          fillOpacity: 0.08,
+          interactive: false,
+        }).addTo(hereLayer);
+        L.circleMarker(here, {
+          radius: 7,
+          weight: 3,
+          color: "#ffffff",
+          fillColor: ink,
+          fillOpacity: 1,
+          interactive: false,
+        }).addTo(hereLayer);
+        // The reader chose this view, so the first poll must not frame it away.
+        framed.current = true;
+        map.flyTo(here, NEAR_ZOOM);
+      },
+      (err) => {
+        setLocating(false);
+        setLocateNote(
+          err.code === err.PERMISSION_DENIED
+            ? "Location is turned off for this site. Allow it in your browser's settings to zoom to where you are."
+            : "Your location could not be found. Try again in a moment.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+    );
+  };
+
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
+      {/* Clear of Leaflet's attribution in the corner below it. */}
+      <button
+        type="button"
+        onClick={locate}
+        disabled={!ready || locating}
+        className="absolute right-2.5 bottom-7 z-10 flex items-center gap-1.5 border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
+      >
+        <LocateArrow className="text-at-shore" />
+        {locating ? "Finding you…" : "Near me"}
+      </button>
+      {locateNote && (
+        <p
+          role="status"
+          className="absolute right-2.5 bottom-19 z-10 max-w-64 border border-at-border bg-at-surface px-2 py-1 text-xs text-at-ink"
+        >
+          {locateNote}
+        </p>
+      )}
       {failed && (
         <p
           role="status"

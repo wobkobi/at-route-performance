@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.12.0] - 2026-09-26
+
+### Added
+
+- The live map has a Near me button. It asks your browser for your location, then zooms to the
+  streets around you with a dot where you are, so the buses and trains nearest you can be picked out
+  and tapped. It only asks when pressed, stays on the whole network for a location outside Auckland,
+  and says so when location is turned off for the site.
+
 ## [2.11.5] - 2026-09-26
 
 ### Fixed

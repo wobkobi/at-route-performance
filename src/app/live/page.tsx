@@ -107,8 +107,8 @@ export default async function LivePage({
         <LiveMapWrapper mode={mode} className="h-110 border border-at-border sm:h-140" />
         <p className="text-xs text-at-muted">
           Tap a dot for its route, how late it is, and links to its run and the vehicle. Buses are
-          the small dots. The grey lines are the roads and rails the routes follow. The table below
-          lists the same routes.
+          the small dots. The grey lines are the roads and rails the routes follow. Near me zooms to
+          where you are. The table below lists the same routes.
         </p>
       </section>
 
