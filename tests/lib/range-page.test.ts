@@ -196,9 +196,9 @@ describe("overviewHeading", () => {
     tabs,
   } as const;
 
-  it("names today, or another day, from the stepper", () => {
+  it("asks about a day that is still running in the present, and a finished one in the past", () => {
     expect(overviewHeading({ ...day, isToday: true, hasNext: false }, null)).toBe(
-      "How bad was it today?",
+      "How bad is it today?",
     );
     expect(overviewHeading({ ...day, isToday: false, hasNext: true }, null)).toBe(
       "How bad was it that day?",
@@ -212,9 +212,11 @@ describe("overviewHeading", () => {
   });
 
   it("tells the rolling week and the current month from a stepped-back one", () => {
-    expect(overviewHeading(week, null)).toBe("How bad was it over the last 7 days?");
+    expect(overviewHeading(week, null)).toBe("How bad has it been over the last 7 days?");
     expect(overviewHeading(week, "2026-09-07")).toBe("How bad was it that week?");
-    expect(overviewHeading({ ...week, window: "month" }, null)).toBe("How bad was it this month?");
+    expect(overviewHeading({ ...week, window: "month" }, null)).toBe(
+      "How bad has it been this month?",
+    );
     expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
       "How bad was it that month?",
     );

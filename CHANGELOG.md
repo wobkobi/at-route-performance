@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.6] - 2026-09-26
+
+### Fixed
+
+- The home page's question matches whether the day it asks about is over: "How bad is it today?"
+  while today is still running, "How bad has it been" over the last 7 days and this month, since
+  both reach up to today, and "How bad was it" only for a day, week or month that has closed. A
+  shared link's title and the generic share card ask the same way.
+
 ## [2.9.5] - 2026-09-26
 
 ### Changed

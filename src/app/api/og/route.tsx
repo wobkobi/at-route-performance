@@ -117,7 +117,7 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
   return render(
     <CardFrame eyebrow="Auckland's buses, trains and ferries" logo={logo}>
       <div style={{ display: "flex", marginTop: 40, fontSize: 96, fontWeight: 900 }}>
-        How bad was it?
+        How bad is it?
       </div>
     </CardFrame>,
     cardCacheControl(false),
