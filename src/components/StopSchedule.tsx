@@ -10,12 +10,14 @@ import type { StopDepartures } from "@/lib/at-stop-trips";
 import { departuresFromNow } from "@/lib/departure-board";
 import { departureLabel } from "@/lib/departure-label";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
+import { routeSlug } from "@/lib/route-slug";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
   serviceDateLabel,
   serviceDayLabel,
 } from "@/lib/time";
+import Link from "next/link";
 import { Fragment, type JSX } from "react";
 
 /** Props for {@link StopSchedule}. */
@@ -36,6 +38,8 @@ export interface StopScheduleProps {
   nowHref: string;
   /** This page with it. */
   allHref: string;
+  /** Query each route link carries, from `routeLinkQuery`, so a route opens on the same day. */
+  routeQuery?: string;
 }
 
 /**
@@ -78,6 +82,7 @@ function noticeFor(result: StopDepartures, serviceDate: string, shown: number): 
  * @param props.showAll - Whether the whole day was asked for.
  * @param props.nowHref - This page without the whole-day param.
  * @param props.allHref - This page with it.
+ * @param props.routeQuery - Query each route link carries (optional).
  * @returns The schedule table, or a notice in place of it.
  */
 export function StopSchedule({
@@ -89,6 +94,7 @@ export function StopSchedule({
   showAll,
   nowHref,
   allHref,
+  routeQuery,
 }: StopScheduleProps): JSX.Element {
   const isToday = nowSeconds !== null;
   const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDayLabel(serviceDate)}`;
@@ -158,8 +164,13 @@ export function StopSchedule({
                       </tr>
                     )}
                     <tr className="border-b border-at-border/40 last:border-0">
-                      <td className="py-1.5 pr-4 font-semibold text-at-ink">
-                        {routeNames.get(dep.routeId) ?? dep.routeId}
+                      <td className="py-1.5 pr-4 font-semibold">
+                        <Link
+                          href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}${routeQuery ?? ""}`}
+                          className="text-at-shore hover:underline"
+                        >
+                          {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
+                        </Link>
                       </td>
                       <td className="py-1.5 pr-4 text-at-ink">
                         {bound.destination ?? UNKNOWN_VALUE}

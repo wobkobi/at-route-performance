@@ -356,6 +356,7 @@ export default async function StopPage({
           showAll={sp.sched === "all"}
           nowHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: undefined })}
           allHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: "all" })}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
         />
       </Suspense>
     </main>
@@ -472,6 +473,7 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
  * @param root0.showAll - Whether the reader asked for the whole day.
  * @param root0.nowHref - This page without the whole-day param.
  * @param root0.allHref - This page with it.
+ * @param root0.routeQuery - Query each route link carries, so a route opens on the same day.
  * @returns The departures board.
  */
 async function StopScheduleSection({
@@ -480,12 +482,14 @@ async function StopScheduleSection({
   showAll,
   nowHref,
   allHref,
+  routeQuery,
 }: {
   scheduleStopId: string;
   serviceDate: string;
   showAll: boolean;
   nowHref: string;
   allHref: string;
+  routeQuery: string;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
@@ -503,6 +507,7 @@ async function StopScheduleSection({
       showAll={showAll}
       nowHref={nowHref}
       allHref={allHref}
+      routeQuery={routeQuery}
     />
   );
 }
