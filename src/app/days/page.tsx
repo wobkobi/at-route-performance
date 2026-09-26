@@ -241,16 +241,22 @@ async function DaysBody({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <th scope="col" className="p-3 font-semibold">
+              <th scope="col" className="px-2 py-3 font-semibold whitespace-nowrap sm:p-3">
                 Day
               </th>
-              <th scope="col" className="p-3 font-semibold">
+              <th scope="col" className="px-2 py-3 font-semibold whitespace-nowrap sm:p-3">
                 Verdict
               </th>
-              <th scope="col" className="p-3 text-right font-semibold">
+              <th
+                scope="col"
+                className="px-2 py-3 text-right font-semibold whitespace-nowrap sm:p-3"
+              >
                 On time
               </th>
-              <th scope="col" className="p-3 text-right font-semibold">
+              <th
+                scope="col"
+                className="px-2 py-3 text-right font-semibold whitespace-nowrap sm:p-3"
+              >
                 Off by
               </th>
               <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
@@ -264,7 +270,10 @@ async function DaysBody({
           <tbody>
             {past.map((s) => (
               <tr key={s.date} className="border-b border-at-border last:border-b-0">
-                <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
+                <th
+                  scope="row"
+                  className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
+                >
                   <Link href={hrefFor(s.date)} className="text-at-shore hover:underline">
                     {serviceDayLabel(s.date)}
                   </Link>
@@ -274,15 +283,17 @@ async function DaysBody({
                 </th>
                 {s.kind === "day" ? (
                   <>
-                    <td className={`p-3 font-semibold ${s.verdict?.toneClass ?? "text-at-muted"}`}>
+                    <td
+                      className={`px-2 py-3 font-semibold sm:p-3 ${s.verdict?.toneClass ?? "text-at-muted"}`}
+                    >
                       {s.verdict?.label ?? UNKNOWN_VALUE}
                     </td>
-                    <td className="p-3 text-right tabular-nums">
+                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
                       {s.summary.on_time_pct === null
                         ? UNKNOWN_VALUE
                         : `${s.summary.on_time_pct.toFixed(1)}%`}
                     </td>
-                    <td className="p-3 text-right tabular-nums">
+                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
                       {s.summary.avg_abs_delay_sec === null
                         ? UNKNOWN_VALUE
                         : formatDuration(s.summary.avg_abs_delay_sec)}
@@ -295,7 +306,7 @@ async function DaysBody({
                     </td>
                   </>
                 ) : (
-                  <td colSpan={5} className="p-3 text-at-muted">
+                  <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
                     No arrivals recorded
                     {/* The cancellations are the only thing that separates the
                         worst possible day - every trip cancelled, so nothing

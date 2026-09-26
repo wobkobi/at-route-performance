@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.12.1] - 2026-09-27
+
+### Fixed
+
+- On a 360px phone: all five header tabs fit, the day-by-day table keeps each figure on one line, a
+  worst-route row's streak flame no longer runs into its delay, a trip's start time no longer splits
+  across lines, and a long headsign in a trip list stops short of the delay beside it.
+
 ## [2.12.0] - 2026-09-26
 
 ### Added

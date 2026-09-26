@@ -142,7 +142,7 @@ async function TripRangeBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {dayCount > 1 && (
@@ -156,7 +156,8 @@ async function TripRangeBoard({
           </span>
           <span className="block text-xs text-at-muted tabular-nums">
             {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            {nzClockTime(t.scheduled_start)} · {t.stops} stops
+            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
+            <span className="whitespace-nowrap">{t.stops} stops</span>
           </span>
         </span>
         <ShameRowDelay
@@ -243,7 +244,7 @@ async function TripDayBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {worstOfDayStreak >= 2 ? (
@@ -271,7 +272,8 @@ async function TripDayBoard({
           </span>
           <span className="block text-xs text-at-muted tabular-nums">
             {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            {nzClockTime(t.scheduled_start)} · {t.stops} stops
+            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
+            <span className="whitespace-nowrap">{t.stops} stops</span>
           </span>
         </span>
         <ShameRowDelay

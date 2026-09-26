@@ -145,7 +145,7 @@ async function RouteRangeBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {dayCount > 1 && (
@@ -256,7 +256,7 @@ async function RouteDayBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {worstOfDayStreak >= 2 ? (

@@ -163,7 +163,7 @@ async function StopRangeBoard({
           {dayLabel} {d}/{m}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
@@ -250,7 +250,7 @@ async function StopDayBoard({
       >
         <ShameHourLabel hour={s.hour} serviceDate={serviceDate} />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
