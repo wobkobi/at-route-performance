@@ -6,7 +6,7 @@ import type { JSX, ReactNode } from "react";
 
 /**
  * Render the "Route rankings" heading with its board-only controls beside it,
- * wrapping under the heading on a phone. Same `text-lg` heading as the shame
+ * wrapping under the heading on a phone. Same rule and heading size as the shame
  * band's `SectionLink`, so the bands read as one set. Holds no filter logic: the
  * caller passes the chips in.
  * @param props - Component props.
@@ -15,8 +15,8 @@ import type { JSX, ReactNode } from "react";
  */
 export function RankingsHeader({ children }: { children?: ReactNode }): JSX.Element {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-lg font-ultra tracking-zero text-at-ink">Route rankings</h2>
+    <div className="at-band flex flex-wrap items-center justify-between gap-3">
+      <h2 className="text-xl font-ultra tracking-zero text-at-ink sm:text-2xl">Route rankings</h2>
       {children}
     </div>
   );

@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.0] - 2026-09-26
+
+### Changed
+
+- The home page is laid out by rules, type size and alignment rather than a box round everything, so
+  the day's question is the largest thing on it and every control sits on one row. Each row on the
+  rankings carries a bar scaled to the worst row on that board, the day's verdict sits over its real
+  on time, late and early split rather than a five-step meter, and the verdict word is a size under
+  the question it answers. The Avg off by explainer now shows its arithmetic: how much of the
+  average comes from running late, how much from running early, and what that balances out to.
+
 ## [2.10.0] - 2026-09-26
 
 ### Added

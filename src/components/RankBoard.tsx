@@ -4,7 +4,12 @@
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  OFF_SCHEDULE_BAR_CLASS,
+  OFF_SCHEDULE_TONE_CLASS,
+  offScheduleValue,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import Link from "next/link";
@@ -39,9 +44,30 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
 }
 
 /**
- * Key for the off-schedule board's value colours. Each value already carries
- * its own word ("4m 8s late"), so colour is never the only signal, but on a
- * week view ten green rows under a heading reading "Most off-schedule" look
+ * CSS width for a row's magnitude bar, clamped to the track.
+ * @param pct - The row's share of the column's scale, as a percentage.
+ * @returns A CSS width string.
+ */
+function barWidth(pct: number): string {
+  return `${Math.min(100, Math.max(0, pct))}%`;
+}
+
+/**
+ * The magnitude a row's bar is drawn from: its average distance from the
+ * timetable, either way. Falls back to the signed average's magnitude for a row
+ * carrying only that, the way {@link offScheduleValue} does, so the bar and the
+ * value beside it are never built from different figures.
+ * @param row - The ranked row.
+ * @returns Seconds, or 0 when the row has no figure at all.
+ */
+function rowMagnitude(row: TopRouteRow): number {
+  return Math.abs(row.avg_abs_delay_sec ?? row.avg_delay_sec ?? 0);
+}
+
+/**
+ * Key for the off-schedule board's value and bar colours. Each value already
+ * carries its own word ("4m 8s late"), so colour is never the only signal, but
+ * on a week view ten green rows under a heading reading "Most off-schedule" look
  * like good news until something says what the green means.
  * @returns The key row.
  */
@@ -107,7 +133,9 @@ export interface RankBoardProps {
 /**
  * Render a ranked board of routes (most off-schedule or most reliable) from the
  * rows given; the home page passes the top ten and link the heading
- * to the full ranking on the Routes page.
+ * to the full ranking on the Routes page. Every row carries a bar under it, so
+ * the gap between first and tenth is visible without reading ten figures - the
+ * board's whole point, and the one thing a column of numbers cannot show.
  * @param props - Board props.
  * @param props.title - Board heading.
  * @param props.accentClass - Tailwind text-colour class for the heading.
@@ -135,8 +163,12 @@ export function RankBoard({
   total,
   minEvents,
 }: RankBoardProps): JSX.Element {
+  // Off-schedule bars are scaled to the worst row on this board, so the top row
+  // always fills its track and the ten rows read as a shape rather than as ten
+  // numbers. The on-time board needs no scale: its bar is the share itself.
+  const worst = Math.max(0, ...rows.map(rowMagnitude));
   return (
-    <section className="border border-at-border bg-at-surface p-4">
+    <section className="bg-at-surface">
       <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>
         {seeAllHref ? (
           <Link
@@ -167,7 +199,7 @@ export function RankBoard({
             : `No route reached ${minEvents} arrivals in this window, so there is nothing to rank.`}
         </p>
       ) : (
-        <ol>
+        <ol className="border-t border-at-border">
           {rows.map((r, i) => {
             // Ranked by abs deviation, so the value always names a distance and
             // the column reads in descending order.
@@ -183,46 +215,64 @@ export function RankBoard({
             const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
+            const barClass =
+              metric === "onTime" ? "bg-at-ontime" : OFF_SCHEDULE_BAR_CLASS[off.tone];
+            const share =
+              metric === "onTime"
+                ? (r.on_time_pct ?? 0)
+                : worst > 0
+                  ? (rowMagnitude(r) / worst) * 100
+                  : 0;
             return (
               <li key={r.route_id}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
                 <Link
                   href={`/route/${encodeURIComponent(routeSlug(r.route_id))}${routeQuery ?? ""}`}
                   className={cn(
-                    "-mx-4 flex items-center gap-2 px-4 py-3 text-base transition-colors hover:bg-at-shore-pale",
+                    "-mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",
                   )}
                 >
-                  {deltas ? (
-                    <span className="flex w-14 shrink-0 items-center">
-                      <span className="w-5 shrink-0 text-right text-at-muted tabular-nums">
-                        {i + 1}
+                  <span className="flex items-center gap-2">
+                    {deltas ? (
+                      <span className="flex w-14 shrink-0 items-center">
+                        <span className="w-5 shrink-0 text-right text-at-muted tabular-nums">
+                          {i + 1}
+                        </span>
+                        <span className="flex w-9 shrink-0 items-center pl-0.5">
+                          <DeltaBadge delta={deltas.get(r.route_id)} />
+                        </span>
                       </span>
-                      <span className="flex w-9 shrink-0 items-center pl-0.5">
-                        <DeltaBadge delta={deltas.get(r.route_id)} />
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="w-5 text-right text-at-muted tabular-nums">{i + 1}</span>
-                  )}
-                  <ModeIcon
-                    mode={r.mode}
-                    shortName={r.short_name}
-                    longName={r.long_name}
-                    colour={r.colour}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
-                    {r.short_name || r.long_name || r.route_id}
-                    {cancelledCount > 0 && (
-                      <span className="ml-2 text-xs font-semibold text-at-late">
-                        {cancelledCount} cancelled
-                      </span>
+                    ) : (
+                      <span className="w-5 text-right text-at-muted tabular-nums">{i + 1}</span>
                     )}
+                    <ModeIcon
+                      mode={r.mode}
+                      shortName={r.short_name}
+                      longName={r.long_name}
+                      colour={r.colour}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
+                      {r.short_name || r.long_name || r.route_id}
+                      {cancelledCount > 0 && (
+                        <span className="ml-2 text-xs font-semibold text-at-late">
+                          {cancelledCount} cancelled
+                        </span>
+                      )}
+                    </span>
+                    <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
+                      {value}
+                    </span>
+                    <ChevronRight className="shrink-0 text-at-muted" />
                   </span>
-                  <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
-                    {value}
+                  {/* Decorative: the figure the bar is drawn from is printed on the
+                      row beside it, in the colour the board's key names. */}
+                  <span
+                    aria-hidden
+                    className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-at-bg"
+                  >
+                    <span className={barClass} style={{ width: barWidth(share) }} />
                   </span>
-                  <ChevronRight className="shrink-0 text-at-muted" />
                 </Link>
               </li>
             );

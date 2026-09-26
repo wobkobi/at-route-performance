@@ -56,8 +56,8 @@ export function ShameOfDay({
   // Same quiet state the worst-route and worst-stop cards beside this one use.
   if (!ranked) {
     return (
-      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst trip</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-muted">Worst trip</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
         <p className="text-sm text-at-muted">No run has enough arrivals in this period.</p>
       </div>
@@ -66,8 +66,8 @@ export function ShameOfDay({
   // Runs ranked and none was past the late bound, so the board crowns nothing.
   if (!trip) {
     return (
-      <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst trip</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-ontime">Worst trip</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
         <p className="text-sm text-at-muted">
           No trip stood out {when}, so there is nothing to call out.
@@ -87,9 +87,9 @@ export function ShameOfDay({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
+      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
     >
-      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst trip</p>
+      <p className="at-eyebrow text-at-late">Worst trip</p>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={trip.mode}
