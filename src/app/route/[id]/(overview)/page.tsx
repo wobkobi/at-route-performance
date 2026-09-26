@@ -160,6 +160,9 @@ const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
 
 /**
  * Full headsign label for a direction chip, taken from the busiest variant.
+ * AT capitalises the connectives in some headsigns ("New Lynn To Lincoln Rd Via
+ * Henderson") and not in others, so a mid-string "To" or "Via" is lowered to
+ * keep the two chips of one route reading alike.
  * @param variants - The direction's variants.
  * @param dirId - The direction id (for the fallback label).
  * @returns The headsign, or `Direction N` when none is available.
@@ -169,7 +172,8 @@ function directionLabel(variants: RouteVariant[], dirId: number): string {
     (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
     undefined,
   );
-  return busiest?.headsign || `Direction ${dirId + 1}`;
+  const label = busiest?.headsign?.replace(/ (To|Via) /g, (m) => m.toLowerCase());
+  return label || `Direction ${dirId + 1}`;
 }
 
 /**

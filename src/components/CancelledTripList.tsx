@@ -21,6 +21,7 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
+import { boundFor } from "@/lib/departure-label";
 import { UNKNOWN_VALUE } from "@/lib/format";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
 import {
@@ -187,7 +188,9 @@ export function CancelledTripList({
                       <span className="font-semibold text-at-ink">
                         {t.short_name ?? t.route_id}
                       </span>
-                      <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
+                      <span className="text-at-muted">
+                        {t.headsign ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}` : ""}
+                      </span>
                     </span>
                     <span
                       title={CANCELLATION_BADGE_MEANING[t.stage]}

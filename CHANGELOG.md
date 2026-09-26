@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.12.2] - 2026-09-27
+
+### Fixed
+
+- Cancelled and cut-short runs say where they were going ("to Selwyn Village") rather than AT's raw
+  headsign, and a route's two direction chips read alike instead of one saying "To" and "Via".
+
 ## [2.12.1] - 2026-09-27
 
 ### Fixed
