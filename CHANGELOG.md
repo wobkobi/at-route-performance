@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.11.1] - 2026-09-26
+
+### Fixed
+
+- Behind the scenes: the flame streaks on the worst routes and worst trips boards are worked out
+  from one day's figures at a time, each finished day kept for a week, and only as far back as a
+  streak actually runs. They were one fortnight-wide query that took around four minutes on every
+  cache miss, and with a few running at once it slowed every page on the site and timed out the
+  automated checks.
+
 ## [2.11.0] - 2026-09-26
 
 ### Changed
