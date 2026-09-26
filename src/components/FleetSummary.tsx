@@ -11,6 +11,7 @@ import {
   PunctualityStat,
   type PunctualityBreakdown,
 } from "@/components/PunctualityStat";
+import { SplitBar } from "@/components/SplitBar";
 import { cn } from "@/lib/cn";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { dayVerdict, VERDICT_BANDS } from "@/lib/verdict";
@@ -54,67 +55,6 @@ function VerdictScale(): JSX.Element {
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-/** The three bands a measured arrival can fall in, in the order they are drawn. */
-const SPLIT_BANDS = [
-  { key: "onTime", label: "On time", barClass: "bg-at-ontime", toneClass: "text-at-ontime" },
-  { key: "late", label: "Late", barClass: "bg-at-late", toneClass: "text-at-late" },
-  { key: "early", label: "Early", barClass: "bg-at-early", toneClass: "text-at-early-strong" },
-] as const;
-
-/**
- * The day's shape: one bar of on time / late / early with each share printed
- * under its own colour. The bands and their order are the on-time popover's, so
- * the bar on the page and the bar behind the ⓘ cannot read as two different
- * splits of the same day.
- *
- * It spans the panel's full width rather than sitting in the verdict's column:
- * the verdict is one word derived from the green segment alone, and the thing
- * worth looking at is how much of the bar that segment is.
- * @param props - Component props.
- * @param props.onTime - Share of measured arrivals inside the on-time window.
- * @param props.late - Share that ran late.
- * @param props.early - Share that ran early.
- * @returns The bar and its figures.
- */
-function SplitBar({
-  onTime,
-  late,
-  early,
-}: {
-  onTime: number;
-  late: number;
-  early: number;
-}): JSX.Element {
-  const shares = { onTime, late, early };
-  return (
-    <div className="lg:col-span-4">
-      <div
-        role="img"
-        aria-label={SPLIT_BANDS.map((b) => `${b.label} ${shares[b.key].toFixed(1)}%`).join(", ")}
-        className="flex h-3 overflow-hidden rounded-full bg-at-bg"
-      >
-        {SPLIT_BANDS.map((b) => (
-          <span
-            key={b.key}
-            className={b.barClass}
-            style={{ width: `${Math.max(0, shares[b.key])}%` }}
-          />
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
-        {SPLIT_BANDS.map((b) => (
-          <span key={b.key} className="flex items-baseline gap-2">
-            <span className={LABEL_CLASS}>{b.label}</span>
-            <span className={cn("text-base font-semibold tabular-nums", b.toneClass)}>
-              {shares[b.key].toFixed(1)}%
-            </span>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
@@ -196,7 +136,7 @@ function VerdictPanel({
                 : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
         </p>
       </div>
-      {split && <SplitBar {...split} />}
+      {split && <SplitBar {...split} mode={breakdown.mode} />}
     </div>
   );
 }

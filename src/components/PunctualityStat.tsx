@@ -243,10 +243,7 @@ function AverageDetail({
             <TotalRow label="On balance" value={formatDelay(split.net, { thresholdSec: 0 })} />
           </div>
           <p className="mt-2 text-xs leading-snug text-at-muted">
-            The two halves add up to the figure at the top and cancel down to the one at the bottom,
-            so a route that runs as early as it runs late balances out near zero. A half counts
-            every run that missed on its side, on-time ones included: a run a minute late is in the
-            late half and is still on time.
+            Late plus early makes the off-by figure; late minus early makes the balance.
           </p>
         </>
       )}
