@@ -279,7 +279,15 @@ export default async function OperatorPage({
 
       {routeList.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its routes</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its routes</h2>
+            <Link
+              href={buildHref("/routes", { ...view, school, op: op.slug })}
+              className="text-sm text-at-shore hover:underline"
+            >
+              Filter the routes page to {op.name}
+            </Link>
+          </div>
           <div className="overflow-x-auto border border-at-border bg-at-surface">
             <table className="w-full text-sm">
               <thead>

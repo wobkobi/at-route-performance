@@ -20,6 +20,7 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
+import { operatorBySlug } from "@/lib/operators";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -191,6 +192,16 @@ export function RouteExplorer({
     });
   };
 
+  // The operators behind the window's routes, by name. Seventeen make too long a
+  // chip row, so this one filter is a select.
+  const operatorOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.operator).filter((s): s is string => s !== null))]
+        .map((slug) => ({ slug, name: operatorBySlug(slug)?.name ?? slug }))
+        .sort((a, b) => a.name.localeCompare(b.name, "en-NZ")),
+    [rows],
+  );
+
   const isDefault = Object.keys(explorerQuery(filters)).length === 0;
   const view = activeView(filters);
   // Sorted by a measure, the list is a ranking, so each route shows its place.
@@ -253,6 +264,23 @@ export function RouteExplorer({
             </ChipToggle>
           ))}
         </FilterRow>
+        {operatorOptions.length > 1 && (
+          <FilterRow label="Operator">
+            <select
+              value={filters.op ?? ""}
+              onChange={(e) => update({ op: e.target.value || null })}
+              aria-label="Operator"
+              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
+            >
+              <option value="">Any operator</option>
+              {operatorOptions.map((o) => (
+                <option key={o.slug} value={o.slug}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </FilterRow>
+        )}
         <FilterRow label="Running">
           <ChipToggle on={filters.lean === null} onClick={() => update({ lean: null })}>
             Either way

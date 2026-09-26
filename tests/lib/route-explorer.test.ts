@@ -38,6 +38,7 @@ function route(slug: string, extra: Partial<ExplorerRoute> = {}): ExplorerRoute 
     areas: ["central"],
     cancelled: 0,
     school: false,
+    operator: null,
     ...extra,
   };
 }
@@ -63,10 +64,20 @@ function slugs(rows: ExplorerRoute[]): string[] {
 describe("filterRoutes", () => {
   const rows = [
     route("NX1", { areas: ["central", "north"] }),
-    route("70", { areas: ["central", "east"], avg_delay_sec: -30, cancelled: 3 }),
+    route("70", {
+      areas: ["central", "east"],
+      avg_delay_sec: -30,
+      cancelled: 3,
+      operator: "howick-and-eastern",
+    }),
     route("S-C", { mode: "TRAIN", areas: ["central", "south"] }),
     route("046", { long_name: "S046", school: true, events: 40 }),
   ];
+
+  it("keeps only the chosen operator's routes", () => {
+    expect(slugs(filterRoutes(rows, filters({ op: "howick-and-eastern" })))).toEqual(["70"]);
+    expect(slugs(filterRoutes(rows, filters({ op: "nobody" })))).toEqual([]);
+  });
 
   it("hides school services unless asked", () => {
     expect(slugs(filterRoutes(rows, DEFAULT_FILTERS))).toEqual(["NX1", "70", "S-C"]);
@@ -119,17 +130,23 @@ describe("sortRoutes", () => {
 
 describe("query round trip", () => {
   it("writes only what differs from the defaults and reads it back", () => {
-    const f = filters({ areas: ["west", "north"], mode: "BUS", sort: "off_by", dir: "desc" });
+    const f = filters({
+      areas: ["west", "north"],
+      op: "go-bus",
+      mode: "BUS",
+      sort: "off_by",
+      dir: "desc",
+    });
     const q = explorerQuery(f);
-    expect(q).toEqual({ mode: "BUS", area: "west,north", sort: "off_by" });
+    expect(q).toEqual({ mode: "BUS", area: "west,north", op: "go-bus", sort: "off_by" });
     expect(parseExplorerFilters(q)).toEqual(f);
     expect(explorerQuery(DEFAULT_FILTERS)).toEqual({});
   });
 
   it("drops invalid values", () => {
-    expect(parseExplorerFilters({ area: "mars,west", sort: "vibes", mode: "BOAT" })).toEqual(
-      filters({ areas: ["west"] }),
-    );
+    expect(
+      parseExplorerFilters({ area: "mars,west", sort: "vibes", mode: "BOAT", op: "<b>" }),
+    ).toEqual(filters({ areas: ["west"] }));
   });
 });
 

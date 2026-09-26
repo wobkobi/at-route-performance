@@ -1,7 +1,7 @@
 // src/app/routes/page.tsx
 // Routes page: every route with arrivals in a day, week or month, with filters
-// (mode, area, late or early, enough data, cancellations, school services,
-// running now),
+// (mode, area, operator, late or early, enough data, cancellations, school
+// services, running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
 // RouteExplorer. The day view opens on the same day as every other day page
@@ -15,12 +15,15 @@ import {
   getLatestEventDate,
   getRankings,
   getRouteAreas,
+  getRouteOperators,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -124,9 +127,10 @@ export default async function RoutesPage({
   }
 
   // Every mode and school services too: the explorer filters those itself.
-  const [cancelledRoutes, areas] = await Promise.all([
+  const [cancelledRoutes, areas, operators] = await Promise.all([
     getCancelledRoutes(range, { mode: null, includeSchool: true }, ALL_ROUTES, revalidate),
     getRouteAreas(),
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
   const rowSlugs = new Set(rows.map((r) => routeSlug(r.route_id)));
   // The rows fold a retired train line into its successor (see foldLineageRows),
@@ -151,6 +155,7 @@ export default async function RoutesPage({
       areas: areas[slug] ?? [],
       cancelled: cancelledBySlug.get(slug) ?? 0,
       school: isSchoolBus(r.short_name, r.long_name),
+      operator: operatorOf(operators[slug])?.slug ?? null,
     };
   };
   // A route that cancelled trips but recorded no arrival (a service with no

@@ -17,6 +17,8 @@ export interface ExplorerRoute extends TopRouteRow {
   cancelled: number;
   /** Whether the route is a school service. */
   school: boolean;
+  /** Slug of the operator that runs it, or null when none is recorded. */
+  operator: string | null;
 }
 
 /** A sortable measure. */
@@ -51,6 +53,8 @@ export interface ExplorerFilters {
   mode: ExplorerMode;
   /** Areas to match; a route matches when it serves any of them. Empty matches every route. */
   areas: AreaKey[];
+  /** Operator slug to match, or null for every operator. */
+  op: string | null;
   /** Include school services. */
   school: boolean;
   lean: ExplorerLean;
@@ -69,6 +73,7 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
   q: "",
   mode: null,
   areas: [],
+  op: null,
   school: false,
   lean: null,
   enoughData: false,
@@ -102,6 +107,9 @@ export function parseExplorerFilters(sp: Record<string, string | undefined>): Ex
     q: sp.q?.slice(0, 100) ?? "",
     mode: sp.mode === "BUS" || sp.mode === "TRAIN" || sp.mode === "FERRY" ? sp.mode : null,
     areas: [...new Set((sp.area ?? "").split(",").filter(isAreaKey))],
+    // Checked only for shape: which operators exist is the rows' business, and
+    // a slug no route carries simply matches nothing.
+    op: /^[a-z0-9-]{1,60}$/.test(sp.op ?? "") ? sp.op! : null,
     school: sp.school === "1",
     lean: sp.lean === "late" || sp.lean === "early" ? sp.lean : null,
     enoughData: sp.data === "1",
@@ -122,6 +130,7 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   if (f.q.trim()) out.q = f.q.trim();
   if (f.mode) out.mode = f.mode;
   if (f.areas.length > 0) out.area = f.areas.join(",");
+  if (f.op) out.op = f.op;
   if (f.school) out.school = "1";
   if (f.lean) out.lean = f.lean;
   if (f.enoughData) out.data = "1";
@@ -157,6 +166,7 @@ export const EXPLORER_PARAMS = [
   "q",
   "mode",
   "area",
+  "op",
   "school",
   "lean",
   "data",
@@ -191,6 +201,7 @@ export function filterRoutes(
     }
     if (f.mode && r.mode !== f.mode) return false;
     if (f.areas.length > 0 && !r.areas.some((a) => f.areas.includes(a))) return false;
+    if (f.op && r.operator !== f.op) return false;
     if (!f.school && r.school) return false;
     if (f.lean === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
     if (f.lean === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
