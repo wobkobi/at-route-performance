@@ -45,6 +45,7 @@ import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og"
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   MIN_PLATFORM_EVENTS,
   platformNoun,
@@ -149,8 +150,11 @@ export default async function StopPage({
     redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
   }
 
-  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp);
-  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
+  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
 
   // Start the alerts fetch early so it overlaps the stats query. The banner is
   // awaited rather than streamed: it sits above the page's content, and letting
@@ -159,7 +163,7 @@ export default async function StopPage({
   // getEarliestDataDay and the sibling lookup are both independent of the day
   // and of the stop query.
   const [shown, earliestDay, siblings] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
     getStationSiblings(id),
   ]);
@@ -167,7 +171,7 @@ export default async function StopPage({
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
   if (!stats) notFound();
 
-  const nav = dayRangeNav(shown, earliestDay);
+  const nav = dayRangeNav(shown, earliestDay, today);
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
   const linkDay = nav.isToday ? undefined : serviceDate;
 

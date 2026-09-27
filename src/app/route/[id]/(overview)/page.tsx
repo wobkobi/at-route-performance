@@ -382,8 +382,11 @@ export default async function RoutePage({
     redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
-  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp);
-  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
+  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
@@ -397,9 +400,7 @@ export default async function RoutePage({
 
   // Service day from ?day, or the one every day page opens on. In week view the
   // day stats are not displayed but the route metadata from getRouteStats is
-  // still needed. Today is one request-time clock read for the whole render,
-  // handed to every helper that places a day against it (see lib/request-now.ts).
-  const today = await requestServiceDay();
+  // still needed.
   const requestedDay = resolveRequestedDay(sp.day);
   const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;

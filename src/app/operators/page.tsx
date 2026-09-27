@@ -69,20 +69,19 @@ export default async function OperatorsPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam("/operators", sp);
-    dropTodayParam("/operators", sp);
+    clampDayParam("/operators", sp, today);
+    dropTodayParam("/operators", sp, today);
   }
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const includeSchool = sp.school === "1";
   const filter = { mode, includeSchool };
-  const [today, latest, earliest] = await Promise.all([
-    requestServiceDay(),
-    getLatestEventDate(),
-    getEarliestDataDay(1),
-  ]);
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
   let nav: RangeNav;

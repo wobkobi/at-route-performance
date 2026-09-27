@@ -42,6 +42,7 @@ import {
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -343,8 +344,11 @@ export default async function RoutesShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(BASE, sp, today);
+  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle } = parseShameParams(sp);
 
   if (view !== "day") {
@@ -395,11 +399,11 @@ export default async function RoutesShamePage({
 
   // Day view (default): worst route per hour.
   const [shown, earliestDay] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
   ]);
   const { range, serviceDate } = shown;
-  const dayNav = dayRangeNav(shown, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
 
   return (

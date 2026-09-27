@@ -33,6 +33,7 @@ import {
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
 import type { DelayDirection } from "@/lib/rankings";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   buildShameHref,
   countById,
@@ -317,8 +318,11 @@ export default async function StopShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(BASE, sp, today);
+  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle: modeSubtitle } = parseShameParams(sp);
   const subtitle = subtitleWithDirection(modeSubtitle, filter.direction);
 
@@ -370,11 +374,11 @@ export default async function StopShamePage({
 
   // Day view: worst stop per hour.
   const [shown, earliestDay] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
   ]);
   const { range, serviceDate } = shown;
-  const dayNav = dayRangeNav(shown, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
 
   return (

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.24.2] - 2026-09-27
+
+### Fixed
+
+- Day pages no longer abort their prerender with an unstable `new Date()` when the URL carries
+  `?day`: today is read once at request time, before the day redirects, and handed to them.
+
 ## [2.24.1] - 2026-09-27
 
 ### Fixed

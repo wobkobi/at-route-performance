@@ -115,17 +115,16 @@ export default async function OperatorPage({
   const basePath = `/operator/${op.slug}`;
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam(basePath, sp);
-    dropTodayParam(basePath, sp);
+    clampDayParam(basePath, sp, today);
+    dropTodayParam(basePath, sp, today);
   }
   const includeSchool = sp.school === "1";
   const filter = { mode: null, includeSchool };
-  const [today, latest, earliest] = await Promise.all([
-    requestServiceDay(),
-    getLatestEventDate(),
-    getEarliestDataDay(1),
-  ]);
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
   let nav: RangeNav;

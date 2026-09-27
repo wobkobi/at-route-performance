@@ -42,6 +42,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import {
   nzClockTime,
@@ -141,9 +142,12 @@ export default async function VehiclePage({
   const basePath = `/vehicle/${id}`;
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam(basePath, sp);
-    dropTodayParam(basePath, sp);
+    clampDayParam(basePath, sp, today);
+    dropTodayParam(basePath, sp, today);
   }
   // Every mode and school runs too, so a school bus's own page is not empty; the
   // rank is then against that board, which the rank links to.
@@ -163,10 +167,10 @@ export default async function VehiclePage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    nav = dayRangeNav(day, earliest);
+    nav = dayRangeNav(day, earliest, today);
     dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(

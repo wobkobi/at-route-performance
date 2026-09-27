@@ -298,16 +298,16 @@ export default async function Home({
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   if (window !== "day") return <PeriodHome window={window} sp={sp} />;
-  clampDayParam("/", sp);
-  dropTodayParam("/", sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam("/", sp, today);
+  dropTodayParam("/", sp, today);
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
-  // One request-time clock read for the whole render, handed to every helper
-  // that places a day against today (see lib/request-now.ts).
-  const today = await requestServiceDay();
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).
   const requestedDay = resolveRequestedDay(sp.day);
@@ -357,7 +357,7 @@ export default async function Home({
     dir: dirPreserved,
   } = preservedFilters({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
-  const nav = dayRangeNav(shown, earliestDay);
+  const nav = dayRangeNav(shown, earliestDay, today);
 
   // Three bands: the day's verdict, its shame, and the route rankings. Mode and
   // school sit in the first band because they filter all three; the direction

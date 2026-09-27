@@ -91,17 +91,14 @@ export default async function RoutesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam("/routes", sp);
-    dropTodayParam("/routes", sp);
+    clampDayParam("/routes", sp, today);
+    dropTodayParam("/routes", sp, today);
   }
-  // One request-time clock read for the whole render, handed to every helper
-  // that places a day against today (see lib/request-now.ts).
-  const [today, latest, earliest] = await Promise.all([
-    requestServiceDay(),
-    getLatestEventDate(),
-    getEarliestDataDay(1),
-  ]);
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
   let rows: TopRouteRow[];

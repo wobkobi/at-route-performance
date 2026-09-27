@@ -95,9 +95,12 @@ export default async function VehiclesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam("/vehicles", sp);
-    dropTodayParam("/vehicles", sp);
+    clampDayParam("/vehicles", sp, today);
+    dropTodayParam("/vehicles", sp, today);
   }
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
@@ -106,10 +109,7 @@ export default async function VehiclesPage({
   const sort = parseVehicleSort(sp.sort);
   const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
   const filter = { mode, includeSchool };
-  // One request-time clock read for the whole render, handed to every helper
-  // that places a day against today (see lib/request-now.ts).
-  const [today, latest, earliest, operators] = await Promise.all([
-    requestServiceDay(),
+  const [latest, earliest, operators] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
