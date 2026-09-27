@@ -191,10 +191,14 @@ export function AlertBanner({
           const rawDesc = extractText(alert.description_text);
           const cleanDesc = rawDesc ? cleanAlertHeader(rawDesc) : null;
           const urlText = extractText(alert.url);
+          // One pill per route: two feed versions of a route share a slug and a page.
           const routeIds = [
-            ...new Set(
-              alert.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
-            ),
+            ...new Map(
+              alert.informed_entity
+                .map((e) => e.route_id)
+                .filter((id): id is string => !!id)
+                .map((id) => [routeSlug(id), id] as const),
+            ).values(),
           ];
           const period = alert.active_period[0];
           const periodText = periodLabel(period?.start, period?.end, pastWindow);
@@ -240,7 +244,7 @@ export function AlertBanner({
                       href={`/route/${encodeURIComponent(routeSlug(id))}`}
                       className="rounded-full bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
-                      {routeNames?.[id] ?? id}
+                      {routeNames?.[id] ?? routeSlug(id)}
                     </Link>
                   ))}
                 </div>

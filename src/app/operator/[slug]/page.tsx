@@ -390,7 +390,7 @@ export default async function OperatorPage({
                       <span className="flex items-center gap-2">
                         <ModeIcon mode={v.mode} className="h-4 w-4" />
                         <Link
-                          href={buildHref(`/vehicle/${v.vehicleId}`, view)}
+                          href={buildHref(`/vehicle/${v.vehicleId}`, { ...view, op: op.slug })}
                           className="text-at-shore hover:underline"
                         >
                           {fleet.get(v.vehicleId)?.label ?? (

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.24.1] - 2026-09-27
+
+### Fixed
+
+- Alert route pills show the route's name rather than its feed id, once per route; an old /rankings
+  link keeps the day it named; a vehicle opened from an operator's page returns to that operator's
+  vehicles.
+
 ## [2.24.0] - 2026-09-27
 
 ### Added
