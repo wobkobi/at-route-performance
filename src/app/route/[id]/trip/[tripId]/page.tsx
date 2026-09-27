@@ -211,15 +211,26 @@ export default async function TripPage({
   // Detour: the stop nearest the furthest off-route reading places it for the
   // reader, since the readings carry no street names.
   const furthest = detour?.sightings.reduce((a, b) => (b.distanceM > a.distanceM ? b : a));
-  const nearestStop = furthest
-    ? (line.stops.reduce<{ name: string; d: number } | null>((best, s) => {
+  const nearest = furthest
+    ? line.stops.reduce<{ name: string; stopId: string; d: number } | null>((best, s) => {
         const d = Math.hypot(
           s.lat - furthest.lat,
           (s.lon - furthest.lon) * Math.cos((s.lat * Math.PI) / 180),
         );
-        return best === null || d < best.d ? { name: s.name, d } : best;
-      }, null)?.name ?? null)
+        return best === null || d < best.d ? { name: s.name, stopId: s.stop_id, d } : best;
+      }, null)
     : null;
+
+  // A stop or the vehicle opens on the run's day; today's is left off, as those pages default to it.
+  const pastDay = serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : null;
+  const dayQuery = pastDay ? `?day=${pastDay}` : "";
+  /**
+   * A stop's page on the run's day.
+   * @param stopId - The stop.
+   * @returns The link.
+   */
+  const stopHref = (stopId: string): string => `/stop/${encodeURIComponent(stopId)}${dayQuery}`;
+  const nearestStop = nearest ? { name: nearest.name, href: stopHref(nearest.stopId) } : null;
 
   const title = route?.shortName ?? slug;
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
@@ -244,7 +255,7 @@ export default async function TripPage({
       <Link
         href={buildHref(`/route/${encodeURIComponent(slug)}`, {
           // Today's day is left off, since the route page redirects it away.
-          day: serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : null,
+          day: pastDay,
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}
@@ -276,7 +287,17 @@ export default async function TripPage({
               (after midnight)
             </span>
           )}
-          {vehicle_id && ` · ${vehicle_id}`}
+          {vehicle_id && (
+            <>
+              {" · "}
+              <Link
+                href={`/vehicle/${encodeURIComponent(vehicle_id)}${dayQuery}`}
+                className="text-at-shore hover:underline"
+              >
+                {vehicle_id}
+              </Link>
+            </>
+          )}
         </p>
       </header>
 
@@ -293,7 +314,15 @@ export default async function TripPage({
         <TripCancellationNote
           stage={stage}
           detectedAt={flag.detected_at}
-          lastStop={lastServed ? { name: lastServed.name, at: actualAt(lastServed) } : null}
+          lastStop={
+            lastServed
+              ? {
+                  name: lastServed.name,
+                  at: actualAt(lastServed),
+                  href: stopHref(lastServed.stop_id),
+                }
+              : null
+          }
           notServed={
             scheduledStops.length > 0
               ? line.stops.filter((s) => s.state === "not-served").length
@@ -340,6 +369,7 @@ export default async function TripPage({
               label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
             }))}
             mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
+            stopQuery={dayQuery}
             className="h-100"
           />
           <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
@@ -359,7 +389,12 @@ export default async function TripPage({
         </p>
       ) : (
         <section className="border border-at-border bg-at-surface p-4">
-          <TripLine line={line} mode={routeMode} colour={route?.colour ?? null} />
+          <TripLine
+            line={line}
+            mode={routeMode}
+            colour={route?.colour ?? null}
+            stopQuery={dayQuery}
+          />
         </section>
       )}
     </main>

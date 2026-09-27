@@ -5,7 +5,8 @@
 import type { CancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import { nzClockTime } from "@/lib/time";
-import type { JSX } from "react";
+import Link from "next/link";
+import type { JSX, ReactNode } from "react";
 
 /** Props for {@link TripCancellationNote}. */
 export interface TripCancellationNoteProps {
@@ -13,8 +14,8 @@ export interface TripCancellationNoteProps {
   stage: CancellationStage;
   /** ISO instant ingest first saw the flag. */
   detectedAt: string;
-  /** The last stop with a recorded arrival and when the vehicle reached it, or null when none. */
-  lastStop: { name: string; at: string } | null;
+  /** The last stop with a recorded arrival, when the vehicle reached it and its page, or null when none. */
+  lastStop: { name: string; at: string; href: string } | null;
   /** Scheduled stops after the last recorded one, or null when the schedule is unavailable. */
   notServed: number | null;
 }
@@ -38,23 +39,43 @@ export function TripCancellationNote({
 }: TripCancellationNoteProps): JSX.Element {
   const flagged = nzClockTime(detectedAt);
   let title: string;
-  let body: string;
+  let body: ReactNode;
+  const stop = lastStop && (
+    <Link href={lastStop.href} className="text-at-shore hover:underline">
+      {lastStop.name}
+    </Link>
+  );
   if (stage === "before" || lastStop === null) {
     title = "Cancelled";
     body = `AT cancelled this trip (first flagged at ${flagged}) and it recorded no arrivals.`;
   } else if (stage === "ran") {
     title = "Cancelled, then reinstated";
-    body = `AT flagged this trip cancelled at ${flagged}, but it kept recording arrivals until ${nzClockTime(lastStop.at)} at ${lastStop.name}, so the cancellation looks to have been reversed.`;
+    body = (
+      <>
+        AT flagged this trip cancelled at {flagged}, but it kept recording arrivals until{" "}
+        {nzClockTime(lastStop.at)} at {stop}, so the cancellation looks to have been reversed.
+      </>
+    );
   } else if (notServed === 0) {
     title = "Flagged cancelled after finishing";
-    body = `AT flagged this trip cancelled at ${flagged}, after it had already reached its last stop, ${lastStop.name}, at ${nzClockTime(lastStop.at)}.`;
+    body = (
+      <>
+        AT flagged this trip cancelled at {flagged}, after it had already reached its last stop,{" "}
+        {stop}, at {nzClockTime(lastStop.at)}.
+      </>
+    );
   } else {
     title = "Cancelled mid-trip";
     const rest =
       notServed === null
         ? "nothing was recorded after that"
         : `the ${notServed} ${notServed === 1 ? "stop" : "stops"} after that ${notServed === 1 ? "was" : "were"} not served`;
-    body = `Its last recorded stop was ${lastStop.name} at ${nzClockTime(lastStop.at)}. AT flagged it cancelled at ${flagged}, and ${rest}.`;
+    body = (
+      <>
+        Its last recorded stop was {stop} at {nzClockTime(lastStop.at)}. AT flagged it cancelled at{" "}
+        {flagged}, and {rest}.
+      </>
+    );
   }
 
   return (
