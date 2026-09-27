@@ -217,9 +217,29 @@ export default async function OperatorsPage({
                     <td className="p-3 text-right whitespace-nowrap tabular-nums">
                       {o.avg_abs_delay_sec === null ? "-" : formatDuration(o.avg_abs_delay_sec)}
                     </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">{o.routes}</td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {o.vehicles?.toLocaleString("en-NZ") ?? "-"}
+                      <Link
+                        href={buildHref("/routes", { ...view, ...filters, op: o.operator.slug })}
+                        className="text-at-shore hover:underline"
+                      >
+                        {o.routes}
+                      </Link>
+                    </td>
+                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                      {o.vehicles === null ? (
+                        "-"
+                      ) : (
+                        <Link
+                          href={buildHref("/vehicles", {
+                            ...view,
+                            ...filters,
+                            op: o.operator.slug,
+                          })}
+                          className="text-at-shore hover:underline"
+                        >
+                          {o.vehicles.toLocaleString("en-NZ")}
+                        </Link>
+                      )}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums md:table-cell">
                       {o.events.toLocaleString("en-NZ")}

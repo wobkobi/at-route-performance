@@ -441,19 +441,31 @@ export function RouteExplorer({
                     className="mt-0.5 h-6 w-6"
                   />
                   <div className="min-w-0">
-                    <p className="text-lg leading-tight font-ultra tracking-zero text-at-ink">
-                      {label}
+                    <p className="text-lg leading-tight font-ultra tracking-zero">
+                      <Link
+                        href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                        prefetch={false}
+                        className="text-at-ink hover:text-at-shore hover:underline"
+                      >
+                        {label}
+                      </Link>
                     </p>
                     {subtitle && <p className="truncate text-sm text-at-muted">{subtitle}</p>}
                     {r.areas.length > 0 && (
                       <p className="mt-1 flex flex-wrap gap-1">
+                        {/* Each area narrows the list to it, as its chip in the Area filter does. */}
                         {r.areas.map((a) => (
-                          <span
+                          <button
                             key={a}
-                            className="rounded-full bg-at-bg px-2 py-0.5 text-xs text-at-muted"
+                            type="button"
+                            onClick={() => {
+                              if (!filters.areas.includes(a)) toggleArea(a);
+                            }}
+                            aria-pressed={filters.areas.includes(a)}
+                            className="rounded-full bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
                           >
                             {AREA_LABEL[a]}
-                          </span>
+                          </button>
                         ))}
                       </p>
                     )}
