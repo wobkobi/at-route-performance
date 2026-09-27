@@ -20,6 +20,8 @@ export interface PlatformStats {
   on_time_pct: number | null;
   /** Every route that called here, by the name a rider uses for it. */
   routes: string[];
+  /** Route name to its page slug, where the name picks out one route; for linking only. */
+  route_slugs?: Record<string, string>;
   /** The platform's mode, which decides the early tolerance behind its colour. */
   mode: string;
 }

@@ -319,7 +319,9 @@ export default async function StopPage({
           platformBreakdown. It sits straight under the strip because what it
           says is about the strip: the single figure above covers platforms that
           did not agree. */}
-      {stats.platforms.length > 0 && <PlatformTable stopName={stop.name} rows={stats.platforms} />}
+      {stats.platforms.length > 0 && (
+        <PlatformTable stopName={stop.name} rows={stats.platforms} linkDay={linkDay} />
+      )}
 
       <section className="border border-at-border bg-at-surface p-4">
         <h2 className="mb-2 text-lg font-ultra tracking-zero">Where it is</h2>
@@ -370,9 +372,19 @@ export default async function StopPage({
  * @param root0 - Props.
  * @param root0.stopName - The station's name, for the sentence above the table.
  * @param root0.rows - The platforms to list.
+ * @param root0.linkDay - The day shown, carried by each platform and route link; undefined for today.
  * @returns The section.
  */
-function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow[] }): JSX.Element {
+function PlatformTable({
+  stopName,
+  rows,
+  linkDay,
+}: {
+  stopName: string;
+  rows: PlatformRow[];
+  linkDay: string | undefined;
+}): JSX.Element {
+  const routeQuery = routeLinkQuery("day", linkDay, null);
   const noun = platformNoun(rows);
   // Two different facts get a station here, so the sentence names the one that
   // applies: platforms that ran differently, or platforms that agree and differ
@@ -419,7 +431,14 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
               const value = offScheduleValue(p.avg_delay_sec, p.avg_abs_delay_sec, p.mode);
               return (
                 <tr key={p.stop_id} className="border-t border-at-border">
-                  <td className="px-3 py-2 font-semibold tabular-nums">{p.label}</td>
+                  <td className="px-3 py-2 font-semibold tabular-nums">
+                    <Link
+                      href={buildHref(`/stop/${encodeURIComponent(p.stop_id)}`, { day: linkDay })}
+                      className="text-at-shore hover:underline"
+                    >
+                      {p.label}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{p.events}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {p.on_time_pct == null ? UNKNOWN_VALUE : `${p.on_time_pct.toFixed(1)}%`}
@@ -435,7 +454,26 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
                   {/* Blank rather than a dash: no route being exclusive to a
                       platform is a fact about it, where the dash elsewhere on the
                       site means a figure the site does not have. */}
-                  <td className="px-3 py-2">{p.only_routes.join(", ")}</td>
+                  <td className="px-3 py-2">
+                    {p.only_routes.map((name, i) => {
+                      const slug = p.route_slugs?.[name];
+                      return (
+                        <Fragment key={name}>
+                          {i > 0 && ", "}
+                          {slug ? (
+                            <Link
+                              href={`/route/${encodeURIComponent(slug)}${routeQuery}`}
+                              className="text-at-shore hover:underline"
+                            >
+                              {name}
+                            </Link>
+                          ) : (
+                            name
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </td>
                 </tr>
               );
             })}

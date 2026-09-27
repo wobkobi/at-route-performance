@@ -173,7 +173,16 @@ export function StopSchedule({
                         </Link>
                       </td>
                       <td className="py-1.5 pr-4 text-at-ink">
-                        {bound.destination ?? UNKNOWN_VALUE}
+                        {dep.tripId ? (
+                          <Link
+                            href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}/trip/${encodeURIComponent(dep.tripId)}?d=${serviceDate}`}
+                            className="hover:text-at-shore hover:underline"
+                          >
+                            {bound.destination ?? UNKNOWN_VALUE}
+                          </Link>
+                        ) : (
+                          (bound.destination ?? UNKNOWN_VALUE)
+                        )}
                         {bound.via !== null && (
                           <span className="block text-xs text-at-muted">via {bound.via}</span>
                         )}

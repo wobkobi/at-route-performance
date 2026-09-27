@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.23.0] - 2026-09-27
+
+### Added
+
+- A station's per-bay table links each bay and the routes that leave only from it, and a stop's
+  schedule links each departure to its run.
+
 ## [2.22.0] - 2026-09-27
 
 ### Added
