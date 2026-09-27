@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.24.3] - 2026-09-28
+
+### Changed
+
+- dotenv 18: `smoke` and `test:int` run through dotenv's own `dotenv run`, replacing `dotenv-cli`
+  (both claimed the `dotenv` binary). `analyze` runs Next's Turbopack analyser instead of
+  `@next/bundle-analyzer`, which only works with webpack builds. CI's smoke step calls the script
+  directly, since dotenv's CLI exits when `.env.local` is missing.
+
 ## [2.24.2] - 2026-09-27
 
 ### Fixed
