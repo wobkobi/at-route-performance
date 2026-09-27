@@ -85,7 +85,8 @@ function popupHtml(v: LiveMapVehicle, detail: string): string {
   const op = operatorOf(v.op);
   const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
   return (
-    `<strong>Route ${esc(v.slug)}</strong><br>${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
+    `<a href="/route/${encodeURIComponent(v.slug)}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
+    `${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
     `<a href="${esc(run)}">Open this run</a> &middot; ` +
     `<a href="/vehicle/${encodeURIComponent(v.id)}">This vehicle</a>`
   );

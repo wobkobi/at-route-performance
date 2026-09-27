@@ -33,6 +33,8 @@ export interface RouteMapDiagramProps {
    * Pass all raw GTFS direction ids that alias to the active direction.
    */
   filterDirectionIds?: number[];
+  /** Query a stop's popup name links with, so it opens on the day shown ("" for today or a week). */
+  stopQuery: string;
 }
 
 /**
@@ -45,6 +47,7 @@ export interface RouteMapDiagramProps {
  * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
+ * @param props.stopQuery - Query a stop's popup name links with.
  * @returns The map section.
  */
 export function RouteMapDiagram({
@@ -54,6 +57,7 @@ export function RouteMapDiagram({
   live,
   mode,
   filterDirectionIds,
+  stopQuery,
 }: RouteMapDiagramProps): JSX.Element {
   if (stops.length === 0) {
     return (
@@ -78,6 +82,7 @@ export function RouteMapDiagram({
         live={live}
         mode={mode as "BUS" | "TRAIN" | "FERRY"}
         filterDirectionIds={filterDirectionIds}
+        stopQuery={stopQuery}
         className="h-125"
       />
       <MapMarkKey live={live} />

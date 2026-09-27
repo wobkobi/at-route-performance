@@ -281,6 +281,7 @@ export default async function VehiclePage({
             live
             filterTripId={now.tripId}
             mode={mode ?? undefined}
+            stopQuery=""
             className="h-100"
           />
           <MapMarkKey live offRoute={false} />

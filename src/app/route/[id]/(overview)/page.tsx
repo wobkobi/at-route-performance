@@ -515,6 +515,8 @@ export default async function RoutePage({
 
   const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
+  const stopQuery = linkDay ? `?day=${linkDay}` : "";
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -858,7 +860,17 @@ export default async function RoutePage({
             </p>
           )}
 
-          <RouteWeekSummary days={weekDays} mode={routeMode} label={weekPeriodLabel} />
+          <RouteWeekSummary
+            days={weekDays}
+            mode={routeMode}
+            label={weekPeriodLabel}
+            dayHref={(date) =>
+              buildHref(`/route/${encodeURIComponent(slug)}`, {
+                day: date === today ? undefined : date,
+                dir: activeDir == null ? undefined : String(activeDir),
+              })
+            }
+          />
 
           {/* Map and diagram with neutral stop coloring in week mode */}
           <RouteMapDiagram
@@ -868,6 +880,7 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
             filterDirectionIds={activeDirIds ?? undefined}
+            stopQuery=""
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
@@ -883,6 +896,7 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
+                stopQuery=""
               />
             </Suspense>
           )}
@@ -980,6 +994,7 @@ export default async function RoutePage({
               live={isLiveView}
               mode={routeMode}
               filterDirectionIds={activeDirIds ?? undefined}
+              stopQuery={stopQuery}
             />
           </div>
 
@@ -995,6 +1010,7 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
+                stopQuery={stopQuery}
               />
             </Suspense>
           )}
@@ -1037,7 +1053,7 @@ export default async function RoutePage({
                       >
                         <td className="px-3 py-2">
                           <Link
-                            href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
+                            href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {s.name}
@@ -1124,6 +1140,7 @@ async function RouteAlertBannerSection({
  * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
+ * @param root0.stopQuery - Query each stop's link carries.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
@@ -1135,6 +1152,7 @@ async function RouteDiagramSection({
   colour,
   activeDir,
   live,
+  stopQuery,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
@@ -1144,6 +1162,7 @@ async function RouteDiagramSection({
   colour: string | null;
   activeDir: number | null;
   live: boolean;
+  stopQuery: string;
 }): Promise<JSX.Element> {
   const strip = buildStrip({
     directions: view.directions,
@@ -1205,6 +1224,7 @@ async function RouteDiagramSection({
       side={side}
       alertRows={alertRows}
       marks={marks}
+      stopQuery={stopQuery}
     />
   );
 }
