@@ -6,7 +6,14 @@
 import { brandColour, modeGlyph } from "@/components/ModeIcon";
 import { SITE_NAME } from "@/lib/copy";
 import { formatDuration } from "@/lib/format";
-import { dayVerdict, VERDICT_BANDS, verdictIndex, type VerdictBand } from "@/lib/verdict";
+import {
+  dayVerdict,
+  LEAN_PHRASE,
+  VERDICT_BANDS,
+  verdictIndex,
+  verdictLean,
+  type VerdictBand,
+} from "@/lib/verdict";
 import type { FleetSummary } from "@/types/dashboard";
 import type { JSX, ReactElement, ReactNode } from "react";
 
@@ -170,6 +177,7 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
   if (!band || summary.on_time_pct === null) return <NotEnoughData size={110} />;
   const rung = verdictIndex(band);
   const fill = toneHex(band.barClass);
+  const lean = verdictLean(summary.early_pct, summary.late_pct);
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <div
@@ -202,9 +210,14 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
         {`${summary.events.toLocaleString("en-NZ")} arrivals, ${summary.on_time_pct.toFixed(1)}% of those measured on time`}
       </div>
       <div style={{ ...ONE_LINE, fontSize: 44, marginTop: 4, color: MUTED }}>
-        {summary.avg_abs_delay_sec === null
-          ? ""
-          : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`}
+        {[
+          summary.avg_abs_delay_sec === null
+            ? null
+            : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`,
+          lean && LEAN_PHRASE[lean].toLowerCase(),
+        ]
+          .filter(Boolean)
+          .join(", ")}
       </div>
     </div>
   );

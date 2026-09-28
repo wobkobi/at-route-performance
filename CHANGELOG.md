@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.25.0] - 2026-09-29
+
+### Added
+
+- The verdict names which way the network is off under its word - "Mostly running early", "Mostly
+  running late" or "Off both ways" - on the overview and the share card, so a poor day spent running
+  early no longer reads the same as one spent running late. "Bit bad" now starts at 55% on time
+  rather than 60%, so an ordinary school-holiday day, with its early running, is not graded with the
+  worst.
+
 ## [2.24.5] - 2026-09-29
 
 ### Fixed

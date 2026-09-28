@@ -14,7 +14,7 @@ import {
 import { SplitBar } from "@/components/SplitBar";
 import { cn } from "@/lib/cn";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
-import { dayVerdict, VERDICT_BANDS } from "@/lib/verdict";
+import { dayVerdict, LEAN_PHRASE, VERDICT_BANDS, verdictLean } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -83,6 +83,7 @@ function VerdictPanel({
   breakdown: PunctualityBreakdown;
 }): JSX.Element {
   const band = dayVerdict(data.on_time_pct);
+  const lean = band ? verdictLean(data.early_pct, data.late_pct) : null;
   // All three shares or none: they are one aggregation's output, and a bar drawn
   // from two of them would be short by the missing band and read as a bar that
   // does not add up.
@@ -115,6 +116,22 @@ function VerdictPanel({
         >
           {band?.label ?? UNKNOWN_VALUE}
         </p>
+        {/* The word is one share of arrivals and hides which side missed: a day
+            of buses leaving early and a day of buses stuck late score alike. */}
+        {lean && (
+          <p
+            className={cn(
+              "mt-1 text-lg font-semibold",
+              lean === "early"
+                ? "text-at-early-strong"
+                : lean === "late"
+                  ? "text-at-late"
+                  : "text-at-muted",
+            )}
+          >
+            {LEAN_PHRASE[lean]}
+          </p>
+        )}
       </div>
       <div className="lg:col-span-2 lg:max-w-sm">
         {/* The arrivals count and the shares below have different denominators on
