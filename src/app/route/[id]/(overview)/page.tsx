@@ -363,7 +363,8 @@ export default async function RoutePage({
   // so it falls back to the rolling last 7 days.
   const isWeekView = sp.window !== undefined && sp.window !== "day";
 
-  // URLs use the version-stripped slug ("501", not "501-217"); redirect old links.
+  // URLs use the version-stripped slug ("501", not "501-217"). next.config.ts
+  // answers old links with a real 308 before this renders; this stays as the backstop.
   const slug = routeSlug(id);
   if (id !== slug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
@@ -381,6 +382,7 @@ export default async function RoutePage({
   // A train line retired by the CRL rename keeps its Route row, so /route/STH
   // resolves rather than 404s; send it to the line that replaced it, which reads
   // both lines' history. Only redirects once the successor has carried traffic.
+  // next.config.ts sends the exact retired slugs first; this catches other cases (/route/sth).
   const successorSlug = await findSuccessorRouteSlug(slug);
   if (successorSlug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.5] - 2026-09-29
+
+### Fixed
+
+- Old links to the retired train lines (STH, EAST, WEST, ONE) and to versioned route ids such as
+  NX1-203 now get a real permanent redirect, where they used to load the whole page and then jump
+  after a second.
+
 ## [2.31.4] - 2026-09-29
 
 ### Changed
