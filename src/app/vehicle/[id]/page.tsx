@@ -274,7 +274,7 @@ export default async function VehiclePage({
 
       {now?.tripId && liveMap && (
         <section className="border border-at-border bg-at-surface p-4">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-ultra tracking-zero">Where it is now</h2>
             <StopDotKey />
           </div>
@@ -598,8 +598,9 @@ function RunsTable({
 }
 
 /**
- * The vehicle's days across a week or month, each linking to that day's runs. A
- * day it did not run stays in the table, so a gap reads as a gap.
+ * The vehicle's days across a week or month, each linking to that day's runs,
+ * newest first so the latest day tops the table. A day it did not run stays in
+ * the table, so a gap reads as a gap.
  * @param root0 - Props.
  * @param root0.days - Every day's rows, oldest first.
  * @param root0.id - The vehicle.
@@ -643,7 +644,7 @@ function DaysTable({
             </tr>
           </thead>
           <tbody>
-            {days.map(({ date, rows }) => {
+            {days.toReversed().map(({ date, rows }) => {
               const row = rows.find((r) => r.v === id);
               return (
                 <tr key={date} className="border-b border-at-border last:border-b-0">

@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.0] - 2026-09-29
+
+### Changed
+
+- Today's cancelled trips open with the ones not due yet, soonest first, then the ones already due,
+  most recent first; in departure order the trips a rider could still be waiting for sat behind
+  "Show more". Day by day and a vehicle's days put the latest day at the top, and a stop's whole-day
+  timetable draws a "Now" line with the departures already gone dimmed.
+
 ## [2.30.0] - 2026-09-29
 
 ### Added

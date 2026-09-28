@@ -224,7 +224,11 @@ async function DaysBody({
     });
   // Narrowed, not just filtered, so the table's rows can read an empty day's
   // cancellation count without a second check for a variant it never holds.
-  const past = slots.filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future");
+  // Newest first, so today or the latest day tops the table; the chart above
+  // still reads left to right in time.
+  const past = slots
+    .filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future")
+    .reverse();
 
   return (
     <div className="space-y-4">

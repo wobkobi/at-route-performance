@@ -7,6 +7,7 @@
 
 import { ChipLink } from "@/components/Chip";
 import type { StopDepartures } from "@/lib/at-stop-trips";
+import { cn } from "@/lib/cn";
 import { departuresFromNow } from "@/lib/departure-board";
 import { departureLabel } from "@/lib/departure-label";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
@@ -106,6 +107,11 @@ export function StopSchedule({
   const fromNow = nowSeconds === null ? all : departuresFromNow(all, nowSeconds);
   const departures = showingAll ? all : fromNow;
   const notice = noticeFor(result, serviceDate, departures.length);
+  // In today's whole-day view, the row where what is still to come begins: the
+  // list gets a "Now" line there and the rows above it are dimmed, so the day's
+  // gone departures do not read as the next ones. -1 when there is no split.
+  const firstUpcoming =
+    showingAll && nowSeconds !== null && fromNow.length > 0 ? departures.indexOf(fromNow[0]!) : -1;
   // Past 24h on the service clock is after midnight (the list is sorted by it).
   const firstAfterMidnight = departures.findIndex(
     (d) => d.departureTime !== null && (gtfsServiceSeconds(d.departureTime) ?? 0) >= 86_400,
@@ -156,6 +162,16 @@ export function StopSchedule({
                 );
                 return (
                   <Fragment key={dep.tripId || i}>
+                    {i === firstUpcoming && i > 0 && (
+                      <tr className="border-b border-at-shore">
+                        <td
+                          colSpan={3}
+                          className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-shore uppercase"
+                        >
+                          Now
+                        </td>
+                      </tr>
+                    )}
                     {i === firstAfterMidnight && (
                       <tr className="border-b border-at-border/40">
                         <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
@@ -163,7 +179,12 @@ export function StopSchedule({
                         </td>
                       </tr>
                     )}
-                    <tr className="border-b border-at-border/40 last:border-0">
+                    <tr
+                      className={cn(
+                        "border-b border-at-border/40 last:border-0",
+                        firstUpcoming > 0 && i < firstUpcoming && "opacity-60",
+                      )}
+                    >
                       <td className="py-1.5 pr-4 font-semibold">
                         <Link
                           href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}${routeQuery ?? ""}`}
