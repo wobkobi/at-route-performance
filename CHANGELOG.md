@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.4] - 2026-09-29
+
+### Changed
+
+- The README drops its guide to running and deploying the site and lists the issues with the AT API
+  instead.
+
 ## [2.31.3] - 2026-09-29
 
 ### Fixed
