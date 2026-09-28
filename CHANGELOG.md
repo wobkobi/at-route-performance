@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.6] - 2026-09-29
+
+### Fixed
+
+- The smoke test no longer waits 30 s on most pages: each page closed with link prefetches still in
+  flight, and the next page stalled on the browser cache entries they left locked. A run takes under
+  a minute again, down from about 7.
+
 ## [2.31.5] - 2026-09-29
 
 ### Fixed
