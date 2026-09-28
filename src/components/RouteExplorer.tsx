@@ -7,7 +7,7 @@
 // instant; the state is written back to the query string with replaceState, so
 // the view survives a reload and can be shared without a navigation.
 
-import { ChipToggle } from "@/components/Chip";
+import { FilterMenu, FilterOption } from "@/components/FilterMenu";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -57,6 +57,48 @@ export interface RouteExplorerProps {
    * could not be read. Unresolved, so the list never waits on the feed.
    */
   running: Promise<string[] | null>;
+}
+
+/** A square button in the filter panel, matching the search field and selects. */
+const BOX =
+  "inline-flex items-center gap-1 border px-3 py-1.5 text-sm font-semibold transition-colors";
+
+/** {@link BOX} when not chosen. */
+const BOX_OFF =
+  "border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore";
+
+/** The Mode filter's choices, null for every mode. */
+const MODES = [
+  [null, "All"],
+  ["BUS", "Bus"],
+  ["TRAIN", "Train"],
+  ["FERRY", "Ferry"],
+] as const;
+
+/** The Running filter's choices, null for either way. */
+const LEANS = [
+  [null, "Either way"],
+  ["late", "Late"],
+  ["early", "Early"],
+] as const;
+
+/** The on/off filters gathered under More. */
+const TOGGLES = [
+  ["enoughData", "Enough data to rank"],
+  ["cancelledOnly", "Had cancellations"],
+  ["school", "Include school buses"],
+  ["runningNow", "Running now"],
+] as const;
+
+/**
+ * What a filter pill says for a multi-choice filter: the first choice by name
+ * and a count of the rest, as in "Central +2", so the pill stays one line.
+ * @param labels - The chosen options' labels, in display order.
+ * @returns The summary, or null with nothing chosen.
+ */
+function choiceSummary(labels: readonly string[]): string | null {
+  if (labels.length === 0) return null;
+  return labels.length === 1 ? labels[0]! : `${labels[0]} +${labels.length - 1}`;
 }
 
 /**
@@ -248,111 +290,147 @@ export function RouteExplorer({
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
-            <ChipToggle key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
+            <button
+              key={v.key}
+              type="button"
+              aria-pressed={view === v.key}
+              onClick={() => update(v.filters)}
+              className={cn(
+                BOX,
+                view === v.key ? "border-at-shore bg-at-shore text-white" : BOX_OFF,
+              )}
+            >
               {v.label}
-            </ChipToggle>
+            </button>
           ))}
         </FilterRow>
-        <FilterRow label="Mode">
-          {(
-            [
-              [null, "All"],
-              ["BUS", "Bus"],
-              ["TRAIN", "Train"],
-              ["FERRY", "Ferry"],
-            ] as const
-          ).map(([key, label]) => (
-            <ChipToggle key={label} on={filters.mode === key} onClick={() => update({ mode: key })}>
-              {label}
-            </ChipToggle>
-          ))}
-        </FilterRow>
-        <FilterRow label="Area">
-          <ChipToggle on={filters.areas.length === 0} onClick={() => update({ areas: [] })}>
-            All
-          </ChipToggle>
-          {AREAS.map((a) => (
-            <ChipToggle
-              key={a.key}
-              on={filters.areas.includes(a.key)}
-              onClick={() => toggleArea(a.key)}
+        <FilterRow label="Filter">
+          <FilterMenu
+            label="Mode"
+            summary={MODES.find(([key]) => key !== null && key === filters.mode)?.[1] ?? null}
+            onReset={() => update({ mode: null })}
+          >
+            {MODES.map(([key, label]) => (
+              <FilterOption
+                key={label}
+                type="radio"
+                name="explorer-mode"
+                checked={filters.mode === key}
+                onChange={() => update({ mode: key })}
+              >
+                {label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
+          <FilterMenu
+            label="Area"
+            summary={choiceSummary(
+              AREAS.filter((a) => filters.areas.includes(a.key)).map((a) => a.label),
+            )}
+            onReset={() => update({ areas: [] })}
+          >
+            {AREAS.map((a) => (
+              <FilterOption
+                key={a.key}
+                type="checkbox"
+                checked={filters.areas.includes(a.key)}
+                onChange={() => toggleArea(a.key)}
+              >
+                {a.label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
+          <FilterMenu
+            label="Fare zone"
+            summary={choiceSummary(
+              FARE_ZONES.filter((z) => filters.zones.includes(z.key)).map((z) => z.label),
+            )}
+            onReset={() => update({ zones: [] })}
+          >
+            {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
+              <FilterOption
+                key={z.key}
+                type="checkbox"
+                checked={filters.zones.includes(z.key)}
+                onChange={() => toggleZone(z.key)}
+              >
+                {z.label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
+          {operatorOptions.length > 1 && (
+            <FilterMenu
+              label="Operator"
+              summary={
+                filters.op === null
+                  ? null
+                  : (operatorOptions.find((o) => o.slug === filters.op)?.name ?? filters.op)
+              }
+              onReset={() => update({ op: null })}
             >
-              {a.label}
-            </ChipToggle>
-          ))}
-        </FilterRow>
-        <FilterRow label="Fare zone">
-          <ChipToggle on={filters.zones.length === 0} onClick={() => update({ zones: [] })}>
-            All
-          </ChipToggle>
-          {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
-            <ChipToggle
-              key={z.key}
-              on={filters.zones.includes(z.key)}
-              onClick={() => toggleZone(z.key)}
-            >
-              {z.label}
-            </ChipToggle>
-          ))}
-        </FilterRow>
-        {operatorOptions.length > 1 && (
-          <FilterRow label="Operator">
-            <select
-              value={filters.op ?? ""}
-              onChange={(e) => update({ op: e.target.value || null })}
-              aria-label="Operator"
-              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
-            >
-              <option value="">Any operator</option>
+              <FilterOption
+                type="radio"
+                name="explorer-op"
+                checked={filters.op === null}
+                onChange={() => update({ op: null })}
+              >
+                Any operator
+              </FilterOption>
               {operatorOptions.map((o) => (
-                <option key={o.slug} value={o.slug}>
+                <FilterOption
+                  key={o.slug}
+                  type="radio"
+                  name="explorer-op"
+                  checked={filters.op === o.slug}
+                  onChange={() => update({ op: o.slug })}
+                >
                   {o.name}
-                </option>
+                </FilterOption>
               ))}
-            </select>
-          </FilterRow>
-        )}
-        <FilterRow label="Running">
-          <ChipToggle on={filters.lean === null} onClick={() => update({ lean: null })}>
-            Either way
-          </ChipToggle>
-          <ChipToggle
-            on={filters.lean === "late"}
-            onClick={() => update({ lean: "late" })}
-            activeClass="bg-at-late text-white"
+            </FilterMenu>
+          )}
+          <FilterMenu
+            label="Running"
+            summary={LEANS.find(([key]) => key !== null && key === filters.lean)?.[1] ?? null}
+            onReset={() => update({ lean: null })}
+            activeClass={
+              filters.lean === "late"
+                ? "border-at-late bg-at-surface text-at-late"
+                : "border-at-early-strong bg-at-surface text-at-early-strong"
+            }
           >
-            Late
-          </ChipToggle>
-          <ChipToggle
-            on={filters.lean === "early"}
-            onClick={() => update({ lean: "early" })}
-            activeClass="bg-at-early text-at-ink"
+            {LEANS.map(([key, label]) => (
+              <FilterOption
+                key={label}
+                type="radio"
+                name="explorer-lean"
+                checked={filters.lean === key}
+                onChange={() => update({ lean: key })}
+              >
+                {label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
+          <FilterMenu
+            label="More"
+            summary={choiceSummary(
+              TOGGLES.filter(([key]) => filters[key]).map(([, label]) => label),
+            )}
+            onReset={() =>
+              update({ enoughData: false, cancelledOnly: false, school: false, runningNow: false })
+            }
           >
-            Early
-          </ChipToggle>
-        </FilterRow>
-        <FilterRow label="Only">
-          <ChipToggle
-            on={filters.enoughData}
-            onClick={() => update({ enoughData: !filters.enoughData })}
-          >
-            Enough data to rank
-          </ChipToggle>
-          <ChipToggle
-            on={filters.cancelledOnly}
-            onClick={() => update({ cancelledOnly: !filters.cancelledOnly })}
-          >
-            Had cancellations
-          </ChipToggle>
-          <ChipToggle on={filters.school} onClick={() => update({ school: !filters.school })}>
-            Include school buses
-          </ChipToggle>
-          <ChipToggle
-            on={filters.runningNow}
-            onClick={() => update({ runningNow: !filters.runningNow })}
-          >
-            Running now
-          </ChipToggle>
+            {TOGGLES.map(([key, label]) => (
+              <FilterOption
+                key={key}
+                type="checkbox"
+                checked={filters[key]}
+                onChange={() => update({ [key]: !filters[key] })}
+              >
+                {label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
         </FilterRow>
         {filters.runningNow && !runningSet && (
           <p role="status" className="text-xs text-at-muted">
@@ -385,7 +463,7 @@ export function RouteExplorer({
             type="button"
             onClick={() => update({ dir: filters.dir === "asc" ? "desc" : "asc" })}
             aria-label={filters.dir === "asc" ? "Sorted low to high" : "Sorted high to low"}
-            className="chip chip-off"
+            className={cn(BOX, BOX_OFF)}
           >
             {filters.dir === "asc" ? "Low to high ↑" : "High to low ↓"}
           </button>
@@ -398,9 +476,9 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={() => update(DEFAULT_FILTERS)}
-              className="text-sm font-semibold text-at-shore hover:underline"
+              className={cn(BOX, BOX_OFF)}
             >
-              Clear filters
+              <span aria-hidden>×</span> Reset all
             </button>
           )}
         </div>

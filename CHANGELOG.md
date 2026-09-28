@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.27.0] - 2026-09-29
+
+### Added
+
+- Filters are dropdown boxes, each naming its choice once set, with an × beside it and a Reset
+  inside to clear it: on the Routes page (Mode, Area, Fare zone, Operator, Running, More, and a
+  Reset all) and wherever the mode, school-bus and late/early filters appear - the overview, Day by
+  day, Cancellations, Vehicles, Operators, Live and the worst-of boards. A phone gets the options as
+  a sheet along the bottom of the screen, so a row of filters no longer wraps to three lines.
+
 ## [2.26.0] - 2026-09-29
 
 ### Added
