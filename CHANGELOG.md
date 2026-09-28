@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.3] - 2026-09-29
+
+### Fixed
+
+- Stop 8503 (Stop A Maungawhau Station) reads as on the City/Isthmus boundary, as AT's published
+  list has it, where AT's own zone shapefile leaves it in City. The fare zone builder also
+  type-checks clean against pyshp's types.
+
 ## [2.31.2] - 2026-09-29
 
 ### Fixed

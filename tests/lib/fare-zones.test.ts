@@ -18,6 +18,13 @@ describe("fareZonesOf", () => {
     expect(fareZonesOf(-36.924, 174.786)).toEqual(["isthmus", "northern-manukau"]); // Onehunga
   });
 
+  it("adds the zone AT's published list gives a stop the polygons miss, only at that pole", () => {
+    // Stop 8503 sits 17 m outside the Isthmus polygon but is on AT's City/Isthmus overlap list.
+    expect(fareZonesOf(-36.86776, 174.76118)).toEqual(["city", "isthmus"]);
+    // About 50 m west, the polygons alone decide.
+    expect(fareZonesOf(-36.86776, 174.76062)).toEqual(["city"]);
+  });
+
   it("finds no zone out at sea", () => {
     expect(fareZonesOf(-36.5, 175.5)).toEqual([]);
   });

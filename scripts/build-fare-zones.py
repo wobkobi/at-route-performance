@@ -33,8 +33,14 @@ TOLERANCE_M = 15
 reader = shapefile.Reader(sys.argv[1], encoding="utf-8")
 pieces: dict[str, list] = {}
 for rec in reader.iterShapeRecords():
-    geom = shape(rec.shape.__geo_interface__).buffer(0)
-    for name in rec.record["Name"].split(","):
+    if rec.shape is None or rec.record is None:
+        continue
+    # pyshp types the GeoJSON as a TypedDict, which shapely's `shape` only takes as a plain dict.
+    geom = shape(dict(rec.shape.__geo_interface__)).buffer(0)
+    names = rec.record["Name"]
+    if not isinstance(names, str):
+        sys.exit(f"Zone record without a text Name: {names!r}")
+    for name in names.split(","):
         pieces.setdefault(name.strip(), []).append(geom)
 
 unknown = set(pieces) - {name for name, _ in ORDER}
