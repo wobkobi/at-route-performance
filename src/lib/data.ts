@@ -66,6 +66,7 @@ export {
   getShameOfDay,
   getShameOfWeek,
 } from "@/lib/data/shame-trips";
+export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,

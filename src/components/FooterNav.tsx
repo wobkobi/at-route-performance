@@ -27,6 +27,7 @@ const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/shame/route", label: "Worst routes" },
   { href: "/shame/stop", label: "Worst stops" },
   { href: "/cancellations", label: "Cancellations" },
+  { href: "/compare", label: "Compare" },
 ];
 
 /**

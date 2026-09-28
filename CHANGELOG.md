@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.28.0] - 2026-09-29
+
+### Added
+
+- A new Compare page (/compare, linked from the footer) lines up to four routes or four stops over a
+  day, week or month: on time, early, late, the average off, arrivals, and cancelled trips for
+  routes or routes calling for stops, with the best of each row picked out. Stops are found by name
+  or by the code on the pole, and a station comes back once rather than as each of its platforms.
+
 ## [2.27.0] - 2026-09-29
 
 ### Added
