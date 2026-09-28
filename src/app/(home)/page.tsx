@@ -35,7 +35,7 @@ import { ShameOfDay } from "@/components/ShameOfDay";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
@@ -400,6 +400,13 @@ export default async function Home({
           alerts={networkWideAlerts(await alertsPromise)}
           pastWindow={linkDay !== undefined}
         />
+        {linkDay === undefined && (
+          <AlertBanner
+            alerts={networkWideAlerts(await getUpcomingAlerts().catch(() => []))}
+            heading="Coming up"
+            upcoming
+          />
+        )}
 
         <FleetSummary data={heroData} verdict />
       </section>

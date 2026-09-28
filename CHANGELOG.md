@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.29.0] - 2026-09-29
+
+### Added
+
+- A collapsed "Coming up" banner lists the service alerts due in the next seven days, soonest first,
+  on the current day's overview. AT's feed carries planned detours and closures well ahead of time,
+  and the site dropped every one until the minute it started. Each alert also shows the period
+  running now or the next to come, rather than the first the feed lists, which dated a recurring
+  alert by an occurrence weeks gone.
+
 ## [2.28.0] - 2026-09-29
 
 ### Added

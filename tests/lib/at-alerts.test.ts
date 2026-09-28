@@ -2,13 +2,16 @@
 // Unit tests for the service-alert filters and severity grading in at-alerts.ts.
 
 import {
+  alertPeriodToShow,
   alertSeverity,
   alertsForRoute,
   alertsForStop,
   alertsForTrip,
   extractText,
   hasSevereAlert,
+  isAlertUpcoming,
   networkWideAlerts,
+  nextAlertPeriod,
   resolveAlertRoutes,
   routeIdsInText,
   type ServiceAlert,
@@ -29,6 +32,46 @@ function alert(id: string, routeIds: (string | undefined)[]): ServiceAlert {
     informed_entity: routeIds.map((route_id) => (route_id === undefined ? {} : { route_id })),
   };
 }
+
+describe("upcoming alerts", () => {
+  const now = new Date(1_000_000 * 1000);
+  const DAY = 86_400;
+  /**
+   * An alert with the given periods, offsets in seconds from `now`.
+   * @param periods - Start and end offsets.
+   * @returns A minimal {@link ServiceAlert}.
+   */
+  const timed = (periods: [number, number][]): ServiceAlert => ({
+    ...alert("t", []),
+    active_period: periods.map(([s, e]) => ({ start: 1_000_000 + s, end: 1_000_000 + e })),
+  });
+
+  it("finds the next occurrence of a recurring alert between occurrences", () => {
+    const nightly = timed([
+      [-DAY, -DAY + 3600],
+      [2 * DAY, 2 * DAY + 3600],
+      [DAY, DAY + 3600],
+    ]);
+    expect(nextAlertPeriod(nightly, now)?.start).toBe(1_000_000 + DAY);
+    expect(isAlertUpcoming(nightly, now)).toBe(true);
+    expect(alertPeriodToShow(nightly, now)?.start).toBe(1_000_000 + DAY);
+  });
+
+  it("shows the running period of an active alert, not the first listed", () => {
+    const a = timed([
+      [-3 * DAY, -3 * DAY + 60],
+      [-60, 60],
+    ]);
+    expect(isAlertUpcoming(a, now)).toBe(false);
+    expect(alertPeriodToShow(a, now)?.start).toBe(1_000_000 - 60);
+  });
+
+  it("leaves out an alert past the week ahead, or one already over", () => {
+    expect(isAlertUpcoming(timed([[8 * DAY, 9 * DAY]]), now)).toBe(false);
+    expect(isAlertUpcoming(timed([[-2 * DAY, -DAY]]), now)).toBe(false);
+    expect(nextAlertPeriod(timed([[-2 * DAY, -DAY]]), now)).toBeNull();
+  });
+});
 
 describe("alertsForRoute", () => {
   const alerts = [
