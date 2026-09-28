@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.24.5] - 2026-09-29
+
+### Fixed
+
+- Headings and empty states for a past day say "yesterday" or name the day ("on Sat 19 Sep") instead
+  of "that day", which named nothing once the reader had scrolled past the stepper.
+
 ## [2.24.4] - 2026-09-29
 
 ### Fixed

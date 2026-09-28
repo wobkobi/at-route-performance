@@ -19,7 +19,7 @@ export interface ShameOfDayProps {
   /** Override the card's link target; defaults to the run's own page. */
   href?: string;
   /**
-   * The shown window as words for the empty-state copy ("today", "that day",
+   * The shown window as words for the empty-state copy ("today", "on Sat 19 Sep",
    * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
    */
   when?: string;

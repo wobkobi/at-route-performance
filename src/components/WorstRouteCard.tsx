@@ -19,7 +19,7 @@ export interface WorstRouteCardProps {
   /** Whether the board ranked any route, which tells a clean window from an empty one. */
   ranked?: boolean;
   /**
-   * The shown window as words for the clean-window copy ("today", "that day",
+   * The shown window as words for the clean-window copy ("today", "on Sat 19 Sep",
    * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
    */
   when?: string;

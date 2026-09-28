@@ -11,7 +11,14 @@ import {
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { resolveRange } from "@/lib/rankings-page";
-import { type DateRange, nzServiceDayString, parseYmd, shiftMonth, shiftWeek } from "@/lib/time";
+import {
+  type DateRange,
+  nzServiceDayString,
+  parseYmd,
+  serviceDayLabel,
+  shiftMonth,
+  shiftWeek,
+} from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** The window a range page shows. */
@@ -270,16 +277,20 @@ export function periodForCarriedDay(
 
 /**
  * The shown window as the words that end "How bad is it ..." or "No shame
- * ...": "today" or "that day", "over the last 7 days" for the rolling week (the
- * week tab's default is seven days back from today, not the calendar week),
- * "that week", "this month" or "that month". The stepper beside it names the
- * date, so the words only say whether the window is the current one.
+ * ...": "today", "yesterday" or a named day ("on Sat 19 Sep", the stepper's own
+ * label), "over the last 7 days" for the rolling week (the week tab's default is
+ * seven days back from today, not the calendar week), "that week", "this month"
+ * or "that month". A past day is named rather than called "that day", which
+ * points at nothing when the heading is read on its own.
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.
  * @returns The phrase.
  */
 export function windowPhrase(nav: RangeNav, period: string | null): string {
-  if (nav.window === "day") return nav.isToday ? "today" : "that day";
+  if (nav.window === "day") {
+    if (nav.isToday) return "today";
+    return nav.nextIsToday ? "yesterday" : `on ${serviceDayLabel(nav.serviceDate)}`;
+  }
   if (period !== null) return `that ${nav.window}`;
   return nav.window === "week" ? "over the last 7 days" : "this month";
 }
