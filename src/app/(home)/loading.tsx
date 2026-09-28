@@ -42,7 +42,7 @@ export default function Loading(): JSX.Element {
       </section>
 
       <section className="space-y-4">
-        {/* "Shame of the day" heading: text-lg, 28px */}
+        {/* "Worst of the day" heading: text-lg, 28px */}
         <Bone className="h-7 w-44" />
         <FeatureCardRowSkeleton />
       </section>

@@ -26,6 +26,7 @@ import {
 } from "@/lib/data";
 import { formatGtfsTime } from "@/lib/format";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
 import {
@@ -108,6 +109,10 @@ export default async function TripPage({
   const slug = routeSlug(id);
   const sp = (await searchParams) ?? {};
   const d = typeof sp.d === "string" ? sp.d : undefined;
+  // One request-time clock read for the whole render (see lib/request-now.ts).
+  // The reads below need it before they run, not just the live tests further
+  // down: the cache policy behind them asks whether this run's day is over.
+  const today = await requestServiceDay();
   // Scope to the run's Auckland-local day so other days' runs of the same tripId
   // do not interleave; falls back to the trip's latest day when `d` is absent
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange). The
@@ -169,7 +174,7 @@ export default async function TripPage({
 
   // Only a run on today's service day can have a vehicle out now; a trip id
   // repeats every day, so an older run would otherwise show today's vehicle.
-  const isLiveRun = day !== null && nzServiceDayString(day.start) === nzServiceDayString();
+  const isLiveRun = day !== null && nzServiceDayString(day.start) === today;
 
   // The timetable's stops with each recorded arrival matched in, and the stops
   // the run made off its timetable placed where they came in time.
@@ -239,8 +244,7 @@ export default async function TripPage({
       <Link
         href={buildHref(`/route/${encodeURIComponent(slug)}`, {
           // Today's day is left off, since the route page redirects it away.
-          day:
-            serviceDate && !isLiveRun && serviceDate !== nzServiceDayString() ? serviceDate : null,
+          day: serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : null,
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}

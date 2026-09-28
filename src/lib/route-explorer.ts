@@ -29,9 +29,9 @@ export type SortDir = "asc" | "desc";
 /** Every sort with its label and the direction it opens in (the more telling end first). */
 export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; dir: SortDir }> = [
   { key: "route", label: "Route number", dir: "asc" },
-  { key: "on_time", label: "On-time %", dir: "desc" },
+  { key: "on_time", label: "On time %", dir: "desc" },
   { key: "off_by", label: "Average off by", dir: "desc" },
-  { key: "delay", label: "Average delay", dir: "desc" },
+  { key: "delay", label: "Early or late", dir: "desc" },
   { key: "late", label: "Late %", dir: "desc" },
   { key: "early", label: "Early %", dir: "desc" },
   { key: "events", label: "Arrivals", dir: "desc" },

@@ -106,8 +106,9 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
       ) : (
         <div className="flex items-center gap-1">
           {/* Step links are omitted (not disabled) at the edges of the data range,
-              and prefetch in full for the reason DayNav's do. */}
-          {nav.prevHref && (
+              a `.step-slot` holds the gap so the newest period does not shift the
+              tabs, and both prefetch in full for the reason DayNav's do. */}
+          {nav.prevHref ? (
             <Link
               href={withCarried(nav.prevHref, carried)}
               prefetch
@@ -119,12 +120,14 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
                 <ChevronLeft />
               </StepPending>
             </Link>
+          ) : (
+            <span className="step-slot" aria-hidden />
           )}
           <span className="px-1 text-sm font-semibold tabular-nums">
             {nav.label}
             {nav.partial ? ` (from ${DATA_START_SHORT})` : ""}
           </span>
-          {nav.nextHref && (
+          {nav.nextHref ? (
             <Link
               href={withCarried(nav.nextHref, carried)}
               prefetch
@@ -136,6 +139,8 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
                 <ChevronRight />
               </StepPending>
             </Link>
+          ) : (
+            <span className="step-slot" aria-hidden />
           )}
         </div>
       )}

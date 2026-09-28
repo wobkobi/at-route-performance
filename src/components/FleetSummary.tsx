@@ -85,7 +85,7 @@ function VerdictPanel({
       <div className={cn("relative flex items-center gap-1", LABEL_CLASS)}>
         Verdict
         <PunctualityInfo
-          label="On-time"
+          label="On time"
           breakdown={breakdown}
           variant="split"
           extra={<VerdictScale />}
@@ -136,7 +136,7 @@ function VerdictPanel({
 }
 
 /**
- * Render the fleet KPI strip (arrivals, on-time %, average off-schedule, routes).
+ * Render the fleet KPI strip (arrivals, on-time share, average off-schedule, routes).
  * The on-time and "off by" cards open a punctuality breakdown on click, so a
  * near-zero net average does not look at odds with the on-time share. With
  * `verdict`, the on-time share leads as a word above the other four figures,
@@ -176,7 +176,7 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
             bare
             size="sm"
             variant="split"
-            label="On-time"
+            label="On time"
             value={data.on_time_pct === null ? UNKNOWN_VALUE : `${data.on_time_pct.toFixed(1)}%`}
             breakdown={breakdown}
           />

@@ -530,6 +530,17 @@ export function serviceDayLabel(ymd: string): string {
 }
 
 /**
+ * A service date as `17 Sep 2026`, for naming a date far enough from today that
+ * its weekday is no help and its year is.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The label.
+ */
+export function serviceDateLabel(ymd: string): string {
+  const { y, mo, d } = parseYmd(ymd);
+  return `${d} ${MONTHS_SHORT[mo - 1] ?? ""} ${y}`;
+}
+
+/**
  * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
  * week straddles New Year.
  * @param range - Half-open week range (`end` is the exclusive next Monday).

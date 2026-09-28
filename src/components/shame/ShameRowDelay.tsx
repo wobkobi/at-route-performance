@@ -42,7 +42,7 @@ export function ShameRowDelay({
         )}
         title={
           mixed
-            ? "Some services ran early, some ran late — shows absolute average deviation from schedule"
+            ? "Some services ran early, some ran late - this is the average distance from schedule, ignoring direction"
             : undefined
         }
       >

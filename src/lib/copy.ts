@@ -2,6 +2,8 @@
 // Strings that appear on more than one surface. A name or a caveat with several
 // copies drifts, and the drift reaches a reader before it reaches a reviewer.
 
+import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
+
 /**
  * The site's name, for the masthead, the footer lockup, the tab title and the
  * share cards.
@@ -22,6 +24,45 @@ export const SITE_NAME = "AT Route Performance";
  * surface a reader sees ever did.
  */
 export const ON_TIME_WINDOW_NOTE = "That window is this site's choice, not AT's.";
+
+/**
+ * The on-time window as words.
+ * @param mode - The mode whose window applies. Omit it on a surface that mixes
+ *   modes: it then takes the bus and train window, which is the tighter one.
+ * @returns "1 min early to 5 min late", or "5 min either way" when the mode's
+ *   window is symmetric.
+ */
+export function onTimeWindowPhrase(mode?: string): string {
+  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
+  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
+  return earlyMin === lateMin
+    ? `${lateMin} min either way`
+    : `${earlyMin} min early to ${lateMin} min late`;
+}
+
+/**
+ * The window, what sits outside it and whose choice it is, for every surface
+ * that states the bounds - a board caption and the on-time popover said the
+ * same thing in two wordings, and a reader who met both had to work out whether
+ * they meant the same window.
+ * @param mode - The mode whose window applies, or undefined on a surface that
+ *   mixes modes, which names the ferry window as an aside.
+ * @returns The sentence.
+ */
+export function onTimeWindowSentence(mode?: string): string {
+  const ferries = mode === undefined ? ` (ferries: ${onTimeWindowPhrase("FERRY")})` : "";
+  return `On time means ${onTimeWindowPhrase(mode)}${ferries}. Early and late are both off schedule. ${ON_TIME_WINDOW_NOTE}`;
+}
+
+/** The caption under a board ranked on how far off schedule a route ran. */
+export const ON_TIME_CAPTION = onTimeWindowSentence();
+
+/**
+ * Caption for the reliable board, whose column is the on-time share itself.
+ * Names the window rather than pointing at the other board's caption, so it
+ * still reads on a phone, where the two boards are stacked rather than paired.
+ */
+export const ON_TIME_SHARE_CAPTION = "Share of arrivals inside the on-time window";
 
 /**
  * The trailing clause of a page description, naming whose schedule and whose

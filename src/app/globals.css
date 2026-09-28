@@ -32,9 +32,12 @@
   --color-at-ink: #001930;
   --color-at-muted: #667583;
   --color-at-border: #d1d6da;
+  /* An inert fill, not the page ground: map tiles yet to load, the empty part of
+     a bar, a muted count pill. The page itself is white, as at.govt.nz is. */
   --color-at-bg: #e9edf1;
   --color-at-surface: #ffffff;
-  /* Pale Shore tint (at.govt.nz tint-shore-10) for icon badges + section bands */
+  /* Pale Shore tint (at.govt.nz tint-shore-10) for icon badges, section bands
+     and table heads - the last of those is what `.at-table thead` uses there. */
   --color-at-shore-pale: #ebf5fb;
 
   /* Semantic status */
@@ -128,6 +131,15 @@
 .chip-icon {
   @apply min-h-11 min-w-11 justify-center;
 }
+/*
+  Holds the space of a stepper chevron that is not offered. Without it, reaching
+  the newest or oldest day collapsed a 44px chip plus the row's 4px gap and slid
+  the date and the window tabs beside it 48px sideways, on the one control a
+  reader clicks repeatedly.
+*/
+.step-slot {
+  @apply block min-h-11 min-w-11;
+}
 
 /*
   Stepper chevron while its click waits on the server (StepPending). The pulse
@@ -159,6 +171,19 @@
 /* AT card: white, hairline border, rounded, flat (no shadow) - like at.govt.nz. */
 .at-card {
   @apply border border-at-border bg-at-surface;
+}
+
+/*
+  The page grid, on at.govt.nz's own measurements: content capped at 96rem and
+  centred, with 1rem side margins that widen to 2rem from 1024px. Those are
+  `.at-css-grid`'s max-width and `--cds-grid-margin` read off at.govt.nz's
+  stylesheet, so the masthead, the page and the footer line up the way AT's do.
+
+  At 1920px the cap and 80vw are the same number, so the 80vw above it widens a
+  larger screen from exactly where the cap stops rather than jumping.
+*/
+.at-container {
+  @apply mx-auto w-full max-w-[96rem] px-4 min-[1920px]:max-w-[80vw] lg:px-8;
 }
 
 /*

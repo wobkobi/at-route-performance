@@ -250,18 +250,22 @@ export function rangeTabPeriods(
  * @param window - "week" or "month".
  * @param rawPeriod - The raw `?period` value, if any.
  * @param rawDay - The raw `?day` value, if any.
- * @param today - Today's service date (injectable for tests).
+ * @param today - Today's service date; read from the clock when omitted
+ *   (injectable for tests).
  * @returns The period to resolve, or undefined for the rolling default.
  */
 export function periodForCarriedDay(
   window: "week" | "month",
   rawPeriod: string | undefined,
   rawDay: string | undefined,
-  today: string = nzServiceDayString(),
+  today?: string,
 ): string | undefined {
   if (rawPeriod) return rawPeriod;
   const day = resolveRequestedDay(rawDay);
-  return day ? (rangeTabPeriods(day, today)[window] ?? undefined) : undefined;
+  if (day === null) return undefined;
+  // Only a carried day needs placing against today, so the clock is read here
+  // rather than as a default: see the note at the top of day-url.ts.
+  return rangeTabPeriods(day, today ?? nzServiceDayString())[window] ?? undefined;
 }
 
 /**

@@ -4,9 +4,7 @@
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
-import { earlyToleranceFor, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route-slug";
 import type { TopRouteRow } from "@/types/api";
 import Link from "next/link";
@@ -39,16 +37,6 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
     </span>
   );
 }
-
-/** Plain-English on-time window, for the board captions, and whose window it is. */
-export const ON_TIME_CAPTION = `On time = ${earlyToleranceFor("BUS") / 60} min early to ${ON_TIME_LATE_SEC / 60} min late (ferries: ${ON_TIME_LATE_SEC / 60} min either way). ${ON_TIME_WINDOW_NOTE}`;
-
-/**
- * Caption for the reliable board, whose column is the on-time share itself.
- * Names the window rather than pointing at the other board's caption, so it
- * still reads on a phone, where the two boards are stacked rather than paired.
- */
-export const ON_TIME_SHARE_CAPTION = "Share of arrivals inside the on-time window";
 
 /**
  * Key for the off-schedule board's value colours. Each value already carries

@@ -29,6 +29,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route-explorer";
 import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
@@ -91,7 +92,13 @@ export default async function RoutesPage({
     clampDayParam("/routes", sp);
     dropTodayParam("/routes", sp);
   }
-  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  // One request-time clock read for the whole render, handed to every helper
+  // that places a day against today (see lib/request-now.ts).
+  const [today, latest, earliest] = await Promise.all([
+    requestServiceDay(),
+    getLatestEventDate(),
+    getEarliestDataDay(1),
+  ]);
 
   let range: DateRange;
   let rows: TopRouteRow[];
@@ -100,10 +107,10 @@ export default async function RoutesPage({
   let period: string | null = null;
   const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
   if (window === "day") {
-    const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+    const shown = await resolveShownDay(resolveRequestedDay(sp.day), today);
     ({ range, serviceDate } = shown);
     rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
-    nav = dayRangeNav(shown, earliest);
+    nav = dayRangeNav(shown, earliest, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/routes",
@@ -111,6 +118,7 @@ export default async function RoutesPage({
       sp.period,
       latest ?? new Date(),
       earliest,
+      today,
     ));
     rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
   }

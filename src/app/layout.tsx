@@ -31,7 +31,8 @@ export const metadata: Metadata = {
   // It does not reach a title set in this same segment, which is why the home
   // page sets none and takes the default.
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description: "Auckland Transport route and stop performance analytics.",
+  description:
+    "How close Auckland's buses, trains and ferries run to their timetable, measured every day.",
 };
 
 /**
@@ -51,7 +52,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={cn(
           gothamNarrow.variable,
-          "flex min-h-screen flex-col bg-at-bg font-brand text-at-ink antialiased",
+          "flex min-h-screen flex-col bg-at-surface font-brand text-at-ink antialiased",
         )}
       >
         {process.env.NODE_ENV === "development" && <DevHostRedirect />}
@@ -65,7 +66,7 @@ export default function RootLayout({
         <header className="sticky top-0 z-40 border-b border-at-border bg-at-surface">
           {/* Five tabs need more width than a 390px phone leaves beside the logo,
               so the nav takes a row of its own until there is room to share one. */}
-          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 min-[1440px]:max-w-[80vw] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="at-container flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             {/* The label is on the link, not the logo: the wordmark beside it is
                 hidden on a phone, so an empty alt there would leave the home link
                 with no accessible name, and naming the logo "Auckland Transport"
@@ -95,15 +96,12 @@ export default function RootLayout({
             <SiteNav />
           </div>
         </header>
-        <div
-          id="main"
-          className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 min-[1440px]:max-w-[80vw]"
-        >
+        <div id="main" className="at-container flex-1 py-8">
           {children}
         </div>
         {/* Dark Ocean footer with link columns + a legal sub-bar, like at.govt.nz. */}
         <footer className="bg-at-ocean text-white">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 min-[1440px]:max-w-[80vw] sm:grid-cols-2 lg:grid-cols-3">
+          <div className="at-container grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {/* Decorative: the wordmark beside it is always visible here. */}
@@ -118,7 +116,7 @@ export default function RootLayout({
                 <span className="font-ultra tracking-zero">{SITE_NAME}</span>
               </div>
               <p className="max-w-xs text-sm text-white/70">
-                Live performance from Auckland Transport&apos;s GTFS feeds. Times are Auckland
+                Built from Auckland Transport&apos;s public GTFS feeds. All times are Auckland
                 local.
               </p>
             </div>
@@ -143,7 +141,7 @@ export default function RootLayout({
             </div>
           </div>
           <div className="border-t border-white/10">
-            <div className="mx-auto max-w-6xl px-4 py-4 text-xs text-white/50 min-[1440px]:max-w-[80vw]">
+            <div className="at-container py-4 text-xs text-white/50">
               Data &copy; Auckland Transport, used under the GTFS open-data feeds.
             </div>
           </div>

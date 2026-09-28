@@ -24,8 +24,14 @@ import {
 } from "@/lib/db";
 import { arrivalWriteStages, NO_DELAY_SOURCE, type ArrivalWrite } from "@/lib/deviation";
 import { recordFleet } from "@/lib/fleet-store";
-import { recordIngestRun } from "@/lib/ingest-run";
-import { drainSpool, spoolEnabled, spoolWrites, type SpooledWrite } from "@/lib/ingest-spool";
+import { lastRecordedRun, recordIngestRun } from "@/lib/ingest-run";
+import {
+  drainSpool,
+  spoolEnabled,
+  spoolMayHold,
+  spoolWrites,
+  type SpooledWrite,
+} from "@/lib/ingest-spool";
 import { recordOffRouteSightings } from "@/lib/off-route-store";
 import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
 import { recordStopClosures } from "@/lib/stop-closure-store";
@@ -215,16 +221,28 @@ export async function POST(req: Request): Promise<NextResponse> {
   /** Writes this poll could not make because the database was unreachable. */
   const heldBack: SpooledWrite[] = [];
 
+  /** Whether the spool still holds batches when this poll ends, for the next run. */
+  let spoolPending = false;
+
   try {
     // Replay what earlier polls could not write, before adding this poll's own.
     // A drain that fails leaves its batches in place, so nothing is lost by
     // trying while the database is still down.
-    const drained = await drainSpool(replaySpooled).catch((err: unknown) => {
-      console.error("[SPOOL] Drain failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    });
+    //
+    // Reading the stamp first is what keeps the poll off the spool: listing costs
+    // a Blob operation every run where a drain is almost never needed, and a stamp
+    // read that throws says the database is down, which a replay needs up anyway.
+    const lastRun = await lastRecordedRun("at").catch(() => "unreadable" as const);
+    const drained =
+      lastRun !== "unreadable" && spoolMayHold(lastRun)
+        ? await drainSpool(replaySpooled).catch((err: unknown) => {
+            console.error("[SPOOL] Drain failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return null;
+          })
+        : null;
+    if (drained?.pending) spoolPending = true;
     if (drained && (drained.replayed > 0 || drained.dropped > 0)) {
       console.log("[SPOOL] Drained", drained);
     }
@@ -493,6 +511,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     // Held rows go to the spool once, as one batch, so a replay re-issues this
     // poll's writes in the order they were meant to happen.
     const spooled = heldBack.length > 0 && (await spoolWrites(heldBack));
+    if (spooled) spoolPending = true;
     if (heldBack.length > 0) {
       console.warn("[SPOOL] Database unreachable, batch held", {
         writes: heldBack.length,
@@ -557,6 +576,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       startedAt: new Date(startTime),
       success: true,
       count: stopResult.count + tripResult.count,
+      detail: { spoolPending },
     });
 
     return NextResponse.json(body);
@@ -575,6 +595,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       startedAt: new Date(startTime),
       success: false,
       error: msg,
+      detail: { spoolPending },
     });
 
     return NextResponse.json({ error: msg }, { status: 502 });

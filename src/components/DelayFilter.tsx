@@ -8,7 +8,7 @@ import type { JSX } from "react";
 
 /** Props for {@link DelayFilter}. */
 export interface DelayFilterProps {
-  /** Currently active direction, or null for "All". */
+  /** Currently active direction, or null for either way. */
   active: DelayDirection;
   /** Page path the chips link to. */
   basePath: string;
@@ -16,17 +16,20 @@ export interface DelayFilterProps {
   preservedParams: Record<string, string>;
 }
 
+// "Either way" rather than "All", the word `RouteExplorer`'s own direction chips
+// use: a board that also carries a mode row would otherwise stack two filled
+// "All" chips that read as one duplicated control.
 const DIRS: { key: "" | "late" | "early"; label: string; activeClass: string }[] = [
-  { key: "", label: "All", activeClass: "bg-at-shore text-white" },
+  { key: "", label: "Either way", activeClass: "bg-at-shore text-white" },
   { key: "late", label: "Late", activeClass: "bg-at-late text-white" },
   { key: "early", label: "Early", activeClass: "bg-at-early text-at-ink" },
 ];
 
 /**
- * Render All/Late/Early chips that filter the "most off-schedule" board by the
- * direction a route runs off schedule.
+ * Render Either way/Late/Early chips that filter a board by the direction its
+ * rows run off schedule.
  * @param props - Component props.
- * @param props.active - The active direction, or null for "All".
+ * @param props.active - The active direction, or null for either way.
  * @param props.basePath - Page path the chips link to.
  * @param props.preservedParams - Query params to keep when switching direction.
  * @returns The filter chips element.

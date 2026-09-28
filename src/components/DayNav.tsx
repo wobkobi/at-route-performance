@@ -77,12 +77,15 @@ export function DayNav({
 }: DayNavProps): JSX.Element {
   return (
     <div className="flex items-center gap-1">
-      {/* Step links are omitted (not disabled) at the edges of the data range;
-          on the archive's first day the gap gets a reason instead. `scroll`
-          is held because the stepper is how the archive is read: stepping from
-          halfway down a board threw the reader back to the top of the next day,
-          while a mode chip beside it did not. */}
-      {hasPrev && (
+      {/* Step links are omitted (not disabled) at the edges of the data range,
+          and a `.step-slot` holds the gap so stepping onto the newest or oldest
+          day does not shift the label and the tabs beside it. The two edge
+          sentences take the slot's place rather than sitting beside it, so only
+          those states - the archive's first day, and today before it opens -
+          change the row's width. `scroll` is held because the stepper is how the
+          archive is read: stepping from halfway down a board threw the reader
+          back to the top of the next day, while a mode chip beside it did not. */}
+      {hasPrev ? (
         <Link
           href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
           prefetch
@@ -94,17 +97,22 @@ export function DayNav({
             <ChevronLeft />
           </StepPending>
         </Link>
+      ) : atFloor ? (
+        <span className="px-1 text-xs text-at-muted">first day</span>
+      ) : (
+        <span className="step-slot" aria-hidden />
       )}
-      {!hasPrev && atFloor && <span className="px-1 text-xs text-at-muted">first day</span>}
       {/* Every day page shows a day through this label, so the window it covers
-          is said here once rather than on each page. */}
+          is said here once rather than on each page. The width is reserved for a
+          two-digit day, so stepping from the 1st to the 2nd of a month does not
+          move the row either. */}
       <span
-        className="cursor-help px-2 text-sm font-semibold tabular-nums"
+        className="min-w-24 cursor-help px-2 text-center text-sm font-semibold tabular-nums"
         title={serviceDayWindowText(serviceDate)}
       >
         {serviceDayLabel(serviceDate)}
       </span>
-      {hasNext && (
+      {hasNext ? (
         <Link
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
           prefetch
@@ -116,14 +124,15 @@ export function DayNav({
             <ChevronRight />
           </StepPending>
         </Link>
-      )}
-      {!hasNext && nextPending && (
+      ) : nextPending ? (
         <span
           className="px-1 text-xs text-at-muted"
           title="Today began at 4am but has too few arrivals so far, so this shows the day before"
         >
           today still starting
         </span>
+      ) : (
+        <span className="step-slot" aria-hidden />
       )}
     </div>
   );

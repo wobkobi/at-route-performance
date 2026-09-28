@@ -29,6 +29,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import type { DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
@@ -110,7 +111,13 @@ export default async function VehiclesPage({
   const sort = parseVehicleSort(sp.sort);
   const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
   const filter = { mode, includeSchool };
-  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
+  // One request-time clock read for the whole render, handed to every helper
+  // that places a day against today (see lib/request-now.ts).
+  const [today, latest, earliest] = await Promise.all([
+    requestServiceDay(),
+    getLatestEventDate(),
+    getEarliestDataDay(1),
+  ]);
 
   let range: DateRange;
   let nav: RangeNav;
@@ -118,10 +125,10 @@ export default async function VehiclesPage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
-    nav = dayRangeNav(day, earliest);
+    nav = dayRangeNav(day, earliest, today);
     dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -130,6 +137,7 @@ export default async function VehiclesPage({
       sp.period,
       latest ?? new Date(),
       earliest,
+      today,
     ));
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
   }

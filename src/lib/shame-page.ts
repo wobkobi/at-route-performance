@@ -6,6 +6,7 @@
 // on-time late bound, so quiet days where everything sits within the window
 // crown nothing.
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { buildHref } from "@/lib/utils";
 
 /** Cache TTL for the week boards (seconds). */
@@ -19,10 +20,14 @@ export const ITEMS_PER_COL = 12;
 /** A transport mode the boards can filter by, or null for every mode. */
 export type ShameMode = "BUS" | "TRAIN" | "FERRY" | null;
 
-/** Active mode/school filter shared by every shame board query. */
+/**
+ * Active filter shared by every shame board query. `direction` is read by the
+ * stop board alone; the trip and route boards take the same object and ignore it.
+ */
 export interface ShameFilter {
   mode: ShameMode;
   includeSchool: boolean;
+  direction: DelayDirection;
 }
 
 /** Query params accepted by every shame board page. */
@@ -32,12 +37,18 @@ export interface ShameSearchParams {
   school?: string;
   window?: string;
   period?: string;
+  dir?: string;
 }
 
 /**
- * Every param the boards read, so `/shame` can carry exactly these across and
- * leave a previous page's sort, search and direction behind. Keep it in step
+ * Every param the boards read in common, so `/shame` can carry exactly these
+ * across and leave a previous page's sort and search behind. Keep it in step
  * with {@link ShameSearchParams}: a param missing here is one the redirect drops.
+ *
+ * `dir` is missing on purpose. `/shame` lands on the trips board, which ranks
+ * whole runs and has no direction to narrow, so carrying it would put a param on
+ * a page that cannot act on it - the same reason `site-nav.ts` leaves `dir`
+ * behind between sections.
  */
 export const SHAME_PARAMS = [
   "day",
@@ -54,6 +65,29 @@ export const MODE_LABEL: Record<string, string> = {
   FERRY: "Ferries",
 };
 
+/**
+ * Human label for an active direction filter, for the subtitle. "Only" is the
+ * word that does the work: without it the subtitle would read as a description
+ * of what the board found rather than of what it was asked for.
+ */
+export const DIRECTION_LABEL: Record<"late" | "early", string> = {
+  late: "Late only",
+  early: "Early only",
+};
+
+/**
+ * Append the active direction to a board's subtitle. Only the board carrying the
+ * switch calls this: the trips and routes boards read the same params through
+ * {@link parseShameParams} but rank whole runs and whole routes, so naming a
+ * direction there would describe a narrowing that was never applied.
+ * @param subtitle - The subtitle {@link parseShameParams} composed.
+ * @param direction - The active direction, or null for both.
+ * @returns The subtitle, with the direction named when one is set.
+ */
+export function subtitleWithDirection(subtitle: string, direction: DelayDirection): string {
+  return direction ? `${subtitle} · ${DIRECTION_LABEL[direction]}` : subtitle;
+}
+
 /** Which board view is active: the hourly day board or a per-day range board. */
 export type ShameView = "day" | "week" | "month";
 
@@ -61,9 +95,10 @@ export type ShameView = "day" | "week" | "month";
 export interface ParsedShameParams {
   mode: ShameMode;
   includeSchool: boolean;
+  direction: DelayDirection;
   filter: ShameFilter;
   view: ShameView;
-  /** Params to preserve on `DayNav` links (mode/school only). */
+  /** Params to preserve on `DayNav` links (mode, school and direction). */
   preserved: Record<string, string>;
   /** Subtitle describing the active filter ("Buses" / "All services" / …). */
   subtitle: string;
@@ -71,13 +106,16 @@ export interface ParsedShameParams {
 
 /**
  * Parse and validate the shame-page query params into the active filter and the
- * derived view state shared by all three boards.
+ * derived view state shared by all three boards. The subtitle names every active
+ * narrowing, so a reader who arrives on a filtered link can see what is being
+ * left out without reading the URL.
  * @param sp - The raw search params.
- * @returns The mode/school filter, active view, preserved params, and subtitle.
+ * @returns The filter, active view, preserved params, and subtitle.
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
   const includeSchool = sp.school === "1";
+  const direction = parseDelayDirection(sp.dir);
   const subtitle = mode
     ? (MODE_LABEL[mode] ?? mode)
     : includeSchool
@@ -86,11 +124,13 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const preserved: Record<string, string> = {};
   if (mode) preserved.mode = mode;
   if (includeSchool) preserved.school = "1";
+  if (direction) preserved.dir = direction;
   const view: ShameView = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
   return {
     mode,
     includeSchool,
-    filter: { mode, includeSchool },
+    direction,
+    filter: { mode, includeSchool, direction },
     view,
     preserved,
     subtitle,

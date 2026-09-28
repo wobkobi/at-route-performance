@@ -8,6 +8,7 @@
 // with duplicate keys ignored, and the arrival writes are upserts keyed on the
 // stop visit. A batch that partly landed before the outage no-ops on replay.
 
+import type { RecordedRun } from "@/lib/ingest-run";
 import { del, get, list, put } from "@vercel/blob";
 import { gunzipSync, gzipSync } from "fflate";
 
@@ -28,6 +29,14 @@ const MAX_DRAIN_PER_RUN = 8;
  */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * A run stamp older than this means a poll went unrecorded, so the spool may hold
+ * what that poll could not write. One and a half of the two-minute cadence: a
+ * cron firing a little late must not read as a missed poll, and a wider window
+ * would leave a held batch waiting longer for its replay.
+ */
+const MISSED_RUN_MS = 180_000;
+
 /** One write held back from a poll, in the shape the replay re-issues it. */
 export type SpooledWrite =
   | { kind: "insert"; collection: string; docs: Record<string, unknown>[] }
@@ -40,6 +49,8 @@ export interface DrainResult {
   dropped: number;
   /** True when the database was still down, so the rest was left for next time. */
   stoppedEarly: boolean;
+  /** True when the spool may still hold batches, so a later run must drain again. */
+  pending: boolean;
 }
 
 /**
@@ -116,7 +127,13 @@ async function readBatch(pathname: string): Promise<SpooledWrite[] | null> {
 export async function drainSpool(
   replay: (writes: SpooledWrite[]) => Promise<number>,
 ): Promise<DrainResult> {
-  const out: DrainResult = { replayed: 0, rows: 0, dropped: 0, stoppedEarly: false };
+  const out: DrainResult = {
+    replayed: 0,
+    rows: 0,
+    dropped: 0,
+    stoppedEarly: false,
+    pending: false,
+  };
   if (!spoolEnabled()) return out;
 
   let batches;
@@ -126,6 +143,9 @@ export async function drainSpool(
     console.error("[SPOOL] Could not list the spool", {
       error: err instanceof Error ? err.message : String(err),
     });
+    // Nothing was read, so nothing can be ruled out: ask again next run rather
+    // than wait for the next gap in the run stamps to prompt it.
+    out.pending = true;
     return out;
   }
 
@@ -157,5 +177,29 @@ export async function drainSpool(
       break;
     }
   }
+  // A refused write leaves batches behind for certain, and a full page of
+  // listings means there may be more behind it than the cap read.
+  out.pending = out.stoppedEarly || batches.length === MAX_DRAIN_PER_RUN;
   return out;
+}
+
+/**
+ * Whether the spool is worth listing on this poll.
+ *
+ * Listing costs a Blob operation every run, and the spool is empty except after a
+ * database outage, so the question is answered from the run stamps instead. A poll
+ * that could not reach the database could not record itself either, so a gap in
+ * the stamps is the only evidence left that one ran and held its writes back. A
+ * run that did record itself says outright whether it left batches behind.
+ * @param last - The newest recorded run, or null when none is logged.
+ * @param now - Instant to measure the gap from; read from the clock when omitted.
+ * @returns True when a drain should run.
+ */
+export function spoolMayHold(last: RecordedRun | null, now?: number): boolean {
+  if (!spoolEnabled()) return false;
+  // No stamp at all is a fresh deployment or a wiped log, where being wrong once
+  // costs a single listing and the other way costs a held batch.
+  if (!last) return true;
+  if (last.spoolPending) return true;
+  return (now ?? Date.now()) - last.completedAt.getTime() > MISSED_RUN_MS;
 }

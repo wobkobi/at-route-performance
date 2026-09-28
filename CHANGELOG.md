@@ -32,6 +32,236 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.9.3] - 2026-09-25
+
+### Fixed
+
+- Behind the scenes: the realtime ingest no longer lists the outage spool on every poll. A listing
+  is a billed blob operation and the spool is empty except after a database outage, so a poll every
+  two minutes was spending about 720 operations a day asking a question whose answer was almost
+  always no. The ingest run stamps answer it instead: a poll that cannot reach the database cannot
+  record itself either, so a gap in the stamps is what prompts a drain, and a run that leaves
+  batches behind records that so the next one collects them.
+
+## [2.9.2] - 2026-09-25
+
+### Fixed
+
+- Ten pages stopped abandoning their prerendered shell and switching to client rendering: a page
+  that places a day against today now reads the clock once at request time, rather than in a helper
+  default argument where Cache Components treats it as an unstable value. A route page title reads
+  the route number and mode directly, so naming a route no longer runs a seven-day aggregation in
+  the document head.
+
+## [2.9.1] - 2026-09-25
+
+### Changed
+
+- The page now spans at.govt.nz's own grid - content capped at 96rem with 1rem side margins that
+  widen to 2rem from 1024px - and sits on white rather than a grey tint, with table heads taking
+  AT's pale Shore band colour.
+
+## [2.9.0] - 2026-09-25
+
+### Added
+
+- A stop page now says what its figures cover - "Bus stop" for one pole, "23 bus bays" for Manukau
+  Bus Station - instead of labelling every page "Stop".
+
+## [2.8.0] - 2026-09-25
+
+### Added
+
+- The stop page's departures board opens on the departures still ahead of you rather than the whole
+  service day, with a chip to see all of it.
+
+## [2.7.0] - 2026-09-25
+
+### Added
+
+- A stop's departures board names where each service is going, with the road or station it goes by
+  on a second line, instead of printing AT's raw headsign with its origin and platform numbers in
+  it.
+
+## [2.6.3] - 2026-09-25
+
+### Fixed
+
+- Day, week and period steppers keep the space of a step they cannot offer, so reaching the newest
+  or oldest day no longer slides the date and the Day/Week/Month tabs 48px sideways.
+
+## [2.6.2] - 2026-09-25
+
+### Changed
+
+- A stop page's title no longer waits on a whole day of arrivals being aggregated. The name does not
+  change with the day, so it is read from the stop itself.
+
+## [2.6.1] - 2026-09-25
+
+### Fixed
+
+- A departure's route is named from the route table rather than from the worst-routes board above
+  it, which lists only the twelve worst routes that recorded an arrival. A stop with more routes
+  than that, or a route whose trips were all cancelled, could show a departure under a raw feed id.
+
+## [2.6.0] - 2026-09-25
+
+### Added
+
+- The departures board on a stop page works again. It was reading an Auckland Transport endpoint
+  that has been retired, so every stop page said no trips were scheduled while reporting hundreds of
+  arrivals for the same day. It now asks once for a whole 4am-to-4am service day, drops the
+  departures nobody can board, asks once for a whole station rather than once per platform, and
+  tells a reader which kind of empty a day is: nothing ran, the timetable has been retired, or
+  Auckland Transport could not be reached.
+
+## [2.5.0] - 2026-09-24
+
+### Added
+
+- A station page now breaks its figures down per platform, where the merged figure is hiding
+  something: either the platforms' on-time shares differ by 10 points or more, or a route leaves
+  from one platform only. 63 of the 94 stations with two measurable platforms carry the table - at
+  Te Waihorotiu one stop ran 19.4% on time while another ran 91.5%. A platform needs 10 arrivals to
+  be listed, and the heading uses AT's own word for it.
+
+## [2.4.0] - 2026-09-24
+
+### Added
+
+- A station page now links AT's other stations for the same place, so a reader at Manukau's bus
+  station can reach its trains. Two of AT's parent stations count as one place when their names
+  share a base, they sit within 400m, and they differ in name - 49 of 144 parents carry the line.
+
+## [2.3.0] - 2026-09-24
+
+### Added
+
+- A route strip's interchange nodes now group the way stop pages do, so a node opens the place it
+  draws.
+
+## [2.2.0] - 2026-09-24
+
+### Added
+
+- Bus stations and ferry terminals now get one page for the whole place, named from AT's own
+  platform code rather than a guessed name shape.
+
+## [2.1.0] - 2026-09-24
+
+### Added
+
+- The worst stops board can be narrowed to stops running late or early on average, filtered inside
+  the hourly query so every hour still gets a row.
+
+## [2.0.6] - 2026-09-24
+
+### Fixed
+
+- The tab description now reads "How close Auckland's buses, trains and ferries run to their
+  timetable, measured every day" instead of "route and stop performance analytics", and the footer
+  says the site is built from Auckland Transport's public GTFS feeds rather than calling itself
+  live, which only its two live pages are.
+
+## [2.0.5] - 2026-09-24
+
+### Changed
+
+- The sentence stating the on-time window is now written once, in the shared copy module, instead of
+  once as a board caption and again inside the on-time popover in different words. The popover on a
+  page covering every mode now names the ferry window too, which it used to leave out.
+
+## [2.0.4] - 2026-09-24
+
+### Fixed
+
+- The two home headings that read "Shame of the day" and "Shame of the week" now say "Worst of the
+  day" and "Worst of the week", matching the boards they open, which are headed "Worst trips",
+  "Worst routes" and "Worst stops". "Shame" now survives only in the URL.
+
+## [2.0.3] - 2026-09-24
+
+### Fixed
+
+- "Off schedule" is now two words where it follows a verb ("No runs were notably off schedule") and
+  stays hyphenated where it describes a noun ("the most off-schedule run"), and the tooltip on a
+  mixed row says the figure is the average distance from schedule ignoring direction, instead of
+  naming it as an absolute deviation.
+
+## [2.0.2] - 2026-09-24
+
+### Fixed
+
+- Every on-time caption now reads "On time" rather than a mix of "On-time" and "On-time (%)", and
+  the averages popover names its two rows "Early or late, net" and "Off by, ignoring direction"
+  under the heading "Averages". A reader crossing two pages met the same figure under three
+  spellings, and the popover's bracketed annotations explained the labels instead of the labels
+  saying it.
+
+## [2.0.1] - 2026-09-24
+
+### Fixed
+
+- The figure that can be either early or late is now labelled "Early or late" rather than "Avg
+  delay": it is an average that carries a direction, and a route running early under a heading that
+  says delay read as a contradiction. On the live page it says "Early or late, avg", because the
+  columns beside it count vehicles rather than measuring time.
+
+## [2.0.0] - 2026-09-24
+
+### Added
+
+- The worst stop of a day is now a whole station rather than one of its platforms, and it has to
+  have seen twenty arrivals that day before it is named. A train station's platforms used to compete
+  as separate stops, so a board could name "Newmarket Train Station 2" while the station itself was
+  ordinary, and a platform served three times could top a day on noise.
+
+## [1.57.4] - 2026-09-24
+
+### Fixed
+
+- A stop's departures board could say "no scheduled trips found" when the request to Auckland
+  Transport had in fact failed. The test for "this stop has no trips today" looked for 404 anywhere
+  in the error, and the error carries the web address it tried - which contains the stop's own
+  number, so at a stop numbered 1404 an outage read as an empty timetable. Failures are now told
+  apart by their status code, so a real one is reported and logged instead of being drawn as a quiet
+  empty board.
+
+## [1.57.3] - 2026-09-24
+
+### Fixed
+
+- The worst-stops board's placeholder left room for a one-line subtitle where the page paints two,
+  so the board jumped down as it finished loading. It now matches the worst-trips and worst-routes
+  placeholders.
+
+## [1.57.2] - 2026-09-24
+
+### Fixed
+
+- Three places printed "on time" for an average: the averages panel on route and stop pages, the
+  stop map popups and the route strip. A stop that runs as early as it runs late averages out near
+  zero, so it read as punctual right above a figure saying it was 9 minutes off. Those now print how
+  far off the average was, and keep the on-time colour when it is inside the window.
+
+## [1.57.1] - 2026-09-24
+
+### Changed
+
+- Updated prettier and puppeteer to their current releases. Both are build-time tools, so nothing on
+  the site changes.
+
+## [1.57.0] - 2026-09-24
+
+### Added
+
+- Behind the scenes: the health check at /api/health now makes a real database read instead of
+  sending a cheap ping, and reports how long that read took. A ping is answered promptly while the
+  queries behind real pages are queueing, so the check could call the database healthy during
+  exactly the slowdown it exists to catch. A monitor can now alert on the reported time and see
+  trouble before it becomes an outage.
+
 ## [1.56.3] - 2026-09-24
 
 ### Changed

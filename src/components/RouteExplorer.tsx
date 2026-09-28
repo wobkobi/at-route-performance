@@ -361,7 +361,7 @@ export function RouteExplorer({
               lineName(r.mode, r.short_name) ?? (r.long_name !== label ? r.long_name : null);
             // Always a distance, never the words "on time": this sits beside an
             // on-time percentage, and a delay figure reading "on time" under an
-            // "Avg delay" label read as the two figures disagreeing.
+            // "Early or late" label read as the two figures disagreeing.
             const offSchedule = offScheduleValue(r.avg_delay_sec, null, r.mode);
             return (
               <li
@@ -404,7 +404,10 @@ export function RouteExplorer({
                   <Figure label="On time">
                     {r.on_time_pct === null ? UNKNOWN_VALUE : `${r.on_time_pct.toFixed(1)}%`}
                   </Figure>
-                  <Figure label="Avg delay" className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}>
+                  <Figure
+                    label="Early or late"
+                    className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}
+                  >
                     {offSchedule.text}
                   </Figure>
                   <Figure label="Off by">
