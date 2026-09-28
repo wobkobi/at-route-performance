@@ -12,7 +12,7 @@ import sys
 
 import shapefile
 from pyproj import Transformer
-from shapely.geometry import shape
+from shapely.geometry import MultiPolygon, Polygon, shape
 from shapely.ops import transform, unary_union
 
 # AT's zone names to the keys lib/fare-zones.ts uses, in display order.
@@ -52,7 +52,12 @@ out = []
 for name, key in ORDER:
     merged = unary_union(pieces[name]).simplify(TOLERANCE_M, preserve_topology=True)
     wgs = transform(to_wgs84.transform, merged)
-    polys = list(wgs.geoms) if wgs.geom_type == "MultiPolygon" else [wgs]
+    if isinstance(wgs, MultiPolygon):
+        polys = list(wgs.geoms)
+    elif isinstance(wgs, Polygon):
+        polys = [wgs]
+    else:
+        sys.exit(f"{name} simplified to a {wgs.geom_type}, not a polygon")
     out.append(
         {
             "key": key,

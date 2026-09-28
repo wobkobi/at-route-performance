@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.1] - 2026-09-29
+
+### Fixed
+
+- The fare zone builder checks each simplified zone is a polygon by type, so an editor's type
+  checker follows it.
+
 ## [2.31.0] - 2026-09-29
 
 ### Changed
