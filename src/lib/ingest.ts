@@ -8,7 +8,7 @@
 import { fetchRoutes, fetchStops, mapRouteType, type RouteAttr } from "@/lib/at-static";
 import { prisma } from "@/lib/db";
 import { fetchShapes } from "@/lib/gtfs-shapes";
-import { fetchTrips } from "@/lib/gtfs-trips";
+import { fetchRouteTrips, fetchTrips, routesMissingFromZip } from "@/lib/gtfs-trips";
 
 /** Max update operations per bulk `update` command (well under Mongo's 1000 cap). */
 const BATCH = 500;
@@ -148,10 +148,23 @@ export async function syncShapes(): Promise<{ upserted: number }> {
 /**
  * Fetch GTFS trip metadata from AT's full feed and upsert it into the
  * `tripMeta` collection (headsign, direction and shape keyed by trip_id).
- * @returns Count of trips upserted.
+ * The zip leaves out every school route, so each route AT's API lists with no
+ * zip trip is filled from the API instead; without those rows a school
+ * route's line diagram cannot place an arrival in a direction.
+ * @returns Trips upserted, how many of them came from the API, and the routes whose API call failed.
  */
-export async function syncTripMeta(): Promise<{ upserted: number }> {
-  const trips = await fetchTrips();
+export async function syncTripMeta(): Promise<{
+  upserted: number;
+  fromApi: number;
+  failedRoutes: number;
+}> {
+  const [zipTrips, routes] = await Promise.all([fetchTrips(), fetchRoutes()]);
+  const missing = routesMissingFromZip(
+    zipTrips,
+    routes.map((r) => r.route_id),
+  );
+  const api = await fetchRouteTrips(missing);
+  const trips = [...zipTrips, ...api.trips];
   const ops: UpsertOp[] = trips.map((t) => ({
     q: { _id: t.id },
     u: {
@@ -165,5 +178,5 @@ export async function syncTripMeta(): Promise<{ upserted: number }> {
   }));
 
   await bulkUpsert("tripMeta", ops);
-  return { upserted: ops.length };
+  return { upserted: ops.length, fromApi: api.trips.length, failedRoutes: api.failed };
 }

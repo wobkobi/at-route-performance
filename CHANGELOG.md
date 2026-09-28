@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.2] - 2026-09-29
+
+### Fixed
+
+- School routes' line diagrams fill in: AT's GTFS zip leaves out all 317 school routes, so the
+  nightly trip sync now fetches their trips from AT's API, giving each school run its direction and
+  destination.
+
 ## [2.31.1] - 2026-09-29
 
 ### Fixed

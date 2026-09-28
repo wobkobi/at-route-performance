@@ -105,7 +105,7 @@ export function getRouteStopSplit(
 ): Promise<StopSplitRow[]> {
   return cachedForRange(
     (classified) => queryRouteStopSplit(slug, range, mode, classified, rawToCanon),
-    ["route-stop-split", slug, range.start.toISOString(), range.end.toISOString(), mode],
+    ["route-stop-split-v2", slug, range.start.toISOString(), range.end.toISOString(), mode],
     range,
     300,
   );
