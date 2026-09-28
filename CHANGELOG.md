@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.24.4] - 2026-09-29
+
+### Fixed
+
+- The hourly worst-stop board merges a station's platforms before ranking, so an hour names the
+  station a rider would name, and a busy station no longer splits into several rows that each fall
+  short of the hourly minimum.
+
 ## [2.24.3] - 2026-09-28
 
 ### Changed

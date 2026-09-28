@@ -99,10 +99,17 @@ function dominantMode(
   return "FERRY";
 }
 
+/** One stop's per-hour figures from the Stop Shame hour aggregation, before platforms merge. */
+type HourlyStopDoc = Omit<RankedStopRow, HourFigure> & {
+  hours: (Pick<RankedStopRow, HourFigure> & { hour: number })[];
+};
+type HourFigure = "events" | "avg_delay_sec" | "avg_abs_delay_sec" | "routeIds";
+
 /**
- * The day's "Stop Shame": the single most off-schedule stop plus the worst stop
- * of each hour for a service window. Only stops with at least
- * {@link MIN_STOP_EVENTS_HOUR} events in that hour qualify. Cached briefly.
+ * The day's "Stop Shame": the single most off-schedule station plus the worst
+ * station of each hour for a service window. Platforms merge into their station
+ * first, so a row names the station a reader would name; only stations with at
+ * least {@link MIN_STOP_EVENTS_HOUR} events in that hour qualify. Cached briefly.
  * @param range - The service-day window.
  * @param filter - Mode/school/direction filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
@@ -155,75 +162,61 @@ export async function getWorstStopsOfDay(
                 routeIds: { $addToSet: "$routeId" },
               },
             },
-            { $match: { events: { $gte: MIN_STOP_EVENTS_HOUR } } },
-            // Direction narrows the candidates, not the board: one row per hour
-            // survives the `$group` below, so filtering the rows this returns
-            // would leave a Late board holding only the hours whose overall
-            // worst also ran late - most of a day blank on a day that ran early.
-            // Tested on the rounded average, the figure the row prints, so the
-            // board cannot hold a row reading as on time.
-            ...(direction
-              ? [
-                  {
-                    $match: {
-                      $expr: {
-                        [direction === "late" ? "$gt" : "$lt"]: [
-                          { $round: ["$avg_delay_sec", 1] },
-                          0,
-                        ],
-                      },
-                    },
-                  },
-                ]
-              : []),
-            {
-              $lookup: {
-                from: "Stop",
-                localField: "_id.stop_id",
-                foreignField: "_id",
-                as: "stop",
-              },
-            },
-            { $unwind: "$stop" },
-            { $sort: { avg_abs_delay_sec: -1 } },
+            // Every (hour, stop) row, with no floor yet: a station's platforms
+            // only clear the floor together, so it applies after the merge.
+            // Folded back to one document per stop so the Stop lookup runs a few
+            // thousand times rather than once per hour of every stop.
             {
               $group: {
-                _id: "$_id.hour",
-                stop_id: { $first: { $toString: "$_id.stop_id" } },
-                name: { $first: "$stop.name" },
-                events: { $first: "$events" },
-                avg_delay_sec: { $first: { $round: ["$avg_delay_sec", 1] } },
-                avg_abs_delay_sec: { $first: { $round: ["$avg_abs_delay_sec", 1] } },
-                routeIds: { $first: "$routeIds" },
+                _id: "$_id.stop_id",
+                hours: {
+                  $push: {
+                    hour: "$_id.hour",
+                    events: "$events",
+                    avg_delay_sec: "$avg_delay_sec",
+                    avg_abs_delay_sec: "$avg_abs_delay_sec",
+                    routeIds: "$routeIds",
+                  },
+                },
               },
             },
+            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
             {
               $project: {
                 _id: 0,
-                hour: "$_id",
-                stop_id: 1,
-                name: 1,
-                events: 1,
-                avg_delay_sec: 1,
-                avg_abs_delay_sec: 1,
-                routeIds: 1,
+                stop_id: { $toString: "$_id" },
+                name: "$stop.name",
+                hours: 1,
+                ...stationProjection,
               },
             },
           ] as never,
           cursor: { batchSize: 100_000 },
         }),
-      )) as unknown as { cursor: { firstBatch: (ShameStop & { routeIds: string[] })[] } };
+      )) as unknown as { cursor: { firstBatch: HourlyStopDoc[] } };
 
+      const byHour = new Map<number, RankedStopRow[]>();
+      for (const { hours: stopHours, ...stop } of res.cursor.firstBatch) {
+        for (const { hour, ...figures } of stopHours) {
+          const row = { ...stop, ...figures };
+          const rows = byHour.get(hour);
+          if (rows) rows.push(row);
+          else byHour.set(hour, [row]);
+        }
+      }
+
+      // Direction narrows each hour's candidates, not the board: filtering the
+      // winners instead would leave a Late board holding only the hours whose
+      // overall worst also ran late - most of a day blank on a day that ran early.
       const modeMap = mode ? null : await getRouteModeMap();
-      const hours: ShameStop[] = res.cursor.firstBatch.map((r) => ({
-        hour: r.hour,
-        stop_id: r.stop_id,
-        name: r.name,
-        events: r.events,
-        avg_delay_sec: r.avg_delay_sec,
-        avg_abs_delay_sec: r.avg_abs_delay_sec,
-        mode: mode ?? dominantMode(r.routeIds, modeMap!),
-      }));
+      const hours: ShameStop[] = [];
+      for (const [hour, rows] of byHour) {
+        const top = worstStopOfDay(rows, { minEvents: MIN_STOP_EVENTS_HOUR, direction });
+        if (!top) continue;
+        const { routeIds: stationRouteIds, ...row } = top;
+        hours.push({ hour, ...row, mode: mode ?? dominantMode(stationRouteIds, modeMap!) });
+      }
       hours.sort(
         (a, b) =>
           ((a.hour + 24 - SERVICE_START_HOUR) % 24) - ((b.hour + 24 - SERVICE_START_HOUR) % 24),
@@ -235,7 +228,7 @@ export async function getWorstStopsOfDay(
       return { worst, hours };
     },
     [
-      "worst-stops-of-day-v2",
+      "worst-stops-of-day-v3",
       range.start.toISOString(),
       range.end.toISOString(),
       mode ?? "all",
