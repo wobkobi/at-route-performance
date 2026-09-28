@@ -13,11 +13,17 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
+import { StopDotKey } from "@/components/MapLegend";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/RankBoard";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
-import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import {
+  alertsForStop,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/at-alerts";
 import { getStopDepartures } from "@/lib/at-stop-trips";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
@@ -44,7 +50,7 @@ import {
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
 import {
   MIN_PLATFORM_EVENTS,
@@ -203,7 +209,7 @@ export default async function StopPage({
         className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
-        The worst stops {nav.isToday ? "today" : "that day"}
+        The worst stops {windowPhrase(nav, null)}
       </Link>
 
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -257,6 +263,14 @@ export default async function StopPage({
               ))}
             </p>
           )}
+          <p className="mt-1 text-sm">
+            <Link
+              href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
+              className="text-at-shore hover:underline"
+            >
+              Compare with other stops
+            </Link>
+          </p>
         </div>
         <DayNav
           basePath={`/stop/${encodeURIComponent(id)}`}
@@ -327,33 +341,45 @@ export default async function StopPage({
         <PlatformTable stopName={stop.name} rows={stats.platforms} linkDay={linkDay} />
       )}
 
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="mb-2 text-lg font-ultra tracking-zero">Where it is</h2>
-        <StopMapWrapper
-          stops={[
-            {
-              stop_id: stop.stop_id,
-              name: stop.name,
-              lat: stop.lat,
-              lon: stop.lon,
-              avg_delay_sec: summary?.avg_delay_sec ?? null,
-              on_time_pct: summary?.on_time_pct ?? null,
-              avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
-            },
-          ]}
-          selectedStopId={stop.stop_id}
-          className="h-100"
-        />
-      </section>
+      {/* The map shares a row with the worst-routes board on a wide screen: one
+          stop's dot in a full-width strip is mostly empty street. The map takes
+          the board's height. */}
+      <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
+        <section className="border border-at-border bg-at-surface p-4 lg:flex lg:flex-col">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-ultra tracking-zero">Where it is</h2>
+            <StopDotKey noReading={summary?.avg_delay_sec == null} lone />
+          </div>
+          <StopMapWrapper
+            stops={[
+              {
+                stop_id: stop.stop_id,
+                name: stop.name,
+                lat: stop.lat,
+                lon: stop.lon,
+                avg_delay_sec: summary?.avg_delay_sec ?? null,
+                on_time_pct: summary?.on_time_pct ?? null,
+                avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
+              },
+            ]}
+            selectedStopId={stop.stop_id}
+            className="h-100 lg:h-auto lg:min-h-80 lg:flex-1"
+          />
+          <p className="mt-2 text-xs text-at-muted">
+            The dot is this stop, coloured by how early or late arrivals here were on average over
+            the day shown.
+          </p>
+        </section>
 
-      <RankBoard
-        title="Worst routes here"
-        accentClass="text-at-ink"
-        rows={routes}
-        metric="delay"
-        caption={ON_TIME_CAPTION}
-        routeQuery={routeLinkQuery("day", linkDay, null)}
-      />
+        <RankBoard
+          title="Worst routes here"
+          accentClass="text-at-ink"
+          rows={routes}
+          metric="delay"
+          caption={ON_TIME_CAPTION}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
+        />
+      </div>
 
       <Suspense fallback={<LoadingBlock label="Loading the departures" />}>
         <StopScheduleSection
@@ -556,7 +582,8 @@ async function StopScheduleSection({
 
 /**
  * "Service alerts" banner for the stop, keeping the alerts that inform any of
- * its platforms. Renders nothing when there are none.
+ * its platforms, and on the current day a "Coming up" banner with those due in
+ * the next week. Renders nothing when there are none.
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.stopIds - Raw GTFS stop ids behind the page (a station's platforms).
@@ -572,11 +599,15 @@ async function StopAlertBanner({
   stopIds: string[];
   pastWindow: boolean;
 }): Promise<JSX.Element> {
+  const upcoming = pastWindow ? [] : await getUpcomingAlerts().catch((): ServiceAlert[] => []);
   return (
-    <AlertBanner
-      alerts={alertsForStop(await alertsPromise, stopIds)}
-      heading="Service alerts"
-      pastWindow={pastWindow}
-    />
+    <>
+      <AlertBanner
+        alerts={alertsForStop(await alertsPromise, stopIds)}
+        heading="Service alerts"
+        pastWindow={pastWindow}
+      />
+      <AlertBanner alerts={alertsForStop(upcoming, stopIds)} heading="Coming up" upcoming />
+    </>
   );
 }

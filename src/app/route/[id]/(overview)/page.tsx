@@ -22,7 +22,12 @@ import { RouteWeekSummary } from "@/components/RouteWeekSummary";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
-import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import {
+  alertsForRoute,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/at-alerts";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -738,6 +743,20 @@ export default async function RoutePage({
                 </Link>
               </p>
             )}
+            <p className="mt-0.5 text-sm">
+              <Link
+                href={buildHref("/compare", {
+                  kind: "routes",
+                  ids: slug,
+                  ...(isWeekView
+                    ? { window: "week", period: periodParam ?? undefined }
+                    : { day: requestedDay ?? undefined }),
+                })}
+                className="text-at-shore hover:underline"
+              >
+                Compare with other routes
+              </Link>
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <ViewToggle
@@ -1091,7 +1110,9 @@ export default async function RoutePage({
 /**
  * Streamed "Service alerts" banner: awaits the shared alerts feed off the
  * critical path, keeps the alerts informing this route, and resolves the names
- * of any other routes they mention. Renders nothing while it streams.
+ * of any other routes they mention. On the current day a "Coming up" banner
+ * follows with the route's alerts due in the next week, so a planned detour is
+ * seen before it starts. Renders nothing while it streams.
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.slug - This route's slug, to filter the alerts.
@@ -1108,21 +1129,27 @@ async function RouteAlertBannerSection({
   live: boolean;
 }): Promise<JSX.Element> {
   const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
+  const upcoming = live
+    ? alertsForRoute(await getUpcomingAlerts().catch((): ServiceAlert[] => []), [slug])
+    : [];
   const alertRouteIds = [
     ...new Set(
-      routeAlerts.flatMap((a) =>
+      [...routeAlerts, ...upcoming].flatMap((a) =>
         a.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
       ),
     ),
   ];
   const routeNames = await getRouteNames(alertRouteIds);
   return (
-    <AlertBanner
-      alerts={routeAlerts}
-      heading="Service alerts"
-      routeNames={routeNames}
-      pastWindow={!live}
-    />
+    <>
+      <AlertBanner
+        alerts={routeAlerts}
+        heading="Service alerts"
+        routeNames={routeNames}
+        pastWindow={!live}
+      />
+      <AlertBanner alerts={upcoming} heading="Coming up" routeNames={routeNames} upcoming />
+    </>
   );
 }
 

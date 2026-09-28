@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.30.0] - 2026-09-29
+
+### Added
+
+- Route and stop pages link to Compare with the page's route or stop already in it, and on the
+  current day list that route's or stop's alerts coming up in the next week. On a wide screen a
+  stop's map sits beside its worst-routes board instead of spanning the page around one dot, with a
+  key and a line saying what the dot's colour means, and the stop page's back link names the day it
+  returns to.
+
 ## [2.29.0] - 2026-09-29
 
 ### Added
