@@ -1,15 +1,27 @@
 // src/components/MapLegend.tsx
-// The keys for the route and trip maps: stop dot colours beside the heading, and
-// under the map what a live vehicle marker and an off-route line mean.
+// The keys for the stop, route and trip maps: stop dot colours beside the
+// heading, and under the map what a live vehicle marker and an off-route line mean.
 import type { JSX } from "react";
 
 /**
- * The three stop-dot colours, for the map section's heading row.
+ * The stop-dot colours, for the map section's heading row, and the small white
+ * dot StopMap draws for a stop with no reading. The swatches must follow the
+ * markers drawn in StopMap.
+ * @param props - Component props.
+ * @param props.noReading - List the no-reading dot; off where the map cannot show one.
+ * @param props.lone - The map holds one stop, which StopMap rings in full even
+ *   without a reading, so the swatch is ringed to match.
  * @returns The key.
  */
-export function StopDotKey(): JSX.Element {
+export function StopDotKey({
+  noReading = true,
+  lone = false,
+}: {
+  noReading?: boolean;
+  lone?: boolean;
+}): JSX.Element {
   return (
-    <span className="flex items-center gap-3 text-xs text-at-muted">
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-at-muted">
       <span className="flex items-center gap-1">
         <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
       </span>
@@ -19,6 +31,18 @@ export function StopDotKey(): JSX.Element {
       <span className="flex items-center gap-1">
         <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
       </span>
+      {noReading && (
+        <span className="flex items-center gap-1">
+          <span
+            className={
+              lone
+                ? "inline-block h-2.5 w-2.5 rounded-full border-2 border-at-ink bg-at-surface"
+                : "inline-block h-2 w-2 rounded-full border border-at-border bg-at-surface"
+            }
+          />{" "}
+          no reading
+        </span>
+      )}
     </span>
   );
 }

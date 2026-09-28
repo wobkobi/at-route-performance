@@ -71,7 +71,7 @@ export function RouteMapDiagram({
   }
   return (
     <section className="border border-at-border bg-at-surface p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
         <StopDotKey />
       </div>

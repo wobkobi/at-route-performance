@@ -207,6 +207,7 @@ export default async function TripPage({
     const fallback = await buildRouteView(slug, [], routeMode);
     fallbackLines = fallback.routeLines.map((l) => l.points);
   }
+  const hasTripMap = tripMapStops.length > 0 || tripPath.length > 1 || fallbackLines.length > 0;
 
   // Detour: the stop nearest the furthest off-route reading places it for the
   // reader, since the readings carry no street names.
@@ -351,52 +352,62 @@ export default async function TripPage({
         />
       )}
 
-      {(tripMapStops.length > 0 || tripPath.length > 1 || fallbackLines.length > 0) && (
-        <section className="border border-at-border bg-at-surface p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
-            <StopDotKey />
-          </div>
-          <StopMapWrapper
-            stops={tripMapStops}
-            routeLines={tripPath.length > 1 ? [tripPath] : fallbackLines}
-            routeId={slug}
-            live={isLiveRun}
-            filterTripId={tripId}
-            offRoute={detour?.sightings.map((s) => ({
-              lat: s.lat,
-              lon: s.lon,
-              label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
-            }))}
-            mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
-            stopQuery={dayQuery}
-            className="h-100"
-          />
-          <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
-        </section>
-      )}
+      {/* On a wide screen the map sits beside the stop list and stays in view as
+          the list scrolls: a tall half-width box suits a route's shape far better
+          than a full-width strip, and the list no longer stretches across the page. */}
+      <div
+        className={cn(
+          "space-y-6",
+          hasTripMap && "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0",
+        )}
+      >
+        {hasTripMap && (
+          <section className="border border-at-border bg-at-surface p-4 lg:sticky lg:top-6">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
+              <StopDotKey />
+            </div>
+            <StopMapWrapper
+              stops={tripMapStops}
+              routeLines={tripPath.length > 1 ? [tripPath] : fallbackLines}
+              routeId={slug}
+              live={isLiveRun}
+              filterTripId={tripId}
+              offRoute={detour?.sightings.map((s) => ({
+                lat: s.lat,
+                lon: s.lon,
+                label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
+              }))}
+              mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
+              stopQuery={dayQuery}
+              className="h-100 lg:h-[min(44rem,calc(100dvh-12rem))]"
+            />
+            <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
+          </section>
+        )}
 
-      {line.stops.length === 0 ? (
-        <p
-          className={cn(
-            "border border-at-border bg-at-surface p-4",
-            scheduleFailed ? "text-at-late" : "text-at-muted",
-          )}
-        >
-          {scheduleFailed
-            ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
-            : "No stop records found for this trip."}
-        </p>
-      ) : (
-        <section className="border border-at-border bg-at-surface p-4">
-          <TripLine
-            line={line}
-            mode={routeMode}
-            colour={route?.colour ?? null}
-            stopQuery={dayQuery}
-          />
-        </section>
-      )}
+        {line.stops.length === 0 ? (
+          <p
+            className={cn(
+              "border border-at-border bg-at-surface p-4",
+              scheduleFailed ? "text-at-late" : "text-at-muted",
+            )}
+          >
+            {scheduleFailed
+              ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
+              : "No stop records found for this trip."}
+          </p>
+        ) : (
+          <section className="border border-at-border bg-at-surface p-4">
+            <TripLine
+              line={line}
+              mode={routeMode}
+              colour={route?.colour ?? null}
+              stopQuery={dayQuery}
+            />
+          </section>
+        )}
+      </div>
     </main>
   );
 }

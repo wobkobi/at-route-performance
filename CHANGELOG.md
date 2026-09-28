@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.26.0] - 2026-09-29
+
+### Added
+
+- Route lines on the stop, route and trip maps carry arrows showing the way services run, spaced
+  evenly on screen and redrawn on zoom, kept off stop dots and not repeated where two lines share a
+  road. Maps open framed on where most of their stops or vehicles are rather than stretched to fit
+  the odd outlier, and the stop-dot key lists the white dot for a stop with no reading.
+
 ## [2.25.0] - 2026-09-29
 
 ### Added

@@ -10,6 +10,7 @@
 import { LocateArrow } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
+import { coreBounds } from "@/lib/map-frame";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
 import { operatorHref, operatorOf } from "@/lib/operators";
@@ -137,7 +138,12 @@ export default function LiveMap({
       if (dead || !divRef.current) return;
       // One-finger drag off and the wheel only on a settled mouse, as on the
       // route maps, so the page still scrolls past a map that fills a screen.
-      const map = L.map(divRef.current, { scrollWheelZoom: false, dragging: !L.Browser.mobile });
+      // Quarter-step zoom so the opening frame fits the city, not the next level out.
+      const map = L.map(divRef.current, {
+        scrollWheelZoom: false,
+        dragging: !L.Browser.mobile,
+        zoomSnap: 0.25,
+      });
       wheelZoomOnHover(map);
       map.setView(AUCKLAND, 11);
       L.tileLayer(
@@ -323,10 +329,12 @@ export default function LiveMap({
         .bindPopup(popupHtml(v, status.detail))
         .addTo(layer);
     }
-    // Frame the vehicles once; after that the reader's pan and zoom are kept.
-    if (!framed.current && shown.length > 0) {
+    // Frame the vehicles once, on the core rather than every outlier (see
+    // coreBounds); after that the reader's pan and zoom are kept.
+    const core = coreBounds(shown.map((v) => [v.lat, v.lon] as const));
+    if (!framed.current && core) {
       framed.current = true;
-      map.fitBounds(L.latLngBounds(shown.map((v) => [v.lat, v.lon])), { padding: [16, 16] });
+      map.fitBounds(L.latLngBounds(core), { padding: [16, 16] });
     }
   }, [vehicles, mode]);
 
