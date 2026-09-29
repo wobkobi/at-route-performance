@@ -28,13 +28,17 @@ import {
   type RangeWindow,
 } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
+import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import {
-  nzServiceDayRange,
-  serviceDatesInRange,
-  serviceDayLabel,
-  type DateRange,
-} from "@/lib/time";
+  sortRows,
+  tableSort,
+  type SortColumn,
+  type SortDir,
+  type TableSort,
+} from "@/lib/table-sort";
+import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
+import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -144,9 +148,27 @@ export default async function DaysPage({
     today,
   );
   const view = { window, period: period ?? undefined };
-  const filters = { mode: mode ?? undefined, school: includeSchool ? "1" : undefined };
-  const modePreserved = stripUnset({ ...view, school: filters.school });
-  const schoolPreserved = stripUnset({ ...view, mode: filters.mode });
+  const filters = { mode: mode ?? undefined, school: schoolFilterParam(schools) };
+  const { sort, head, keep } = tableSort(sp, COLUMNS, "day", (p) =>
+    buildHref("/days", { ...view, ...filters, ...p }),
+  );
+  const modePreserved = stripUnset({ ...view, school: filters.school, ...keep });
+  const schoolPreserved = stripUnset({ ...view, mode: filters.mode, ...keep });
+  // Each day's routes, read once and shared: the filters need them to know which
+  // modes ran and whether a school service did, and the chart and table below
+  // need them for the figures. A month that starts before capture began leaves
+  // those days off entirely rather than drawing them as gaps.
+  const dates = serviceDatesInRange(range).filter((d) => d >= DATA_START_DAY);
+  const dayRows = Promise.all(
+    dates.map((date) =>
+      date > today
+        ? Promise.resolve(null)
+        : getRankings(nzServiceDayRange(date), ON_TIME_LATE_SEC, TODAY_REVALIDATE),
+    ),
+  );
+  // Both readers await it later, in stream order; this keeps an early rejection
+  // from being reported as unhandled before the first of them gets there.
+  dayRows.catch(() => undefined);
 
   return (
     <main className="space-y-4">
@@ -156,12 +178,17 @@ export default async function DaysPage({
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <ModeFilter active={mode} basePath="/days" preservedParams={modePreserved} />
-        <SchoolBusToggle
-          active={includeSchool}
-          basePath="/days"
-          preservedParams={schoolPreserved}
-        />
+        <Suspense
+          fallback={<ModeFilter active={mode} basePath="/days" preservedParams={modePreserved} />}
+        >
+          <DaysFilters
+            dayRows={dayRows}
+            mode={mode}
+            schools={schools}
+            modePreserved={modePreserved}
+            schoolPreserved={schoolPreserved}
+          />
+        </Suspense>
         <Link
           href={buildHref("/", { ...view, ...filters })}
           className="ml-auto text-sm font-semibold text-at-shore hover:underline"
@@ -172,11 +199,14 @@ export default async function DaysPage({
 
       <Suspense fallback={<LoadingBlock label="Loading the days" />}>
         <DaysBody
-          range={range}
+          dates={dates}
+          dayRows={dayRows}
           monthView={window === "month"}
           mode={mode}
-          includeSchool={includeSchool}
+          schools={schools}
           today={today}
+          sort={sort}
+          head={head}
         />
       </Suspense>
     </main>
@@ -195,42 +225,89 @@ function stripUnset(params: Record<string, string | undefined>): Record<string, 
 }
 
 /**
+ * The Mode and School buses boxes, once the days' routes say what ran: a mode
+ * with no route in the window is left out, and the school box only shows when a
+ * school service ran under the mode chosen.
+ * @param root0 - Props.
+ * @param root0.dayRows - Each day's routes, null for a day not yet started.
+ * @param root0.mode - Active mode filter, or null for every mode.
+ * @param root0.schools - Which school services count.
+ * @param root0.modePreserved - Params the Mode box keeps.
+ * @param root0.schoolPreserved - Params the School buses box keeps.
+ * @returns The boxes that would change something.
+ */
+async function DaysFilters({
+  dayRows,
+  mode,
+  schools,
+  modePreserved,
+  schoolPreserved,
+}: {
+  dayRows: Promise<(TopRouteRow[] | null)[]>;
+  mode: ModeFilterValue;
+  schools: SchoolFilter;
+  modePreserved: Record<string, string>;
+  schoolPreserved: Record<string, string>;
+}): Promise<JSX.Element> {
+  const rows = (await dayRows).flatMap((r) => r ?? []);
+  return (
+    <>
+      <ModeFilter
+        active={mode}
+        basePath="/days"
+        preservedParams={modePreserved}
+        availableModes={new Set(rows.map((r) => r.mode))}
+      />
+      <SchoolBusToggle value={schools} basePath="/days" preservedParams={schoolPreserved} />
+    </>
+  );
+}
+
+/**
  * The chart and the table, streamed behind the header: a month is up to ~30
  * per-day reads, each cached per day, so a cold one is the part worth waiting on.
  * @param root0 - Props.
- * @param root0.range - The window.
+ * @param root0.dates - The window's service dates from the start of capture.
+ * @param root0.dayRows - Each date's routes, in the same order, null for a day not yet started.
  * @param root0.monthView - Whether the window is a month.
  * @param root0.mode - Active mode filter, or null for every mode.
- * @param root0.includeSchool - Whether school services count.
+ * @param root0.schools - Which school services count.
  * @param root0.today - Today's service date, resolved once by the page.
+ * @param root0.sort - The table's sort.
+ * @param root0.head - Each column heading's link and direction.
  * @returns The chart and table.
  */
 async function DaysBody({
-  range,
+  dates,
+  dayRows,
   monthView,
   mode,
-  includeSchool,
+  schools,
   today,
+  sort,
+  head,
 }: {
-  range: DateRange;
+  dates: string[];
+  dayRows: Promise<(TopRouteRow[] | null)[]>;
   monthView: boolean;
   mode: ModeFilterValue;
-  includeSchool: boolean;
+  schools: SchoolFilter;
   today: string;
+  sort: TableSort | null;
+  head: (key: string) => { href: string; dir: SortDir | null };
 }): Promise<JSX.Element> {
-  // A month that starts before capture began leaves those days off entirely,
-  // rather than drawing them as gaps; the stepper label already says "from".
-  const dates = serviceDatesInRange(range).filter((d) => d >= DATA_START_DAY);
+  const allRows = await dayRows;
   const slots: DaySlot[] = await Promise.all(
-    dates.map(async (date) => {
-      if (date > today) return daySlot(date, today, null, { mode, includeSchool });
+    dates.map(async (date, i) => {
+      const rows = allRows[i];
+      if (!rows) return daySlot(date, today, null, { mode, schools });
       // The day view's own range and keys, so these reads share its cache.
-      const dayRange = nzServiceDayRange(date);
-      const [rows, cancelled] = await Promise.all([
-        getRankings(dayRange, ON_TIME_LATE_SEC, TODAY_REVALIDATE),
-        getCancelledCount(dayRange, { mode, includeSchool }, TODAY_REVALIDATE),
-      ]);
-      return daySlot(date, today, { rows, cancelled }, { mode, includeSchool });
+      const cancelled = await getCancelledCount(
+        nzServiceDayRange(date),
+        { mode, schools },
+        TODAY_REVALIDATE,
+      );
+      return daySlot(date, today, { rows, cancelled }, { mode, schools });
     }),
   );
 

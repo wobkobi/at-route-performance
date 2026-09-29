@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.34.1] - 2026-09-29
+
+### Fixed
+
+- Filters only offer modes that actually ran in the period shown, and the mode filter hides when
+  there is only one choice.
+
 ## [2.34.0] - 2026-09-29
 
 ### Added
