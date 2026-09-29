@@ -9,6 +9,7 @@ import { LoadingBlock } from "@/components/Loading";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { RangeControls } from "@/components/RangeControls";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SortHeader } from "@/components/SortHeader";
 import {
   getCancelledCount,
   getEarliestDataDay,
@@ -60,12 +61,35 @@ interface DaysSearchParams {
   day?: string;
   mode?: string;
   school?: string;
+  /** The table's sorted column; absent is newest first. */
+  sort?: string;
+  /** "1" sorts the column the other way. */
+  rev?: string;
 }
+
+/** One past day as the table sorts it; the figures are null on a day with no arrivals. */
+interface DayLine {
+  slot: Exclude<DaySlot, { kind: "future" }>;
+  date: string;
+  onTime: number | null;
+  offSec: number | null;
+  arrivals: number | null;
+  cancelled: number;
+}
+
+const COLUMNS: SortColumn<DayLine>[] = [
+  { key: "day", value: "date" },
+  { key: "ontime", value: "onTime" },
+  { key: "off", value: "offSec" },
+  { key: "arrivals", value: "arrivals" },
+  { key: "cancelled", value: "cancelled" },
+];
 
 /**
  * Day by day page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `period`, `day`) and filter (`mode`, `school`) params.
+ * @param root0.searchParams - Window (`window`, `period`, `day`), filter (`mode`, `school`) and
+ *   sort (`sort`, `rev`) params.
  * @returns Page markup.
  */
 export default async function DaysPage({
@@ -220,15 +244,37 @@ async function DaysBody({
     buildHref("/", {
       day: date === today ? undefined : date,
       mode: mode ?? undefined,
-      school: includeSchool ? "1" : undefined,
+      school: schoolFilterParam(schools),
     });
   // Narrowed, not just filtered, so the table's rows can read an empty day's
   // cancellation count without a second check for a variant it never holds.
-  // Newest first, so today or the latest day tops the table; the chart above
-  // still reads left to right in time.
-  const past = slots
-    .filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future")
-    .reverse();
+  // Newest first unless a heading re-sorts it, so today or the latest day tops
+  // the table; the chart above still reads left to right in time.
+  const past = sortRows(
+    slots
+      .filter((s): s is Exclude<DaySlot, { kind: "future" }> => s.kind !== "future")
+      .map((slot): DayLine =>
+        slot.kind === "day"
+          ? {
+              slot,
+              date: slot.date,
+              onTime: slot.summary.on_time_pct,
+              offSec: slot.summary.avg_abs_delay_sec,
+              arrivals: slot.summary.events,
+              cancelled: slot.summary.cancelled ?? 0,
+            }
+          : {
+              slot,
+              date: slot.date,
+              onTime: null,
+              offSec: null,
+              arrivals: null,
+              cancelled: slot.cancelled,
+            },
+      ),
+    COLUMNS,
+    sort,
+  ).map((l) => l.slot);
 
   return (
     <div className="space-y-4">
@@ -245,30 +291,25 @@ async function DaysBody({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <th scope="col" className="px-2 py-3 font-semibold whitespace-nowrap sm:p-3">
+              <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
                 Day
-              </th>
-              <th scope="col" className="px-2 py-3 font-semibold whitespace-nowrap sm:p-3">
+              </SortHeader>
+              {/* Not sortable: the verdict is banded from On time, which sorts. */}
+              <SortHeader align="left" className="px-2 py-3 sm:p-3">
                 Verdict
-              </th>
-              <th
-                scope="col"
-                className="px-2 py-3 text-right font-semibold whitespace-nowrap sm:p-3"
-              >
+              </SortHeader>
+              <SortHeader {...head("ontime")} className="px-2 py-3 sm:p-3">
                 On time
-              </th>
-              <th
-                scope="col"
-                className="px-2 py-3 text-right font-semibold whitespace-nowrap sm:p-3"
-              >
+              </SortHeader>
+              <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
                 Off by
-              </th>
-              <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+              </SortHeader>
+              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
                 Arrivals
-              </th>
-              <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+              </SortHeader>
+              <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
                 Flagged cancelled
-              </th>
+              </SortHeader>
             </tr>
           </thead>
           <tbody>

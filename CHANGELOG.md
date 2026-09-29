@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.34.0] - 2026-09-29
+
+### Added
+
+- Clicking a column heading on the days, live, operator, operators, vehicle, vehicles and route
+  pages sorts the table by it, and the order is kept in the link.
+
 ## [2.33.0] - 2026-09-29
 
 ### Added

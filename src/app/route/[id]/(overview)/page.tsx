@@ -19,6 +19,7 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
+import { SortHeader } from "@/components/SortHeader";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
@@ -63,6 +64,7 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
+import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
 import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
 import {
   hourRangeParam,
@@ -75,7 +77,7 @@ import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
-import type { RouteVariant } from "@/types/api";
+import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -160,7 +162,20 @@ interface StatsSearchParams {
   period?: string;
   /** Part of the service day to narrow to, e.g. `7-9`; absent covers all of it. */
   hours?: string;
+  /** The Stops table's sorted column, and "1" to sort it the other way. */
+  ssort?: string;
+  srev?: string;
 }
+
+/** The Stops table's sortable columns; absent is the busiest stop first. */
+const STOP_COLUMNS: SortColumn<RouteByStop>[] = [
+  { key: "stop", value: "name", first: "asc" },
+  { key: "arrivals", value: "events" },
+  { key: "late", value: "avg_delay_sec" },
+];
+
+/** The Stops table's own names: `tsort` and `trev` belong to the trips board. */
+const STOP_SORT: SortParamNames = { sort: "ssort", rev: "srev" };
 
 /** Valid trip-sort values. */
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
@@ -550,6 +565,13 @@ export default async function RoutePage({
     ...(isReversed ? { trev: "1" } : {}),
     ...(hoursParam ? { hours: hoursParam } : {}),
   };
+  const stopSort = tableSort(
+    sp,
+    STOP_COLUMNS,
+    "arrivals",
+    (p) => buildHref(`/route/${encodeURIComponent(slug)}`, { ...viewParams, day: linkDay, ...p }),
+    STOP_SORT,
+  );
   // Stepping onto today drops `?day` so the URL stays canonical, but that link
   // must still carry the filters.
   const nextDayHref = dayNav.nextIsToday
@@ -1045,7 +1067,12 @@ export default async function RoutePage({
               </p>
             </section>
           ) : (
-            <details className="border border-at-border bg-at-surface">
+            // Opened by a sort, which reloads the page and would otherwise fold
+            // the table the reader just sorted away.
+            <details
+              className="border border-at-border bg-at-surface"
+              open={sp.ssort !== undefined || sp.srev !== undefined}
+            >
               {/* The heading goes inside the summary, which `summary` allows: as
                   bare text it was the one section on the page with no heading in
                   the outline, and only in the state that has something to say. */}
@@ -1056,19 +1083,19 @@ export default async function RoutePage({
                 <table className="min-w-full text-sm">
                   <thead className="bg-at-shore-pale text-at-muted">
                     <tr>
-                      <th scope="col" className="px-3 py-2 text-left">
+                      <SortHeader {...stopSort.head("stop")} align="left" className="px-3 py-2">
                         Stop
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      </SortHeader>
+                      <SortHeader {...stopSort.head("arrivals")} className="px-3 py-2">
                         Arrivals
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      </SortHeader>
+                      <SortHeader {...stopSort.head("late")} className="px-3 py-2">
                         Early or late
-                      </th>
+                      </SortHeader>
                     </tr>
                   </thead>
                   <tbody>
-                    {byStop.map((s) => (
+                    {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
                       <tr
                         key={s.stop_id}
                         className="border-t border-at-border hover:bg-at-shore-pale"
