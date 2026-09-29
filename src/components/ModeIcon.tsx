@@ -91,6 +91,29 @@ export function brandColour(colour: string | null | undefined): string | null {
 }
 
 /**
+ * The colour a route's icon is drawn in, for a surface that cannot take a
+ * Tailwind class (a map line): AT's `route_color` as `#rrggbb`, else the CSS
+ * custom property behind the icon's fallback class ("text-at-cosmic" >
+ * "--color-at-cosmic"), which the browser resolves.
+ * @param mode - Route mode.
+ * @param shortName - Route short name (code).
+ * @param longName - Route long name.
+ * @param colour - The route's `route_color`, hex without `#`.
+ * @returns A hex colour or a custom property name.
+ */
+export function routeColour(
+  mode: string,
+  shortName?: string | null,
+  longName?: string | null,
+  colour?: string | null,
+): string {
+  return (
+    brandColour(colour) ??
+    `--color-${modeGlyph(mode, shortName, longName).colourClass.replace(/^text-/, "")}`
+  );
+}
+
+/**
  * Transport-mode glyph drawn next to a route number: a bus, train, ferry, or
  * (magenta) school bus. When the AT API publishes a `route_color` for the route
  * it is used exactly as given, via an inline style so Tailwind's purge doesn't

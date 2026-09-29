@@ -8,6 +8,7 @@ import { SITE_NAME } from "@/lib/copy";
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page-nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
+import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import { nzServiceDayString, serviceDayLabel } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
@@ -68,7 +69,7 @@ export interface HomeCard {
   /** The requested week (its Monday) or month (`YYYY-MM`), or null for the default. */
   period: string | null;
   mode: CardMode | null;
-  includeSchool: boolean;
+  schools: SchoolFilter;
 }
 
 /** The raw query a windowed card is built from: the page's own search params. */
@@ -98,7 +99,7 @@ export function parseHomeCard(sp: HomeCardParams): HomeCard {
     day: window === "day" ? resolveRequestedDay(sp.day) : null,
     period,
     mode: parseMode(sp.mode),
-    includeSchool: sp.school === "1",
+    schools: parseSchoolFilter(sp.school),
   };
 }
 
@@ -137,7 +138,7 @@ export interface ShameCard {
   day: string | null;
   period: string | null;
   mode: CardMode | null;
-  includeSchool: boolean;
+  schools: SchoolFilter;
 }
 
 /** What a list page's card describes: the Routes or Cancellations page over its window. */
@@ -221,7 +222,7 @@ export function parseShameCard(board: ShameBoard, sp: HomeCardParams): ShameCard
     day: window === "day" ? resolveRequestedDay(sp.day) : null,
     period,
     mode: parseMode(sp.mode),
-    includeSchool: sp.school === "1",
+    schools: parseSchoolFilter(sp.school),
   };
 }
 
@@ -274,7 +275,7 @@ export function cardPath(card: Card): string {
         day: card.day ?? undefined,
         period: card.period ?? undefined,
         mode: card.mode ?? undefined,
-        school: card.includeSchool ? "1" : undefined,
+        school: schoolFilterParam(card.schools),
       });
   }
 }
@@ -347,15 +348,16 @@ export function parseCardQuery(query: URLSearchParams): Card {
 }
 
 /**
- * The filter part of an eyebrow ("Trains", "Buses incl. school"), or null when
- * the card covers the whole network.
+ * The filter part of an eyebrow ("Trains", "Buses incl. school", "School
+ * buses"), or null when the card covers the whole network.
  * @param mode - The mode filter.
- * @param includeSchool - Whether school services are counted.
+ * @param schools - Which school services are counted.
  * @returns The label, or null.
  */
-export function cardFilterLabel(mode: CardMode | null, includeSchool: boolean): string | null {
+export function cardFilterLabel(mode: CardMode | null, schools: SchoolFilter): string | null {
   const noun = mode ? MODE_NOUNS[mode] : null;
-  if (!includeSchool) return noun;
+  if (schools === "only") return "School buses";
+  if (schools === "exclude") return noun;
   return noun ? `${noun} incl. school` : "Incl. school services";
 }
 
@@ -376,7 +378,7 @@ export function monthLabel(ym: string): string {
  * @returns The title.
  */
 export function homeCardTitle(c: HomeCard): string {
-  const filter = cardFilterLabel(c.mode, c.includeSchool);
+  const filter = cardFilterLabel(c.mode, c.schools);
   let when: string;
   let verb: string;
   if (c.window === "day") {
@@ -425,7 +427,7 @@ const SHAME_HEADS: Record<ShameBoard, string> = {
  * @returns The title.
  */
 export function listCardTitle(card: ShameCard | ListCard): string {
-  const filter = cardFilterLabel(card.mode, card.includeSchool);
+  const filter = cardFilterLabel(card.mode, card.schools);
   let head: string;
   if (card.kind === "shame") head = `${SHAME_HEADS[card.board]} ${card.window}`;
   else head = card.page === "routes" ? "Routes" : "Cancellations";

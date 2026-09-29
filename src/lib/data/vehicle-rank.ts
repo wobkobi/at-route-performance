@@ -25,18 +25,18 @@ type RawVehicleDay = Omit<VehicleDayRow, "m">;
  * @param date - Service date (`YYYY-MM-DD`).
  * @param filter - Mode/school filters, as the boards take them.
  * @param filter.mode - Restrict to this mode; null for every mode.
- * @param filter.includeSchool - Whether school services are included.
+ * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
  * @returns One row per vehicle.
  */
 function cachedVehicleWorkOfDay(
   date: string,
-  { mode = null, includeSchool = false }: ShameFilter,
+  { mode = null, schools = "exclude" }: ShameFilter,
   revalidate: number,
 ): Promise<VehicleDayRow[]> {
   return cachedForDay(
     async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       // Feed ids are all digits, the same rule as the home page's vehicle counts.
       const match: Record<string, unknown> = {
         scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
@@ -94,7 +94,7 @@ function cachedVehicleWorkOfDay(
       }
       return rows;
     },
-    ["vehicle-work-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    ["vehicle-work-of-day", date, mode ?? "all", schools],
     date,
     revalidate,
   );
@@ -205,6 +205,120 @@ export function getVehicleRunsOfDay(
       }));
     },
     ["vehicle-runs-of-day", vehicleId, date],
+    date,
+    revalidate,
+  );
+}
+
+/** A stop a vehicle called at, as its day map draws it. */
+export interface VehicleMapStop {
+  stop_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  /** Its average signed deviation over the day's calls there. */
+  avg_delay_sec: number | null;
+  on_time_pct: null;
+}
+
+/** Where a vehicle ran on one service day. */
+export interface VehicleDayMap {
+  /** Every stop it called at, with how late it was there on average. */
+  stops: VehicleMapStop[];
+  /** One road path per distinct shape its runs followed, as `[lat, lon]` pairs. */
+  lines: Array<Array<[number, number]>>;
+}
+
+/**
+ * Where a vehicle ran on one service day: the road path of each run and every
+ * stop it called at. Paths come from the stored shapes through the trip
+ * metadata, in two reads, rather than one AT trip lookup per run; a run
+ * repeated through the day shares its shape, so it draws once. Cached per
+ * vehicle and day, like {@link getVehicleRunsOfDay}.
+ * @param vehicleId - Feed vehicle id.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param revalidate - TTL for the live day, in seconds.
+ * @returns The stops and paths; both empty when it ran nothing that day.
+ */
+export function getVehicleDayMap(
+  vehicleId: string,
+  date: string,
+  revalidate: number,
+): Promise<VehicleDayMap> {
+  return cachedForDay(
+    async (classified) => {
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            {
+              $match: {
+                scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
+                ...realDeviationMatchFor(classified),
+                vehicleId,
+              },
+            },
+            {
+              $group: {
+                _id: "$stopId",
+                dev: { $avg: "$deviationSec" },
+                trips: { $addToSet: "$tripId" },
+              },
+            },
+            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
+            {
+              $project: {
+                _id: 0,
+                stop_id: "$_id",
+                name: "$stop.name",
+                lat: "$stop.lat",
+                lon: "$stop.lon",
+                avg_delay_sec: { $round: ["$dev", 0] },
+                trips: 1,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 10_000 },
+        }),
+      )) as unknown as {
+        cursor: { firstBatch: (Omit<VehicleMapStop, "on_time_pct"> & { trips: string[] })[] };
+      };
+      const rows = res.cursor.firstBatch;
+      const tripIds = [...new Set(rows.flatMap((r) => r.trips))];
+      const metas =
+        tripIds.length > 0
+          ? await prisma.tripMeta.findMany({
+              where: { id: { in: tripIds } },
+              select: { shapeId: true },
+            })
+          : [];
+      const shapeIds = [...new Set(metas.map((m) => m.shapeId).filter((s): s is string => !!s))];
+      const shapes =
+        shapeIds.length > 0
+          ? await prisma.shape.findMany({
+              where: { id: { in: shapeIds } },
+              select: { points: true },
+            })
+          : [];
+      // Shapes are stored `[lon, lat]` (GeoJSON order); a map wants `[lat, lon]`.
+      const lines = shapes
+        .map((s) => s.points as unknown as [number, number][] | null)
+        .filter((p): p is [number, number][] => Array.isArray(p) && p.length >= 2)
+        .map((p) => p.map(([lon, lat]): [number, number] => [lat, lon]));
+      return {
+        stops: rows.map((r) => ({
+          stop_id: r.stop_id,
+          name: r.name,
+          lat: r.lat,
+          lon: r.lon,
+          avg_delay_sec: r.avg_delay_sec,
+          on_time_pct: null,
+        })),
+        lines,
+      };
+    },
+    ["vehicle-day-map", vehicleId, date],
     date,
     revalidate,
   );

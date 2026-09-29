@@ -29,6 +29,27 @@ describe("parseRangeWindow", () => {
   });
 });
 
+describe("dayRangeNav calendar", () => {
+  it("bounds the picker by the first day with data and today", () => {
+    const earliest = nzServiceDayRange("2026-09-12").start;
+    expect(
+      dayRangeNav({ serviceDate: "2026-09-13", nextPending: false }, earliest, TODAY).calendar,
+    ).toEqual({
+      today: TODAY,
+      minDay: "2026-09-12",
+      maxDay: TODAY,
+      from: "2026-09-13",
+      to: "2026-09-13",
+    });
+  });
+
+  it("stops at the day before while today has not opened", () => {
+    const nav = dayRangeNav({ serviceDate: "2026-09-13", nextPending: true }, null, TODAY);
+    expect(nav.calendar.maxDay).toBe("2026-09-13");
+    expect(nav.calendar.minDay).toBe(DATA_START_DAY);
+  });
+});
+
 describe("dayRangeNav", () => {
   // After the archive floor, so the live earliest day is what bounds the
   // stepper here rather than DATA_START_DAY standing in for it.
@@ -178,6 +199,7 @@ describe("periodForCarriedDay", () => {
 
 describe("overviewHeading", () => {
   const tabs = { day: null, week: null, month: null } as const;
+  const calendar = { today: TODAY, minDay: TODAY, maxDay: TODAY, from: TODAY, to: TODAY };
   const day = {
     window: "day",
     serviceDate: TODAY,
@@ -186,6 +208,7 @@ describe("overviewHeading", () => {
     nextIsToday: false,
     atFloor: false,
     tabs,
+    calendar,
   } as const;
   const week = {
     window: "week",
@@ -194,6 +217,7 @@ describe("overviewHeading", () => {
     nextHref: null,
     partial: false,
     tabs,
+    calendar,
   } as const;
 
   it("asks about a day that is still running in the present, and a finished one in the past", () => {
@@ -228,6 +252,7 @@ describe("overviewHeading", () => {
 
 describe("windowPhrase", () => {
   const tabs = { day: null, week: null, month: null } as const;
+  const calendar = { today: TODAY, minDay: TODAY, maxDay: TODAY, from: TODAY, to: TODAY };
 
   it("says today only on today, yesterday for the day before, and names any earlier day", () => {
     const today = dayRangeNav({ serviceDate: TODAY, nextPending: false }, null, TODAY);
@@ -246,6 +271,7 @@ describe("windowPhrase", () => {
       nextHref: null,
       partial: false,
       tabs,
+      calendar,
     } as const;
     expect(windowPhrase(week, null)).toBe("over the last 7 days");
   });

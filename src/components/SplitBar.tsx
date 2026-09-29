@@ -139,7 +139,7 @@ export function SplitBar({
 
   return (
     <div className="relative lg:col-span-4">
-      <div className="flex h-3 overflow-hidden rounded-full bg-at-bg">
+      <div className="flex h-3 overflow-hidden bg-at-bg">
         {SPLIT_BANDS.map((b) => (
           <button
             key={b.key}

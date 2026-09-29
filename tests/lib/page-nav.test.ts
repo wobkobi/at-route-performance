@@ -7,6 +7,7 @@ import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/data-start";
 import {
   fillServiceHours,
   filterLiveHours,
+  noHourStarted,
   resolveActiveWeekRange,
   resolveMonthNav,
   resolveRangeView,
@@ -95,6 +96,21 @@ describe("fillServiceHours", () => {
   it("stops at the current hour on the live day", () => {
     const slots = fillServiceHours(rows, "2026-06-16", { first: 4, last: 3 }, now);
     expect(slots.map((s) => s.hour)).toEqual([4, 5, 6, 7, 8, 9, 10]);
+  });
+});
+
+describe("noHourStarted", () => {
+  // 2026-06-15T22:30Z == 2026-06-16 10:30 NZST: service day 2026-06-16, hour 10.
+  const now = new Date("2026-06-15T22:30:00Z");
+
+  it("is true when every hour is still to come today", () => {
+    expect(noHourStarted([17, 18], "2026-06-16", now)).toBe(true);
+  });
+  it("is false once any of the hours has started, the current one included", () => {
+    expect(noHourStarted([10, 11], "2026-06-16", now)).toBe(false);
+  });
+  it("is false for a past day", () => {
+    expect(noHourStarted([17, 18], "2026-06-10", now)).toBe(false);
   });
 });
 

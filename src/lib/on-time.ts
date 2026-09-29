@@ -42,12 +42,10 @@ export type CancellationBasis = "counted" | "excluded";
  * The counterpart to {@link CANCELLED_SPLIT_COPY}, for a figure the penalty was
  * never applied to.
  *
- * Two surfaces need it. A part-of-day filter cannot take the penalty, because it
- * is counted per service day and charging the morning peak for an evening
- * cancellation would be worse than leaving it out. Per-stop figures never take
- * it either, by the same per-day reasoning. Both used to carry the sentence
- * saying cancellations were counted, so narrowing to a peak lifted a route's
- * on-time share and the explainer told the reader nothing had changed.
+ * Per-stop figures need it: the penalty is charged to a route's trips, not to
+ * the stops a cancelled trip would have served, so a stop's figure counts only
+ * the arrivals that happened. It must say so, or the explainer beside it would
+ * claim cancellations were counted when they were not.
  */
 export const CANCELLED_EXCLUDED_COPY =
   `Cancellations are not in this figure: it counts the arrivals that happened, so a route is ` +

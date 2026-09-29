@@ -307,7 +307,7 @@ export function WorstTripsBoard({
       ) : (
         <>
           <p className="mb-2 text-xs text-at-muted">{SORT_NOTE[sort]}</p>
-          <ol>
+          <ol className="striped">
             {rows.map((row) => {
               if (row.kind === "cancelled") {
                 const c = row.trip;

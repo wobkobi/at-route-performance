@@ -3,6 +3,7 @@
 // pages: parse `?window`, resolve the range and its stepper, and the query a route
 // link carries so the route opens on the same window. Week and month anchor to the
 // latest day with data (see rankings-page.ts).
+import { mondayOf, type PickerState } from "@/lib/calendar";
 import { DATA_START_DAY } from "@/lib/data-start";
 import {
   resolveMonthNav,
@@ -58,6 +59,8 @@ export type RangeNav =
       atFloor: boolean;
       /** What each window tab carries across. */
       tabs: RangeTabPeriods;
+      /** The date picker's bounds and the shown day. */
+      calendar: PickerState;
     }
   | {
       window: "week" | "month";
@@ -71,6 +74,8 @@ export type RangeNav =
       partial: boolean;
       /** What each window tab carries across. */
       tabs: RangeTabPeriods;
+      /** The date picker's bounds and the shown period's days. */
+      calendar: PickerState;
     };
 
 /**
@@ -93,8 +98,18 @@ export function parseRangeWindow(raw: string | undefined): RangeWindow {
  * @returns True when a previous-day link should be offered.
  */
 export function hasEarlierDay(serviceDate: string, earliestDay: Date | null): boolean {
+  return serviceDate > firstPickableDay(earliestDay);
+}
+
+/**
+ * The earliest day a reader can open: the later of the archive floor and the
+ * earliest day with data, falling back to the floor when that is unknown.
+ * @param earliestDay - The earliest service day with data, or null when unknown.
+ * @returns The service date (`YYYY-MM-DD`).
+ */
+export function firstPickableDay(earliestDay: Date | null): string {
   const live = earliestDay ? nzServiceDayString(earliestDay) : DATA_START_DAY;
-  return serviceDate > (live > DATA_START_DAY ? live : DATA_START_DAY);
+  return live > DATA_START_DAY ? live : DATA_START_DAY;
 }
 
 /**
@@ -123,6 +138,15 @@ export function dayRangeNav(
     nextIsToday: shiftWeek(serviceDate, 1) === today,
     atFloor: serviceDate === DATA_START_DAY,
     tabs: rangeTabPeriods(serviceDate, today),
+    calendar: {
+      today,
+      minDay: firstPickableDay(earliestDay),
+      // Before today opens the bare URL falls back to yesterday, so today is
+      // not a day that can be opened yet.
+      maxDay: nextPending ? shiftWeek(today, -1) : today,
+      from: serviceDate,
+      to: serviceDate,
+    },
   };
 }
 
@@ -169,8 +193,37 @@ export function periodRangeNav(
       nextHref,
       partial,
       tabs: rangeTabPeriods(periodAnchorDay(window, period, today), today),
+      calendar: {
+        today,
+        minDay: firstPickableDay(earliestDay),
+        maxDay: today,
+        ...periodDays(window, period, anchor),
+      },
     },
   };
+}
+
+/**
+ * The first and last day of a week or month window, for the date picker to
+ * mark: a calendar week or month when one is asked for, else the rolling last
+ * 7 days or the anchor's month.
+ * @param window - "week" or "month".
+ * @param period - The validated period, or null for the rolling default.
+ * @param anchor - The latest day with data (or now).
+ * @returns The inclusive first and last day.
+ */
+function periodDays(
+  window: "week" | "month",
+  period: string | null,
+  anchor: Date,
+): { from: string; to: string } {
+  if (window === "week") {
+    if (period) return { from: period, to: shiftWeek(period, 6) };
+    const last = nzServiceDayString(anchor);
+    return { from: shiftWeek(last, -6), to: last };
+  }
+  const month = period ?? nzServiceDayString(anchor).slice(0, 7);
+  return { from: `${month}-01`, to: shiftWeek(`${shiftMonth(month, 1)}-01`, -1) };
 }
 
 /**
@@ -185,9 +238,7 @@ export function weekPeriodOf(
   today: string = nzServiceDayString(),
 ): string | null {
   if (serviceDate >= today) return null;
-  const { y, mo, d } = parseYmd(serviceDate);
-  const weekday = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
-  return shiftWeek(serviceDate, -((weekday + 6) % 7));
+  return mondayOf(serviceDate);
 }
 
 /**

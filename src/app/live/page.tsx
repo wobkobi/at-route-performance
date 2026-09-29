@@ -11,19 +11,20 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
-import { getDirectoryRoutes, getRouteModeMap } from "@/lib/data/routes";
+import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data/routes";
 import { logReadFailure, readFallback } from "@/lib/db";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
-import {
-  liveRoutes,
-  liveTotals,
-  parseLiveSort,
-  type LiveRouteRow,
-  type LiveSort,
-} from "@/lib/live-routes";
+import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
 import { routeSlug } from "@/lib/route-slug";
-import { buildHref } from "@/lib/utils";
+import {
+  sortRows,
+  tableSort,
+  type SortColumn,
+  type SortDir,
+  type TableSort,
+} from "@/lib/table-sort";
+import { buildHref, stripUnset } from "@/lib/utils";
 import { getLiveVehicles } from "@/lib/vehicles";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -43,9 +44,22 @@ export const metadata: Metadata = {
 /** Query params for the live page. */
 interface LiveSearchParams {
   mode?: string;
+  /** The sorted column; absent is most running first. */
   sort?: string;
+  /** "1" sorts the column the other way. */
+  rev?: string;
   all?: string;
 }
+
+/** The table's sortable columns; the chips above offer the first two figures too. */
+const COLUMNS: SortColumn<LiveRouteRow>[] = [
+  { key: "route", value: "slug", first: "asc" },
+  { key: "running", value: "vehicles" },
+  { key: "late", value: "late" },
+  { key: "ontime", value: "onTime" },
+  { key: "early", value: "early" },
+  { key: "avg", value: "avgDelaySec" },
+];
 
 /** Routes the table opens with; `?all=1` lists every one. */
 const TABLE_ROWS = 30;
@@ -59,7 +73,7 @@ const SORT_LABEL: Record<LiveSort, string> = {
  * Live now page. The header, chips and map render at once; the figures and the
  * table wait on AT's feed in their own boundary.
  * @param root0 - Page props.
- * @param root0.searchParams - `mode`, `sort` and `all`.
+ * @param root0.searchParams - `mode`, sort (`sort`, `rev`) and `all`.
  * @returns Page markup.
  */
 export default async function LivePage({
@@ -71,9 +85,10 @@ export default async function LivePage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
-  const sort = parseLiveSort(sp.sort);
-  const sortParam = sort === "running" ? undefined : sort;
   const all = sp.all === "1";
+  const { sort, head, keep } = tableSort(sp, COLUMNS, "running", (p) =>
+    buildHref("/live", { mode: mode ?? undefined, ...p, all: all ? "1" : undefined }),
+  );
 
   return (
     <main className="space-y-6">
@@ -87,10 +102,7 @@ export default async function LivePage({
       <ModeFilter
         active={mode}
         basePath="/live"
-        preservedParams={{
-          ...(sortParam ? { sort: sortParam } : {}),
-          ...(all ? { all: "1" } : {}),
-        }}
+        preservedParams={stripUnset({ ...keep, all: all ? "1" : undefined })}
       />
 
       <Suspense fallback={<LoadingBlock label="Loading the live figures" />}>
@@ -98,17 +110,17 @@ export default async function LivePage({
       </Suspense>
 
       <section aria-labelledby="live-map" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="live-map" className="text-lg font-ultra tracking-zero text-at-ink">
-            Where they are
-          </h2>
-          <DotKey />
-        </div>
-        <LiveMapWrapper mode={mode} className="h-110 border border-at-border sm:h-140" />
+        <h2 id="live-map" className="text-lg font-ultra tracking-zero text-at-ink">
+          Where they are
+        </h2>
+        <LiveMapWrapper
+          mode={mode}
+          className="h-[min(27.5rem,65svh)] border border-at-border sm:h-140"
+        />
         <p className="text-xs text-at-muted">
-          Tap a dot for its route, how late it is, and links to its run and the vehicle. Buses are
-          the small dots. The grey lines are the roads and rails the routes follow. Near me zooms to
-          where you are. The table below lists the same routes.
+          Tap a dot for its run and vehicle, or a line for the routes on it. Buses are the small
+          dots, and each line is drawn in its route&apos;s colour. The buttons above the map show or
+          hide each kind of dot and the lines.
         </p>
       </section>
 
@@ -126,7 +138,7 @@ export default async function LivePage({
                   sort: s === "running" ? undefined : s,
                   all: all ? "1" : undefined,
                 })}
-                active={s === sort}
+                active={s === sort?.key}
               >
                 {SORT_LABEL[s]}
               </ChipLink>
@@ -134,7 +146,7 @@ export default async function LivePage({
           </nav>
         </div>
         <Suspense fallback={<LoadingBlock label="Loading the routes running" />}>
-          <LiveTable mode={mode} sort={sort} all={all} />
+          <LiveTable mode={mode} sort={sort} head={head} keep={keep} all={all} />
         </Suspense>
       </section>
 
@@ -152,12 +164,12 @@ export default async function LivePage({
  * down - AT's feed or the database behind the mode map - so each caller can say
  * so in its own place.
  * @param mode - The mode filter.
- * @param sort - The table's order.
+ * @param sort - The table's sort; level rows keep the most-running order.
  * @returns The rows.
  */
-async function loadRows(mode: ModeFilterValue, sort: LiveSort): Promise<LiveRouteRow[]> {
+async function loadRows(mode: ModeFilterValue, sort: TableSort | null): Promise<LiveRouteRow[]> {
   const [vehicles, modes] = await Promise.all([getLiveVehicles(), getRouteModeMap()]);
-  const rows = liveRoutes(vehicles, modes, sort);
+  const rows = sortRows(liveRoutes(vehicles, modes, "running"), COLUMNS, sort);
   return mode ? rows.filter((r) => r.mode === mode) : rows;
 }
 
@@ -180,7 +192,7 @@ function pct(n: number, total: number): string | null {
 async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Element> {
   let rows: LiveRouteRow[];
   try {
-    rows = await loadRows(mode, "running");
+    rows = await loadRows(mode, null);
   } catch (err) {
     // loadRows reads the route mode map from the database as well as AT's feed,
     // so this catches an outage of either. Naming AT would blame a third party
@@ -240,30 +252,35 @@ async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Ele
  * The routes running, one row each.
  * @param props - Component props.
  * @param props.mode - The mode filter.
- * @param props.sort - The order.
+ * @param props.sort - The table's sort.
+ * @param props.head - Each column heading's link and direction.
+ * @param props.keep - The params that keep the sort, for Show all.
  * @param props.all - List every route rather than the first page.
  * @returns The table.
  */
 async function LiveTable({
   mode,
   sort,
+  head,
+  keep,
   all,
 }: {
   mode: ModeFilterValue;
-  sort: LiveSort;
+  sort: TableSort | null;
+  head: (key: string) => { href: string; dir: SortDir | null };
+  keep: Record<string, string | undefined>;
   all: boolean;
 }): Promise<JSX.Element> {
   let rows: LiveRouteRow[];
-  let names: Map<string, string>;
+  // Slug > directory row, for the line name and for AT's line colour on the icon.
+  let routes: Map<string, DirectoryRoute>;
   try {
     const [r, directory] = await Promise.all([
       loadRows(mode, sort),
       getDirectoryRoutes().catch(readFallback("directory-routes", [])),
     ]);
     rows = r;
-    names = new Map(
-      directory.map((d) => [routeSlug(d.id), lineName(d.mode, d.shortName) ?? d.longName ?? ""]),
-    );
+    routes = new Map(directory.map((d) => [routeSlug(d.id), d]));
   } catch (err) {
     // Same pair of sources as LiveFigures above, so the same reasoning applies.
     logReadFailure("live-routes", err);
@@ -287,19 +304,26 @@ async function LiveTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <th scope="col" className="p-3 font-semibold">
+              <SortHeader {...head("route")} align="left">
                 Route
-              </th>
-              <SortHeader active={sort === "running"}>Running</SortHeader>
-              <SortHeader active={sort === "late"}>Late</SortHeader>
-              <SortHeader className="hidden sm:table-cell">On time</SortHeader>
-              <SortHeader className="hidden sm:table-cell">Early</SortHeader>
-              <SortHeader className="hidden md:table-cell">Early or late, avg</SortHeader>
+              </SortHeader>
+              <SortHeader {...head("running")}>Running</SortHeader>
+              <SortHeader {...head("late")}>Late</SortHeader>
+              <SortHeader {...head("ontime")} className="hidden sm:table-cell">
+                On time
+              </SortHeader>
+              <SortHeader {...head("early")} className="hidden sm:table-cell">
+                Early
+              </SortHeader>
+              <SortHeader {...head("avg")} className="hidden md:table-cell">
+                Early or late, avg
+              </SortHeader>
             </tr>
           </thead>
           <tbody>
             {shown.map((r) => {
-              const name = names.get(r.slug);
+              const route = routes.get(r.slug);
+              const name = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
               const avg = offScheduleValue(r.avgDelaySec, null, r.mode);
               return (
                 <tr key={r.slug} className="border-b border-at-border last:border-b-0">
@@ -308,7 +332,13 @@ async function LiveTable({
                       href={`/route/${encodeURIComponent(r.slug)}`}
                       className="flex min-w-0 items-center gap-2 hover:underline"
                     >
-                      <ModeIcon mode={r.mode} className="h-4 w-4 shrink-0" />
+                      <ModeIcon
+                        mode={r.mode}
+                        shortName={route?.shortName ?? r.slug}
+                        longName={route?.longName}
+                        colour={route?.colour}
+                        className="h-4 w-4 shrink-0"
+                      />
                       <span className="font-semibold text-at-shore">{r.slug}</span>
                       {name && name !== r.slug && (
                         <span className="hidden truncate text-at-muted sm:inline">{name}</span>
@@ -343,7 +373,7 @@ async function LiveTable({
           <ChipLink
             href={buildHref("/live", {
               mode: mode ?? undefined,
-              sort: sort === "running" ? undefined : sort,
+              ...keep,
               all: "1",
             })}
           >
@@ -352,27 +382,5 @@ async function LiveTable({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * The map's dot colours, including the grey for a vehicle with no delay.
- * @returns The key.
- */
-function DotKey(): JSX.Element {
-  const dots: Array<[string, string]> = [
-    ["bg-at-late", "late"],
-    ["bg-at-ontime", "on time"],
-    ["bg-at-early-strong", "early"],
-    ["bg-at-muted", "no delay"],
-  ];
-  return (
-    <span className="flex flex-wrap items-center gap-3 text-xs text-at-muted">
-      {dots.map(([bg, label]) => (
-        <span key={label} className="flex items-center gap-1">
-          <span className={cn("inline-block h-2.5 w-2.5 rounded-full", bg)} /> {label}
-        </span>
-      ))}
-    </span>
   );
 }

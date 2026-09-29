@@ -19,6 +19,7 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
+import { SortHeader } from "@/components/SortHeader";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
@@ -36,6 +37,7 @@ import {
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
+  getOperators,
   getRouteClosures,
   getRouteDailyStats,
   getRouteLabel,
@@ -52,7 +54,7 @@ import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
-import { operatorHref, operatorOf } from "@/lib/operators";
+import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
@@ -63,6 +65,7 @@ import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
 import { splitStopFigures } from "@/lib/stop-split";
 import { stripMarks } from "@/lib/strip-marks";
+import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
 import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
 import {
   hourRangeParam,
@@ -75,7 +78,7 @@ import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
-import type { RouteVariant } from "@/types/api";
+import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -160,7 +163,20 @@ interface StatsSearchParams {
   period?: string;
   /** Part of the service day to narrow to, e.g. `7-9`; absent covers all of it. */
   hours?: string;
+  /** The Stops table's sorted column, and "1" to sort it the other way. */
+  ssort?: string;
+  srev?: string;
 }
+
+/** The Stops table's sortable columns; absent is the busiest stop first. */
+const STOP_COLUMNS: SortColumn<RouteByStop>[] = [
+  { key: "stop", value: "name", first: "asc" },
+  { key: "arrivals", value: "events" },
+  { key: "late", value: "avg_delay_sec" },
+];
+
+/** The Stops table's own names: `tsort` and `trev` belong to the trips board. */
+const STOP_SORT: SortParamNames = { sort: "ssort", rev: "srev" };
 
 /** Valid trip-sort values. */
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
@@ -248,7 +264,7 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` box classes. Each
  * side keeps the direction and stays on the period being looked at: a past day's
  * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
  *
@@ -420,9 +436,10 @@ export default async function RoutePage({
   });
   const { route, summary, byStop } = stats;
   // Started here and awaited at the header, so it never holds up the stats.
-  const operatorsP = getRouteOperators().catch(
-    readFallback<Record<string, string>>("route-operators", {}),
-  );
+  const operatorsP = Promise.all([
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
+    getOperators().catch(readFallback<Operator[]>("operators", [])),
+  ]);
   const routeMode = route?.mode ?? "BUS";
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -431,11 +448,9 @@ export default async function RoutePage({
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
-    // getRouteStats drops the penalty for a part-of-day view, because it is
-    // counted per service day and cannot be narrowed to a few hours. The
-    // footnote has to follow it, or choosing "Morning peak" lifts the on-time
-    // share while the explainer still says cancellations are counted.
-    cancellations: hours ? "excluded" : "counted",
+    // A part-of-day view keeps the penalty too: getRouteStats charges it only
+    // for the cancelled trips due to start in those hours.
+    cancellations: "counted",
   };
 
   // Week view period: an explicit ?period snaps to that week's seven service
@@ -550,6 +565,13 @@ export default async function RoutePage({
     ...(isReversed ? { trev: "1" } : {}),
     ...(hoursParam ? { hours: hoursParam } : {}),
   };
+  const stopSort = tableSort(
+    sp,
+    STOP_COLUMNS,
+    "arrivals",
+    (p) => buildHref(`/route/${encodeURIComponent(slug)}`, { ...viewParams, day: linkDay, ...p }),
+    STOP_SORT,
+  );
   // Stepping onto today drops `?day` so the URL stays canonical, but that link
   // must still carry the filters.
   const nextDayHref = dayNav.nextIsToday
@@ -707,7 +729,8 @@ export default async function RoutePage({
   // AT sets every train route's long name to its bare code ("STH", "S-C"), so
   // the published line name is the only readable label the header can show.
   const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
-  const operator = operatorOf((await operatorsP)[slug]);
+  const [operators, directory] = await operatorsP;
+  const operator = operatorOf(operators[slug], directory);
 
   return (
     <main className="space-y-6">
@@ -793,6 +816,7 @@ export default async function RoutePage({
                 hasNext={dayNav.hasNext}
                 nextHref={nextDayHref}
                 nextPending={dayNav.nextPending}
+                calendar={dayNav.calendar}
               />
             )}
           </div>
@@ -973,19 +997,14 @@ export default async function RoutePage({
             )}
           </section>
 
-          {/* What the chips above do not reach. Both figures come from one
-              getRouteStats call, which takes no direction at all and drops the
-              cancellation penalty as soon as hours narrow the window - so
-              "Trips" and the runs below describe one direction while "Arrivals"
-              and "On time" describe both, and a peak can read better than the
-              day did without anything having improved. The week view has said
-              its half of this since it shipped; the day view said neither. */}
-          {(activeDir != null || hours != null) && (
+          {/* What the direction chips do not reach. Both figures come from one
+              getRouteStats call, which takes no direction at all, so "Trips"
+              and the runs below describe one direction while "Arrivals" and
+              "On time" describe both. */}
+          {activeDir != null && (
             <p className="text-xs text-at-muted">
-              {activeDir != null &&
-                "Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
-              {hours != null &&
-                "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
+              Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map
+              and the diagram pick out this one.
             </p>
           )}
 
@@ -1045,7 +1064,12 @@ export default async function RoutePage({
               </p>
             </section>
           ) : (
-            <details className="border border-at-border bg-at-surface">
+            // Opened by a sort, which reloads the page and would otherwise fold
+            // the table the reader just sorted away.
+            <details
+              className="border border-at-border bg-at-surface"
+              open={sp.ssort !== undefined || sp.srev !== undefined}
+            >
               {/* The heading goes inside the summary, which `summary` allows: as
                   bare text it was the one section on the page with no heading in
                   the outline, and only in the state that has something to say. */}
@@ -1056,19 +1080,19 @@ export default async function RoutePage({
                 <table className="min-w-full text-sm">
                   <thead className="bg-at-shore-pale text-at-muted">
                     <tr>
-                      <th scope="col" className="px-3 py-2 text-left">
+                      <SortHeader {...stopSort.head("stop")} align="left" className="px-3 py-2">
                         Stop
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      </SortHeader>
+                      <SortHeader {...stopSort.head("arrivals")} className="px-3 py-2">
                         Arrivals
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      </SortHeader>
+                      <SortHeader {...stopSort.head("late")} className="px-3 py-2">
                         Early or late
-                      </th>
+                      </SortHeader>
                     </tr>
                   </thead>
                   <tbody>
-                    {byStop.map((s) => (
+                    {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
                       <tr
                         key={s.stop_id}
                         className="border-t border-at-border hover:bg-at-shore-pale"

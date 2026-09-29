@@ -184,7 +184,7 @@ export function CancelledTripList({
           )}
         </p>
       ) : (
-        <ol>
+        <ol className="striped">
           {visible.slice(0, shown).map((t, i) => {
             const at = t.scheduled_start ?? nzServiceDayRange(t.service_date).start.toISOString();
             // Group labels only when the live day has trips on both sides of now,
@@ -198,7 +198,7 @@ export function CancelledTripList({
             return (
               <Fragment key={`${t.service_date}-${t.trip_id}`}>
                 {label && (
-                  <li className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-muted uppercase first:pt-0">
+                  <li className="no-stripe pt-3 pb-1 text-xs font-semibold tracking-zero text-at-muted uppercase first:pt-0">
                     {label}
                   </li>
                 )}

@@ -9,21 +9,24 @@ import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import {
   addPenalties,
+  penaltiesInHours,
   riderWaitPenalties,
   type DayFlag,
   type DayRun,
+  type FlaggedTripPenalty,
   type Penalty,
   type TripPenalty,
 } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
 import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time";
+import type { HourRange } from "@/lib/time-of-day";
 
 /** One service day's penalties. */
 export interface DayRiderWait {
   /** Route slug to what its cancellations add. */
   routes: Record<string, Penalty>;
   /** Trip id to what the flagged trip adds. */
-  trips: Record<string, TripPenalty>;
+  trips: Record<string, FlaggedTripPenalty>;
 }
 
 /** A run as the day's aggregation returns it. */
@@ -116,7 +119,7 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
       }));
       return riderWaitPenalties(runs, flags);
     },
-    ["rider-wait", date],
+    ["rider-wait-v2", date],
     date,
     300,
   );
@@ -128,13 +131,29 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
  * @param range - The window.
  * @returns Route slug to its penalty.
  */
-export async function getRouteRiderWait(range: DateRange): Promise<Record<string, Penalty>> {
+export function getRouteRiderWait(range: DateRange): Promise<Record<string, Penalty>> {
+  return getRiderWaitOfDates(serviceDatesInRange(range), null);
+}
+
+/**
+ * What cancellations add to each route's figures over a set of service days,
+ * optionally only those of trips due to start in a part of the day. Days that
+ * have not started are skipped.
+ * @param dates - Service dates (`YYYY-MM-DD`).
+ * @param hours - The part of the day, or null for all of it.
+ * @returns Route slug to its penalty.
+ */
+export async function getRiderWaitOfDates(
+  dates: readonly string[],
+  hours: HourRange | null,
+): Promise<Record<string, Penalty>> {
   const now = new Date();
-  const dates = serviceDatesInRange(range).filter((d) => nzServiceDayRange(d).start <= now);
-  const days = await Promise.all(dates.map(riderWaitOfDay));
+  const started = dates.filter((d) => nzServiceDayRange(d).start <= now);
+  const days = await Promise.all(started.map(riderWaitOfDay));
   const out: Record<string, Penalty> = {};
   for (const day of days) {
-    for (const [slug, p] of Object.entries(day.routes)) {
+    const routes = hours ? penaltiesInHours(day.trips, hours) : day.routes;
+    for (const [slug, p] of Object.entries(routes)) {
       out[slug] = out[slug] ? addPenalties(out[slug], p) : p;
     }
   }

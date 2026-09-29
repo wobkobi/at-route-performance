@@ -1,11 +1,12 @@
 // src/lib/aggregate.ts
 // Nightly rollup of one completed NZ service day into per-route
-// DailyRouteSummary rows, and the catch-up rule that picks which days a run
-// covers. The route handler is a thin wrapper so the pipeline, the upsert ops
+// DailyRouteSummary rows and per-route, per-hour HourlyRouteSummary rows, and
+// the catch-up rule that picks which days a run covers. The route handler is a thin wrapper so the pipeline, the upsert ops
 // and the catch-up choice can be tested as plain functions.
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import { classifyGhosts, type GhostPassResult } from "@/lib/ghost-pass";
+import { NZ_TZ } from "@/lib/nz-tz";
 import {
   earlyTwoCounts,
   lateSum,
@@ -33,6 +34,8 @@ export interface DailyStats {
 export interface AggregateDayResult {
   /** Routes summarised. */
   aggregated: number;
+  /** Route-hours summarised, or null when the hourly rollup failed. */
+  hourly: number | null;
   ghosts: GhostPassResult;
 }
 
@@ -154,6 +157,167 @@ export function summaryUpsertOps(
   }));
 }
 
+/** One route's rolled-up hour, as {@link hourlySummaryPipeline} projects it. */
+export interface HourlyStats {
+  _id: {
+    routeId: string;
+    /** Auckland clock hour of the scheduled arrival, 0-23. */
+    hour: number;
+  };
+  events: number;
+  /** Real readings, the denominator for every figure below. */
+  plausible: number;
+  /** Sum of the real readings' signed deviation, in seconds. */
+  sum_delay: number;
+  /** Sum of the real readings' absolute deviation, in seconds. */
+  sum_abs: number;
+  on_time: number;
+  early: number;
+  late: number;
+}
+
+/**
+ * The aggregation that rolls a service day up per route and per Auckland clock
+ * hour, for the time-of-day filters on long windows. It counts exactly what
+ * {@link dailySummaryPipeline} counts, but stores the counts and sums rather
+ * than the rates: hours are added together at read time, and a sum of rates
+ * would need the denominators back. The on-time and early counts are already
+ * picked by mode here, so a reader needs no route lookup to add them up.
+ * @param range - The service-day window.
+ * @param classified - Whether the day's ghost pass has run.
+ * @returns The pipeline stages.
+ */
+export function hourlySummaryPipeline(
+  range: DateRange,
+  classified: boolean,
+): Prisma.InputJsonObject[] {
+  const plausible = realDeviationExprFor(classified);
+  return [
+    {
+      $match: {
+        scheduledAt: {
+          $gte: { $date: range.start.toISOString() },
+          $lt: { $date: range.end.toISOString() },
+        },
+        source: { $ne: NO_DELAY_SOURCE },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          routeId: "$routeId",
+          hour: { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+        },
+        events: { $sum: 1 },
+        plausible: { $sum: { $cond: [plausible, 1, 0] } },
+        sum_delay: { $sum: { $cond: [plausible, "$deviationSec", 0] } },
+        sum_abs: { $sum: { $cond: [plausible, { $abs: "$deviationSec" }, 0] } },
+        ...onTimeTwoCounts(plausible),
+        ...earlyTwoCounts(plausible),
+        late: lateSum(plausible),
+      },
+    },
+    { $lookup: { from: "Route", localField: "_id.routeId", foreignField: "_id", as: "route" } },
+    { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: 1,
+        events: 1,
+        plausible: 1,
+        sum_delay: 1,
+        sum_abs: 1,
+        on_time: pickOnTimeByRouteMode,
+        early: pickEarlyByRouteMode,
+        late: 1,
+      },
+    },
+  ];
+}
+
+/**
+ * The bulk-update entries that store a day's hourly rows, keyed on
+ * `(routeId, date, hour)` and upserted like {@link summaryUpsertOps}.
+ * @param stats - The hourly pipeline's rows.
+ * @param dayStart - The service day's start, the stored `date`.
+ * @param thresholdSec - The late bound the counts were taken with, stored beside them.
+ * @returns The update entries.
+ */
+export function hourlyUpsertOps(
+  stats: readonly HourlyStats[],
+  dayStart: Date,
+  thresholdSec: number,
+): Prisma.InputJsonObject[] {
+  const dateBson = { $date: dayStart.toISOString() };
+  return stats.map((stat) => ({
+    q: { routeId: stat._id.routeId, date: dateBson, hour: stat._id.hour },
+    u: {
+      $set: {
+        routeId: stat._id.routeId,
+        date: dateBson,
+        hour: stat._id.hour,
+        events: stat.events,
+        plausible: stat.plausible,
+        sumDelaySec: stat.sum_delay,
+        sumAbsDelaySec: stat.sum_abs,
+        onTime: stat.on_time,
+        early: stat.early,
+        late: stat.late,
+        thresholdSec,
+      },
+    },
+    upsert: true,
+  }));
+}
+
+/**
+ * The indexes HourlyRouteSummary needs, created by the writer itself so the
+ * collection works before a schema push. The names are the ones Prisma gives
+ * the model's `@@unique` and `@@index`, so a later `db push` finds them in place
+ * rather than failing on a second index over the same keys.
+ */
+export const HOURLY_SUMMARY_INDEXES: Prisma.InputJsonObject = {
+  createIndexes: "HourlyRouteSummary",
+  indexes: [
+    {
+      key: { routeId: 1, date: 1, hour: 1 },
+      name: "HourlyRouteSummary_routeId_date_hour_key",
+      unique: true,
+    },
+    { key: { date: 1 }, name: "HourlyRouteSummary_date_idx" },
+  ],
+};
+
+/**
+ * Roll one service day up by route and hour and upsert the rows. Run after the
+ * day's ghost pass (so `classified` holds); the backfill script calls it alone
+ * for days whose daily rollup already exists.
+ * @param range - The service-day window.
+ * @returns How many route-hours were written.
+ */
+export async function writeHourlySummary(range: DateRange): Promise<number> {
+  const result = (await runCommand(() =>
+    prisma.$runCommandRaw({
+      aggregate: "ArrivalEvent",
+      pipeline: hourlySummaryPipeline(range, true),
+      cursor: { batchSize: 100_000 },
+    }),
+  )) as unknown as { cursor: { firstBatch: HourlyStats[] } };
+  const stats = result.cursor.firstBatch;
+  if (stats.length === 0) return 0;
+  // A no-op once the indexes exist; without the unique one every upsert below
+  // would scan the collection to find its row.
+  await runCommand(() => prisma.$runCommandRaw(HOURLY_SUMMARY_INDEXES));
+  const reply = await runCommand(() =>
+    prisma.$runCommandRaw({
+      update: "HourlyRouteSummary",
+      updates: hourlyUpsertOps(stats, range.start, ON_TIME_LATE_SEC),
+      ordered: false,
+    }),
+  );
+  throwOnWriteErrors(reply, [], "HourlyRouteSummary upsert");
+  return stats.length;
+}
+
 /**
  * The service dates a default run covers, oldest first: yesterday always, plus
  * each of the {@link CATCH_UP_EXTRA_DAYS} days before it that has arrival events
@@ -215,13 +379,16 @@ export async function dayHasEvents(date: string): Promise<boolean> {
 
 /**
  * Roll one completed service day up: classify its ghosts, run the pipeline and
- * upsert the rows. A ghost-pass failure throws out of here and so fails the
- * day, leaving it unsummarised for the next run's catch-up to retry; rolling it
- * up unclassified would pin the noise into the archive for good.
+ * upsert the rows, then write the hourly rows. A ghost-pass failure throws out
+ * of here and so fails the day, leaving it unsummarised for the next run's
+ * catch-up to retry; rolling it up unclassified would pin the noise into the
+ * archive for good. An hourly failure is logged and the day still counts as
+ * done: readers scan a day with no hourly rows live, so the gap costs speed,
+ * not correctness, and it must not hold back the daily rollup every page reads.
  * @param range - The service-day window.
  * @param serviceDate - Its service date (`YYYY-MM-DD`), for the log and for the
  *   ghost pass's record of any run it hides.
- * @returns Routes summarised and the ghost pass's counts.
+ * @returns Routes and route-hours summarised, and the ghost pass's counts.
  */
 export async function aggregateDay(
   range: DateRange,
@@ -256,5 +423,15 @@ export async function aggregateDay(
     throwOnWriteErrors(reply, [], "DailyRouteSummary upsert");
   }
 
-  return { aggregated: stats.length, ghosts };
+  let hourly: number | null = null;
+  try {
+    hourly = await writeHourlySummary(range);
+  } catch (error) {
+    console.error("[AGGREGATE] Hourly rollup failed", {
+      date: serviceDate,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return { aggregated: stats.length, hourly, ghosts };
 }

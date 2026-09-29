@@ -6,6 +6,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { SectionLink } from "@/components/SectionLink";
 import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/lib/data";
 import { DATA_START_SHORT } from "@/lib/data-start";
+import { type SchoolFilter } from "@/lib/school-bus";
 import type { DateRange } from "@/lib/time";
 import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle-counts";
 import type { JSX } from "react";
@@ -78,21 +79,21 @@ function VehicleCard({
  * @param props.range - The window the page shows.
  * @param props.label - How the window is named on its card ("Today", a date, a week).
  * @param props.mode - Mode filter, or null for every mode.
- * @param props.includeSchool - Whether school services are included.
+ * @param props.schools - Which school services count (default leave them out).
  * @returns The cards.
  */
 export async function VehicleCards({
   range,
   label,
   mode,
-  includeSchool,
+  schools,
 }: {
   range: DateRange;
   label: string;
   mode: VehicleMode | null;
-  includeSchool: boolean;
+  schools: SchoolFilter;
 }): Promise<JSX.Element> {
-  const filter = { mode, includeSchool };
+  const filter = { mode, schools };
   const [inWindow, allTime] = await Promise.all([
     getVehicleCounts(range, filter, TODAY_REVALIDATE),
     getVehicleCountsAllTime(filter, TODAY_REVALIDATE),

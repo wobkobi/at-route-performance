@@ -89,6 +89,29 @@ export function filterLiveHours<H extends { hour: number }>(
   );
 }
 
+/**
+ * Whether none of a list of hours has started yet on the shown day, so a ranked
+ * board over them is empty for want of time rather than of qualifying rows.
+ * Always false for a past day.
+ * @param hours - Auckland clock hours, 0-23.
+ * @param serviceDate - The service date being shown (`YYYY-MM-DD`).
+ * @param now - The current instant (injectable for tests).
+ * @returns True when every hour is still to come.
+ */
+export function noHourStarted(
+  hours: number[],
+  serviceDate: string,
+  now: Date = new Date(),
+): boolean {
+  return (
+    filterLiveHours(
+      hours.map((hour) => ({ hour })),
+      serviceDate,
+      now,
+    ).length === 0
+  );
+}
+
 /** One hour of a day board: the hour of day and its row, or null when nothing qualified. */
 export interface HourSlot<H> {
   hour: number;

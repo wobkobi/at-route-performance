@@ -1,16 +1,22 @@
 "use client";
 // src/components/SchoolBusToggle.tsx
-// Filter box choosing whether school bus services are included.
+// Filter box choosing whether school bus services are left out, included, or shown alone.
 
 import { FilterMenu, FilterOption } from "@/components/FilterMenu";
+import {
+  SCHOOL_FILTERS,
+  schoolFilterParam,
+  schoolFilterSummary,
+  type SchoolFilter,
+} from "@/lib/school-bus";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useId, type JSX } from "react";
 
 /** Props for {@link SchoolBusToggle}. */
 export interface SchoolBusToggleProps {
-  /** Whether school buses are currently included. */
-  active: boolean;
+  /** The active choice. */
+  value: SchoolFilter;
   /** Page path the choices navigate to. */
   basePath: string;
   /** Query params to preserve (the `school` param is set here). */
@@ -18,43 +24,48 @@ export interface SchoolBusToggleProps {
 }
 
 /**
- * A School buses filter box choosing whether school-service routes (`S###`)
- * count. Left out by default; including them adds `?school=1`, and the reset
- * takes it off again.
+ * A School buses filter box choosing how school-service routes (`S###`) count:
+ * left out by default, included beside every other service (`?school=1`), or
+ * shown alone (`?school=only`). The reset goes back to leaving them out.
  * @param props - Component props.
- * @param props.active - Whether school buses are currently included.
+ * @param props.value - The active choice.
  * @param props.basePath - Page path the choices navigate to.
- * @param props.preservedParams - Query params to keep when toggling.
+ * @param props.preservedParams - Query params to keep when choosing.
  * @returns The filter box.
  */
 export function SchoolBusToggle({
-  active,
+  value,
   basePath,
   preservedParams,
 }: SchoolBusToggleProps): JSX.Element {
   const router = useRouter();
   const name = useId();
   /**
-   * Navigate to the page with school buses in or out.
-   * @param include - Whether to include them.
+   * Navigate to the page under a choice.
+   * @param next - The choice.
    */
-  const choose = (include: boolean): void => {
-    router.push(buildHref(basePath, { ...preservedParams, school: include ? "1" : undefined }), {
+  const choose = (next: SchoolFilter): void => {
+    router.push(buildHref(basePath, { ...preservedParams, school: schoolFilterParam(next) }), {
       scroll: false,
     });
   };
   return (
     <FilterMenu
       label="School buses"
-      summary={active ? "Included" : null}
-      onReset={() => choose(false)}
+      summary={schoolFilterSummary(value)}
+      onReset={() => choose("exclude")}
     >
-      <FilterOption type="radio" name={name} checked={!active} onChange={() => choose(false)}>
-        Leave out
-      </FilterOption>
-      <FilterOption type="radio" name={name} checked={active} onChange={() => choose(true)}>
-        Include
-      </FilterOption>
+      {SCHOOL_FILTERS.map((f) => (
+        <FilterOption
+          key={f.key}
+          type="radio"
+          name={name}
+          checked={value === f.key}
+          onChange={() => choose(f.key)}
+        >
+          {f.label}
+        </FilterOption>
+      ))}
     </FilterMenu>
   );
 }

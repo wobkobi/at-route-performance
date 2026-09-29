@@ -6,17 +6,20 @@ import { ChevronLeft } from "@/components/icons";
 import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/RangeControls";
+import { SortHeader } from "@/components/SortHeader";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
   getLatestEventDate,
+  getOperators,
   getRouteNames,
   getRouteOperators,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
+  getVehicleDayMap,
   getVehicleRunsOfDay,
   getVehicleWorkByDay,
   TODAY_REVALIDATE,
@@ -33,7 +36,7 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
-import { operatorHref, operatorOf } from "@/lib/operators";
+import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -44,6 +47,7 @@ import {
 } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
+import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
 import {
   nzClockTime,
   nzServiceDayRange,
@@ -94,9 +98,54 @@ interface VehicleSearchParams {
   mode?: string;
   school?: string;
   sort?: string;
+  rev?: string;
   show?: string;
   op?: string;
+  /** This page's own table (runs or days): its sorted column, and "1" to flip it. */
+  tsort?: string;
+  trev?: string;
 }
+
+/**
+ * This page's table sorts on its own param names: `sort` and `rev` belong to the
+ * vehicles list, handed back by the back link.
+ */
+const TABLE_SORT: SortParamNames = { sort: "tsort", rev: "trev" };
+
+/** One run as its table sorts and shows it. */
+interface RunLine extends VehicleRunRow {
+  route: string;
+  durationSec: number;
+  avgSec: number;
+  avgAbsSec: number;
+}
+
+const RUN_COLUMNS: SortColumn<RunLine>[] = [
+  { key: "start", value: "startMs", first: "asc" },
+  { key: "route", value: "route", first: "asc" },
+  { key: "length", value: "durationSec" },
+  { key: "arrivals", value: "e" },
+  { key: "cars", value: "cars" },
+  { key: "off", value: "avgAbsSec" },
+];
+
+/** One day as its table sorts and shows it; the figures are null on a day it did not run. */
+interface DayLine {
+  date: string;
+  ran: boolean;
+  serviceSec: number | null;
+  runs: number | null;
+  arrivals: number | null;
+  offSec: number | null;
+}
+
+const DAY_COLUMNS: SortColumn<DayLine>[] = [
+  { key: "day", value: "date" },
+  { key: "hours", value: "serviceSec" },
+  { key: "runs", value: "runs" },
+  { key: "arrivals", value: "arrivals" },
+  { key: "off", value: "offSec" },
+];
 
 /**
  * Tab title: the vehicle's fleet label, from the register or the live feed.
@@ -127,7 +176,8 @@ export async function generateMetadata({
  * @param root0 - Page props.
  * @param root0.params - Route params (`id`, the feed vehicle id).
  * @param root0.searchParams - Window (`window`, `day`, `period`), and the vehicles list's
- *   `mode`, `school`, `sort`, `show` and `op` for the back link.
+ *   `mode`, `school`, `sort`, `rev`, `show` and `op` for the back link, and
+ *   `tsort` and `trev` for its own table.
  * @returns Page markup.
  */
 export default async function VehiclePage({
@@ -151,14 +201,15 @@ export default async function VehiclePage({
   }
   // Every mode and school runs too, so a school bus's own page is not empty; the
   // rank is then against that board, which the rank links to.
-  const filter = { mode: null, includeSchool: true };
-  const [latest, earliest, fleet, live, modeOf, operators] = await Promise.all([
+  const filter = { mode: null, schools: "include" as const };
+  const [latest, earliest, fleet, live, modeOf, operators, directory] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
     getRouteModeMap(),
     getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
+    getOperators().catch(readFallback<Operator[]>("operators", [])),
   ]);
 
   let range: DateRange;
@@ -201,10 +252,16 @@ export default async function VehiclePage({
       ...(now ? [now.routeId] : []),
     ]),
   ];
-  const [names, liveMap] = await Promise.all([
+  // The live run only belongs on the map of today; a past day shows that day alone.
+  const liveOnMap = window === "day" && serviceDate === today && now?.tripId ? now : null;
+  const [names, liveMap, dayMap] = await Promise.all([
     getRouteNames(routeIds),
-    now?.tripId ? liveRunMap(now.routeId, now.tripId) : Promise.resolve(null),
+    liveOnMap?.tripId ? liveRunMap(liveOnMap.routeId, liveOnMap.tripId) : Promise.resolve(null),
+    window === "day" && total
+      ? getVehicleDayMap(id, serviceDate, TODAY_REVALIDATE)
+      : Promise.resolve(null),
   ]);
+  const map = dayRunMap(dayMap, liveMap);
   const routeQuery = routeLinkQuery(window, dayParam, period);
   const view = {
     window: window === "day" ? undefined : window,
@@ -218,10 +275,20 @@ export default async function VehiclePage({
     mode: sp.mode,
     school: sp.school,
     sort: sp.sort,
+    rev: sp.rev,
     show: sp.show,
     op: sp.op,
   };
-  const runBy = vehicleOperatorCodes({ routes: routeIds }, operators).map((c) => operatorOf(c)!);
+  /**
+   * This page with its own table's sort set, for that table's headings.
+   * @param p - The sort params.
+   * @returns The href.
+   */
+  const tableHref = (p: Record<string, string | undefined>): string =>
+    buildHref(basePath, { ...view, ...listState, ...p });
+  const runBy = vehicleOperatorCodes({ routes: routeIds }, operators).map((c) =>
+    operatorOf(c, directory)!,
+  );
   const rank = vehicleRank(board, id);
   const name = vehicleName(register?.label ?? now?.label, id);
   const plate = register?.plate ?? now?.plate ?? null;
@@ -272,23 +339,32 @@ export default async function VehiclePage({
 
       <LiveCard now={now} register={register} mode={mode} names={names} />
 
-      {now?.tripId && liveMap && (
+      {map && (
         <section className="border border-at-border bg-at-surface p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero">Where it is now</h2>
-            <StopDotKey />
+            <h2 className="text-lg font-ultra tracking-zero">
+              {serviceDate === today
+                ? "Where it ran today"
+                : `Where it ran on ${serviceDayLabel(serviceDate)}`}
+            </h2>
+            <StopDotKey noReading={liveMap !== null} />
           </div>
           <StopMapWrapper
-            stops={liveMap.stops}
-            routeLines={liveMap.path.length > 1 ? [liveMap.path] : []}
-            routeId={routeSlug(now.routeId)}
-            live
-            filterTripId={now.tripId}
+            stops={map.stops}
+            routeLines={map.lines}
+            routeId={liveOnMap ? routeSlug(liveOnMap.routeId) : undefined}
+            live={liveOnMap !== null}
+            filterTripId={liveOnMap?.tripId ?? undefined}
             mode={mode ?? undefined}
-            stopQuery=""
-            className="h-100"
+            stopQuery={dayParam ? `?day=${dayParam}` : ""}
+            className="h-[min(25rem,60svh)]"
           />
-          <MapMarkKey live offRoute={false} />
+          <p className="mt-2 text-xs text-at-muted">
+            Every run it made{serviceDate === today ? " so far" : ""}, with each stop coloured by
+            how late it was there on average.
+            {liveMap && " Stops still ahead on its current run have no reading yet."}
+          </p>
+          <MapMarkKey live={liveOnMap !== null} offRoute={false} />
         </section>
       )}
 
@@ -329,9 +405,25 @@ export default async function VehiclePage({
 
       {window === "day"
         ? runs.length > 0 && (
-            <RunsTable runs={runs} mode={mode ?? "BUS"} names={names} routeQuery={routeQuery} />
+            <RunsTable
+              runs={runs}
+              mode={mode ?? "BUS"}
+              names={names}
+              routeQuery={routeQuery}
+              sp={sp}
+              hrefFor={tableHref}
+            />
           )
-        : total && <DaysTable days={days} id={id} basePath={basePath} listState={listState} />}
+        : total && (
+            <DaysTable
+              days={days}
+              id={id}
+              basePath={basePath}
+              listState={listState}
+              sp={sp}
+              hrefFor={tableHref}
+            />
+          )}
     </main>
   );
 }
@@ -380,6 +472,29 @@ async function liveRunMap(
   const road = shape.status === "fulfilled" ? shape.value : [];
   const path = road.length > 1 ? road : stops.map((s): [number, number] => [s.lat, s.lon]);
   return stops.length === 0 && path.length < 2 ? null : { stops, path };
+}
+
+/**
+ * The day map: every run's road path and stop from the day's arrivals, with the
+ * live run laid over it. The live run adds its whole planned path and the stops
+ * it has yet to reach, which the arrivals cannot know about; a stop both lists
+ * keeps the day's average, since that is what the map's colours describe.
+ * @param day - Where the vehicle ran that day, or null off the day view.
+ * @param live - The run it is on now, or null when it is not on one today.
+ * @returns The stops and paths to draw, or null when there is nothing to draw.
+ */
+function dayRunMap(
+  day: { stops: MapStop[]; lines: Array<Array<[number, number]>> } | null,
+  live: { stops: MapStop[]; path: Array<[number, number]> } | null,
+): { stops: MapStop[]; lines: Array<Array<[number, number]>> } | null {
+  const stops = [...(day?.stops ?? [])];
+  const seen = new Set(stops.map((s) => s.stop_id));
+  for (const s of live?.stops ?? []) {
+    if (!seen.has(s.stop_id)) stops.push(s);
+  }
+  const lines = [...(day?.lines ?? [])];
+  if (live && live.path.length > 1) lines.push(live.path);
+  return stops.length === 0 && lines.length === 0 ? null : { stops, lines };
 }
 
 /**
@@ -493,12 +608,15 @@ function lastSeenLabel(at: Date): string {
 }
 
 /**
- * The day's runs, earliest first, each linking to its trip page.
+ * The day's runs, earliest first unless a heading re-sorts them, each linking
+ * to its trip page.
  * @param root0 - Props.
  * @param root0.runs - The runs.
  * @param root0.mode - The vehicle's mode, for the on-time window.
  * @param root0.names - Route id > short name.
  * @param root0.routeQuery - The route-page query for the window shown, with its `?`.
+ * @param root0.sp - The page's search params, for the table's sort.
+ * @param root0.hrefFor - This page with the table's sort params set.
  * @returns The table.
  */
 function RunsTable({
@@ -506,13 +624,23 @@ function RunsTable({
   mode,
   names,
   routeQuery,
+  sp,
+  hrefFor,
 }: {
   runs: VehicleRunRow[];
   mode: VehicleMode;
   names: Record<string, string>;
   routeQuery: string;
+  sp: VehicleSearchParams;
+  hrefFor: (p: Record<string, string | undefined>) => string;
 }): JSX.Element {
   const showCars = runs.some((r) => r.cars != null);
+  const { sort, head } = tableSort(sp, RUN_COLUMNS, "start", hrefFor, TABLE_SORT);
+  const lines = sortRows(
+    runs.map((r) => ({ ...r, ...runFigures(r), route: names[r.routeId] ?? routeSlug(r.routeId) })),
+    RUN_COLUMNS,
+    sort,
+  );
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its runs</h2>
@@ -520,34 +648,28 @@ function RunsTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <th scope="col" className="p-3 font-semibold">
+              <SortHeader {...head("start")} align="left">
                 Start
-              </th>
-              <th scope="col" className="p-3 font-semibold">
+              </SortHeader>
+              <SortHeader {...head("route")} align="left">
                 Route
-              </th>
-              <th scope="col" className="p-3 text-right font-semibold">
-                Length
-              </th>
-              <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+              </SortHeader>
+              <SortHeader {...head("length")}>Length</SortHeader>
+              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
                 Arrivals
-              </th>
+              </SortHeader>
               {showCars && (
-                <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                <SortHeader {...head("cars")} className="hidden sm:table-cell">
                   Cars
-                </th>
+                </SortHeader>
               )}
-              <th scope="col" className="p-3 text-right font-semibold">
-                Off schedule
-              </th>
+              <SortHeader {...head("off")}>Off schedule</SortHeader>
             </tr>
           </thead>
           <tbody>
-            {runs.map((r) => {
-              const f = runFigures(r);
-              const off = offScheduleValue(f.avgSec, f.avgAbsSec, mode);
+            {lines.map((r) => {
+              const off = offScheduleValue(r.avgSec, r.avgAbsSec, mode);
               const start = new Date(r.startMs).toISOString();
-              const route = names[r.routeId] ?? routeSlug(r.routeId);
               return (
                 <tr key={r.tripId} className="border-b border-at-border last:border-b-0">
                   <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
@@ -563,11 +685,11 @@ function RunsTable({
                       href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery}`}
                       className="font-semibold text-at-shore hover:underline"
                     >
-                      {route}
+                      {r.route}
                     </Link>
                   </td>
                   <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                    {formatHours(f.durationSec)}
+                    {formatHours(r.durationSec)}
                   </td>
                   <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.e}</td>
                   {showCars && (
@@ -606,6 +728,8 @@ function RunsTable({
  * @param root0.id - The vehicle.
  * @param root0.basePath - This page's path.
  * @param root0.listState - How the vehicles list was left, carried by each day's link.
+ * @param root0.sp - The page's search params, for the table's sort.
+ * @param root0.hrefFor - This page with the table's sort params set.
  * @returns The table.
  */
 function DaysTable({
@@ -613,12 +737,32 @@ function DaysTable({
   id,
   basePath,
   listState,
+  sp,
+  hrefFor,
 }: {
   days: { date: string; rows: VehicleDayRow[] }[];
   id: string;
   basePath: string;
   listState: Readonly<Record<string, string | undefined>>;
+  sp: VehicleSearchParams;
+  hrefFor: (p: Record<string, string | undefined>) => string;
 }): JSX.Element {
+  const { sort, head } = tableSort(sp, DAY_COLUMNS, "day", hrefFor, TABLE_SORT);
+  const lines = sortRows(
+    days.map(({ date, rows }): DayLine => {
+      const row = rows.find((r) => r.v === id);
+      return {
+        date,
+        ran: row !== undefined,
+        serviceSec: row?.s ?? null,
+        runs: row?.r ?? null,
+        arrivals: row?.e ?? null,
+        offSec: row ? (row.e > 0 ? row.a / row.e : 0) : null,
+      };
+    }),
+    DAY_COLUMNS,
+    sort,
+  );
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Day by day</h2>
@@ -626,30 +770,25 @@ function DaysTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <th scope="col" className="p-3 font-semibold">
+              <SortHeader {...head("day")} align="left">
                 Day
-              </th>
-              <th scope="col" className="p-3 text-right font-semibold">
-                In service
-              </th>
-              <th scope="col" className="p-3 text-right font-semibold">
-                Runs
-              </th>
-              <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+              </SortHeader>
+              <SortHeader {...head("hours")}>In service</SortHeader>
+              <SortHeader {...head("runs")}>Runs</SortHeader>
+              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
                 Arrivals
-              </th>
-              <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+              </SortHeader>
+              <SortHeader {...head("off")} className="hidden sm:table-cell">
                 Avg off
-              </th>
+              </SortHeader>
             </tr>
           </thead>
           <tbody>
-            {days.toReversed().map(({ date, rows }) => {
-              const row = rows.find((r) => r.v === id);
+            {lines.map(({ date, ran, serviceSec, runs, arrivals, offSec }) => {
               return (
                 <tr key={date} className="border-b border-at-border last:border-b-0">
                   <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
-                    {row ? (
+                    {ran ? (
                       <Link
                         href={buildHref(basePath, {
                           day: date === nzServiceDayString() ? undefined : date,
@@ -663,15 +802,17 @@ function DaysTable({
                       <span className="text-at-muted">{serviceDayLabel(date)}</span>
                     )}
                   </th>
-                  {row ? (
+                  {ran ? (
                     <>
                       <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                        {formatHours(row.s)}
+                        {formatHours(serviceSec ?? 0)}
                       </td>
-                      <td className="p-3 text-right tabular-nums">{row.r}</td>
-                      <td className="hidden p-3 text-right tabular-nums sm:table-cell">{row.e}</td>
+                      <td className="p-3 text-right tabular-nums">{runs}</td>
+                      <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                        {arrivals}
+                      </td>
                       <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
-                        {formatDuration(row.e > 0 ? row.a / row.e : 0)}
+                        {formatDuration(offSec ?? 0)}
                       </td>
                     </>
                   ) : (

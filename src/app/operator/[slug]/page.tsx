@@ -7,12 +7,15 @@
 import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/RangeControls";
+import { SchoolAdded } from "@/components/SchoolAdded";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SortHeader } from "@/components/SortHeader";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import {
   getCancelledRoutes,
   getEarliestDataDay,
   getLatestEventDate,
+  getOperators,
   getRankings,
   getRouteOperators,
   getVehicleWork,
@@ -35,10 +38,17 @@ import {
 } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
-import { isSchoolBus } from "@/lib/school-bus";
+import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
+import {
+  keepSort,
+  sortRows,
+  tableSort,
+  type SortColumn,
+  type SortParamNames,
+} from "@/lib/table-sort";
 import type { DateRange } from "@/lib/time";
 import { buildHref, stripUnset } from "@/lib/utils";
-import { sortVehicles } from "@/lib/vehicle-rank";
+import { sortVehicles, type VehicleTotal } from "@/lib/vehicle-rank";
 import { getLiveVehicleMap } from "@/lib/vehicles";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -61,7 +71,33 @@ interface OperatorSearchParams {
   day?: string;
   period?: string;
   school?: string;
+  /** The routes table's sorted column, and "1" to sort it the other way. */
+  rsort?: string;
+  rrev?: string;
+  /** The vehicles table's sorted column, and "1" to sort it the other way. */
+  vsort?: string;
+  vrev?: string;
 }
+
+/** The routes table's sortable columns. */
+const ROUTE_COLUMNS: SortColumn<OperatorRoute>[] = [
+  { key: "route", value: "name", first: "asc" },
+  { key: "ontime", value: "onTime" },
+  { key: "off", value: "off" },
+  { key: "arrivals", value: "events" },
+  { key: "cancelled", value: "cancelled" },
+];
+
+/** The vehicles table's sortable columns; the sort picks the ten shown. */
+const FLEET_COLUMNS: SortColumn<VehicleTotal>[] = [
+  { key: "vehicle", value: "vehicleId", first: "asc" },
+  { key: "hours", value: "serviceSec" },
+  { key: "runs", value: "runs" },
+  { key: "off", value: "avgOffSec" },
+];
+
+const ROUTE_SORT: SortParamNames = { sort: "rsort", rev: "rrev" };
+const FLEET_SORT: SortParamNames = { sort: "vsort", rev: "vrev" };
 
 /**
  * The operator a slug names, including one missing from the fixed table but
@@ -70,10 +106,11 @@ interface OperatorSearchParams {
  * @returns The operator, or null.
  */
 async function resolveOperator(slug: string): Promise<Operator | null> {
-  const operators = await getRouteOperators().catch(
-    readFallback<Record<string, string>>("route-operators", {}),
-  );
-  return operatorBySlug(slug, new Set(Object.values(operators)));
+  const [operators, directory] = await Promise.all([
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
+    getOperators().catch(readFallback<Operator[]>("operators", [])),
+  ]);
+  return operatorBySlug(slug, directory, new Set(Object.values(operators)));
 }
 
 /**
@@ -99,7 +136,7 @@ export async function generateMetadata({
  * Operator page.
  * @param root0 - Page props.
  * @param root0.params - Route params (`slug`).
- * @param root0.searchParams - Window (`window`, `day`, `period`) and `school`.
+ * @param root0.searchParams - Window (`window`, `day`, `period`), `school`, and each table's sort.
  * @returns Page markup.
  */
 export default async function OperatorPage({
@@ -122,8 +159,8 @@ export default async function OperatorPage({
     clampDayParam(basePath, sp, today);
     dropTodayParam(basePath, sp, today);
   }
-  const includeSchool = sp.school === "1";
-  const filter = { mode: null, includeSchool };
+  const schools = parseSchoolFilter(sp.school);
+  const filter = { mode: null, schools };
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
@@ -147,17 +184,42 @@ export default async function OperatorPage({
   }
   const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
 
-  const [allRows, operators, cancelledRoutes, vehicles] = await Promise.all([
-    getRankings(range, ON_TIME_LATE_SEC, revalidate),
-    getRouteOperators(),
-    getCancelledRoutes(range, filter, 10_000, revalidate),
-    getVehicleWork(range, filter, TODAY_REVALIDATE),
-  ]);
-  const rows = allRows.filter((r) => includeSchool || !isSchoolBus(r.short_name, r.long_name));
+  // With school services included, the same reads without them too, so each
+  // figure can show the "+N" they add.
+  const withoutSchool = { mode: null, schools: "exclude" as const };
+  const [allRows, operators, directory, cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
+    await Promise.all([
+      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRouteOperators(),
+      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getCancelledRoutes(range, filter, 10_000, revalidate),
+      getVehicleWork(range, filter, TODAY_REVALIDATE),
+      schools === "include" ? getCancelledRoutes(range, withoutSchool, 10_000, revalidate) : null,
+      schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
+    ]);
+  const rows = allRows.filter((r) => schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)));
   const cancelled = new Map(cancelledRoutes.map((c) => [c.route_id, c.cancelled]));
-  const table = operatorRows(rows, operators, cancelled, vehicles);
+  const table = operatorRows(rows, operators, cancelled, vehicles, directory);
   const rank = table.findIndex((o) => o.operator.code === op.code);
   const mine = rank === -1 ? null : table[rank]!;
+  const base =
+    cancelledBase && vehiclesBase
+      ? (operatorRows(
+          allRows.filter((r) => !isSchoolBus(r.short_name, r.long_name)),
+          operators,
+          new Map(cancelledBase.map((c) => [c.route_id, c.cancelled])),
+          vehiclesBase,
+          directory,
+        ).find((o) => o.operator.code === op.code) ?? null)
+      : null;
+  /**
+   * What school services added to one of the operator's figures: all of it when
+   * it ran only school services, nothing while they are left out.
+   * @param key - The count.
+   * @returns The amount added.
+   */
+  const added = (key: "events" | "cancelled" | "vehicles"): number =>
+    schools === "include" && mine ? (mine[key] ?? 0) - (base?.[key] ?? 0) : 0;
 
   // Its routes, one line per slug, then any route that only cancelled. A route
   // republished mid-window carries two feed versions; their figures are weighted
@@ -194,13 +256,43 @@ export default async function OperatorPage({
       cancelled: c.cancelled,
     });
   }
-  const routeList = [...routes.values()].sort(
-    (a, b) => b.events - a.events || a.name.localeCompare(b.name, "en-NZ", { numeric: true }),
+  const view = {
+    window: window === "day" ? undefined : window,
+    day: dayParam,
+    period: period ?? undefined,
+  };
+  const school = schoolFilterParam(schools);
+  // Each table's heading links carry the other table's sort, so sorting one
+  // leaves the other as it was.
+  const routeKeep = keepSort(sp, ROUTE_COLUMNS, "arrivals", ROUTE_SORT);
+  const fleetKeep = keepSort(sp, FLEET_COLUMNS, "hours", FLEET_SORT);
+  const routeSort = tableSort(
+    sp,
+    ROUTE_COLUMNS,
+    "arrivals",
+    (p) => buildHref(basePath, { ...view, school, ...fleetKeep, ...p }),
+    ROUTE_SORT,
+  );
+  const fleetSort = tableSort(
+    sp,
+    FLEET_COLUMNS,
+    "hours",
+    (p) => buildHref(basePath, { ...view, school, ...routeKeep, ...p }),
+    FLEET_SORT,
+  );
+  const routeList = sortRows(
+    [...routes.values()].sort((a, b) => a.name.localeCompare(b.name, "en-NZ", { numeric: true })),
+    ROUTE_COLUMNS,
+    routeSort.sort,
   );
 
-  const fleetAll = sortVehicles(
-    vehicles.filter((v) => vehicleOperatorCodes(v, operators).includes(op.code)),
-    "hours",
+  const fleetAll = sortRows(
+    sortVehicles(
+      vehicles.filter((v) => vehicleOperatorCodes(v, operators).includes(op.code)),
+      "hours",
+    ),
+    FLEET_COLUMNS,
+    fleetSort.sort,
   );
   const fleetShown = fleetAll.slice(0, FLEET_SHOWN);
   const live = getLiveVehicleMap();
@@ -208,14 +300,8 @@ export default async function OperatorPage({
     readFallback("fleet", new Map<string, FleetVehicle>()),
   );
 
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
-  const school = includeSchool ? "1" : undefined;
   const routeQuery = routeLinkQuery(window, dayParam, period);
-  const schoolPreserved = stripUnset(view);
+  const schoolPreserved = stripUnset({ ...view, ...routeKeep, ...fleetKeep });
 
   return (
     <main className="space-y-6">
@@ -243,11 +329,8 @@ export default async function OperatorPage({
         <RangeControls basePath={basePath} nav={nav} />
       </header>
 
-      <SchoolBusToggle
-        active={includeSchool}
-        basePath={basePath}
-        preservedParams={schoolPreserved}
-      />
+      {/* Only for an operator that ran a school service in the window. */}
+      <SchoolBusToggle value={schools} basePath={basePath} preservedParams={schoolPreserved} />
 
       {mine ? (
         <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-3 lg:grid-cols-6">
@@ -257,9 +340,18 @@ export default async function OperatorPage({
           <Figure label="Avg off">
             {mine.avg_abs_delay_sec === null ? "-" : formatDuration(mine.avg_abs_delay_sec)}
           </Figure>
-          <Figure label="Arrivals">{mine.events.toLocaleString("en-NZ")}</Figure>
-          <Figure label="Cancelled">{mine.cancelled.toLocaleString("en-NZ")}</Figure>
-          <Figure label="Vehicles">{(mine.vehicles ?? 0).toLocaleString("en-NZ")}</Figure>
+          <Figure label="Arrivals">
+            {mine.events.toLocaleString("en-NZ")}
+            <SchoolAdded n={added("events")} />
+          </Figure>
+          <Figure label="Cancelled">
+            {mine.cancelled.toLocaleString("en-NZ")}
+            <SchoolAdded n={added("cancelled")} />
+          </Figure>
+          <Figure label="Vehicles">
+            {(mine.vehicles ?? 0).toLocaleString("en-NZ")}
+            <SchoolAdded n={added("vehicles")} />
+          </Figure>
           <Figure label="Operators">
             <Link
               href={buildHref("/operators", { ...view, school })}
@@ -291,21 +383,17 @@ export default async function OperatorPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-                  <th scope="col" className="p-3 font-semibold">
+                  <SortHeader {...routeSort.head("route")} align="left">
                     Route
-                  </th>
-                  <th scope="col" className="p-3 text-right font-semibold">
-                    On time
-                  </th>
-                  <th scope="col" className="p-3 text-right font-semibold">
-                    Avg off
-                  </th>
-                  <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                  </SortHeader>
+                  <SortHeader {...routeSort.head("ontime")}>On time</SortHeader>
+                  <SortHeader {...routeSort.head("off")}>Avg off</SortHeader>
+                  <SortHeader {...routeSort.head("arrivals")} className="hidden sm:table-cell">
                     Arrivals
-                  </th>
-                  <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                  </SortHeader>
+                  <SortHeader {...routeSort.head("cancelled")} className="hidden sm:table-cell">
                     Cancelled
-                  </th>
+                  </SortHeader>
                 </tr>
               </thead>
               <tbody>
@@ -368,18 +456,14 @@ export default async function OperatorPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-                  <th scope="col" className="p-3 font-semibold">
+                  <SortHeader {...fleetSort.head("vehicle")} align="left">
                     Vehicle
-                  </th>
-                  <th scope="col" className="p-3 text-right font-semibold">
-                    In service
-                  </th>
-                  <th scope="col" className="p-3 text-right font-semibold">
-                    Runs
-                  </th>
-                  <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                  </SortHeader>
+                  <SortHeader {...fleetSort.head("hours")}>In service</SortHeader>
+                  <SortHeader {...fleetSort.head("runs")}>Runs</SortHeader>
+                  <SortHeader {...fleetSort.head("off")} className="hidden sm:table-cell">
                     Avg off
-                  </th>
+                  </SortHeader>
                 </tr>
               </thead>
               <tbody>

@@ -7,6 +7,7 @@
 // show rank movement.
 import { clampRangeToDataStart } from "@/lib/data-start";
 import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
+import { parseSchoolFilter, type SchoolFilter } from "@/lib/school-bus";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -39,7 +40,7 @@ export interface ParsedRankingsParams {
   window: RankWindow;
   mode: RankMode;
   dir: DelayDirection;
-  includeSchool: boolean;
+  schools: SchoolFilter;
 }
 
 /**
@@ -51,8 +52,8 @@ export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsPar
   const window: RankWindow = sp.window === "month" ? "month" : "week";
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as RankMode;
   const dir = parseDelayDirection(sp.dir);
-  const includeSchool = sp.school === "1";
-  return { window, mode, dir, includeSchool };
+  const schools = parseSchoolFilter(sp.school);
+  return { window, mode, dir, schools };
 }
 
 /**

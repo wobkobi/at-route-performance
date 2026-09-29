@@ -281,6 +281,7 @@ export default async function StopPage({
           hasNext={nav.hasNext}
           nextHref={nav.nextIsToday ? `/stop/${encodeURIComponent(id)}` : undefined}
           nextPending={nav.nextPending}
+          calendar={nav.calendar}
         />
       </header>
 
@@ -363,7 +364,7 @@ export default async function StopPage({
               },
             ]}
             selectedStopId={stop.stop_id}
-            className="h-100 lg:h-auto lg:min-h-80 lg:flex-1"
+            className="h-[min(25rem,60svh)] lg:h-auto lg:min-h-80 lg:flex-1"
           />
           <p className="mt-2 text-xs text-at-muted">
             The dot is this stop, coloured by how early or late arrivals here were on average over

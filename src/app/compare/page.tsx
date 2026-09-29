@@ -288,7 +288,7 @@ export default async function ComparePage({
   if (kind === "routes") {
     const [rows, cancelled, busiest] = await Promise.all([
       getRankings(range, ON_TIME_LATE_SEC, revalidate),
-      getCancelledByRoute(range, { mode: null, includeSchool: true }, revalidate),
+      getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
       ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
     const bySlug = new Map(rows.map((r) => [routeSlug(r.route_id).toLowerCase(), r]));
@@ -568,7 +568,7 @@ function CandidateList({
   return (
     <div>
       <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">{heading}</p>
-      <ul className="mt-1 divide-y divide-at-border">
+      <ul className="striped mt-1 divide-y divide-at-border">
         {items.map((c) => (
           <li key={c.id}>
             <Link

@@ -2,7 +2,7 @@
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
 import { clampRangeToDataStart } from "@/lib/data-start";
 import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
-import { getRouteRiderWait } from "@/lib/data/rider-wait";
+import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
@@ -243,14 +243,12 @@ export async function getRouteStats(p: RouteStatsParams): Promise<RouteStats> {
   // arrivals cut in half.
   const range: DateRange =
     p.from && p.to ? { start: p.from, end: p.to } : clampRangeToDataStart(nzLast7DaysRange());
-  // The cancellation penalty is counted per service day, not per hour, so it
-  // cannot be narrowed with the arrivals. Applying the whole day's penalty to
-  // one part of it would charge the morning peak for an evening cancellation,
-  // so a filtered view stays on measured arrivals alone.
-  if (p.hours) return measuredRouteStats(p, range);
+  // A part of the day takes only the cancellations due to start in it, so the
+  // morning peak is not charged for an evening cancellation; the home page's
+  // narrowed boards count them the same way.
   const [stats, penalties] = await Promise.all([
     measuredRouteStats(p, range),
-    getRouteRiderWait(range),
+    p.hours ? getRiderWaitOfDates(serviceDatesInRange(range), p.hours) : getRouteRiderWait(range),
   ]);
   const penalty = penaltyForRoute(penalties, p.routeId);
   return stats.summary && penalty

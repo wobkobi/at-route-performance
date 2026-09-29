@@ -7,7 +7,7 @@
 // instant; the state is written back to the query string with replaceState, so
 // the view survives a reload and can be shared without a navigation.
 
-import { FilterMenu, FilterOption } from "@/components/FilterMenu";
+import { choiceSummary, FilterMenu, FilterOption } from "@/components/FilterMenu";
 import { FleetSummary } from "@/components/FleetSummary";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -21,7 +21,6 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
-import { operatorBySlug } from "@/lib/operators";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -39,6 +38,7 @@ import {
   type ExplorerRoute,
   type ExplorerSort,
 } from "@/lib/route-explorer";
+import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 
@@ -46,6 +46,8 @@ import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 export interface RouteExplorerProps {
   /** Every route with arrivals in the window. */
   rows: ExplorerRoute[];
+  /** The stored operators' slugs and names, which label the operator filter. */
+  operators: { slug: string; name: string }[];
   /** The filters parsed from the page's query string. */
   initialFilters: ExplorerFilters;
   /** How many rows to show, parsed from the page's query string. */
@@ -86,20 +88,8 @@ const LEANS = [
 const TOGGLES = [
   ["enoughData", "Enough data to rank"],
   ["cancelledOnly", "Had cancellations"],
-  ["school", "Include school buses"],
   ["runningNow", "Running now"],
 ] as const;
-
-/**
- * What a filter pill says for a multi-choice filter: the first choice by name
- * and a count of the rest, as in "Central +2", so the pill stays one line.
- * @param labels - The chosen options' labels, in display order.
- * @returns The summary, or null with nothing chosen.
- */
-function choiceSummary(labels: readonly string[]): string | null {
-  if (labels.length === 0) return null;
-  return labels.length === 1 ? labels[0]! : `${labels[0]} +${labels.length - 1}`;
-}
 
 /**
  * A labelled row of filter chips.
@@ -148,6 +138,7 @@ function Figure({
  * Filterable, sortable list of routes with a KPI strip over the matching ones.
  * @param props - Component props.
  * @param props.rows - Every route with arrivals in the window.
+ * @param props.operators - The stored operators' slugs and names.
  * @param props.initialFilters - The filters parsed from the query string.
  * @param props.initialShown - How many rows to show, parsed from the query string.
  * @param props.routeQuery - Query each route link carries.
@@ -156,6 +147,7 @@ function Figure({
  */
 export function RouteExplorer({
   rows,
+  operators,
   initialFilters,
   initialShown,
   routeQuery,
@@ -256,9 +248,9 @@ export function RouteExplorer({
   const operatorOptions = useMemo(
     () =>
       [...new Set(rows.map((r) => r.operator).filter((s): s is string => s !== null))]
-        .map((slug) => ({ slug, name: operatorBySlug(slug)?.name ?? slug }))
+        .map((slug) => ({ slug, name: operators.find((o) => o.slug === slug)?.name ?? slug }))
         .sort((a, b) => a.name.localeCompare(b.name, "en-NZ")),
-    [rows],
+    [rows, operators],
   );
 
   const isDefault = Object.keys(explorerQuery(filters)).length === 0;
@@ -390,6 +382,23 @@ export function RouteExplorer({
             </FilterMenu>
           )}
           <FilterMenu
+            label="School buses"
+            summary={schoolFilterSummary(filters.school)}
+            onReset={() => update({ school: "exclude" })}
+          >
+            {SCHOOL_FILTERS.map((f) => (
+              <FilterOption
+                key={f.key}
+                type="radio"
+                name="explorer-school"
+                checked={filters.school === f.key}
+                onChange={() => update({ school: f.key })}
+              >
+                {f.label}
+              </FilterOption>
+            ))}
+          </FilterMenu>
+          <FilterMenu
             label="Running"
             summary={LEANS.find(([key]) => key !== null && key === filters.lean)?.[1] ?? null}
             onReset={() => update({ lean: null })}
@@ -416,9 +425,7 @@ export function RouteExplorer({
             summary={choiceSummary(
               TOGGLES.filter(([key]) => filters[key]).map(([, label]) => label),
             )}
-            onReset={() =>
-              update({ enoughData: false, cancelledOnly: false, school: false, runningNow: false })
-            }
+            onReset={() => update({ enoughData: false, cancelledOnly: false, runningNow: false })}
           >
             {TOGGLES.map(([key, label]) => (
               <FilterOption
@@ -540,7 +547,7 @@ export function RouteExplorer({
                               if (!filters.areas.includes(a)) toggleArea(a);
                             }}
                             aria-pressed={filters.areas.includes(a)}
-                            className="rounded-full bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
+                            className="bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
                           >
                             {AREA_LABEL[a]}
                           </button>

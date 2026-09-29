@@ -7,7 +7,16 @@ import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */
 export interface NavSection {
-  href: "/" | "/routes" | "/live" | "/shame/trip" | "/cancellations";
+  href:
+    | "/"
+    | "/days"
+    | "/routes"
+    | "/operators"
+    | "/vehicles"
+    | "/live"
+    | "/shame/trip"
+    | "/cancellations"
+    | "/compare";
   label: string;
   /** Path prefixes that belong to the section besides its own page. */
   under: readonly string[];
@@ -19,13 +28,18 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
-  // `/vehicle/` too: a vehicle's page is not a prefix match of the list it opens from.
-  { href: "/", label: "Overview", under: ["/days", "/vehicles", "/vehicle/"] },
-  { href: "/routes", label: "Routes", under: ["/route/", "/stop/", "/operator"] },
+  { href: "/", label: "Overview", under: [] },
+  { href: "/days", label: "Days", under: [] },
+  { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
+  // A single operator's or vehicle's page is not a prefix match of the list it
+  // opens from (`/operator/` against `/operators`), so each is listed.
+  { href: "/operators", label: "Operators", under: ["/operator/"] },
+  { href: "/vehicles", label: "Vehicles", under: ["/vehicle/"] },
   { href: "/live", label: "Live", under: [], carries: ["mode"] },
   // The section's own tab: /shame redirects here, and the other two boards sit beside it.
   { href: "/shame/trip", label: "Shame", under: ["/shame"] },
   { href: "/cancellations", label: "Cancellations", under: [] },
+  { href: "/compare", label: "Compare", under: [] },
 ];
 
 /**

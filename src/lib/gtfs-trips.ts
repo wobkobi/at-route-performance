@@ -3,6 +3,7 @@
 // topped up from AT's v3 API for the routes the zip leaves out. The public zip omits every
 // school route (S454 and some 300 more), though the API lists them and their trips.
 import { fetchAll } from "@/lib/at-static";
+import { parseAgencies, type AgencyRecord } from "@/lib/gtfs-agencies";
 import { sleep } from "@/lib/utils";
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
@@ -82,27 +83,35 @@ function parseTrips(txt: string): TripRecord[] {
  * @param file - A zip entry being considered.
  * @returns True to decompress the entry.
  */
-function onlyTrips(file: UnzipFileInfo): boolean {
-  return file.name === "trips.txt";
+function onlyTripsAndAgencies(file: UnzipFileInfo): boolean {
+  return file.name === "trips.txt" || file.name === "agency.txt";
 }
 
 /**
- * Download AT's GTFS zip and extract trip metadata from `trips.txt`.
- * Only `trips.txt` is decompressed.
- * @returns One {@link TripRecord} per trip in the feed.
+ * Download AT's GTFS zip and extract trip metadata from `trips.txt` and the
+ * operator list from `agency.txt`. Only those two files are decompressed.
+ * @returns One {@link TripRecord} per trip in the feed, and one agency per
+ *   operator; no agencies when `agency.txt` is absent, so the stored list stands.
  * @throws {Error} When the download fails or `trips.txt` is absent.
  */
-export async function fetchTrips(): Promise<TripRecord[]> {
+export async function fetchTripsAndAgencies(): Promise<{
+  trips: TripRecord[];
+  agencies: AgencyRecord[];
+}> {
   const res = await fetch(GTFS_ZIP_URL, {
     cache: "no-store",
     signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) throw new Error(`GTFS zip ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
-  const files = unzipSync(buf, { filter: onlyTrips });
+  const files = unzipSync(buf, { filter: onlyTripsAndAgencies });
   const data = files["trips.txt"];
   if (!data) throw new Error("trips.txt not found in the GTFS zip");
-  return parseTrips(strFromU8(data));
+  const agency = files["agency.txt"];
+  return {
+    trips: parseTrips(strFromU8(data)),
+    agencies: agency ? parseAgencies(strFromU8(agency)) : [],
+  };
 }
 
 /**

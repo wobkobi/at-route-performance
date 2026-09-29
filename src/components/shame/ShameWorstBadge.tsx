@@ -1,10 +1,10 @@
 // src/components/shame/ShameWorstBadge.tsx
-// Small "Worst" pill shown beside a shame board's crowned row.
+// Small "Worst" badge shown beside a shame board's crowned row.
 
 import type { JSX } from "react";
 
 /**
- * The small "Worst" pill shown beside a shame board's crowned row.
+ * The small "Worst" badge shown beside a shame board's crowned row.
  * @returns The badge element.
  */
 export function ShameWorstBadge(): JSX.Element {

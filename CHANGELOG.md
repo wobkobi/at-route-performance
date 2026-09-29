@@ -32,6 +32,122 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.1] - 2026-09-29
+
+### Fixed
+
+- Google's own crawlers (AdsBot-Google, Mediapartners-Google, Google-InspectionTool) are recognised
+  as link-preview bots again; the pattern read `\w` in a plain string as a bare `w`.
+
+## [2.40.0] - 2026-09-29
+
+### Added
+
+- A vehicle's page shows a map of where it ran on the day chosen.
+
+## [2.39.0] - 2026-09-29
+
+### Added
+
+- The live map draws each route's whole line in its colour, branches and long tails included (route
+  65's three western ends, NX1 through to Hibiscus Coast), with routes that share a road set side by
+  side and one bundle over the Harbour Bridge. Toggles show or hide each delay band's dots and the
+  route lines, with an All vehicles switch, and zoomed in each dot carries its mode's icon. A trip
+  or route with nothing recorded (route MEX, say) stays off the map until its first run lands.
+
+## [2.38.1] - 2026-09-29
+
+### Fixed
+
+- Maps no longer grow taller than about 60% of the screen, and pan with one finger on touch screens.
+
+## [2.38.0] - 2026-09-29
+
+### Added
+
+- Operators come from AT's own agency list, refreshed each night, instead of a list kept in the
+  code: a new operator shows under its real name without a code change, a renamed one keeps its page
+  address, and one AT drops stays named on its old routes but leaves the sitemap.
+
+## [2.37.0] - 2026-09-29
+
+### Added
+
+- The overview rankings can be narrowed to a time of day (7am to 9am, say), to weekdays or weekends,
+  and to an area. A new hourly summary per route, written by the nightly rollup, keeps those views
+  quick.
+
+## [2.36.0] - 2026-09-29
+
+### Added
+
+- On the shame boards, clicking an hour opens the full ranked list for that hour, while the route
+  number still opens the route. Clicking a day on the week or month board opens the list for that
+  whole day.
+
+## [2.35.1] - 2026-09-29
+
+### Fixed
+
+- With a part-of-day filter on, a cancelled trip's rider wait counts towards the hours it was due to
+  start in, not the whole day.
+
+## [2.35.0] - 2026-09-29
+
+### Added
+
+- The day and period controls open a calendar that runs from the first day with data to today, so an
+  older day is one tap away rather than many.
+
+## [2.34.1] - 2026-09-29
+
+### Fixed
+
+- Filters only offer modes that actually ran in the period shown, and the mode filter hides when
+  there is only one choice.
+
+## [2.34.0] - 2026-09-29
+
+### Added
+
+- Clicking a column heading on the days, live, operator, operators, vehicle, vehicles and route
+  pages sorts the table by it, and the order is kept in the link.
+
+## [2.33.0] - 2026-09-29
+
+### Added
+
+- The school bus switch has three settings: leave school buses out, add them in, or show only school
+  buses. Pages say how much the school routes added, and old `?school=1` links still work.
+
+## [2.32.1] - 2026-09-29
+
+### Fixed
+
+- Shared links unfurl with their preview card again: link-preview bots get the page metadata
+  straight away, and robots.txt lets them fetch the card image.
+
+## [2.32.0] - 2026-09-29
+
+### Added
+
+- Days, Operators, Vehicles and Compare each get their own tab in the top bar, which wraps onto a
+  second line on narrow screens instead of overflowing.
+
+## [2.31.8] - 2026-09-29
+
+### Fixed
+
+- Long tables and ranked boards shade every other row, so a line is easier to follow across the
+  page.
+
+## [2.31.7] - 2026-09-29
+
+### Fixed
+
+- Chips, badges, buttons, the nav tabs, the alert and area tags and the progress bars are
+  square-cornered like the filter boxes, not pill-shaped.
+
 ## [2.31.6] - 2026-09-29
 
 ### Fixed

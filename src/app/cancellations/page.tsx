@@ -32,8 +32,9 @@ import {
   type RangeNav,
 } from "@/lib/range-page";
 import { requestNow } from "@/lib/request-now";
+import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
 import { nzServiceDayString, type DateRange } from "@/lib/time";
-import { buildHref } from "@/lib/utils";
+import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -105,7 +106,7 @@ export default async function CancellationsPage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
-  const includeSchool = sp.school === "1";
+  const schools = parseSchoolFilter(sp.school);
   const stage = CANCELLATION_STAGES.find((s) => s === sp.stage) ?? null;
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
@@ -134,7 +135,9 @@ export default async function CancellationsPage({
     trips = await getNetworkCancelledTrips(range);
   }
 
-  const visible = trips.filter((t) => (!mode || t.mode === mode) && (includeSchool || !t.school));
+  const visible = trips.filter(
+    (t) => (!mode || t.mode === mode) && schoolAllows(schools, t.school),
+  );
   const byRoute = new Map<string, CancelledRouteRow>();
   for (const t of visible) {
     const row = byRoute.get(t.route_id);
@@ -164,17 +167,10 @@ export default async function CancellationsPage({
   if (window === "day" && linkDay && sp.day) windowParams.day = linkDay;
   if (period) windowParams.period = period;
   const stageParam: Record<string, string> = stage ? { stage } : {};
-  const modePreserved = {
-    ...windowParams,
-    ...(includeSchool ? { school: "1" } : {}),
-    ...stageParam,
-  };
+  const schoolParam = stripUnset({ school: schoolFilterParam(schools) });
+  const modePreserved = { ...windowParams, ...schoolParam, ...stageParam };
   const schoolPreserved = { ...windowParams, ...(mode ? { mode } : {}), ...stageParam };
-  const stagePreserved = {
-    ...windowParams,
-    ...(mode ? { mode } : {}),
-    ...(includeSchool ? { school: "1" } : {}),
-  };
+  const stagePreserved = { ...windowParams, ...(mode ? { mode } : {}), ...schoolParam };
 
   return (
     <main className="space-y-6">
@@ -191,7 +187,7 @@ export default async function CancellationsPage({
           availableModes={modes}
         />
         <SchoolBusToggle
-          active={includeSchool}
+          value={schools}
           basePath="/cancellations"
           preservedParams={schoolPreserved}
         />
@@ -217,7 +213,7 @@ export default async function CancellationsPage({
               href={buildHref("/routes", {
                 ...windowParams,
                 mode: mode ?? undefined,
-                school: includeSchool ? "1" : undefined,
+                school: schoolFilterParam(schools),
                 cancelled: "1",
                 sort: "cancelled",
               })}

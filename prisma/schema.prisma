@@ -282,6 +282,31 @@ model DailyRouteSummary {
   @@index([date])
 }
 
+// One row per route per Auckland clock hour per service day, written by the
+// nightly rollup beside DailyRouteSummary so a week or month can be narrowed to
+// part of the day without scanning ArrivalEvent. Counts and sums rather than
+// rates, so any set of hours adds up exactly; the on-time and early counts are
+// already picked by the route's mode. Read and written through raw commands, and
+// the writer creates these indexes itself (lib/aggregate.ts), so the collection
+// works before a schema push.
+model HourlyRouteSummary {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  routeId        String
+  date           DateTime // NZ service-day start (4am Auckland, stored as UTC)
+  hour           Int // Auckland clock hour of the scheduled arrival, 0-23
+  events         Int
+  plausible      Int // Real readings, the denominator for the figures below
+  sumDelaySec    Float
+  sumAbsDelaySec Float
+  onTime         Int
+  early          Int
+  late           Int
+  thresholdSec   Int
+
+  @@unique([routeId, date, hour])
+  @@index([date])
+}
+
 // One row per cancelled trip per service day, captured from GTFS-RT trip updates
 // with schedule_relationship = CANCELED. Those updates carry no stop times, so a
 // cancelled trip never becomes an ArrivalEvent and is invisible to the on-time

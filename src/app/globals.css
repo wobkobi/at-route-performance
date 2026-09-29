@@ -33,12 +33,15 @@
   --color-at-muted: #667583;
   --color-at-border: #d1d6da;
   /* An inert fill, not the page ground: map tiles yet to load, the empty part of
-     a bar, a muted count pill. The page itself is white, as at.govt.nz is. */
+     a bar, a muted count badge. The page itself is white, as at.govt.nz is. */
   --color-at-bg: #e9edf1;
   --color-at-surface: #ffffff;
   /* Pale Shore tint (at.govt.nz tint-shore-10) for icon badges, section bands
      and table heads - the last of those is what `.at-table thead` uses there. */
   --color-at-shore-pale: #ebf5fb;
+  /* Every other row of a table or ranked list: neutral, so it never reads as
+     the Shore hover, and faint enough that a hovered row still stands out. */
+  --color-at-stripe: #f4f6f8;
 
   /* Semantic status */
   --color-at-ontime: #0073bd;
@@ -93,7 +96,7 @@
 
 /* Status badges: solid fill + contrast-checked text for WCAG AA (guide p28). */
 .badge {
-  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
 }
 .badge-ok {
   @apply bg-at-ontime text-white;
@@ -105,9 +108,9 @@
   @apply bg-at-early text-at-ink;
 } /* Bright Green + Ocean = pass */
 
-/* AT-style pill controls (filters, day stepper, sort chips). */
+/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. */
 .chip {
-  @apply inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold transition-colors;
+  @apply inline-flex items-center px-3 py-1 text-sm font-semibold transition-colors;
   /*
     `transition-colors` covers `outline-color` too, which would fade the focus
     ring up over 150ms from the chip's own text colour - white on an active
@@ -158,11 +161,11 @@
   }
 }
 
-/* AT button: pill-shaped, flat. The CTA variant is Safety yellow on Ocean text -
+/* AT button: square-cornered, flat. The CTA variant is Safety yellow on Ocean text -
    the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
    pairing from the brand guide). */
 .at-btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition;
+  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold transition;
 }
 .at-btn-cta {
   @apply bg-at-safety text-at-ocean hover:brightness-95;
@@ -247,6 +250,20 @@
   }
 }
 
+/*
+  Alternate rows for readability. Every table body stripes; a list opts in with
+  `.striped`, and there the stripe goes on the row's link (or the row's box, where
+  a row holds two links), which bleeds past the list edge to match its hover. A group label or divider row takes `.no-stripe`
+  and drops out of the count, so the rows either side of it still alternate.
+  In the base layer, so a row's own hover or highlight utility wins over it.
+*/
+@layer base {
+  tbody > tr:nth-child(even of :not(.no-stripe)),
+  .striped > li:nth-child(even of :not(.no-stripe)) > :is(a, div) {
+    background-color: var(--color-at-stripe);
+  }
+}
+
 /* Compact, box-less delay labels for live buses on the route map. */
 /* A solid backing rather than a text halo: a halo is thin over roads and park fill. */
 .leaflet-tooltip.bus-delay-label {
@@ -280,7 +297,7 @@
 }
 
 /*
-  Reduced motion: the pill and button hover transitions become instant, and the
+  Reduced motion: the chip and button hover transitions become instant, and the
   stepper pulse becomes a still dim, since a waiting click still needs
   acknowledging.
 */

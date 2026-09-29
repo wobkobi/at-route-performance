@@ -3,17 +3,21 @@
 // The live page's network map: every vehicle on a run as a dot in its delay
 // colour, redrawn from /api/live every two minutes, over the road paths the
 // routes follow. Dots are drawn on one canvas rather than as DOM markers, since
-// a weekday peak puts well over a thousand vehicles on the map at once. The
-// table under the map carries the same service for keyboard and screen-reader
-// readers, so the dots are not focusable.
+// a weekday peak puts well over a thousand vehicles on the map at once. Zoomed
+// in to street level, where a screen holds a few dozen, they become markers with
+// the mode's icon inside. The table under the map carries the same service for
+// keyboard and screen-reader readers, so the dots are not focusable.
 
 import { LocateArrow } from "@/components/icons";
+import { modeGlyph } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
 import { coreBounds } from "@/lib/map-frame";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
-import { operatorHref, operatorOf } from "@/lib/operators";
+import { nearbyFrame } from "@/lib/near-frame";
+import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { shiftPixels } from "@/lib/shared-roads";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
 import type { NetworkLine } from "@/types/api";
@@ -37,14 +41,45 @@ const AUCKLAND_BOUNDS: [[number, number], [number, number]] = [
   [-35.85, 175.6],
 ];
 
-/** The zoom a located reader lands on: a few streets either way, so the nearby dots stand apart. */
-const NEAR_ZOOM = 15;
+/** Closest a located reader is framed, so a dot beside them does not fill the screen. */
+const NEAR_MAX_ZOOM = 17;
+
+/** The zoom the map opens at, where road paths draw at their base weight. */
+const BASE_ZOOM = 11;
 
 /**
- * The pane the road paths draw in. Leaflet puts tiles at 200 and the vehicle
- * dots at 400, so 350 leaves a dot on top of the line it is running along.
+ * From this zoom the dots carry their mode's icon. That makes them DOM markers,
+ * so only the vehicles in view are drawn: at street level a screen holds a few
+ * dozen, where the whole region's thousand would stall the page.
  */
-const LINE_PANE = "network-lines";
+const ICON_ZOOM = 15;
+
+/** The modes whose icons the markers carry. */
+const MODES: readonly LiveMode[] = ["BUS", "TRAIN", "FERRY"];
+
+/**
+ * A road path's stroke at a zoom. Rail and ferry lines are few and long, so they
+ * carry more weight than the bus roads, which overlap and stay hairlines at the
+ * whole-region view. Zoomed in, the roads spread apart, so every path thickens
+ * by a third of its base weight per level and firms up, capped at street level;
+ * zoomed out past the opening view they stay at base.
+ * @param mode - The route's mode.
+ * @param zoom - The map's zoom.
+ * @param hover - Whether the pointer is on the path, which draws it bold.
+ * @returns Stroke weight and opacity.
+ */
+function lineStyle(
+  mode: LiveMode,
+  zoom: number,
+  hover = false,
+): { weight: number; opacity: number } {
+  const levels = Math.min(Math.max(zoom - BASE_ZOOM, 0), 6);
+  const weight = (mode === "BUS" ? 1.5 : 2.5) * (1 + levels / 3);
+  return hover ? { weight: weight + 2, opacity: 0.9 } : { weight, opacity: 0.4 + levels * 0.05 };
+}
+
+/** A dot's delay band, which the map's toggles show or hide one at a time. */
+export type DotBand = "late" | "ontime" | "early" | "unknown";
 
 /** The word a vehicle's popup names it by. */
 const MODE_WORD: Record<LiveMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
@@ -77,13 +112,14 @@ function cssVar(name: string): string {
  * use, its operator, and links to its run and its own page.
  * @param v - The vehicle.
  * @param detail - Its delay line.
+ * @param operators - The stored operators the feed's vehicles carry.
  * @returns Popup HTML.
  */
-function popupHtml(v: LiveMapVehicle, detail: string): string {
+function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operator[]): string {
   const name = `${MODE_WORD[v.mode]} ${v.label ?? v.id}`;
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
-  const op = operatorOf(v.op);
+  const op = operatorOf(v.op, operators);
   const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
   return (
     `<a href="/route/${encodeURIComponent(v.slug)}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
@@ -94,32 +130,73 @@ function popupHtml(v: LiveMapVehicle, detail: string): string {
 }
 
 /**
+ * A tapped road's popup: every route drawn within reach of the tap, nearest
+ * first, each with its colour, name and how many of the dots are on it, so a
+ * reader can pick one route out of a shared road.
+ * @param hits - The routes under the tap and the colour each is drawn in.
+ * @param vehicles - The last poll's vehicles, or null before the first lands.
+ * @returns Popup HTML.
+ */
+function linePopupHtml(
+  hits: readonly { line: NetworkLine; colour: string }[],
+  vehicles: readonly LiveMapVehicle[] | null,
+): string {
+  const rows = hits.map(({ line, colour }) => {
+    const running = vehicles?.filter((v) => v.slug === line.slug).length ?? 0;
+    const count = vehicles === null ? "" : ` &middot; ${running === 0 ? "none" : running} on a run`;
+    // A square of the line's own colour, so a reader can match the row to the road.
+    const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${esc(colour)}"></span>`;
+    return (
+      `${swatch}<a href="/route/${encodeURIComponent(line.slug)}"><strong>Route ${esc(line.slug)}</strong></a>` +
+      (line.name ? ` ${esc(line.name)}` : "") +
+      count
+    );
+  });
+  const heading = hits.length > 1 ? `${hits.length} routes here<br>` : "";
+  return heading + rows.join("<br>");
+}
+
+/**
  * The network map.
  * @param props - Component props.
  * @param props.mode - Show one mode's vehicles, or null for every mode.
+ * @param props.bands - The delay bands whose dots are drawn.
+ * @param props.showLines - Whether the route lines are drawn under the dots.
  * @param props.className - Height and size classes.
  * @returns The map container.
  */
 export default function LiveMap({
   mode,
+  bands,
+  showLines,
   className,
 }: {
   mode: LiveMode | null;
+  bands: ReadonlySet<DotBand>;
+  showLines: boolean;
   className?: string;
 }): JSX.Element {
   const router = useRouter();
   const divRef = useRef<HTMLDivElement | null>(null);
+  // The mode icons rendered once, hidden, so a marker can copy their SVG.
+  const glyphRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<{
     L: typeof Leaflet;
     map: Leaflet.Map;
     layer: Leaflet.LayerGroup;
     renderer: Leaflet.Canvas;
     lineLayer: Leaflet.LayerGroup;
-    lineRenderer: Leaflet.Canvas;
     hereLayer: Leaflet.LayerGroup;
   } | null>(null);
   // The last poll's vehicles, so a mode change redraws without refetching.
   const [vehicles, setVehicles] = useState<LiveMapVehicle[] | null>(null);
+  // Set with each poll's vehicles, before they render, so the popups read the same poll's names.
+  const operatorsRef = useRef<Operator[]>([]);
+  // The same vehicles for a road path's popup, which is built on open outside React.
+  const vehiclesRef = useRef<LiveMapVehicle[] | null>(null);
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
   // The routes' road paths: fetched once, since they are the same for every
   // reader and only change when the GTFS shapes sync runs.
   const [lines, setLines] = useState<NetworkLine[] | null>(null);
@@ -136,12 +213,12 @@ export default function LiveMap({
     void (async () => {
       const L = (await import("leaflet")) as typeof import("leaflet");
       if (dead || !divRef.current) return;
-      // One-finger drag off and the wheel only on a settled mouse, as on the
-      // route maps, so the page still scrolls past a map that fills a screen.
+      // The wheel zooms only on a settled mouse, as on the route maps. One-finger
+      // drag stays on for touch: the page caps the map below the screen's height,
+      // so there is always page above or below it to scroll by.
       // Quarter-step zoom so the opening frame fits the city, not the next level out.
       const map = L.map(divRef.current, {
         scrollWheelZoom: false,
-        dragging: !L.Browser.mobile,
         zoomSnap: 0.25,
       });
       wheelZoomOnHover(map);
@@ -155,22 +232,19 @@ export default function LiveMap({
           referrerPolicy: "strict-origin-when-cross-origin",
         },
       ).addTo(map);
-      // The road paths get a pane of their own under the dots (see LINE_PANE),
-      // and a canvas with room to spare so a pan does not tear the lines at the
-      // edge of the drawn area.
-      map.createPane(LINE_PANE);
-      const linePane = map.getPane(LINE_PANE);
-      if (linePane) linePane.style.zIndex = "350";
-      const lineRenderer = L.canvas({ pane: LINE_PANE, padding: 0.3 });
-      // A bigger hit tolerance, so a tap near a 5px dot still opens it.
-      const renderer = L.canvas({ tolerance: 6 });
+      // One canvas for the dots and the road paths both. A canvas only hears
+      // clicks on its own element, so paths on a second canvas under the dots'
+      // could never be tapped; here the paths are sent to the back of the draw
+      // order instead, and a tap where a dot sits on its road opens the dot.
+      // The hit tolerance lets a tap near a 5px dot or a hairline road land, and
+      // the padding keeps a pan from tearing the lines at the drawn edge.
+      const renderer = L.canvas({ tolerance: 6, padding: 0.3 });
       mapRef.current = {
         L,
         map,
         layer: L.layerGroup().addTo(map),
         renderer,
         lineLayer: L.layerGroup().addTo(map),
-        lineRenderer,
         hereLayer: L.layerGroup().addTo(map),
       };
       setReady(true);
@@ -221,9 +295,13 @@ export default function LiveMap({
           setFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveMapVehicle[] };
+        const data = (await res.json()) as {
+          vehicles: LiveMapVehicle[];
+          operators?: Operator[];
+        };
         if (dead) return;
         setFailed(false);
+        operatorsRef.current = data.operators ?? [];
         setVehicles(data.vehicles);
       } catch {
         if (!dead) setFailed(true);
@@ -274,40 +352,132 @@ export default function LiveMap({
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !lines) return;
-    const { L, lineLayer, lineRenderer } = m;
+    const { L, map, lineLayer, renderer } = m;
     lineLayer.clearLayers();
-    const colour = cssVar("--color-at-muted");
-    for (const line of lines) {
-      if (mode && line.mode !== mode) continue;
-      const points: [number, number][] = [];
-      for (let i = 0; i + 1 < line.path.length; i += 2) {
-        const lat = line.path[i];
-        const lon = line.path[i + 1];
-        if (lat === undefined || lon === undefined) continue;
-        points.push([lat, lon]);
+    if (!showLines) return;
+    const resolved = new Map<string, string>();
+    /**
+     * A line's stroke colour. Each line takes its route icon's colour, and a
+     * route AT gives no colour arrives as a custom property name, resolved once
+     * per name since the canvas renderer takes no `var()`.
+     * @param c - `#rrggbb`, or a `--color-*` custom property name.
+     * @returns A colour the canvas can stroke with.
+     */
+    const colourOf = (c: string): string => {
+      if (!c.startsWith("--")) return c;
+      let hex = resolved.get(c);
+      if (hex === undefined) {
+        hex = cssVar(c) || cssVar("--color-at-muted");
+        resolved.set(c, hex);
       }
-      if (points.length < 2) continue;
-      L.polyline(points, {
-        renderer: lineRenderer,
-        pane: LINE_PANE,
-        color: colour,
-        // Rail and ferry lines are few and long, so they carry a little more
-        // weight without crowding; bus roads overlap and stay hairlines.
-        weight: line.mode === "BUS" ? 1.5 : 2.5,
-        opacity: 0.4,
-        // Background, not a target: the dots and the table carry every link.
-        interactive: false,
-      }).addTo(lineLayer);
+      return hex;
+    };
+    // One polyline per stretch, keyed back to its route so a hover lights the
+    // whole route and a tap can name it.
+    const drawn: {
+      path: Leaflet.Polyline;
+      line: NetworkLine;
+      slot: number;
+      at: Leaflet.LatLng[];
+    }[] = [];
+    /**
+     * Set every stretch at its lane for the current zoom. Lanes are counted in
+     * line widths, so they are placed in pixels: spaced a bus line's width plus a
+     * pixel apart, they stay side by side however far in the reader is.
+     */
+    const place = (): void => {
+      const zoom = map.getZoom();
+      const spacing = lineStyle("BUS", zoom).weight + 1;
+      for (const d of drawn) {
+        d.path.setStyle(lineStyle(d.line.mode, zoom));
+        if (d.slot === 0) continue;
+        const px = d.at.map((ll): [number, number] => {
+          const p = map.project(ll, zoom);
+          return [p.x, p.y];
+        });
+        d.path.setLatLngs(
+          shiftPixels(px, d.slot * spacing).map(([x, y]) => map.unproject([x, y], zoom)),
+        );
+      }
+    };
+    /**
+     * Light every stretch of one route, or put them back.
+     * @param slug - The route.
+     * @param on - Whether the pointer is on it.
+     */
+    const light = (slug: string, on: boolean): void => {
+      const zoom = map.getZoom();
+      for (const d of drawn) {
+        if (d.line.slug === slug) d.path.setStyle(lineStyle(d.line.mode, zoom, on));
+      }
+    };
+    /**
+     * Open a popup naming every route drawn within reach of a tap, since a
+     * shared road hides all but the top line from the canvas's own hit test.
+     * @param e - The tap on a line.
+     */
+    const pick = (e: Leaflet.LeafletMouseEvent): void => {
+      const reach = 6 + lineStyle("BUS", map.getZoom()).weight;
+      const nearest = new Map<string, number>();
+      for (const d of drawn) {
+        const pts = d.path.getLatLngs() as Leaflet.LatLng[];
+        let best = Infinity;
+        for (let i = 0; i + 1 < pts.length; i++) {
+          const a = map.latLngToLayerPoint(pts[i] as Leaflet.LatLng);
+          const b = map.latLngToLayerPoint(pts[i + 1] as Leaflet.LatLng);
+          best = Math.min(best, L.LineUtil.pointToSegmentDistance(e.layerPoint, a, b));
+        }
+        if (best <= reach && best < (nearest.get(d.line.slug) ?? Infinity)) {
+          nearest.set(d.line.slug, best);
+        }
+      }
+      const hits = [...nearest]
+        .sort((a, b) => a[1] - b[1])
+        .map(([slug]) => lines.find((l) => l.slug === slug))
+        .filter((l): l is NetworkLine => l !== undefined)
+        .map((line) => ({ line, colour: colourOf(line.colour) }));
+      if (hits.length === 0) return;
+      // Built on the tap, so the counts read the latest poll.
+      L.popup()
+        .setLatLng(e.latlng)
+        .setContent(linePopupHtml(hits, vehiclesRef.current))
+        .openOn(map);
+    };
+    // Walked from the top of the draw order down, since each path is sent to the
+    // back as it lands: the list comes buses first, and they must end up lowest.
+    for (const line of [...lines].reverse()) {
+      if (mode && line.mode !== mode) continue;
+      for (const run of line.runs) {
+        const at: Leaflet.LatLng[] = [];
+        for (let i = 0; i + 1 < run.path.length; i += 2) {
+          const lat = run.path[i];
+          const lon = run.path[i + 1];
+          if (lat === undefined || lon === undefined) continue;
+          at.push(L.latLng(lat, lon));
+        }
+        if (at.length < 2) continue;
+        const path = L.polyline(at, { renderer, color: colourOf(line.colour) });
+        path.on("click", pick);
+        path.on("mouseover", () => light(line.slug, true));
+        path.on("mouseout", () => light(line.slug, false));
+        path.addTo(lineLayer).bringToBack();
+        drawn.push({ path, line, slot: run.slot, at });
+      }
     }
-  }, [lines, mode, ready]);
+    place();
+    map.on("zoomend", place);
+    return () => {
+      map.off("zoomend", place);
+    };
+  }, [lines, mode, ready, showLines]);
 
-  // Redraw on each poll and on a mode change. An open popup closes with its
-  // dot; a two-minute redraw is rare enough that keying dots by id is not worth it.
+  // Redraw on each poll, on a mode change and on a toggle. An open popup closes
+  // with its dot; a two-minute redraw is rare enough that keying dots by id is
+  // not worth it.
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !vehicles) return;
     const { L, map, layer, renderer } = m;
-    layer.clearLayers();
     const colour = {
       late: cssVar("--color-at-late"),
       // Small dots over a pale basemap, so early takes the darker green.
@@ -315,28 +485,78 @@ export default function LiveMap({
       ontime: cssVar("--color-at-ontime"),
       unknown: cssVar("--color-at-muted"),
     };
-    const shown = mode ? vehicles.filter((v) => v.mode === mode) : vehicles;
-    for (const v of shown) {
-      const status = vehicleStatus(v.delaySec, v.mode);
-      L.circleMarker([v.lat, v.lon], {
-        renderer,
-        radius: v.mode === "BUS" ? 4 : 6,
-        weight: 1,
-        color: "#ffffff",
-        fillColor: colour[status.band],
-        fillOpacity: 0.9,
-      })
-        .bindPopup(popupHtml(v, status.detail))
-        .addTo(layer);
-    }
+    const glyph = Object.fromEntries(
+      MODES.map((md) => [
+        md,
+        glyphRef.current?.querySelector(`[data-mode="${md}"]`)?.outerHTML ?? "",
+      ]),
+    ) as Record<LiveMode, string>;
+    const shown = vehicles.filter((v) => (!mode || v.mode === mode) && v.stored);
+    const drawn = shown
+      .map((v) => ({ v, status: vehicleStatus(v.delaySec, v.mode) }))
+      .filter(({ status }) => bands.has(status.band));
+
+    // Zoomed out, every dot goes on the canvas once and stays through pans. Zoomed
+    // in, markers are added as vehicles come into view and never taken off until
+    // the zoom drops back: clearing on each move would shut a popup the moment
+    // Leaflet pans the map to fit it.
+    let drawnAs: "dots" | "icons" | null = null;
+    const placed = new Set<string>();
+    /** Draw the dots, or the in-view markers, for the current zoom. */
+    const draw = (): void => {
+      const icons = map.getZoom() >= ICON_ZOOM;
+      if (!icons && drawnAs === "dots") return;
+      if ((icons ? "icons" : "dots") !== drawnAs) {
+        layer.clearLayers();
+        placed.clear();
+        drawnAs = icons ? "icons" : "dots";
+      }
+      const view = map.getBounds().pad(0.25);
+      for (const { v, status } of drawn) {
+        if (!icons) {
+          L.circleMarker([v.lat, v.lon], {
+            renderer,
+            radius: v.mode === "BUS" ? 4 : 6,
+            weight: 1,
+            color: "#ffffff",
+            fillColor: colour[status.band],
+            fillOpacity: 0.9,
+          })
+            .bindPopup(popupHtml(v, status.detail, operatorsRef.current))
+            .addTo(layer);
+          continue;
+        }
+        if (placed.has(v.id) || !view.contains([v.lat, v.lon])) continue;
+        placed.add(v.id);
+        const size = v.mode === "BUS" ? 30 : 34;
+        const html =
+          `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;` +
+          `box-sizing:border-box;border-radius:9999px;border:2px solid #fff;color:#fff;` +
+          `font-size:${Math.round(size * 0.55)}px;box-shadow:0 1px 3px rgb(0 0 0 / 0.4);` +
+          `background:${colour[status.band]}">${glyph[v.mode]}</span>`;
+        L.marker([v.lat, v.lon], {
+          icon: L.divIcon({ className: "", html, iconSize: [size, size] }),
+          keyboard: false,
+        })
+          .bindPopup(popupHtml(v, status.detail, operatorsRef.current))
+          .addTo(layer);
+      }
+    };
+    draw();
+    map.on("moveend", draw);
+
     // Frame the vehicles once, on the core rather than every outlier (see
-    // coreBounds); after that the reader's pan and zoom are kept.
+    // coreBounds); after that the reader's pan and zoom are kept. Every band
+    // counts, so a toggle never decides where the map opens.
     const core = coreBounds(shown.map((v) => [v.lat, v.lon] as const));
     if (!framed.current && core) {
       framed.current = true;
       map.fitBounds(L.latLngBounds(core), { padding: [16, 16] });
     }
-  }, [vehicles, mode]);
+    return () => {
+      map.off("moveend", draw);
+    };
+  }, [vehicles, mode, bands]);
 
   /**
    * Ask for the reader's position and fly to it, marking where they are with a
@@ -381,7 +601,15 @@ export default function LiveMap({
         }).addTo(hereLayer);
         // The reader chose this view, so the first poll must not frame it away.
         framed.current = true;
-        map.flyTo(here, NEAR_ZOOM);
+        // Centred on the reader and wide enough for the nearest few vehicles (see
+        // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
+        const shown = (vehiclesRef.current ?? []).filter((v) => !mode || v.mode === mode);
+        const frame = nearbyFrame(
+          [here.lat, here.lng],
+          pos.coords.accuracy,
+          shown.map((v) => [v.lat, v.lon] as const),
+        );
+        map.flyToBounds(frame, { padding: [24, 24], maxZoom: NEAR_MAX_ZOOM, duration: 0.8 });
       },
       (err) => {
         setLocating(false);
@@ -398,6 +626,12 @@ export default function LiveMap({
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
+      <div ref={glyphRef} hidden>
+        {MODES.map((md) => {
+          const { Icon } = modeGlyph(md);
+          return <Icon key={md} data-mode={md} aria-hidden />;
+        })}
+      </div>
       {/* Clear of Leaflet's attribution in the corner below it. */}
       <button
         type="button"

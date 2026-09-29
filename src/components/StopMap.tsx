@@ -8,7 +8,7 @@ import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/line-arrows";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
-import { operatorHref, operatorOf } from "@/lib/operators";
+import { operatorHref, type Operator } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
@@ -276,15 +276,14 @@ function glide(marker: Leaflet.Marker): void {
  * @param state - The map state holding the vehicle layer and markers.
  * @param vehicles - The vehicles to show, already filtered to this map.
  * @param mode - The route's mode, which sets the glyph and the on-time window.
- * @param opCode - The route's operator code, for the popup's "Run by" line; null when unrecorded.
+ * @param op - The route's operator, for the popup's "Run by" line; null when unrecorded.
  */
 function syncVehicles(
   state: MapState,
   vehicles: LiveVehicle[],
   mode: RouteMode,
-  opCode: string | null,
+  op: Operator | null,
 ): void {
-  const op = operatorOf(opCode);
   const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
   const { L, colours } = state;
   const seen = new Set<string>();
@@ -638,16 +637,16 @@ export default function StopMap({
 
       const colours = readColours();
       /*
-        Leaflet's always-on wheel zoom and one-finger drag would take a scroll the
-        reader meant for the page - on a phone the map is most of the viewport. So
-        one-finger drag is off on touch (pinch and the zoom buttons still work),
-        and the wheel zooms only once the mouse has settled on the map.
+        Leaflet's always-on wheel zoom would take a scroll the reader meant for the
+        page, so the wheel zooms only once the mouse has settled on the map.
+        One-finger drag stays on for touch, since a map that only pinches cannot
+        be moved about; every page caps its map below the screen's height
+        (60svh), so a swipe above or below it still scrolls the page.
       */
       // Quarter-step zoom so a fitted route fills its box: whole steps round the
       // fit down a level, which can leave half the map empty around the line.
       const map = L.map(divRef.current, {
         scrollWheelZoom: false,
-        dragging: !L.Browser.mobile,
         zoomSnap: 0.25,
       });
       wheelZoomOnHover(map);
@@ -804,7 +803,7 @@ export default function StopMap({
           setVehiclesFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: string | null };
+        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: Operator | null };
         if (dead) return;
         setVehiclesFailed(false);
 

@@ -47,7 +47,7 @@ export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps)
           counted, and only from when capture began.
         </p>
       ) : (
-        <ol className="divide-y divide-at-border">
+        <ol className="striped divide-y divide-at-border">
           {rows.map((r, i) => {
             const label = r.short_name || r.long_name || r.route_id;
             const subtitle = lineName(r.mode, r.short_name);

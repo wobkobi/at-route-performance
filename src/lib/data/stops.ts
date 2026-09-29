@@ -3,13 +3,14 @@
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRouteModeMap, routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
-import { cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
+import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
 import type { DelayDirection } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
+import { type SchoolFilter } from "@/lib/school-bus";
 import {
   STATION_PREFIX,
   type StationParts,
@@ -31,16 +32,29 @@ import {
   padScanRange,
   serviceDatesInRange,
 } from "@/lib/time";
-import { type RankedStopRow, worstStopOfDay } from "@/lib/worst-stop";
+import { type HourRange, hoursInRange } from "@/lib/time-of-day";
+import {
+  MIN_STOP_EVENTS,
+  type RankedStopRow,
+  matchesDelayDirection,
+  mergeStationPlatforms,
+  worstStopOfDay,
+} from "@/lib/worst-stop";
 import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
-import type { ShameDayStop, ShameStop, ShameStopOfDay, ShameStopOfWeek } from "@/types/dashboard";
+import type {
+  ShameDayStop,
+  ShameRanked,
+  ShameStop,
+  ShameStopOfDay,
+  ShameStopOfWeek,
+} from "@/types/dashboard";
 
 /**
  * The cached worst stops for one service day. Same key/TTL ownership as
  * {@link cachedWorstTripsOfDay}.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param mode - Route mode filter (null = every mode).
- * @param includeSchool - Whether school services are included.
+ * @param schools - Which school services count (default leave them out).
  * @param direction - Keep only days whose worst station ran late or early on
  *   average; null keeps both, which is what every surface but `/shame/stop` asks for.
  * @param revalidate - TTL for the live day, in seconds.
@@ -49,23 +63,17 @@ import type { ShameDayStop, ShameStop, ShameStopOfDay, ShameStopOfWeek } from "@
 export function cachedWorstStopsOfDay(
   date: string,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
   direction: DelayDirection,
   revalidate: number,
 ): Promise<ShameDayStop[]> {
   return cachedForDay(
     (classified) =>
-      worstStopsForRange(nzServiceDayRange(date), mode, includeSchool, direction, classified),
+      worstStopsForRange(nzServiceDayRange(date), mode, schools, direction, classified),
     // The key names stations because a row is now one station rather than one
     // platform: a completed day caches for a week, so an entry written before
     // the merge would keep naming a single platform for that long.
-    [
-      "worst-stops-of-day-stations",
-      date,
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-      direction ?? "both",
-    ],
+    ["worst-stops-of-day-stations", date, mode ?? "all", schools, direction ?? "both"],
     date,
     revalidate,
   );
@@ -113,7 +121,7 @@ type HourFigure = "events" | "avg_delay_sec" | "avg_abs_delay_sec" | "routeIds";
  * @param range - The service-day window.
  * @param filter - Mode/school/direction filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
- * @param filter.includeSchool - Include school services (default false).
+ * @param filter.schools - Which school services count (default leave them out).
  * @param filter.direction - Rank only stops running late or early on average;
  *   null/undefined ranks both.
  * @param revalidate - Cache lifetime in seconds.
@@ -124,10 +132,10 @@ export async function getWorstStopsOfDay(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameStopOfDay> {
-  const { mode = null, includeSchool = false, direction = null } = filter;
+  const { mode = null, schools = "exclude", direction = null } = filter;
   return cachedForRange(
     async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       const match: Record<string, unknown> = {
         scheduledAt: scheduledAtWindow(padScanRange(range)),
         serviceDate: { $in: serviceDatesInRange(range) },
@@ -232,8 +240,115 @@ export async function getWorstStopsOfDay(
       range.start.toISOString(),
       range.end.toISOString(),
       mode ?? "all",
-      includeSchool ? "school" : "no-school",
+      schools,
       direction ?? "both",
+    ],
+    range,
+    revalidate,
+  );
+}
+
+/**
+ * Every station in part of the day, worst first: the list a stop board's hour
+ * opens on. Calls are bucketed by the hour they were scheduled at, platforms
+ * merge into their station before the floor applies, and the direction filter
+ * runs on the merged row, all as on the hourly board. The floor is
+ * {@link MIN_STOP_EVENTS_HOUR} per hour covered, capped at the whole-day
+ * {@link MIN_STOP_EVENTS}, so a single hour ranks exactly the stations the hourly
+ * board chose among, and a long stretch of the day still asks a real sample.
+ * @param range - The service-day window.
+ * @param filter - Mode/school/direction filters.
+ * @param hours - The part of the day, as Auckland clock hours.
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns Up to {@link SHAME_RANKED_LIMIT} stations, worst first, and how many qualified.
+ */
+export async function getShameStopsInHours(
+  range: DateRange,
+  filter: ShameFilter,
+  hours: HourRange,
+  revalidate: number,
+): Promise<ShameRanked<ShameStop>> {
+  const { mode = null, schools = "exclude", direction = null } = filter;
+  const hourSet = hoursInRange(hours);
+  return cachedForRange(
+    async (classified) => {
+      const routeIds = await worstStopRouteIds(mode, schools);
+      const match: Record<string, unknown> = {
+        scheduledAt: scheduledAtWindow(padScanRange(range)),
+        serviceDate: { $in: serviceDatesInRange(range) },
+        ...realDeviationMatchFor(classified),
+      };
+      if (routeIds) match.routeId = { $in: routeIds };
+
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: [
+            { $match: match },
+            // The hourly board's bucket, tail rule included (see getWorstStopsOfDay).
+            {
+              $addFields: {
+                hour: {
+                  $cond: [
+                    { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
+                    { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+                    (SERVICE_START_HOUR + 23) % 24,
+                  ],
+                },
+              },
+            },
+            { $match: { hour: { $in: hourSet } } },
+            {
+              $group: {
+                _id: "$stopId",
+                events: { $sum: 1 },
+                avg_delay_sec: { $avg: "$deviationSec" },
+                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                routeIds: { $addToSet: "$routeId" },
+              },
+            },
+            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
+            {
+              $project: {
+                _id: 0,
+                stop_id: { $toString: "$_id" },
+                name: "$stop.name",
+                events: 1,
+                avg_delay_sec: 1,
+                avg_abs_delay_sec: 1,
+                routeIds: 1,
+                ...stationProjection,
+              },
+            },
+          ] as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as { cursor: { firstBatch: RankedStopRow[] } };
+
+      const minEvents = Math.min(MIN_STOP_EVENTS, MIN_STOP_EVENTS_HOUR * hourSet.length);
+      const ranked = mergeStationPlatforms(res.cursor.firstBatch).filter(
+        (r) => r.events >= minEvents && matchesDelayDirection(r, direction),
+      );
+      const modeMap = mode ? null : await getRouteModeMap();
+      return {
+        total: ranked.length,
+        rows: ranked.slice(0, SHAME_RANKED_LIMIT).map(({ routeIds: stationRouteIds, ...row }) => ({
+          hour: hours.from,
+          ...row,
+          mode: mode ?? dominantMode(stationRouteIds, modeMap!),
+        })),
+      };
+    },
+    [
+      "shame-stops-in-hours",
+      `top${SHAME_RANKED_LIMIT}`,
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      schools,
+      direction ?? "both",
+      hourSet.join(","),
     ],
     range,
     revalidate,
@@ -249,7 +364,7 @@ export async function getWorstStopsOfDay(
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school/direction filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
- * @param filter.includeSchool - Include school services (default false).
+ * @param filter.schools - Which school services count (default leave them out).
  * @param filter.direction - Name only stations running late or early on average;
  *   null/undefined names both.
  * @param revalidate - Cache lifetime in seconds.
@@ -260,14 +375,14 @@ export async function getWorstStopsOfWeek(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameStopOfWeek> {
-  const { mode = null, includeSchool = false, direction = null } = filter;
+  const { mode = null, schools = "exclude", direction = null } = filter;
   // Resolve each service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation. Past days stay
   // cached; only the current day recomputes.
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstStopsOfDay(date, mode, includeSchool, direction, revalidate),
+        cachedWorstStopsOfDay(date, mode, schools, direction, revalidate),
       ),
     )
   ).flat();
@@ -288,7 +403,7 @@ export async function getWorstStopsOfWeek(
  * per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
- * @param includeSchool - Whether to include school services.
+ * @param schools - Which school services count (default leave them out).
  * @param direction - Name only stations running late or early on average; null
  *   names both. A day whose qualifying stations all ran the other way has no row.
  * @param classified - Whether the day has been through the ghost pass.
@@ -297,11 +412,11 @@ export async function getWorstStopsOfWeek(
 async function worstStopsForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
   direction: DelayDirection,
   classified: boolean,
 ): Promise<ShameDayStop[]> {
-  const routeIds = await worstStopRouteIds(mode, includeSchool);
+  const routeIds = await worstStopRouteIds(mode, schools);
   const match: Record<string, unknown> = {
     // The pad reaches the tail of a run that started before the boundary; the
     // equality then keeps only the readings that belong to the day, so a run is

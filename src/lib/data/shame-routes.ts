@@ -1,11 +1,12 @@
 // src/lib/data/shame-routes.ts
 // The worst routes: hourly and per-day boards, and the streak batch behind the flame badges.
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
-import { SCHOOL_BUS_REGEX, type ShameFilter } from "@/lib/data/shame-filter";
-import { cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
+import { type ShameFilter, schoolRouteMatch } from "@/lib/data/shame-filter";
+import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
+import { type SchoolFilter } from "@/lib/school-bus";
 import {
   type DateRange,
   NZ_TZ,
@@ -16,26 +17,32 @@ import {
   serviceDatesInRange,
   shiftWeek,
 } from "@/lib/time";
-import type { ShameRouteOfDay, ShameRouteOfWeek, ShameRouteRow } from "@/types/dashboard";
+import { type HourRange, hoursInRange } from "@/lib/time-of-day";
+import type {
+  ShameRanked,
+  ShameRouteOfDay,
+  ShameRouteOfWeek,
+  ShameRouteRow,
+} from "@/types/dashboard";
 
 /**
  * The cached worst routes for one service day. Same key/TTL ownership as
  * {@link cachedWorstTripsOfDay}.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param mode - Route mode filter (null = every mode).
- * @param includeSchool - Whether school services are included.
+ * @param schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's worst routes.
  */
 export function cachedWorstRoutesOfDay(
   date: string,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
   revalidate: number,
 ): Promise<ShameRouteRow[]> {
   return cachedForDay(
-    (classified) => worstRoutesForRange(nzServiceDayRange(date), mode, includeSchool, classified),
-    ["shame-route-worst-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    (classified) => worstRoutesForRange(nzServiceDayRange(date), mode, schools, classified),
+    ["shame-route-worst-of-day", date, mode ?? "all", schools],
     date,
     revalidate,
   );
@@ -159,20 +166,15 @@ const slotsInFlight = new Map<string, Promise<DayShameSlots | null>>();
  * four minutes on the database, and the misses piled up behind each other.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param mode - Route mode filter (null = every mode).
- * @param includeSchool - Whether school services are included.
+ * @param schools - Which school services count (default leave them out).
  * @returns The day's slots, or null for a day with no qualifying hour.
  */
 function shameSlotsOfDay(
   date: string,
   mode: string | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
 ): Promise<DayShameSlots | null> {
-  const key = [
-    "shame-route-slots-of-day-v1",
-    date,
-    mode ?? "all",
-    includeSchool ? "school" : "no-school",
-  ];
+  const key = ["shame-route-slots-of-day-v1", date, mode ?? "all", schools];
   const flightKey = key.join("|");
   const pending = slotsInFlight.get(flightKey);
   if (pending) return pending;
@@ -214,30 +216,8 @@ function shameSlotsOfDay(
       ];
 
       if (mode) pipeline.push({ $match: { "route.mode": mode } });
-      if (!includeSchool) {
-        pipeline.push({
-          $match: {
-            $expr: {
-              $not: {
-                $or: [
-                  {
-                    $regexMatch: {
-                      input: { $ifNull: ["$route.shortName", ""] },
-                      regex: SCHOOL_BUS_REGEX,
-                    },
-                  },
-                  {
-                    $regexMatch: {
-                      input: { $ifNull: ["$route.longName", ""] },
-                      regex: SCHOOL_BUS_REGEX,
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        });
-      }
+      const schoolStage = schoolRouteMatch(schools);
+      if (schoolStage) pipeline.push(schoolStage);
 
       pipeline.push(
         // Worst-first so $first picks the most off-schedule route per hour.
@@ -305,7 +285,7 @@ function shameSlotsOfDay(
  * @param currentRange - UTC half-open window for today's service day.
  * @param filter - Mode/school filter matching the active shame page view.
  * @param filter.mode - Restrict to this mode; null means all modes.
- * @param filter.includeSchool - Include school services (default false).
+ * @param filter.schools - Which school services count (default leave them out).
  * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` - streak
  *   length (min 1), total hourly-slot appearances across *previous* streak days,
  *   and the count of consecutive prior days on which this route was also the
@@ -316,7 +296,7 @@ export async function getShameRouteStreaksBatch(
   currentRange: DateRange,
   filter: ShameFilter,
 ): Promise<Map<string, { count: number; prevHours: number; prevWorstOfDayDays: number }>> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   const result = new Map(
     routeIds.map((id) => [id, { count: 1, prevHours: 0, prevWorstOfDayDays: 0 }]),
   );
@@ -327,7 +307,7 @@ export async function getShameRouteStreaksBatch(
   // drifts an hour off the 4am boundary across a DST change and skips a day.
   let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
   for (let d = 0; d < STREAK_DAYS && open.size > 0; d++) {
-    const day = await shameSlotsOfDay(dayKey, mode, includeSchool);
+    const day = await shameSlotsOfDay(dayKey, mode, schools);
     if (!day) break;
     open = new Set([...open].filter((id) => day.hours.has(id)));
     worstRun = new Set([...worstRun].filter((id) => open.has(id) && day.worstOfDayRouteId === id));
@@ -362,21 +342,24 @@ export const MIN_ROUTE_EVENTS_HOUR = 30;
  * The caller appends "pick worst per key" group and projection stages.
  * @param range - The window to query.
  * @param mode - Route mode filter (null = all).
- * @param includeSchool - Whether to include school services.
+ * @param schools - Which school services count (default leave them out).
  * @param classified - Whether every day in the window has been through the ghost pass.
  * @param groupKey - Name of the field computed by `addFieldsStage`.
  * @param addFieldsStage - `$addFields` stage that computes `groupKey` from the
  *   grouped run (`$trip_start` for a clock bucket, `$service_date` for a day).
+ * @param tripHours - Keep only runs starting in these Auckland clock hours;
+ *   null keeps every run.
  * @returns The partial pipeline array.
  */
 function routeShamePipelineBase(
   range: DateRange,
   mode: string | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
   classified: boolean,
   groupKey: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addFieldsStage: Record<string, any>,
+  tripHours: number[] | null = null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -403,6 +386,15 @@ function routeShamePipelineBase(
         avg_delay_sec: { $avg: "$deviationSec" },
       },
     },
+    ...(tripHours
+      ? [
+          {
+            $match: {
+              $expr: { $in: [{ $hour: { date: "$trip_start", timezone: NZ_TZ } }, tripHours] },
+            },
+          },
+        ]
+      : []),
     { $addFields: addFieldsStage },
     {
       $group: {
@@ -417,30 +409,8 @@ function routeShamePipelineBase(
     { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
   ];
   if (mode) pipeline.push({ $match: { "route.mode": mode } });
-  if (!includeSchool) {
-    pipeline.push({
-      $match: {
-        $expr: {
-          $not: {
-            $or: [
-              {
-                $regexMatch: {
-                  input: { $ifNull: ["$route.shortName", ""] },
-                  regex: SCHOOL_BUS_REGEX,
-                },
-              },
-              {
-                $regexMatch: {
-                  input: { $ifNull: ["$route.longName", ""] },
-                  regex: SCHOOL_BUS_REGEX,
-                },
-              },
-            ],
-          },
-        },
-      },
-    });
-  }
+  const schoolStage = schoolRouteMatch(schools);
+  if (schoolStage) pipeline.push(schoolStage);
   return pipeline;
 }
 
@@ -466,7 +436,7 @@ interface ShameRouteRaw {
  * @param range - The service-day window.
  * @param filter - Mode/school filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
- * @param filter.includeSchool - Include school services (default false).
+ * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst route and the per-hour worst list.
  */
@@ -475,10 +445,10 @@ export async function getShameRouteOfDay(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameRouteOfDay> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   return cachedForRange(
     async (classified) => {
-      const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "hour", {
+      const pipeline = routeShamePipelineBase(range, mode, schools, classified, "hour", {
         hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } },
       });
       pipeline.push(
@@ -546,7 +516,100 @@ export async function getShameRouteOfDay(
       range.start.toISOString(),
       range.end.toISOString(),
       mode ?? "all",
-      includeSchool ? "school" : "no-school",
+      schools,
+    ],
+    range,
+    revalidate,
+  );
+}
+
+/**
+ * Every route in part of the day, worst first: the list a route board's hour
+ * opens on. A route's figures pool every run starting in those hours, and it
+ * qualifies on the hourly board's floor of {@link MIN_ROUTE_EVENTS_HOUR}
+ * arrivals, so the top row of a single hour is the route the hourly board names
+ * for it. Ranked with one bounded `$topN`, as the trips list is.
+ * @param range - The service-day window.
+ * @param filter - Mode/school filters.
+ * @param hours - The part of the day, as Auckland clock hours.
+ * @param revalidate - Cache lifetime in seconds.
+ * @returns Up to {@link SHAME_RANKED_LIMIT} routes, worst first, and how many qualified.
+ */
+export async function getShameRoutesInHours(
+  range: DateRange,
+  filter: ShameFilter,
+  hours: HourRange,
+  revalidate: number,
+): Promise<ShameRanked<ShameRouteRow>> {
+  const { mode = null, schools = "exclude" } = filter;
+  const hourSet = hoursInRange(hours);
+  return cachedForRange(
+    async (classified) => {
+      // One bucket for the whole range, so each route is one row.
+      const pipeline = routeShamePipelineBase(
+        range,
+        mode,
+        schools,
+        classified,
+        "slot",
+        { slot: { $literal: 0 } },
+        hourSet,
+      );
+      pipeline.push({
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          rows: {
+            $topN: {
+              n: SHAME_RANKED_LIMIT,
+              sortBy: { avg_abs_delay_sec: -1 },
+              output: {
+                route_id: "$_id.routeId",
+                short_name: "$route.shortName",
+                long_name: "$route.longName",
+                mode: "$route.mode",
+                colour: "$route.colour",
+                events: "$events",
+                avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+              },
+            },
+          },
+        },
+      });
+      const res = (await runCommand(() =>
+        prisma.$runCommandRaw({
+          aggregate: "ArrivalEvent",
+          pipeline: pipeline as never,
+          cursor: { batchSize: 100_000 },
+        }),
+      )) as unknown as {
+        cursor: { firstBatch: { total: number; rows: Omit<ShameRouteRaw, "hour">[] }[] };
+      };
+      const doc = res.cursor.firstBatch[0];
+      return {
+        total: doc?.total ?? 0,
+        rows: (doc?.rows ?? []).map((r) => ({
+          hour: hours.from,
+          route_id: r.route_id,
+          short_name: r.short_name ?? null,
+          long_name: r.long_name ?? "",
+          mode: r.mode ?? "BUS",
+          colour: r.colour ?? null,
+          events: r.events,
+          avg_abs_delay_sec: r.avg_abs_delay_sec,
+          avg_delay_sec: r.avg_delay_sec,
+        })),
+      };
+    },
+    [
+      "shame-routes-in-hours",
+      `top${SHAME_RANKED_LIMIT}`,
+      range.start.toISOString(),
+      range.end.toISOString(),
+      mode ?? "all",
+      schools,
+      hourSet.join(","),
     ],
     range,
     revalidate,
@@ -561,7 +624,7 @@ export async function getShameRouteOfDay(
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters.
  * @param filter.mode - Restrict to this mode; null/undefined means every mode.
- * @param filter.includeSchool - Include school services (default false).
+ * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst route and the per-day worst list, earliest day first.
  */
@@ -570,13 +633,13 @@ export async function getShameRouteOfWeek(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<ShameRouteOfWeek> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   // Resolve each service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation.
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstRoutesOfDay(date, mode, includeSchool, revalidate),
+        cachedWorstRoutesOfDay(date, mode, schools, revalidate),
       ),
     )
   ).flat();
@@ -594,17 +657,17 @@ export async function getShameRouteOfWeek(
  * caller owns the per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
- * @param includeSchool - Whether to include school services.
+ * @param schools - Which school services count (default leave them out).
  * @param classified - Whether the day has been through the ghost pass.
  * @returns The per-service-day worst routes.
  */
 async function worstRoutesForRange(
   range: DateRange,
   mode: "BUS" | "TRAIN" | "FERRY" | null,
-  includeSchool: boolean,
+  schools: SchoolFilter,
   classified: boolean,
 ): Promise<ShameRouteRow[]> {
-  const pipeline = routeShamePipelineBase(range, mode, includeSchool, classified, "serviceDay", {
+  const pipeline = routeShamePipelineBase(range, mode, schools, classified, "serviceDay", {
     serviceDay: "$service_date",
   });
   pipeline.push(

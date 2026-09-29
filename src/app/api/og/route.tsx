@@ -97,7 +97,7 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
     console.error("[og] card data failed, sending the plain card", err);
   }
   if (home && card.kind === "home") {
-    const filter = cardFilterLabel(card.mode, card.includeSchool);
+    const filter = cardFilterLabel(card.mode, card.schools);
     const eyebrow = ["Network", home.when, filter].filter(Boolean).join(" - ");
     return render(
       <CardFrame eyebrow={eyebrow} logo={logo}>

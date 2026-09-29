@@ -7,27 +7,32 @@
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/RangeControls";
+import { SchoolAdded } from "@/components/SchoolAdded";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+import { SortHeader } from "@/components/SortHeader";
 import { cn } from "@/lib/cn";
 import {
   getCancelledByRoute,
   getEarliestDataDay,
   getLatestEventDate,
+  getOperators,
   getRankings,
   getRouteOperators,
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { operatorRows } from "@/lib/operator-stats";
-import { operatorHref } from "@/lib/operators";
+import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
+import { operatorHref, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { requestServiceDay } from "@/lib/request-now";
-import { isSchoolBus } from "@/lib/school-bus";
+import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
+import { sortRows, tableSort, type SortColumn } from "@/lib/table-sort";
 import type { DateRange } from "@/lib/time";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
@@ -54,12 +59,36 @@ interface OperatorsSearchParams {
   period?: string;
   mode?: string;
   school?: string;
+  /** The table's sorted column; absent is best on time first. */
+  sort?: string;
+  /** "1" sorts the column the other way. */
+  rev?: string;
 }
+
+/**
+ * An operator row's name, for the Operator column's sort.
+ * @param o - The row.
+ * @returns The operator's name.
+ */
+function operatorName(o: OperatorRow): string {
+  return o.operator.name;
+}
+
+/** The table's sortable columns. */
+const COLUMNS: SortColumn<OperatorRow>[] = [
+  { key: "name", value: operatorName, first: "asc" },
+  { key: "ontime", value: "on_time_pct" },
+  { key: "off", value: "avg_abs_delay_sec" },
+  { key: "routes", value: "routes" },
+  { key: "vehicles", value: "vehicles" },
+  { key: "arrivals", value: "events" },
+  { key: "cancelled", value: "cancelled" },
+];
 
 /**
  * Operators page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `day`, `period`) and filters (`mode`, `school`).
+ * @param root0.searchParams - Window (`window`, `day`, `period`), filters (`mode`, `school`) and sort (`sort`, `rev`).
  * @returns Page markup.
  */
 export default async function OperatorsPage({
@@ -79,8 +108,8 @@ export default async function OperatorsPage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
-  const includeSchool = sp.school === "1";
-  const filter = { mode, includeSchool };
+  const schools = parseSchoolFilter(sp.school);
+  const filter = { mode, schools };
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
@@ -104,25 +133,57 @@ export default async function OperatorsPage({
   }
   const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
 
-  const [allRows, operators, cancelled, vehicles] = await Promise.all([
-    getRankings(range, ON_TIME_LATE_SEC, revalidate),
-    getRouteOperators(),
-    getCancelledByRoute(range, filter, revalidate),
-    getVehicleWork(range, filter, TODAY_REVALIDATE),
-  ]);
-  const rows = allRows.filter(
-    (r) =>
-      (mode === null || r.mode === mode) &&
-      (includeSchool || !isSchoolBus(r.short_name, r.long_name)),
+  // With school services included, the same reads without them too, so each
+  // count can show the "+N" they add.
+  const withoutSchool = { mode, schools: "exclude" as const };
+  const [allRows, operators, directory, cancelled, vehicles, cancelledBase, vehiclesBase] =
+    await Promise.all([
+      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRouteOperators(),
+      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getCancelledByRoute(range, filter, revalidate),
+      getVehicleWork(range, filter, TODAY_REVALIDATE),
+      schools === "include" ? getCancelledByRoute(range, withoutSchool, revalidate) : null,
+      schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
+    ]);
+  const modeRows = allRows.filter((r) => mode === null || r.mode === mode);
+  const rows = modeRows.filter((r) =>
+    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
   );
-  const table = operatorRows(rows, operators, cancelled, vehicles);
+  const ranked = operatorRows(rows, operators, cancelled, vehicles, directory);
+  const baseline =
+    cancelledBase && vehiclesBase
+      ? new Map(
+          operatorRows(
+            modeRows.filter((r) => !isSchoolBus(r.short_name, r.long_name)),
+            operators,
+            cancelledBase,
+            vehiclesBase,
+            directory,
+          ).map((o) => [o.operator.code, o]),
+        )
+      : null;
+  /**
+   * What school services added to one of an operator's counts: all of it for an
+   * operator that only ran school services, nothing while they are left out.
+   * @param o - The operator's row.
+   * @param key - The count.
+   * @returns The amount added.
+   */
+  const added = (o: OperatorRow, key: "routes" | "events" | "cancelled" | "vehicles"): number =>
+    baseline ? (o[key] ?? 0) - (baseline.get(o.operator.code)?.[key] ?? 0) : 0;
 
   const view = {
     window: window === "day" ? undefined : window,
     day: dayParam,
     period: period ?? undefined,
   };
-  const filters = { mode: mode ?? undefined, school: includeSchool ? "1" : undefined };
+  const filters = { mode: mode ?? undefined, school: schoolFilterParam(schools) };
+  const { sort, head, keep } = tableSort(sp, COLUMNS, "ontime", (p) =>
+    buildHref("/operators", { ...view, ...filters, ...p }),
+  );
+  // Too-thin operators stay at the bottom whatever the sort, as the note says.
+  const table = sortRows(ranked, COLUMNS, sort, (o) => o.events < MIN_BOARD_EVENTS);
 
   return (
     <main className="space-y-4">
@@ -140,12 +201,13 @@ export default async function OperatorsPage({
         <ModeFilter
           active={mode}
           basePath="/operators"
-          preservedParams={stripUnset({ ...view, school: filters.school })}
+          preservedParams={stripUnset({ ...view, school: filters.school, ...keep })}
+          availableModes={new Set(allRows.map((r) => r.mode))}
         />
         <SchoolBusToggle
-          active={includeSchool}
+          value={schools}
           basePath="/operators"
-          preservedParams={stripUnset({ ...view, mode: filters.mode })}
+          preservedParams={stripUnset({ ...view, mode: filters.mode, ...keep })}
         />
       </div>
 
@@ -158,27 +220,23 @@ export default async function OperatorsPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-                <th scope="col" className="p-3 font-semibold">
+                <SortHeader {...head("name")} align="left">
                   Operator
-                </th>
-                <th scope="col" className="p-3 text-right font-semibold">
-                  On time
-                </th>
-                <th scope="col" className="p-3 text-right font-semibold">
-                  Avg off
-                </th>
-                <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                </SortHeader>
+                <SortHeader {...head("ontime")}>On time</SortHeader>
+                <SortHeader {...head("off")}>Avg off</SortHeader>
+                <SortHeader {...head("routes")} className="hidden sm:table-cell">
                   Routes
-                </th>
-                <th scope="col" className="hidden p-3 text-right font-semibold sm:table-cell">
+                </SortHeader>
+                <SortHeader {...head("vehicles")} className="hidden sm:table-cell">
                   Vehicles
-                </th>
-                <th scope="col" className="hidden p-3 text-right font-semibold md:table-cell">
+                </SortHeader>
+                <SortHeader {...head("arrivals")} className="hidden md:table-cell">
                   Arrivals
-                </th>
-                <th scope="col" className="hidden p-3 text-right font-semibold md:table-cell">
+                </SortHeader>
+                <SortHeader {...head("cancelled")} className="hidden md:table-cell">
                   Cancelled
-                </th>
+                </SortHeader>
               </tr>
             </thead>
             <tbody>
@@ -223,6 +281,7 @@ export default async function OperatorsPage({
                       >
                         {o.routes}
                       </Link>
+                      <SchoolAdded n={added(o, "routes")} />
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                       {o.vehicles === null ? (
@@ -239,12 +298,15 @@ export default async function OperatorsPage({
                           {o.vehicles.toLocaleString("en-NZ")}
                         </Link>
                       )}
+                      <SchoolAdded n={added(o, "vehicles")} />
                     </td>
                     <td className="hidden p-3 text-right tabular-nums md:table-cell">
                       {o.events.toLocaleString("en-NZ")}
+                      <SchoolAdded n={added(o, "events")} />
                     </td>
                     <td className="hidden p-3 text-right tabular-nums md:table-cell">
                       {o.cancelled.toLocaleString("en-NZ")}
+                      <SchoolAdded n={added(o, "cancelled")} />
                     </td>
                   </tr>
                 );

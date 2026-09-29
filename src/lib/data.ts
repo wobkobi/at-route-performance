@@ -23,10 +23,13 @@ export {
   getLatestEventDate,
   getMostRecentDataDay,
 } from "@/lib/data/data-days";
+export { getFilteredCancellations, getFilteredRankings } from "@/lib/data/filtered-rankings";
+export type { FilteredCancellations } from "@/lib/data/filtered-rankings";
 export { getGhostRun, getGhostRunFor } from "@/lib/data/ghost-runs";
 export type { GhostRunRow } from "@/lib/data/ghost-runs";
 export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
+export { getOperators } from "@/lib/data/operators";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
@@ -59,18 +62,22 @@ export {
   getShameRouteOfWeek,
   getShameRouteStreak,
   getShameRouteStreaksBatch,
+  getShameRoutesInHours,
 } from "@/lib/data/shame-routes";
 export {
   SHAME_MIN_STOPS,
+  SHAME_RANKED_LIMIT,
   cachedWorstTripsOfDay,
   getShameOfDay,
   getShameOfWeek,
+  getShameTripsInHours,
 } from "@/lib/data/shame-trips";
 export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,
   findCurrentStationId,
+  getShameStopsInHours,
   getStationSiblings,
   getStopIdentity,
   getStopStats,
@@ -85,5 +92,10 @@ export {
   getWorstTripsOfDay,
 } from "@/lib/data/trips";
 export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";
-export { getVehicleRunsOfDay, getVehicleWork, getVehicleWorkByDay } from "@/lib/data/vehicle-rank";
+export {
+  getVehicleDayMap,
+  getVehicleRunsOfDay,
+  getVehicleWork,
+  getVehicleWorkByDay,
+} from "@/lib/data/vehicle-rank";
 export { getVehicleCounts, getVehicleCountsAllTime } from "@/lib/data/vehicles-seen";

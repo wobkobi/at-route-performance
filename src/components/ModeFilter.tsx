@@ -21,7 +21,9 @@ export interface ModeFilterProps {
   /**
    * Set of mode keys that have qualifying data for the current period. When
    * provided, modes not in the set are left out of the list rather than
-   * offered as dead ends. "All" is always offered.
+   * offered as dead ends, and with fewer than two left the box is not shown at
+   * all, since "All" and the one mode would show the same thing. "All" is
+   * always offered.
    */
   availableModes?: Set<string>;
 }
@@ -42,14 +44,14 @@ const MODES: { key: ModeFilterValue; label: string }[] = [
  * @param props.basePath - Page path the choices navigate to.
  * @param props.preservedParams - Query params to keep when switching mode.
  * @param props.availableModes - Modes with qualifying data (optional).
- * @returns The filter box.
+ * @returns The filter box, or null when fewer than two modes have data.
  */
 export function ModeFilter({
   active,
   basePath,
   preservedParams,
   availableModes,
-}: ModeFilterProps): JSX.Element {
+}: ModeFilterProps): JSX.Element | null {
   const router = useRouter();
   const name = useId();
   /**
@@ -64,6 +66,8 @@ export function ModeFilter({
   const offered = MODES.filter(
     (m) => !m.key || m.key === active || !availableModes || availableModes.has(m.key),
   );
+  // "All" plus one mode is no choice; an active mode stays, so it can be cleared.
+  if (active === null && offered.length < 3) return null;
   return (
     <FilterMenu
       label="Mode"

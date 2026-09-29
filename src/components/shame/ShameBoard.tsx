@@ -2,8 +2,20 @@
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
 import { cn } from "@/lib/cn";
-import { afterMidnightNote, nzHourLabel, SERVICE_START_HOUR } from "@/lib/time";
-import type { JSX } from "react";
+import { afterMidnightNote, nzHourLabel, SERVICE_START_HOUR, weekdayShort } from "@/lib/time";
+import Link from "next/link";
+import type { JSX, ReactNode } from "react";
+
+/** The label column's box, shared by the hour and rank labels so rows line up. */
+const LABEL = "w-12 shrink-0 pt-px text-sm font-semibold tabular-nums";
+
+/**
+ * A label that is its row's main link: its `::after` is stretched over the whole
+ * row (the row is `relative`), so a press anywhere opens it, and only a lifted
+ * {@link ShameSubjectLink} goes elsewhere.
+ */
+const STRETCHED =
+  "text-at-shore after:absolute after:inset-0 group-hover:underline underline-offset-2";
 
 /** Anchor classes for a single-column row (mobile day list + week list). */
 const MOBILE_ANCHOR =
@@ -23,30 +35,138 @@ export interface ShameRowContext {
 /**
  * A day-board row's hour, such as "9am". The hours after midnight close the
  * board rather than open it, so each carries a tooltip naming the service day
- * it counts toward.
+ * it counts toward. Given an href, the hour is the row's main link (see
+ * {@link ShameSplitRow}), opening the hour's ranked list from anywhere on the row.
  * @param props - Component props.
  * @param props.hour - Hour of day, 0-23.
  * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param props.href - Where the hour opens, or undefined for a plain label.
+ * @param props.linkLabel - The link's accessible name, naming what it opens.
  * @returns The label element.
  */
 export function ShameHourLabel({
   hour,
   serviceDate,
+  href,
+  linkLabel,
 }: {
   hour: number;
   serviceDate: string;
+  href?: string;
+  linkLabel?: string;
 }): JSX.Element {
   const afterMidnight = hour < SERVICE_START_HOUR;
+  const note = afterMidnight ? afterMidnightNote(serviceDate) : undefined;
+  if (href) {
+    return (
+      <Link href={href} aria-label={linkLabel} title={note} className={cn(LABEL, STRETCHED)}>
+        {nzHourLabel(hour)}
+      </Link>
+    );
+  }
   return (
-    <span
-      className={cn(
-        "w-12 shrink-0 pt-px text-sm font-semibold text-at-muted tabular-nums",
-        afterMidnight && "cursor-help",
-      )}
-      title={afterMidnight ? afterMidnightNote(serviceDate) : undefined}
-    >
+    <span className={cn(LABEL, "text-at-muted", afterMidnight && "cursor-help")} title={note}>
       {nzHourLabel(hour)}
     </span>
+  );
+}
+
+/**
+ * A ranked list's position, such as "1", in the column the hour takes on the
+ * hourly board.
+ * @param props - Component props.
+ * @param props.rank - Position in the list, from 1.
+ * @returns The label element.
+ */
+export function ShameRankLabel({ rank }: { rank: number }): JSX.Element {
+  return <span className={cn(LABEL, "text-at-muted")}>{rank}</span>;
+}
+
+/**
+ * A week or month board's day, such as "Thu 24/09", as the row's main link: it
+ * opens the day's ranked list from anywhere on the row (see {@link ShameSplitRow}).
+ * @param props - Component props.
+ * @param props.date - The service date (`YYYY-MM-DD`).
+ * @param props.href - The day's ranked list.
+ * @param props.linkLabel - The link's accessible name, naming what it opens.
+ * @returns The label element.
+ */
+export function ShameDayLabel({
+  date,
+  href,
+  linkLabel,
+}: {
+  date: string;
+  href: string;
+  linkLabel: string;
+}): JSX.Element {
+  const [, m, d] = date.split("-");
+  return (
+    <Link
+      href={href}
+      aria-label={linkLabel}
+      className={cn("w-16 shrink-0 pt-px text-sm font-semibold tabular-nums", STRETCHED)}
+    >
+      {weekdayShort(date)} {d}/{m}
+    </Link>
+  );
+}
+
+/**
+ * A row with two destinations. Links cannot nest, so the label (a linked
+ * {@link ShameHourLabel} or {@link ShameDayLabel}) stretches its link over the
+ * whole row, and the row's subject, a {@link ShameSubjectLink}, is lifted above
+ * it. The row reads and hovers as one surface that opens the period's ranked
+ * list; only a press on the subject opens the route, run or stop.
+ * @param props - Component props.
+ * @param props.ctx - Surface context from the board.
+ * @param props.label - The label column, whose link covers the row.
+ * @param props.className - Extra classes for the row (the worst highlight).
+ * @param props.children - The row body after the label, holding the subject link.
+ * @returns The row element.
+ */
+export function ShameSplitRow({
+  ctx,
+  label,
+  className,
+  children,
+}: {
+  ctx: ShameRowContext;
+  label: ReactNode;
+  className?: string;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <div className={cn(ctx.anchorClass, "group relative", className)}>
+      {label}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A split row's subject (the route number, or the stop name), lifted above the
+ * row's stretched list link so a press on it opens the subject itself. Dotted
+ * underline so it reads as a link of its own inside a row that is one.
+ * @param props - Component props.
+ * @param props.href - Where the subject opens.
+ * @param props.children - The subject's name.
+ * @returns The link element.
+ */
+export function ShameSubjectLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <Link
+      href={href}
+      className="relative z-10 font-semibold text-at-ink underline decoration-at-border decoration-dotted underline-offset-4 hover:text-at-shore hover:decoration-at-shore hover:decoration-solid"
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -88,7 +208,7 @@ export function ShameEmptyHourRow({
 
 /** Props for {@link ShameBoard}. */
 export interface ShameBoardProps<T> {
-  /** "day" = responsive two-column hour grid; "week" = single-column day list. */
+  /** "day" = responsive two-column hour grid; "week" = single-column list (days, or a ranked list). */
   layout: "day" | "week";
   /** Rows to render (already filtered/ordered by the page). */
   items: T[];
@@ -96,9 +216,9 @@ export interface ShameBoardProps<T> {
   keyOf: (item: T, index: number) => string;
   /** Message shown in place of the board when there are no rows. */
   emptyMessage: string;
-  /** Footer message shown under a day board (e.g. "No runs were notably off schedule…"). */
+  /** Footer message shown under the board (e.g. "No runs were notably off schedule…"). */
   footerMessage?: string;
-  /** Whether to show the footer (day view, when nothing was crowned). */
+  /** Whether to show the footer. */
   showFooter?: boolean;
   /** Render a row's `<a>…</a>`, applying `ctx.anchorClass` and any worst highlight. */
   renderRow: (item: T, ctx: ShameRowContext) => JSX.Element;
@@ -135,17 +255,26 @@ export function ShameBoard<T>({
     );
   }
 
+  const footer = showFooter && footerMessage && (
+    <p className="border border-at-border bg-at-surface px-4 py-3 text-sm text-at-muted">
+      {footerMessage}
+    </p>
+  );
+
   if (layout === "week") {
     return (
-      <div className="border border-at-border bg-at-surface">
-        <ul>
-          {items.map((item, i) => (
-            <li key={keyOf(item, i)}>
-              {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <>
+        <div className="border border-at-border bg-at-surface">
+          <ul className="striped">
+            {items.map((item, i) => (
+              <li key={keyOf(item, i)}>
+                {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
+              </li>
+            ))}
+          </ul>
+        </div>
+        {footer}
+      </>
     );
   }
 
@@ -153,7 +282,7 @@ export function ShameBoard<T>({
     <>
       <div className="border border-at-border bg-at-surface">
         {/* Mobile: sequential single-column list */}
-        <ul className="md:hidden">
+        <ul className="striped md:hidden">
           {items.map((item, i) => (
             <li key={keyOf(item, i)}>
               {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
@@ -181,6 +310,8 @@ export function ShameBoard<T>({
                 key={keyOf(item, i)}
                 className={cn(
                   rowIdx > 0 && "border-t border-at-border",
+                  // Striped by grid row, not list order, so a row reads across both columns.
+                  rowIdx % 2 === 1 && "bg-at-stripe",
                   isRight && "border-l border-at-border",
                   closesShortColumn && "border-b border-at-border",
                 )}
@@ -192,11 +323,7 @@ export function ShameBoard<T>({
           })}
         </ul>
       </div>
-      {showFooter && footerMessage && (
-        <p className="border border-at-border bg-at-surface px-4 py-3 text-sm text-at-muted">
-          {footerMessage}
-        </p>
-      )}
+      {footer}
     </>
   );
 }

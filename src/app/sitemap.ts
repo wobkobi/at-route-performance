@@ -3,9 +3,9 @@
 // filter permutations out, and this one gives a crawler the list it would
 // otherwise go looking for, so shutting the door does not send it exploring.
 
-import { getDirectoryRoutes } from "@/lib/data";
+import { getDirectoryRoutes, getOperators } from "@/lib/data";
 import { logReadFailure } from "@/lib/db";
-import { OPERATORS, operatorHref } from "@/lib/operators";
+import { operatorHref } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
@@ -33,7 +33,7 @@ const SECTIONS: readonly [path: string, priority: number][] = [
 ];
 
 /**
- * Generate sitemap.xml: the sections, then one page per current route.
+ * Generate sitemap.xml: the sections, the current operators, then one page per current route.
  *
  * Route ids carry a feed-version suffix that the site's own links strip, so the
  * slugs are deduplicated - several ids for one route would otherwise be listed
@@ -48,13 +48,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: path === "/live" ? ("hourly" as const) : ("daily" as const),
       priority,
     })),
-    // The operator table is fixed in code, so these list without the database.
-    ...OPERATORS.map((op) => ({
-      url: `${origin}${operatorHref(op)}`,
-      changeFrequency: "daily" as const,
-      priority: 0.4,
-    })),
   ];
+
+  // Only the operators AT still lists: a dropped one's page stays up for its
+  // routes' history, but is not advertised.
+  try {
+    for (const op of await getOperators()) {
+      if (!op.current) continue;
+      sections.push({
+        url: `${origin}${operatorHref(op)}`,
+        changeFrequency: "daily",
+        priority: 0.4,
+      });
+    }
+  } catch (err) {
+    logReadFailure("sitemap-operators", err);
+  }
 
   // A build with no database reachable still has to answer here, and the sections
   // are worth listing without the routes. Failing instead would take the build

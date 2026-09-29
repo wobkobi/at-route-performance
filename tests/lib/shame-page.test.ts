@@ -3,16 +3,21 @@
 // on, what it says it filtered on, and what its links keep.
 import {
   buildShameHref,
+  hoursNoun,
   parseShameParams,
   SHAME_PARAMS,
+  shameDayListHref,
+  shameHourHref,
+  shameHoursLabel,
   subtitleWithDirection,
+  WHOLE_DAY,
 } from "@/lib/shame-page";
 import { describe, expect, it } from "vitest";
 
 describe("parseShameParams", () => {
   it("defaults to every mode, no school services and both directions", () => {
     const p = parseShameParams({});
-    expect(p.filter).toEqual({ mode: null, includeSchool: false, direction: null });
+    expect(p.filter).toEqual({ mode: null, schools: "exclude", direction: null });
     expect(p.view).toBe("day");
     expect(p.subtitle).toBe("Buses, trains & ferries");
     expect(p.preserved).toEqual({});
@@ -27,6 +32,24 @@ describe("parseShameParams", () => {
   it("reads an unknown direction as both, so a bad link is not an empty board", () => {
     expect(parseShameParams({ dir: "sideways" }).direction).toBeNull();
     expect(parseShameParams({ dir: "" }).direction).toBeNull();
+  });
+
+  it("reads the hours on the day board only", () => {
+    expect(parseShameParams({ hours: "7-9" }).hours).toEqual({ from: 7, to: 9 });
+    expect(parseShameParams({ hours: "7-9", window: "week" }).hours).toBeNull();
+    expect(parseShameParams({ hours: "junk" }).hours).toBeNull();
+  });
+
+  it("reads all as the whole service day", () => {
+    expect(parseShameParams({ hours: "all" }).hours).toEqual(WHOLE_DAY);
+    expect(parseShameParams({ hours: "all", window: "month" }).hours).toBeNull();
+  });
+
+  it("names school buses alone and keeps the choice on the links", () => {
+    const p = parseShameParams({ school: "only" });
+    expect(p.filter.schools).toBe("only");
+    expect(p.preserved).toEqual({ school: "only" });
+    expect(p.subtitle).toBe("School buses");
   });
 
   it("leaves the direction out of the subtitle, which the boards without it share", () => {
@@ -62,8 +85,66 @@ describe("buildShameHref", () => {
       buildShameHref(
         "/shame/trip",
         { day: "2026-09-20" },
-        { mode: "BUS", includeSchool: true, direction: "late" },
+        { mode: "BUS", schools: "include", direction: "late" },
       ),
     ).toBe("/shame/trip?day=2026-09-20&mode=BUS&school=1");
+  });
+});
+
+describe("shameHourHref", () => {
+  const filter = { mode: "BUS" as const, schools: "exclude" as const, direction: null };
+
+  it("opens the same board on that hour, keeping the day and filters", () => {
+    expect(shameHourHref("/shame/trip", "2026-09-20", 8, filter)).toBe(
+      "/shame/trip?day=2026-09-20&hours=8-9&mode=BUS",
+    );
+  });
+
+  it("wraps the last hour of the clock to midnight", () => {
+    expect(shameHourHref("/shame/trip", undefined, 23, filter)).toBe(
+      "/shame/trip?hours=23-0&mode=BUS",
+    );
+  });
+
+  it("carries the stop board's direction when given it", () => {
+    expect(shameHourHref("/shame/stop", undefined, 8, filter, { dir: "late" })).toBe(
+      "/shame/stop?dir=late&hours=8-9&mode=BUS",
+    );
+  });
+});
+
+describe("shameDayListHref", () => {
+  const filter = { mode: "BUS" as const, schools: "exclude" as const, direction: null };
+
+  it("opens the day board ranked over the whole day", () => {
+    expect(shameDayListHref("/shame/route", "2026-09-24", filter)).toBe(
+      "/shame/route?day=2026-09-24&hours=all&mode=BUS",
+    );
+  });
+
+  it("round-trips through the parser", () => {
+    const href = shameDayListHref("/shame/stop", undefined, filter, { dir: "early" });
+    const sp = Object.fromEntries(new URL(href, "http://x").searchParams);
+    expect(parseShameParams(sp).hours).toEqual(WHOLE_DAY);
+    expect(sp.dir).toBe("early");
+  });
+});
+
+describe("hoursNoun", () => {
+  it("names a single hour, wrapping included, as this hour", () => {
+    expect(hoursNoun({ from: 8, to: 9 })).toBe("in this hour");
+    expect(hoursNoun({ from: 23, to: 0 })).toBe("in this hour");
+    expect(hoursNoun({ from: 7, to: 9 })).toBe("in these hours");
+  });
+
+  it("names the whole day as that day", () => {
+    expect(hoursNoun(WHOLE_DAY)).toBe("that day");
+  });
+});
+
+describe("shameHoursLabel", () => {
+  it("names an hour, a stretch and the whole day", () => {
+    expect(shameHoursLabel({ from: 8, to: 9 })).toBe("8am hour");
+    expect(shameHoursLabel(WHOLE_DAY)).toBe("whole day");
   });
 });
