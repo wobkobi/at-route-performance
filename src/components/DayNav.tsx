@@ -1,7 +1,9 @@
 // src/components/DayNav.tsx
 // Date label with previous/next day stepper links for the shame views.
+import { DatePicker } from "@/components/DatePicker";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
+import type { PickerState } from "@/lib/calendar";
 import { serviceDayLabel, serviceDayWindowText, shiftWeek } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
@@ -28,6 +30,8 @@ export interface DayNavProps {
   atFloor?: boolean;
   /** Whether the next day is today and has not opened, so the absent next chevron gets a reason. */
   nextPending?: boolean;
+  /** The date picker's bounds; the label opens a calendar when given them. */
+  calendar?: PickerState;
 }
 
 /**
@@ -63,6 +67,7 @@ function dayHref(basePath: string, preserved: Record<string, string>, day: strin
  * @param props.nextHref - Override href for the next-day link; pass the clean base URL when the next day is today to skip the server redirect.
  * @param props.atFloor - Whether the shown day is the archive's first, so the missing previous chevron gets a reason.
  * @param props.nextPending - Whether the next day is today and not yet open, so the missing next chevron gets a reason.
+ * @param props.calendar - The date picker's bounds; the label opens a calendar when given them.
  * @returns The day navigation element.
  */
 export function DayNav({
@@ -74,6 +79,7 @@ export function DayNav({
   nextHref,
   atFloor = false,
   nextPending = false,
+  calendar,
 }: DayNavProps): JSX.Element {
   return (
     <div className="flex items-center gap-1">
@@ -105,13 +111,26 @@ export function DayNav({
       {/* Every day page shows a day through this label, so the window it covers
           is said here once rather than on each page. The width is reserved for a
           two-digit day, so stepping from the 1st to the 2nd of a month does not
-          move the row either. */}
-      <span
-        className="min-w-24 cursor-help px-2 text-center text-sm font-semibold tabular-nums"
-        title={serviceDayWindowText(serviceDate)}
-      >
-        {serviceDayLabel(serviceDate)}
-      </span>
+          move the row either. Given the bounds, it opens a calendar. */}
+      {calendar ? (
+        <DatePicker
+          mode="day"
+          calendar={calendar}
+          basePath={basePath}
+          params={preservedParams}
+          title={`${serviceDayWindowText(serviceDate)}. Choose a date.`}
+          className="min-w-24 px-2 py-1 text-center text-sm font-semibold tabular-nums"
+        >
+          {serviceDayLabel(serviceDate)}
+        </DatePicker>
+      ) : (
+        <span
+          className="min-w-24 cursor-help px-2 text-center text-sm font-semibold tabular-nums"
+          title={serviceDayWindowText(serviceDate)}
+        >
+          {serviceDayLabel(serviceDate)}
+        </span>
+      )}
       {hasNext ? (
         <Link
           href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.35.0] - 2026-09-29
+
+### Added
+
+- The day and period controls open a calendar that runs from the first day with data to today, so an
+  older day is one tap away rather than many.
+
 ## [2.34.1] - 2026-09-29
 
 ### Fixed

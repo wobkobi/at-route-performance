@@ -815,6 +815,7 @@ export default async function RoutePage({
                 hasNext={dayNav.hasNext}
                 nextHref={nextDayHref}
                 nextPending={dayNav.nextPending}
+                calendar={dayNav.calendar}
               />
             )}
           </div>

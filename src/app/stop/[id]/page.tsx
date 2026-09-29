@@ -281,6 +281,7 @@ export default async function StopPage({
           hasNext={nav.hasNext}
           nextHref={nav.nextIsToday ? `/stop/${encodeURIComponent(id)}` : undefined}
           nextPending={nav.nextPending}
+          calendar={nav.calendar}
         />
       </header>
 

@@ -7,6 +7,7 @@
 // carried too, from the tab periods the server put on the nav, so switching
 // window stays on the day being read rather than resetting to the present.
 
+import { DatePicker } from "@/components/DatePicker";
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
@@ -102,6 +103,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
           nextHref={nav.nextIsToday ? buildHref(basePath, carried) : undefined}
           atFloor={nav.atFloor}
           nextPending={nav.nextPending}
+          calendar={nav.calendar}
         />
       ) : (
         <div className="flex items-center gap-1">
@@ -123,10 +125,17 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
           ) : (
             <span className="step-slot" aria-hidden />
           )}
-          <span className="px-1 text-sm font-semibold tabular-nums">
+          <DatePicker
+            mode={nav.window}
+            calendar={nav.calendar}
+            basePath={basePath}
+            params={carried}
+            title={`Choose a ${nav.window}`}
+            className="px-2 py-1 text-sm font-semibold tabular-nums"
+          >
             {nav.label}
             {nav.partial ? ` (from ${DATA_START_SHORT})` : ""}
-          </span>
+          </DatePicker>
           {nav.nextHref ? (
             <Link
               href={withCarried(nav.nextHref, carried)}
