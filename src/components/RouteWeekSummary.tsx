@@ -2,6 +2,7 @@
 // Render a route's per-day on-time summary for a week window.
 import { offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import type { RouteDay } from "@/types/api";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /**
@@ -23,16 +24,19 @@ function shortDate(iso: string): string {
  * @param props.days - Per-day stats, newest first (from `getRouteDailyStats`).
  * @param props.mode - Route mode for the per-mode delay colour banding.
  * @param props.label - Section heading (defaults to "Last 7 days").
+ * @param props.dayHref - The route's own page for one of the days.
  * @returns The summary table, or the empty-state section.
  */
 export function RouteWeekSummary({
   days,
   mode,
   label = "Last 7 days",
+  dayHref,
 }: {
   days: RouteDay[];
   mode: string;
   label?: string;
+  dayHref: (date: string) => string;
 }): JSX.Element {
   if (days.length === 0) {
     return (
@@ -73,7 +77,11 @@ export function RouteWeekSummary({
           <tbody>
             {days.map((day) => (
               <tr key={day.date} className="border-t border-at-border">
-                <td className="px-4 py-2 text-at-muted tabular-nums">{shortDate(day.date)}</td>
+                <td className="px-4 py-2 tabular-nums">
+                  <Link href={dayHref(day.date)} className="text-at-shore hover:underline">
+                    {shortDate(day.date)}
+                  </Link>
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">{day.events}</td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {offScheduleValue(day.avg_delay_sec, null, mode).text}

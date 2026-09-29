@@ -96,6 +96,21 @@ export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
 };
 
 /**
+ * Fill colour for a bar drawn beside an {@link offScheduleValue}. These are the
+ * swatch colours a board's own colour key prints, not the text colours above:
+ * `early` reads as the bright green in a swatch and needs the darker
+ * `early-strong` only as type, so a bar taking its colour from the text map
+ * would not match the key that explains it.
+ */
+export const OFF_SCHEDULE_BAR_CLASS: Record<OffScheduleTone, string> = {
+  ontime: "bg-at-ontime",
+  early: "bg-at-early",
+  late: "bg-at-late",
+  mixed: "bg-at-ink",
+  unknown: "bg-at-border",
+};
+
+/**
  * The value a board ranked by average absolute deviation prints for one row.
  * Always a distance: a run 2m late inside the on-time window reads "2m late" in
  * the on-time colour, never the bare words "on time", or a board sorted "Most

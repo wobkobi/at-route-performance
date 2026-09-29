@@ -33,3 +33,17 @@ export function ChevronRight({ className }: IconProps): JSX.Element {
 export function ChevronLeft({ className }: IconProps): JSX.Element {
   return <ChevronRight className={cn("-scale-x-100", className)} />;
 }
+
+/**
+ * A location arrow, for "zoom to where I am" (uses `currentColor`).
+ * @param props - Component props.
+ * @param props.className - Extra classes; overrides the default `h-4 w-4` size.
+ * @returns The arrow SVG.
+ */
+export function LocateArrow({ className }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={cn("h-4 w-4", className)}>
+      <path d="M17.6 2.4a.75.75 0 0 1 .17.8l-5.5 14a.75.75 0 0 1-1.41-.06L9.2 10.8 2.86 9.14a.75.75 0 0 1-.06-1.41l14-5.5a.75.75 0 0 1 .8.17Z" />
+    </svg>
+  );
+}

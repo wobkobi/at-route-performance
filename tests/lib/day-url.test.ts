@@ -1,9 +1,10 @@
 // tests/lib/day-url.test.ts
 // The `?day` clamp: a day outside the archive redirects onto the nearest real
 // one, and a clamp onto today drops the param rather than costing a second hop.
-// Plus the link side of the same rule, which keeps a board row off the redirect.
+// Plus the redirect that drops today's `?day`, and the link side of the same
+// rule, which keeps a board row off that redirect.
 import { DATA_START_DAY } from "@/lib/data-start";
-import { clampDayParam, dayLinkParam } from "@/lib/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -41,6 +42,23 @@ describe("clampDayParam", () => {
     }).not.toThrow();
     expect(() => {
       clampDayParam("/shame", { day: "2026-02-31" }, TODAY);
+    }).not.toThrow();
+  });
+});
+
+describe("dropTodayParam", () => {
+  it("redirects today's day to the bare page, keeping other params", () => {
+    expect(() => {
+      dropTodayParam("/stop/7021", { day: TODAY, mode: "BUS" } as { day?: string }, TODAY);
+    }).toThrow("REDIRECT /stop/7021?mode=BUS");
+  });
+
+  it("leaves any other day and an absent day alone", () => {
+    expect(() => {
+      dropTodayParam("/stop/7021", { day: "2026-09-12" }, TODAY);
+    }).not.toThrow();
+    expect(() => {
+      dropTodayParam("/stop/7021", {}, TODAY);
     }).not.toThrow();
   });
 });
@@ -101,7 +119,21 @@ describe("the clock these helpers read", () => {
         clampDayParam("/shame", {});
       }),
     ).toBe(0);
+    expect(
+      clockReads(() => {
+        dropTodayParam("/shame", {});
+      }),
+    ).toBe(0);
     expect(clockReads(() => dayLinkParam(null))).toBe(0);
+  });
+
+  it("goes unread when the page hands today in", () => {
+    expect(
+      clockReads(() => {
+        clampDayParam("/shame", { day: "2026-09-12" }, TODAY);
+        dropTodayParam("/shame", { day: "2026-09-12" }, TODAY);
+      }),
+    ).toBe(0);
   });
 
   it("is read once when a day has to be placed against today", () => {

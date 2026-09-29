@@ -5,6 +5,7 @@
 
 import { getDirectoryRoutes } from "@/lib/data";
 import { logReadFailure } from "@/lib/db";
+import { OPERATORS, operatorHref } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
@@ -28,6 +29,7 @@ const SECTIONS: readonly [path: string, priority: number][] = [
   ["/shame/stop", 0.6],
   ["/days", 0.6],
   ["/vehicles", 0.5],
+  ["/operators", 0.5],
 ];
 
 /**
@@ -40,11 +42,19 @@ const SECTIONS: readonly [path: string, priority: number][] = [
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = crawlableOrigin();
-  const sections: MetadataRoute.Sitemap = SECTIONS.map(([path, priority]) => ({
-    url: `${origin}${path}`,
-    changeFrequency: path === "/live" ? "hourly" : "daily",
-    priority,
-  }));
+  const sections: MetadataRoute.Sitemap = [
+    ...SECTIONS.map(([path, priority]) => ({
+      url: `${origin}${path}`,
+      changeFrequency: path === "/live" ? ("hourly" as const) : ("daily" as const),
+      priority,
+    })),
+    // The operator table is fixed in code, so these list without the database.
+    ...OPERATORS.map((op) => ({
+      url: `${origin}${operatorHref(op)}`,
+      changeFrequency: "daily" as const,
+      priority: 0.4,
+    })),
+  ];
 
   // A build with no database reachable still has to answer here, and the sections
   // are worth listing without the routes. Failing instead would take the build

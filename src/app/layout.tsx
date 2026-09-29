@@ -62,8 +62,9 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        {/* Sticky white masthead with a hairline border, like at.govt.nz. */}
-        <header className="sticky top-0 z-40 border-b border-at-border bg-at-surface">
+        {/* Sticky white masthead. The rule under it is the page's heaviest mark,
+            in ink rather than the hairline grey every container used to carry. */}
+        <header className="sticky top-0 z-40 border-b-2 border-at-ink bg-at-surface">
           {/* Five tabs need more width than a 390px phone leaves beside the logo,
               so the nav takes a row of its own until there is room to share one. */}
           <div className="at-container flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -86,10 +87,13 @@ export default function RootLayout({
                 className="h-11 w-auto"
               />
               {/* The nav needs 391px to show five tabs without scrolling, and the
-                  wordmark takes 202px, so the two only fit together from 768px
-                  up. Below that the logo stands alone and the name is still in
-                  the tab title and the footer. */}
-              <span className="hidden text-lg font-ultra tracking-zero text-at-ink md:inline">
+                  wordmark takes 202px, so the two cannot share a row until 768px.
+                  They only share one from `sm:` up, though - below that the nav
+                  has a row of its own and the logo was standing alone beside an
+                  empty half-row for no reason. So the name shows on a phone,
+                  stands down for the one band where the row is shared and tight,
+                  and returns at `md:`. */}
+              <span className="text-base font-ultra tracking-zero text-at-ink sm:hidden md:inline md:text-lg">
                 {SITE_NAME}
               </span>
             </Link>

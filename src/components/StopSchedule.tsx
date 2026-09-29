@@ -7,15 +7,18 @@
 
 import { ChipLink } from "@/components/Chip";
 import type { StopDepartures } from "@/lib/at-stop-trips";
+import { cn } from "@/lib/cn";
 import { departuresFromNow } from "@/lib/departure-board";
 import { departureLabel } from "@/lib/departure-label";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
+import { routeSlug } from "@/lib/route-slug";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
   serviceDateLabel,
   serviceDayLabel,
 } from "@/lib/time";
+import Link from "next/link";
 import { Fragment, type JSX } from "react";
 
 /** Props for {@link StopSchedule}. */
@@ -36,6 +39,8 @@ export interface StopScheduleProps {
   nowHref: string;
   /** This page with it. */
   allHref: string;
+  /** Query each route link carries, from `routeLinkQuery`, so a route opens on the same day. */
+  routeQuery?: string;
 }
 
 /**
@@ -78,6 +83,7 @@ function noticeFor(result: StopDepartures, serviceDate: string, shown: number): 
  * @param props.showAll - Whether the whole day was asked for.
  * @param props.nowHref - This page without the whole-day param.
  * @param props.allHref - This page with it.
+ * @param props.routeQuery - Query each route link carries (optional).
  * @returns The schedule table, or a notice in place of it.
  */
 export function StopSchedule({
@@ -89,6 +95,7 @@ export function StopSchedule({
   showAll,
   nowHref,
   allHref,
+  routeQuery,
 }: StopScheduleProps): JSX.Element {
   const isToday = nowSeconds !== null;
   const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDayLabel(serviceDate)}`;
@@ -100,6 +107,11 @@ export function StopSchedule({
   const fromNow = nowSeconds === null ? all : departuresFromNow(all, nowSeconds);
   const departures = showingAll ? all : fromNow;
   const notice = noticeFor(result, serviceDate, departures.length);
+  // In today's whole-day view, the row where what is still to come begins: the
+  // list gets a "Now" line there and the rows above it are dimmed, so the day's
+  // gone departures do not read as the next ones. -1 when there is no split.
+  const firstUpcoming =
+    showingAll && nowSeconds !== null && fromNow.length > 0 ? departures.indexOf(fromNow[0]!) : -1;
   // Past 24h on the service clock is after midnight (the list is sorted by it).
   const firstAfterMidnight = departures.findIndex(
     (d) => d.departureTime !== null && (gtfsServiceSeconds(d.departureTime) ?? 0) >= 86_400,
@@ -150,6 +162,16 @@ export function StopSchedule({
                 );
                 return (
                   <Fragment key={dep.tripId || i}>
+                    {i === firstUpcoming && i > 0 && (
+                      <tr className="border-b border-at-shore">
+                        <td
+                          colSpan={3}
+                          className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-shore uppercase"
+                        >
+                          Now
+                        </td>
+                      </tr>
+                    )}
                     {i === firstAfterMidnight && (
                       <tr className="border-b border-at-border/40">
                         <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
@@ -157,12 +179,31 @@ export function StopSchedule({
                         </td>
                       </tr>
                     )}
-                    <tr className="border-b border-at-border/40 last:border-0">
-                      <td className="py-1.5 pr-4 font-semibold text-at-ink">
-                        {routeNames.get(dep.routeId) ?? dep.routeId}
+                    <tr
+                      className={cn(
+                        "border-b border-at-border/40 last:border-0",
+                        firstUpcoming > 0 && i < firstUpcoming && "opacity-60",
+                      )}
+                    >
+                      <td className="py-1.5 pr-4 font-semibold">
+                        <Link
+                          href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}${routeQuery ?? ""}`}
+                          className="text-at-shore hover:underline"
+                        >
+                          {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
+                        </Link>
                       </td>
                       <td className="py-1.5 pr-4 text-at-ink">
-                        {bound.destination ?? UNKNOWN_VALUE}
+                        {dep.tripId ? (
+                          <Link
+                            href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}/trip/${encodeURIComponent(dep.tripId)}?d=${serviceDate}`}
+                            className="hover:text-at-shore hover:underline"
+                          >
+                            {bound.destination ?? UNKNOWN_VALUE}
+                          </Link>
+                        ) : (
+                          (bound.destination ?? UNKNOWN_VALUE)
+                        )}
                         {bound.via !== null && (
                           <span className="block text-xs text-at-muted">via {bound.via}</span>
                         )}

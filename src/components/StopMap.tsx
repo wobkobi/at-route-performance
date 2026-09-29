@@ -5,11 +5,16 @@
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
+import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/line-arrows";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { operatorHref, operatorOf } from "@/lib/operators";
+import { routeSlug } from "@/lib/route-slug";
+import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
 import type { LiveVehicle } from "@/lib/vehicles";
 import type * as Leaflet from "leaflet";
+import { useRouter } from "next/navigation";
 import type { JSX } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -64,24 +69,6 @@ const VEHICLE_TOOLTIP: Leaflet.TooltipOptions = {
  * context rather than street-level zoom.
  */
 const STOP_FOCUS_ZOOM = 14;
-
-/**
- * Haversine distance in kilometres between two WGS-84 coordinates.
- * @param lat1 - Latitude of point 1.
- * @param lon1 - Longitude of point 1.
- * @param lat2 - Latitude of point 2.
- * @param lon2 - Longitude of point 2.
- * @returns Distance in kilometres.
- */
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(a));
-}
 
 /**
  * Resolve a CSS custom property on the document root to its concrete value.
@@ -177,44 +164,31 @@ function vehicleIcon(
 }
 
 /**
- * A small filled-triangle arrow `divIcon` pointing along a bearing (degrees
- * clockwise from north) to show a route line's travel direction.
+ * A chevron `divIcon` pointing along a route line's travel direction, in the
+ * line's colour with a white edge so it reads over the line and any tile.
  * @param L - The Leaflet module.
  * @param colour - Fill colour (the line colour).
- * @param bearing - Heading in degrees (0 = north) of the underlying segment.
+ * @param angle - Degrees clockwise from screen up.
  * @returns A Leaflet divIcon.
  */
-function arrowIcon(L: typeof import("leaflet"), colour: string, bearing: number): Leaflet.DivIcon {
+function arrowIcon(L: typeof import("leaflet"), colour: string, angle: number): Leaflet.DivIcon {
   const html =
-    `<svg viewBox="0 0 14 14" width="22" height="22" aria-hidden="true">` +
-    `<g transform="rotate(${Math.round(bearing)} 7 7)">` +
-    `<path d="M7 3.5 L11 10.5 L7 7 L3 10.5 Z" fill="${colour}"/></g></svg>`;
-  return L.divIcon({ className: "route-arrow", html, iconSize: [22, 22], iconAnchor: [11, 11] });
+    `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">` +
+    `<g transform="rotate(${Math.round(angle)} 8 8)">` +
+    `<path d="M8 2 L13.5 12.5 L8 9.5 L2.5 12.5 Z" fill="${colour}" stroke="#fff" ` +
+    `stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/></g></svg>`;
+  return L.divIcon({ className: "route-arrow", html, iconSize: [16, 16], iconAnchor: [8, 8] });
 }
 
+/** Screen pixels between direction arrows on a route line, at every zoom. */
+const ARROW_SPACING_PX = 140;
+
 /**
- * Scans forward then backward from `start` along `line` to find the nearest
- * index at least 40m from every stop circle, so direction arrows don't land
- * on top of a stop marker.
- * @param line - Polyline coordinate array `[lat, lon][]`.
- * @param start - Candidate index.
- * @param stops - Stop points to keep clear of.
- * @returns The first clear index found, or `start` when no clear spot exists.
+ * Screen pixels an arrow keeps from the centre of a stop circle: the circle's
+ * 8px (radius and ring) plus most of the arrow's own 8px half, so a chevron may
+ * graze a ring but never cover a stop.
  */
-function clearArrowIdx(line: [number, number][], start: number, stops: StopPoint[]): number {
-  const CLEARANCE_KM = 0.04;
-  for (const dir of [1, -1]) {
-    for (let offset = 0; offset < line.length; offset++) {
-      const idx = start + dir * offset;
-      if (idx < 1 || idx >= line.length) continue;
-      const point = line[idx];
-      if (point === undefined) continue;
-      const [lat, lon] = point;
-      if (!stops.some((s) => haversineKm(lat, lon, s.lat, s.lon) < CLEARANCE_KM)) return idx;
-    }
-  }
-  return start;
-}
+const ARROW_STOP_CLEARANCE_PX = 14;
 
 /** AT palette colours resolved once from CSS custom properties. */
 interface MapColours {
@@ -257,6 +231,10 @@ interface MapState {
   map: Leaflet.Map;
   colours: MapColours;
   routeLayer: Leaflet.LayerGroup;
+  /** Direction arrows, redrawn on every zoom so they stay evenly spaced on screen. */
+  arrowLayer: Leaflet.LayerGroup;
+  /** The lines and stops the arrows were last placed from. */
+  arrowSource: { lines: RouteLine[]; stops: StopPoint[] };
   offRouteLayer: Leaflet.LayerGroup;
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
@@ -298,8 +276,16 @@ function glide(marker: Leaflet.Marker): void {
  * @param state - The map state holding the vehicle layer and markers.
  * @param vehicles - The vehicles to show, already filtered to this map.
  * @param mode - The route's mode, which sets the glyph and the on-time window.
+ * @param opCode - The route's operator code, for the popup's "Run by" line; null when unrecorded.
  */
-function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode): void {
+function syncVehicles(
+  state: MapState,
+  vehicles: LiveVehicle[],
+  mode: RouteMode,
+  opCode: string | null,
+): void {
+  const op = operatorOf(opCode);
+  const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
   const { L, colours } = state;
   const seen = new Set<string>();
   for (const veh of vehicles) {
@@ -311,10 +297,23 @@ function syncVehicles(state: MapState, vehicles: LiveVehicle[], mode: RouteMode)
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
     const cars = veh.cars ? `${veh.cars} cars` : null;
+    // Links to what the vehicle is: its route, the run it is on, and itself. The
+    // same popup serves the route, trip, stop and vehicle pages, so one of the
+    // three may point back at the page it is on; that costs a line, not a wrong turn.
+    const slug = routeSlug(veh.routeId);
+    const links = [
+      `<a href="/route/${encodeURIComponent(slug)}">Route ${esc(slug)}</a>`,
+      veh.tripId
+        ? `<a href="${esc(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
+        : null,
+      `<a href="/vehicle/${encodeURIComponent(veh.vehicleId)}">This vehicle</a>`,
+    ].filter(Boolean);
     const popup =
       `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
       (cars ? ` &middot; ${cars}` : "") +
-      `<br>${esc(status.detail)}`;
+      `<br>${esc(status.detail)}` +
+      runBy +
+      `<br>${links.join(" &middot; ")}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
     const name = [
@@ -378,9 +377,9 @@ function clearVehicles(state: MapState): void {
 }
 
 /**
- * Redraw the route polylines and direction arrows into `layer`, clearing what
- * was there before. Separated from the stop layer so direction-filter changes
- * can update one without touching the other.
+ * Redraw the route polylines and their direction arrows, clearing what was
+ * there before. Separated from the stop layer so direction-filter changes can
+ * update one without touching the other.
  * @param state - Live map state (L, layer, colours).
  * @param routeLines - Per-variant coordinate sequences.
  * @param stops - Stops to keep arrows clear of.
@@ -388,7 +387,7 @@ function clearVehicles(state: MapState): void {
 function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoint[]): void {
   const { L, routeLayer, colours } = state;
   routeLayer.clearLayers();
-  for (const [lineIdx, line] of routeLines.entries()) {
+  for (const line of routeLines) {
     if (line.length < 2) continue;
     L.polyline(line, {
       color: colours.shore,
@@ -396,31 +395,41 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoi
       opacity: 0.8,
       smoothFactor: 1.5,
     }).addTo(routeLayer);
-    // Two arrows staggered by line index so inbound/outbound don't overlap.
-    const shift = (lineIdx % 2) * 0.15;
-    const rawIdxs = [
-      ...new Set(
-        [0.3 + shift, 0.65 + shift].map((f) =>
-          Math.max(1, Math.round(Math.min(f, 0.95) * (line.length - 1))),
-        ),
-      ),
-    ];
-    for (const i of rawIdxs.map((idx) => clearArrowIdx(line, idx, stops))) {
-      // clearArrowIdx only returns indices in [1, line.length), so both ends of
-      // the segment exist; the guard makes that explicit to the type checker.
-      const from = line[i - 1];
-      const to = line[i];
-      if (from === undefined || to === undefined) continue;
-      const [aLat, aLon] = from;
-      const [bLat, bLon] = to;
-      const bearing =
-        (Math.atan2((bLon - aLon) * Math.cos((aLat * Math.PI) / 180), bLat - aLat) * 180) / Math.PI;
-      L.marker([(aLat + bLat) / 2, (aLon + bLon) / 2], {
-        icon: arrowIcon(L, colours.shore, bearing),
-        interactive: false,
-        keyboard: false,
-      }).addTo(routeLayer);
-    }
+  }
+  state.arrowSource = { lines: routeLines, stops };
+  drawArrowLayer(state);
+}
+
+/**
+ * Place the direction arrows for the current zoom: one every
+ * {@link ARROW_SPACING_PX} along each line, kept off the stop circles. Placed
+ * in projected pixels at the map's zoom, which do not move on a pan, so only a
+ * zoom needs a redraw. Each line starts its arrows a different distance in, so
+ * the two directions drawn down one road alternate rather than stack.
+ * @param state - Live map state.
+ */
+function drawArrowLayer(state: MapState): void {
+  const { L, map, arrowLayer, colours } = state;
+  const { lines, stops } = state.arrowSource;
+  arrowLayer.clearLayers();
+  const zoom = map.getZoom();
+  const avoid = stops.map((s) => map.project([s.lat, s.lon], zoom));
+  const placed: ArrowPlacement[] = [];
+  for (const [lineIdx, line] of lines.entries()) {
+    const pixels = line.map((pt) => map.project(pt, zoom));
+    const offset = ARROW_SPACING_PX * (0.5 + ((lineIdx * 0.37) % 0.5));
+    placed.push(
+      ...arrowPlacements(pixels, ARROW_SPACING_PX, offset, avoid, ARROW_STOP_CLEARANCE_PX),
+    );
+  }
+  // A repeat is anything closer than 60% of the spacing, so two variants down
+  // one road leave one arrow per spacing rather than one each.
+  for (const a of dropRepeatArrows(placed, ARROW_SPACING_PX * 0.6)) {
+    L.marker(map.unproject([a.x, a.y], zoom), {
+      icon: arrowIcon(L, colours.shore, a.angle),
+      interactive: false,
+      keyboard: false,
+    }).addTo(arrowLayer);
   }
 }
 
@@ -458,20 +467,29 @@ function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
  * @param state - Live map state.
  * @param stops - Stops to render.
  * @param mode - Route mode, for the delay colour band.
+ * @param stopQuery - Query a stop's name links with, or undefined to leave names unlinked.
  */
-function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): void {
+function drawStopLayer(
+  state: MapState,
+  stops: StopPoint[],
+  mode: RouteMode,
+  stopQuery: string | undefined,
+): void {
   const { L, stopLayer, colours, markerById } = state;
   stopLayer.clearLayers();
   markerById.clear();
+  // A readingless stop recedes on a route map, where it is one of many; on a
+  // stop's own page it is the only thing on the map, so it keeps the full ring.
+  const lone = stops.length === 1;
   for (const s of stops) {
     const hasData = s.avg_delay_sec != null;
     const marker = L.circleMarker(
       [s.lat, s.lon],
-      hasData
+      hasData || lone
         ? {
             radius: 6,
             color: colours.ink,
-            fillColor: delayColour(s.avg_delay_sec, mode),
+            fillColor: hasData ? delayColour(s.avg_delay_sec, mode) : colours.surface,
             fillOpacity: 1,
             weight: 2,
           }
@@ -487,10 +505,14 @@ function drawStopLayer(state: MapState, stops: StopPoint[], mode: RouteMode): vo
     // which would contradict the "Off by" figure beside it.
     const net =
       s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { thresholdSec: 0 });
+    const name =
+      stopQuery === undefined
+        ? `<strong>${esc(s.name)}</strong>`
+        : `<a href="/stop/${encodeURIComponent(s.stop_id)}${esc(stopQuery)}"><strong>${esc(s.name)}</strong></a>`;
     const popup =
       s.avg_abs_delay_sec != null
-        ? `<strong>${esc(s.name)}</strong><br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
-        : `<strong>${esc(s.name)}</strong><br>Early or late: ${net}`;
+        ? `${name}<br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
+        : `${name}<br>Early or late: ${net}`;
     marker.bindPopup(popup);
     marker.addTo(stopLayer);
     markerById.set(s.stop_id, marker);
@@ -535,6 +557,7 @@ function setInitialViewport(state: MapState, stops: StopPoint[], routeLines: Rou
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
  * @param root0.offRoute - Readings of the vehicle off its road path, in time order (trip map).
+ * @param root0.stopQuery - Query a stop's popup name links with ("" or "?day=..."); unset leaves names unlinked.
  * @param root0.className - Optional extra classes for the container div.
  * @returns Map container element.
  */
@@ -548,6 +571,7 @@ export default function StopMap({
   filterTripId,
   filterDirectionIds,
   offRoute = NO_OFF_ROUTE,
+  stopQuery,
   className,
 }: {
   stops: StopPoint[];
@@ -559,8 +583,10 @@ export default function StopMap({
   filterTripId?: string;
   filterDirectionIds?: number[];
   offRoute?: OffRoutePoint[];
+  stopQuery?: string;
   className?: string;
 }): JSX.Element {
+  const router = useRouter();
   const divRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
   // Set once the async map setup has finished, so the vehicle poll can start.
@@ -583,6 +609,7 @@ export default function StopMap({
     filterTripId,
     filterDirectionIds,
     offRoute,
+    stopQuery,
   });
   useLayoutEffect(() => {
     latestRef.current = {
@@ -595,6 +622,7 @@ export default function StopMap({
       filterTripId,
       filterDirectionIds,
       offRoute,
+      stopQuery,
     };
   });
 
@@ -615,9 +643,12 @@ export default function StopMap({
         one-finger drag is off on touch (pinch and the zoom buttons still work),
         and the wheel zooms only once the mouse has settled on the map.
       */
+      // Quarter-step zoom so a fitted route fills its box: whole steps round the
+      // fit down a level, which can leave half the map empty around the line.
       const map = L.map(divRef.current, {
         scrollWheelZoom: false,
         dragging: !L.Browser.mobile,
+        zoomSnap: 0.25,
       });
       wheelZoomOnHover(map);
       // The key goes out only where CARTO accepts it (see cartoTileUrl).
@@ -641,6 +672,8 @@ export default function StopMap({
         map,
         colours,
         routeLayer: L.layerGroup().addTo(map),
+        arrowLayer: L.layerGroup().addTo(map),
+        arrowSource: { lines: [], stops: [] },
         offRouteLayer: L.layerGroup().addTo(map),
         stopLayer: L.layerGroup().addTo(map),
         vehicleLayer: L.layerGroup().addTo(map),
@@ -653,11 +686,15 @@ export default function StopMap({
       const { stops: s0, routeLines: rl0, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
       drawOffRouteLayer(state, latestRef.current.offRoute);
-      drawStopLayer(state, s0, m0);
+      drawStopLayer(state, s0, m0, latestRef.current.stopQuery);
 
       // No saved view: every visit frames the route afresh, so a zoom left on one
       // visit never carries into the next.
       setInitialViewport(state, s0, rl0);
+      // Arrows were placed at the zoom before the fit; place them again for this
+      // one, and after every zoom, so they stay evenly spaced on screen.
+      drawArrowLayer(state);
+      map.on("zoomend", () => drawArrowLayer(state));
 
       /*
         Focus a stop the caller actually asked for. This used to key on
@@ -696,8 +733,29 @@ export default function StopMap({
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);
     drawOffRouteLayer(state, offRoute);
-    drawStopLayer(state, stops, mode);
-  }, [stops, routeLines, mode, offRoute]);
+    drawStopLayer(state, stops, mode, stopQuery);
+  }, [stops, routeLines, mode, offRoute, stopQuery]);
+
+  // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
+  // page afresh. A plain click on a same-site link goes through the router instead; one with a
+  // modifier (new tab, new window) is left to the browser.
+  useEffect(() => {
+    const div = divRef.current;
+    if (!div) return;
+    /**
+     * Send a plain click on a same-site popup link through the router.
+     * @param e - The click.
+     */
+    const onClick = (e: MouseEvent): void => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target instanceof Element ? e.target.closest("a") : null;
+      if (!a || a.target || a.origin !== window.location.origin) return;
+      e.preventDefault();
+      router.push(`${a.pathname}${a.search}${a.hash}`);
+    };
+    div.addEventListener("click", onClick, true);
+    return () => div.removeEventListener("click", onClick, true);
+  }, [router]);
 
   // --- Effect 3: smooth-pan to the selected stop (no map rebuild) ---------------
   // A flyTo with a short duration keeps the context visible while centering.
@@ -746,7 +804,7 @@ export default function StopMap({
           setVehiclesFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveVehicle[] };
+        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: string | null };
         if (dead) return;
         setVehiclesFailed(false);
 
@@ -756,7 +814,7 @@ export default function StopMap({
           lines: pollLines,
           stops: pollStops,
         });
-        syncVehicles(state, vehicles, pollMode);
+        syncVehicles(state, vehicles, pollMode, data.op ?? null);
       } catch {
         // An abort on cleanup is not a failure; anything else is.
         if (!dead) setVehiclesFailed(true);

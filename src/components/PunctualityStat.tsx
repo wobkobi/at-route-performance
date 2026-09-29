@@ -29,6 +29,61 @@ function barWidth(pct: number | null): string {
   return `${Math.max(0, pct ?? 0)}%`;
 }
 
+/**
+ * Percentage text for a band row, or the placeholder when it is unknown.
+ * @param pct - The band percentage, or null.
+ * @returns The text for the row's value.
+ */
+function pctText(pct: number | null): string {
+  return pct == null ? UNKNOWN_VALUE : `${pct}%`;
+}
+
+/** The average "off by" magnitude split into the two sides it is built from. */
+interface OffBySplit {
+  /** Signed (net) average deviation in seconds, the two sides subtracted. */
+  net: number;
+  /** Average absolute deviation in seconds, the two sides added. */
+  magnitude: number;
+  /** Seconds of lateness per arrival. */
+  late: number;
+  /** Seconds of earliness per arrival. */
+  early: number;
+  /** The late side's share of the magnitude, for the bar. */
+  latePct: number;
+  /** The early side's share, for the bar. */
+  earlyPct: number;
+}
+
+/**
+ * Split the average "off by" magnitude into the lateness and the earliness it is
+ * built from, per arrival.
+ *
+ * Exact rather than estimated, and it needs nothing beyond the two means already
+ * stored. Writing `P` for the total of every late-side deviation and `N` for the
+ * total of every early-side one over `n` arrivals, the net mean is `(P - N) / n`
+ * and the magnitude mean is `(P + N) / n`. Add the two means and halve for
+ * `P / n`; subtract and halve for `N / n`. So the halves sum to the magnitude
+ * and differ by the net, which is what the rows under the bar show.
+ *
+ * Sides are the timetable's, not the on-time window's: a run 30 seconds late is
+ * inside the window and still counts on the late side.
+ * @param net - Signed average deviation in seconds (negative early, positive late), or null.
+ * @param magnitude - Average absolute deviation in seconds, or null.
+ * @returns The split, or null when either mean is missing.
+ */
+function offBySplit(net: number | null, magnitude: number | null): OffBySplit | null {
+  if (net == null || magnitude == null) return null;
+  // Clamped because the two means are computed independently: a pair where the
+  // net exceeds the magnitude has no real split, and must not draw as a
+  // negative width.
+  const late = Math.max(0, (magnitude + net) / 2);
+  const early = Math.max(0, (magnitude - net) / 2);
+  const total = late + early;
+  const latePct = total > 0 ? (late / total) * 100 : 0;
+  const earlyPct = total > 0 ? (early / total) * 100 : 0;
+  return { net, magnitude, late, early, latePct, earlyPct };
+}
+
 /** The on-time split + averages behind a punctuality KPI. */
 export interface PunctualityBreakdown {
   on_time_pct: number | null;
@@ -63,35 +118,136 @@ export interface PunctualityStatProps {
    * magnitude (for the Avg-off-by card). Keeps the two heroes' popovers distinct.
    */
   variant: "split" | "average";
-  /** Card size: `lg` for the route page heroes, `sm` for the home KPI strip. */
-  size?: "sm" | "lg";
+  /**
+   * Card size: `lg` for the route page heroes, `sm` for a KPI strip inside a
+   * bordered box, `md` for the home strip, whose figures carry the page now that
+   * the box around them has gone.
+   */
+  size?: "sm" | "md" | "lg";
   /** Drop the card's own border so it can sit inside a shared KPI box. */
   bare?: boolean;
 }
 
 /**
- * A breakdown row: a coloured swatch, a label, and a percentage.
+ * A row under a bar: a coloured swatch matching one of its segments, a label,
+ * and that segment's figure.
  * @param root0 - Row props.
  * @param root0.colour - Tailwind background class for the swatch.
- * @param root0.label - Band name.
- * @param root0.pct - Percentage, or null when unknown.
+ * @param root0.label - Band or side name.
+ * @param root0.value - Pre-formatted figure, a share or a duration.
  * @returns The row element.
  */
 function BandRow({
   colour,
   label,
-  pct,
+  value,
 }: {
   colour: string;
   label: string;
-  pct: number | null;
+  value: string;
 }): JSX.Element {
   return (
     <div className="flex items-center gap-2">
       <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colour)} />
       <span className="flex-1 text-at-muted">{label}</span>
-      <span className="font-semibold tabular-nums">{pct == null ? UNKNOWN_VALUE : `${pct}%`}</span>
+      <span className="font-semibold tabular-nums">{value}</span>
     </div>
+  );
+}
+
+/**
+ * A figure the two halves add up to or cancel down to. No swatch: it is not a
+ * segment of the bar, so it does not sit under one of its colours.
+ * @param root0 - Row props.
+ * @param root0.label - What the figure is.
+ * @param root0.value - Pre-formatted figure.
+ * @returns The row element.
+ */
+function TotalRow({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-at-muted">{label}</span>
+      <span className="font-semibold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * The Avg-off-by popover's body: the card's own figure, then the bar that takes
+ * it apart into the lateness and the earliness it is built from (see
+ * {@link offBySplit}), then what those two cancel down to.
+ *
+ * Read top to bottom it is a sentence - off by this much, of which this much
+ * late and this much early, which balances out to this - so the rows can be
+ * named in a couple of words each and the arithmetic needs no symbols.
+ *
+ * A bar of shares rather than of the bands the on-time card draws: these two
+ * figures are means, so no reading belongs to one bucket or another, and what a
+ * reader cannot see from a single average is which way a route misses.
+ *
+ * Every caller reads both means off one summary row, so they are known together
+ * and a missing pair means nothing arrived - which is what the empty state says.
+ * @param props - Component props.
+ * @param props.net - Signed (net) average deviation in seconds, or null when nothing arrived.
+ * @param props.magnitude - Average absolute deviation in seconds, or null when nothing arrived.
+ * @returns The popover body.
+ */
+function AverageDetail({
+  net,
+  magnitude,
+}: {
+  net: number | null;
+  magnitude: number | null;
+}): JSX.Element {
+  const split = offBySplit(net, magnitude);
+  return (
+    <>
+      <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">
+        Of the typical arrival
+      </p>
+      {split === null ? (
+        <p className="mt-2 text-sm text-at-muted">
+          No arrivals in this window, so there is nothing to average.
+        </p>
+      ) : (
+        <>
+          {/* Neither total applies the on-time window: a route that runs as early as it runs
+              late balances near zero, and "on time" above a magnitude of 9m would contradict it. */}
+          <div className="mt-2 text-sm">
+            {/* "Off by", the card's own noun, rather than a seventh name for this one metric. */}
+            <TotalRow label="Off by" value={formatDuration(split.magnitude)} />
+          </div>
+          {/* What that figure is made of. The two halves always fill the bar, so its balance
+              says which way the typical miss went - not how big it was, which is the figure
+              above. Drawn only when there is a miss to split: at zero on both halves an empty
+              bar would read as no data rather than as running to the minute. */}
+          {split.magnitude > 0 && (
+            <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
+              <span className="bg-at-late" style={{ width: barWidth(split.latePct) }} />
+              <span className="bg-at-early" style={{ width: barWidth(split.earlyPct) }} />
+            </div>
+          )}
+          <div className="mt-2 space-y-1 text-sm">
+            <BandRow
+              colour="bg-at-late"
+              label="From running late"
+              value={formatDuration(split.late)}
+            />
+            <BandRow
+              colour="bg-at-early"
+              label="From running early"
+              value={formatDuration(split.early)}
+            />
+          </div>
+          <div className="mt-2 text-sm">
+            <TotalRow label="On balance" value={formatDelay(split.net, { thresholdSec: 0 })} />
+          </div>
+          <p className="mt-2 text-xs leading-snug text-at-muted">
+            Late plus early makes the off-by figure; late minus early makes the balance.
+          </p>
+        </>
+      )}
+    </>
   );
 }
 
@@ -105,7 +261,7 @@ function BandRow({
  * @param props.value - Pre-formatted KPI value.
  * @param props.breakdown - The on-time split + averages.
  * @param props.variant - Which detail to reveal (`split` or `average`).
- * @param props.size - Card size (`lg` route heroes, `sm` home strip).
+ * @param props.size - Card size (`lg` route heroes, `md` the home strip, `sm` inside a bordered strip).
  * @param props.bare - Drop the card's own border (for a shared KPI box).
  * @returns The clickable KPI card with its popover.
  */
@@ -122,18 +278,18 @@ export function PunctualityStat({
       className={cn(
         "relative bg-at-surface",
         bare ? "" : "border border-at-border",
-        size === "lg" ? "p-4" : "p-3",
+        size === "lg" ? "p-4" : size === "md" ? "" : "p-3",
       )}
     >
       {/* Card text stays plain (selectable); only the info button opens the popover. */}
-      <div className="flex items-center gap-1 text-xs tracking-zero text-at-muted uppercase">
+      <div className="at-eyebrow flex items-center gap-1 text-at-muted">
         {label}
         <PunctualityInfo label={label} breakdown={breakdown} variant={variant} />
       </div>
       <span
         className={cn(
-          "block font-ultra tracking-zero tabular-nums",
-          size === "lg" ? "text-2xl" : "text-xl",
+          "at-figure block",
+          size === "lg" ? "text-2xl" : size === "md" ? "text-2xl sm:text-3xl" : "text-xl",
         )}
       >
         {value}
@@ -268,9 +424,9 @@ export function PunctualityInfo({
                       <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
                     </div>
                     <div className="mt-2 space-y-1 text-sm">
-                      <BandRow colour="bg-at-ontime" label="On time" pct={on_time_pct} />
-                      <BandRow colour="bg-at-late" label="Late" pct={late_pct} />
-                      <BandRow colour="bg-at-early" label="Early" pct={early_pct} />
+                      <BandRow colour="bg-at-ontime" label="On time" value={pctText(on_time_pct)} />
+                      <BandRow colour="bg-at-late" label="Late" value={pctText(late_pct)} />
+                      <BandRow colour="bg-at-early" label="Early" value={pctText(early_pct)} />
                     </div>
                   </>
                 )}
@@ -281,37 +437,7 @@ export function PunctualityInfo({
                 {extra}
               </>
             ) : (
-              <>
-                <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">
-                  Averages
-                </p>
-                <div className="mt-2 space-y-1 text-sm">
-                  {/* Both figures are means, so neither applies the on-time window: a stop that runs
-                      as early as it runs late nets near zero, and "on time" above a magnitude of
-                      9m would contradict it. */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-at-muted">Early or late, net</span>
-                    <span className="font-semibold tabular-nums">
-                      {avg_delay_sec == null
-                        ? UNKNOWN_VALUE
-                        : formatDelay(avg_delay_sec, { thresholdSec: 0 })}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-at-muted">Off by, ignoring direction</span>
-                    <span className="font-semibold tabular-nums">
-                      {avg_abs_delay_sec == null
-                        ? UNKNOWN_VALUE
-                        : formatDuration(avg_abs_delay_sec)}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-2 text-xs leading-snug text-at-muted">
-                  Earlies and lates cancel in the net average, so it nears zero even when many runs
-                  are off. &ldquo;Off by&rdquo; is the typical distance from schedule, whichever way
-                  a run was out.
-                </p>
-              </>
+              <AverageDetail net={avg_delay_sec} magnitude={avg_abs_delay_sec} />
             )}
           </div>
         </>

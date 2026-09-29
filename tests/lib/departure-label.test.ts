@@ -1,4 +1,4 @@
-import { departureLabel } from "@/lib/departure-label";
+import { boundFor, departureLabel } from "@/lib/departure-label";
 import { describe, expect, it } from "vitest";
 
 describe("departureLabel", () => {
@@ -91,5 +91,32 @@ describe("departureLabel", () => {
       destination: "Otahuhu",
       via: null,
     });
+  });
+});
+
+describe("boundFor", () => {
+  it("names where the run is going, not where it started", () => {
+    expect(boundFor("Lincoln Rd to New Lynn via Henderson", "BUS")).toBe(
+      "to New Lynn via Henderson",
+    );
+    expect(boundFor("New Lynn To Lincoln Rd Via Henderson", "BUS")).toBe(
+      "to Lincoln Rd via Henderson",
+    );
+  });
+
+  it("drops a train's platform numbers", () => {
+    expect(boundFor("Henderson 1 To Manukau 1 Via Waitemata 1", "TRAIN")).toBe(
+      "to Manukau via Waitemata",
+    );
+  });
+
+  it("keeps a headsign with no origin whole", () => {
+    expect(boundFor("Freemans Bay Loop", "BUS")).toBe("to Freemans Bay Loop");
+  });
+
+  it("names nothing for a missing or number-only headsign", () => {
+    expect(boundFor(null, "BUS")).toBeNull();
+    expect(boundFor("", "BUS")).toBeNull();
+    expect(boundFor("123", "BUS")).toBeNull();
   });
 });

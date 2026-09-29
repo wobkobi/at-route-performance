@@ -36,3 +36,15 @@ export function buildHref(base: string, params: Record<string, string | null | u
   const qs = p.toString();
   return qs ? `${base}?${qs}` : base;
 }
+
+/**
+ * Drop the unset entries from a param set, for a control that takes only set
+ * params to preserve.
+ * @param params - The params, some unset.
+ * @returns The set ones.
+ */
+export function stripUnset(params: Record<string, string | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined),
+  );
+}

@@ -35,6 +35,7 @@ describe("routeUpsertOps", () => {
     const [op] = routeUpsertOps(
       [
         route({
+          agency_id: "TZG",
           route_short_name: "NX1",
           route_color: "#1E90FF",
           route_text_color: "#FFFFFF",
@@ -50,6 +51,7 @@ describe("routeUpsertOps", () => {
       mode: mapRouteType(3),
       colour: "1E90FF",
       textColour: "FFFFFF",
+      agencyId: "TZG",
     });
   });
 

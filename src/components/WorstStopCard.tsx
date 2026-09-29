@@ -18,7 +18,7 @@ export interface WorstStopCardProps {
   /** Whether the board ranked any stop, which tells a clean window from an empty one. */
   ranked?: boolean;
   /**
-   * The shown window as words for the clean-window copy ("today", "that day",
+   * The shown window as words for the clean-window copy ("today", "on Sat 19 Sep",
    * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
    */
   when?: string;
@@ -57,8 +57,8 @@ export function WorstStopCard({
   // Nothing ranked at all, which is not the green all-clear below.
   if (!ranked) {
     return (
-      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst stop</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-muted">Worst stop</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
         <p className="text-sm text-at-muted">No stop has enough arrivals in this period.</p>
       </div>
@@ -67,8 +67,8 @@ export function WorstStopCard({
   // Stops ranked and none was past the late bound, so the board crowns nothing.
   if (!stop) {
     return (
-      <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst stop</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-ontime">Worst stop</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
         <p className="text-sm text-at-muted">
           No stop stood out {when}, so there is nothing to call out.
@@ -87,9 +87,9 @@ export function WorstStopCard({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
+      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
     >
-      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst stop</p>
+      <p className="at-eyebrow text-at-late">Worst stop</p>
       <span className="text-2xl font-ultra tracking-zero text-at-ink">{stop.name}</span>
       <OffScheduleLine
         signedSec={stop.avg_delay_sec}

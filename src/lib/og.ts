@@ -378,11 +378,18 @@ export function monthLabel(ym: string): string {
 export function homeCardTitle(c: HomeCard): string {
   const filter = cardFilterLabel(c.mode, c.includeSchool);
   let when: string;
-  if (c.window === "day") when = c.day ? `on ${serviceDayLabel(c.day)}` : "today";
-  else if (c.window === "week")
+  let verb: string;
+  if (c.window === "day") {
+    when = c.day ? `on ${serviceDayLabel(c.day)}` : "today";
+    verb = c.day ? "was it" : "is it";
+  } else if (c.window === "week") {
     when = c.period ? `the week of ${serviceDayLabel(c.period)}` : "over the last 7 days";
-  else when = c.period ? `in ${monthLabel(c.period)}` : "this month";
-  return `How bad was it ${when}?${filter ? ` (${filter})` : ""}`;
+    verb = c.period ? "was it" : "has it been";
+  } else {
+    when = c.period ? `in ${monthLabel(c.period)}` : "this month";
+    verb = c.period ? "was it" : "has it been";
+  }
+  return `How bad ${verb} ${when}?${filter ? ` (${filter})` : ""}`;
 }
 
 /**

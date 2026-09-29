@@ -13,16 +13,21 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { DirectionFilter } from "@/components/DirectionFilter";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteMapDiagram } from "@/components/RouteMapDiagram";
 import { RouteStrip } from "@/components/RouteStrip";
 import { RouteWeekSummary } from "@/components/RouteWeekSummary";
-import { LineDiagramSkeleton } from "@/components/SkeletonParts";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
-import { alertsForRoute, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import {
+  alertsForRoute,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/at-alerts";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -35,6 +40,7 @@ import {
   getRouteDailyStats,
   getRouteLabel,
   getRouteNames,
+  getRouteOperators,
   getRouteStats,
   getRouteStopSplit,
   getTripRiderWait,
@@ -46,6 +52,7 @@ import { readFallback } from "@/lib/db";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
@@ -160,6 +167,9 @@ const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
 
 /**
  * Full headsign label for a direction chip, taken from the busiest variant.
+ * AT capitalises the connectives in some headsigns ("New Lynn To Lincoln Rd Via
+ * Henderson") and not in others, so a mid-string "To" or "Via" is lowered to
+ * keep the two chips of one route reading alike.
  * @param variants - The direction's variants.
  * @param dirId - The direction id (for the fallback label).
  * @returns The headsign, or `Direction N` when none is available.
@@ -169,7 +179,8 @@ function directionLabel(variants: RouteVariant[], dirId: number): string {
     (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
     undefined,
   );
-  return busiest?.headsign || `Direction ${dirId + 1}`;
+  const label = busiest?.headsign?.replace(/ (To|Via) /g, (m) => m.toLowerCase());
+  return label || `Direction ${dirId + 1}`;
 }
 
 /**
@@ -352,7 +363,8 @@ export default async function RoutePage({
   // so it falls back to the rolling last 7 days.
   const isWeekView = sp.window !== undefined && sp.window !== "day";
 
-  // URLs use the version-stripped slug ("501", not "501-217"); redirect old links.
+  // URLs use the version-stripped slug ("501", not "501-217"). next.config.ts
+  // answers old links with a real 308 before this renders; this stays as the backstop.
   const slug = routeSlug(id);
   if (id !== slug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
@@ -370,14 +382,18 @@ export default async function RoutePage({
   // A train line retired by the CRL rename keeps its Route row, so /route/STH
   // resolves rather than 404s; send it to the line that replaced it, which reads
   // both lines' history. Only redirects once the successor has carried traffic.
+  // next.config.ts sends the exact retired slugs first; this catches other cases (/route/sth).
   const successorSlug = await findSuccessorRouteSlug(slug);
   if (successorSlug) {
     const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
     redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
-  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp);
-  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
+  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
@@ -391,9 +407,7 @@ export default async function RoutePage({
 
   // Service day from ?day, or the one every day page opens on. In week view the
   // day stats are not displayed but the route metadata from getRouteStats is
-  // still needed. Today is one request-time clock read for the whole render,
-  // handed to every helper that places a day against it (see lib/request-now.ts).
-  const today = await requestServiceDay();
+  // still needed.
   const requestedDay = resolveRequestedDay(sp.day);
   const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;
@@ -405,6 +419,10 @@ export default async function RoutePage({
     hours,
   });
   const { route, summary, byStop } = stats;
+  // Started here and awaited at the header, so it never holds up the stats.
+  const operatorsP = getRouteOperators().catch(
+    readFallback<Record<string, string>>("route-operators", {}),
+  );
   const routeMode = route?.mode ?? "BUS";
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -505,6 +523,8 @@ export default async function RoutePage({
 
   const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
+  const stopQuery = linkDay ? `?day=${linkDay}` : "";
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -687,6 +707,7 @@ export default async function RoutePage({
   // AT sets every train route's long name to its bare code ("STH", "S-C"), so
   // the published line name is the only readable label the header can show.
   const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const operator = operatorOf((await operatorsP)[slug]);
 
   return (
     <main className="space-y-6">
@@ -708,6 +729,36 @@ export default async function RoutePage({
             {subtitle && subtitle !== title && (
               <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
             )}
+            {operator && (
+              <p className="mt-0.5 text-sm text-at-muted">
+                Run by{" "}
+                <Link
+                  href={buildHref(
+                    operatorHref(operator),
+                    isWeekView
+                      ? { window: "week", period: periodParam ?? undefined }
+                      : { day: requestedDay ?? undefined },
+                  )}
+                  className="text-at-shore hover:underline"
+                >
+                  {operator.name}
+                </Link>
+              </p>
+            )}
+            <p className="mt-0.5 text-sm">
+              <Link
+                href={buildHref("/compare", {
+                  kind: "routes",
+                  ids: slug,
+                  ...(isWeekView
+                    ? { window: "week", period: periodParam ?? undefined }
+                    : { day: requestedDay ?? undefined }),
+                })}
+                className="text-at-shore hover:underline"
+              >
+                Compare with other routes
+              </Link>
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <ViewToggle
@@ -807,7 +858,11 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={weekSummary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
+                value={
+                  weekSummary?.on_time_pct == null
+                    ? UNKNOWN_VALUE
+                    : `${weekSummary.on_time_pct.toFixed(1)}%`
+                }
                 breakdown={weekPunctuality}
               />
             </div>
@@ -827,7 +882,17 @@ export default async function RoutePage({
             </p>
           )}
 
-          <RouteWeekSummary days={weekDays} mode={routeMode} label={weekPeriodLabel} />
+          <RouteWeekSummary
+            days={weekDays}
+            mode={routeMode}
+            label={weekPeriodLabel}
+            dayHref={(date) =>
+              buildHref(`/route/${encodeURIComponent(slug)}`, {
+                day: date === today ? undefined : date,
+                dir: activeDir == null ? undefined : String(activeDir),
+              })
+            }
+          />
 
           {/* Map and diagram with neutral stop coloring in week mode */}
           <RouteMapDiagram
@@ -837,12 +902,13 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
             filterDirectionIds={activeDirIds ?? undefined}
+            stopQuery=""
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
               is the wrong story, and the note above already tells the right one. */}
           {!view.patternFailed && (
-            <Suspense fallback={<LineDiagramSkeleton />}>
+            <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
               <RouteDiagramSection
                 alertsPromise={alertsPromise}
                 live={isLiveView}
@@ -852,6 +918,7 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
+                stopQuery=""
               />
             </Suspense>
           )}
@@ -886,7 +953,11 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
+                value={
+                  summary?.on_time_pct == null
+                    ? UNKNOWN_VALUE
+                    : `${summary.on_time_pct.toFixed(1)}%`
+                }
                 breakdown={punctuality}
               />
             </div>
@@ -945,12 +1016,13 @@ export default async function RoutePage({
               live={isLiveView}
               mode={routeMode}
               filterDirectionIds={activeDirIds ?? undefined}
+              stopQuery={stopQuery}
             />
           </div>
 
           {/* Hidden, not empty, when the pattern failed - see the week view above. */}
           {!view.patternFailed && (
-            <Suspense fallback={<LineDiagramSkeleton />}>
+            <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
               <RouteDiagramSection
                 alertsPromise={alertsPromise}
                 live={isLiveView}
@@ -960,6 +1032,7 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
+                stopQuery={stopQuery}
               />
             </Suspense>
           )}
@@ -1002,7 +1075,7 @@ export default async function RoutePage({
                       >
                         <td className="px-3 py-2">
                           <Link
-                            href={`/stop/${encodeURIComponent(s.stop_id)}${linkDay ? `?day=${linkDay}` : ""}`}
+                            href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {s.name}
@@ -1039,7 +1112,9 @@ export default async function RoutePage({
 /**
  * Streamed "Service alerts" banner: awaits the shared alerts feed off the
  * critical path, keeps the alerts informing this route, and resolves the names
- * of any other routes they mention. Renders nothing while it streams.
+ * of any other routes they mention. On the current day a "Coming up" banner
+ * follows with the route's alerts due in the next week, so a planned detour is
+ * seen before it starts. Renders nothing while it streams.
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.slug - This route's slug, to filter the alerts.
@@ -1056,21 +1131,27 @@ async function RouteAlertBannerSection({
   live: boolean;
 }): Promise<JSX.Element> {
   const routeAlerts = alertsForRoute(await alertsPromise, [slug]);
+  const upcoming = live
+    ? alertsForRoute(await getUpcomingAlerts().catch((): ServiceAlert[] => []), [slug])
+    : [];
   const alertRouteIds = [
     ...new Set(
-      routeAlerts.flatMap((a) =>
+      [...routeAlerts, ...upcoming].flatMap((a) =>
         a.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
       ),
     ),
   ];
   const routeNames = await getRouteNames(alertRouteIds);
   return (
-    <AlertBanner
-      alerts={routeAlerts}
-      heading="Service alerts"
-      routeNames={routeNames}
-      pastWindow={!live}
-    />
+    <>
+      <AlertBanner
+        alerts={routeAlerts}
+        heading="Service alerts"
+        routeNames={routeNames}
+        pastWindow={!live}
+      />
+      <AlertBanner alerts={upcoming} heading="Coming up" routeNames={routeNames} upcoming />
+    </>
   );
 }
 
@@ -1089,6 +1170,7 @@ async function RouteAlertBannerSection({
  * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
+ * @param root0.stopQuery - Query each stop's link carries.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
@@ -1100,6 +1182,7 @@ async function RouteDiagramSection({
   colour,
   activeDir,
   live,
+  stopQuery,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
@@ -1109,6 +1192,7 @@ async function RouteDiagramSection({
   colour: string | null;
   activeDir: number | null;
   live: boolean;
+  stopQuery: string;
 }): Promise<JSX.Element> {
   const strip = buildStrip({
     directions: view.directions,
@@ -1170,6 +1254,7 @@ async function RouteDiagramSection({
       side={side}
       alertRows={alertRows}
       marks={marks}
+      stopQuery={stopQuery}
     />
   );
 }

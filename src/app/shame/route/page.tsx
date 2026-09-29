@@ -2,6 +2,7 @@
 // Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
 
 import { FlameCount } from "@/components/FlameCount";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
 import {
   ShameBoard,
@@ -9,7 +10,6 @@ import {
   ShameHourLabel,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
@@ -32,7 +32,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import {
@@ -43,6 +42,7 @@ import {
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -146,7 +146,7 @@ async function RouteRangeBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {dayCount > 1 && (
@@ -257,7 +257,7 @@ async function RouteDayBoard({
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
             {worstOfDayStreak >= 2 ? (
@@ -344,8 +344,11 @@ export default async function RoutesShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(BASE, sp, today);
+  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle } = parseShameParams(sp);
 
   if (view !== "day") {
@@ -382,7 +385,7 @@ export default async function RoutesShamePage({
             nav: rangeNav,
           }}
         />
-        <Suspense fallback={<ShameBoardSkeleton layout="week" />}>
+        <Suspense fallback={<LoadingBlock label="Loading the board" />}>
           <RouteRangeBoard
             range={activeRange}
             filter={filter}
@@ -396,11 +399,11 @@ export default async function RoutesShamePage({
 
   // Day view (default): worst route per hour.
   const [shown, earliestDay] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
   ]);
   const { range, serviceDate } = shown;
-  const dayNav = dayRangeNav(shown, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
 
   return (
@@ -422,9 +425,7 @@ export default async function RoutesShamePage({
           nav: { day: linkDay },
         }}
       />
-      <Suspense
-        fallback={<ShameBoardSkeleton layout="day" rows={startedServiceHourCount(serviceDate)} />}
-      >
+      <Suspense fallback={<LoadingBlock label="Loading the board" />}>
         <RouteDayBoard
           range={range}
           serviceDate={serviceDate}

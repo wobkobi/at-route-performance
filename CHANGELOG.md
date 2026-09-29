@@ -32,6 +32,354 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.6] - 2026-09-29
+
+### Fixed
+
+- The smoke test no longer waits 30 s on most pages: each page closed with link prefetches still in
+  flight, and the next page stalled on the browser cache entries they left locked. A run takes under
+  a minute again, down from about 7.
+
+## [2.31.5] - 2026-09-29
+
+### Fixed
+
+- Old links to the retired train lines (STH, EAST, WEST, ONE) and to versioned route ids such as
+  NX1-203 now get a real permanent redirect, where they used to load the whole page and then jump
+  after a second.
+
+## [2.31.4] - 2026-09-29
+
+### Changed
+
+- The README drops its guide to running and deploying the site and lists the issues with the AT API
+  instead.
+
+## [2.31.3] - 2026-09-29
+
+### Fixed
+
+- Stop 8503 (Stop A Maungawhau Station) reads as on the City/Isthmus boundary, as AT's published
+  list has it, where AT's own zone shapefile leaves it in City. The fare zone builder also
+  type-checks clean against pyshp's types.
+
+## [2.31.2] - 2026-09-29
+
+### Fixed
+
+- School routes' line diagrams fill in: AT's GTFS zip leaves out all 317 school routes, so the
+  nightly trip sync now fetches their trips from AT's API, giving each school run its direction and
+  destination.
+
+## [2.31.1] - 2026-09-29
+
+### Fixed
+
+- The fare zone builder checks each simplified zone is a polygon by type, so an editor's type
+  checker follows it.
+
+## [2.31.0] - 2026-09-29
+
+### Changed
+
+- Today's cancelled trips open with the ones not due yet, soonest first, then the ones already due,
+  most recent first; in departure order the trips a rider could still be waiting for sat behind
+  "Show more". Day by day and a vehicle's days put the latest day at the top, and a stop's whole-day
+  timetable draws a "Now" line with the departures already gone dimmed.
+
+## [2.30.0] - 2026-09-29
+
+### Added
+
+- Route and stop pages link to Compare with the page's route or stop already in it, and on the
+  current day list that route's or stop's alerts coming up in the next week. On a wide screen a
+  stop's map sits beside its worst-routes board instead of spanning the page around one dot, with a
+  key and a line saying what the dot's colour means, and the stop page's back link names the day it
+  returns to.
+
+## [2.29.0] - 2026-09-29
+
+### Added
+
+- A collapsed "Coming up" banner lists the service alerts due in the next seven days, soonest first,
+  on the current day's overview. AT's feed carries planned detours and closures well ahead of time,
+  and the site dropped every one until the minute it started. Each alert also shows the period
+  running now or the next to come, rather than the first the feed lists, which dated a recurring
+  alert by an occurrence weeks gone.
+
+## [2.28.0] - 2026-09-29
+
+### Added
+
+- A new Compare page (/compare, linked from the footer) lines up to four routes or four stops over a
+  day, week or month: on time, early, late, the average off, arrivals, and cancelled trips for
+  routes or routes calling for stops, with the best of each row picked out. Stops are found by name
+  or by the code on the pole, and a station comes back once rather than as each of its platforms.
+
+## [2.27.0] - 2026-09-29
+
+### Added
+
+- Filters are dropdown boxes, each naming its choice once set, with an × beside it and a Reset
+  inside to clear it: on the Routes page (Mode, Area, Fare zone, Operator, Running, More, and a
+  Reset all) and wherever the mode, school-bus and late/early filters appear - the overview, Day by
+  day, Cancellations, Vehicles, Operators, Live and the worst-of boards. A phone gets the options as
+  a sheet along the bottom of the screen, so a row of filters no longer wraps to three lines.
+
+## [2.26.0] - 2026-09-29
+
+### Added
+
+- Route lines on the stop, route and trip maps carry arrows showing the way services run, spaced
+  evenly on screen and redrawn on zoom, kept off stop dots and not repeated where two lines share a
+  road. Maps open framed on where most of their stops or vehicles are rather than stretched to fit
+  the odd outlier, and the stop-dot key lists the white dot for a stop with no reading.
+
+## [2.25.0] - 2026-09-29
+
+### Added
+
+- The verdict names which way the network is off under its word - "Mostly running early", "Mostly
+  running late" or "Off both ways" - on the overview and the share card, so a poor day spent running
+  early no longer reads the same as one spent running late. "Bit bad" now starts at 55% on time
+  rather than 60%, so an ordinary school-holiday day, with its early running, is not graded with the
+  worst.
+
+## [2.24.5] - 2026-09-29
+
+### Fixed
+
+- Headings and empty states for a past day say "yesterday" or name the day ("on Sat 19 Sep") instead
+  of "that day", which named nothing once the reader had scrolled past the stepper.
+
+## [2.24.4] - 2026-09-29
+
+### Fixed
+
+- The hourly worst-stop board merges a station's platforms before ranking, so an hour names the
+  station a rider would name, and a busy station no longer splits into several rows that each fall
+  short of the hourly minimum.
+
+## [2.24.3] - 2026-09-28
+
+### Changed
+
+- dotenv 18: `smoke` and `test:int` run through dotenv's own `dotenv run`, replacing `dotenv-cli`
+  (both claimed the `dotenv` binary). `analyze` runs Next's Turbopack analyser instead of
+  `@next/bundle-analyzer`, which only works with webpack builds. CI's smoke step calls the script
+  directly, since dotenv's CLI exits when `.env.local` is missing.
+
+## [2.24.2] - 2026-09-27
+
+### Fixed
+
+- Day pages no longer abort their prerender with an unstable `new Date()` when the URL carries
+  `?day`: today is read once at request time, before the day redirects, and handed to them.
+
+## [2.24.1] - 2026-09-27
+
+### Fixed
+
+- Alert route pills show the route's name rather than its feed id, once per route; an old /rankings
+  link keeps the day it named; a vehicle opened from an operator's page returns to that operator's
+  vehicles.
+
+## [2.24.0] - 2026-09-27
+
+### Added
+
+- On the Routes page a route's name opens it and an area narrows the list to that area; the
+  operators board links each operator's route and vehicle counts to those lists; a vehicle's LIVE
+  badge opens the run it is on.
+
+## [2.23.0] - 2026-09-27
+
+### Added
+
+- A station's per-bay table links each bay and the routes that leave only from it, and a stop's
+  schedule links each departure to its run.
+
+## [2.22.0] - 2026-09-27
+
+### Added
+
+- A run's page links each stop on its timeline, the stops its detour and cancellation notes name,
+  and the vehicle that ran it, all on the run's day.
+
+## [2.21.0] - 2026-09-27
+
+### Added
+
+- Stops on a route's line diagram and on the route, trip and vehicle maps link to their pages on the
+  day shown, each day in a route's week table opens that day, and the live map names a vehicle's
+  route as a link.
+
+## [2.20.0] - 2026-09-27
+
+### Added
+
+- A route in a stop's schedule links to that route's page, on the same day.
+
+## [2.19.0] - 2026-09-27
+
+### Added
+
+- The Routes page can be narrowed to AT fare zones, and a stop page says which fare zone (or, on a
+  boundary, which two) it is in.
+
+## [2.18.0] - 2026-09-27
+
+### Added
+
+- The Routes page can be narrowed to one operator's routes, and each operator page links there.
+
+## [2.17.0] - 2026-09-27
+
+### Added
+
+- Route and vehicle pages, and a vehicle's popup on the route and live maps, say which company runs
+  it, linked to that operator's page.
+
+## [2.16.0] - 2026-09-27
+
+### Added
+
+- An Operators page compares the companies that run AT's routes on punctuality, cancellations and
+  fleet, each operator has its own page listing its routes and vehicles, and the vehicles board can
+  be narrowed to one operator.
+
+## [2.15.0] - 2026-09-27
+
+### Added
+
+- Each route now records the company AT contracts to run it, read from the nightly route sync.
+
+## [2.14.0] - 2026-09-27
+
+### Added
+
+- Tapping a vehicle on a route, trip, stop or vehicle map now links to its route, the run it is on,
+  and the vehicle's own page, as the live map already did.
+
+## [2.13.0] - 2026-09-27
+
+### Added
+
+- Hovering or tapping a part of the home page's on time / late / early bar says what it means and
+  how often it came up ("Early 28.0% · about 1 in 4 arrivals: more than 1 min early, so a rider who
+  arrived on time could have missed it"). The Avg off by popover's note is down to one line.
+
+## [2.12.2] - 2026-09-27
+
+### Fixed
+
+- Cancelled and cut-short runs say where they were going ("to Selwyn Village") rather than AT's raw
+  headsign, and a route's two direction chips read alike instead of one saying "To" and "Via".
+
+## [2.12.1] - 2026-09-27
+
+### Fixed
+
+- On a 360px phone: all five header tabs fit, the day-by-day table keeps each figure on one line, a
+  worst-route row's streak flame no longer runs into its delay, a trip's start time no longer splits
+  across lines, and a long headsign in a trip list stops short of the delay beside it.
+
+## [2.12.0] - 2026-09-26
+
+### Added
+
+- The live map has a Near me button. It asks your browser for your location, then zooms to the
+  streets around you with a dot where you are, so the buses and trains nearest you can be picked out
+  and tapped. It only asks when pressed, stays on the whole network for a location outside Auckland,
+  and says so when location is turned off for the site.
+
+## [2.11.5] - 2026-09-26
+
+### Fixed
+
+- The On time figure on a route page and a stop page reads as a percentage again ("69.8%"); it lost
+  its unit when the label dropped its "(%)".
+
+## [2.11.4] - 2026-09-26
+
+### Fixed
+
+- A run's line on the worst trips boards, a route's list of the day's buses and the home page's
+  worst trip card names where it is going ("to New Lynn via Henderson") rather than printing AT's
+  whole headsign after "to" ("to Lincoln Rd to New Lynn via Henderson"). On a phone the row was cut
+  short at the origin, so it read as the opposite direction.
+
+## [2.11.3] - 2026-09-26
+
+### Fixed
+
+- Behind the scenes: a realtime poll now takes a lease before it writes, and a poll that finds the
+  previous one still running skips instead of writing alongside it. On a slow database the polls
+  were stacking up two and three deep, each slowing the others until every one was stopped at the
+  five-minute limit without recording anything, and the site went half an hour without new data.
+
+## [2.11.2] - 2026-09-26
+
+### Fixed
+
+- On an iPhone a route's line diagram showed its stop names one letter wide, because Safari sized
+  the figure columns from their headings' full one-line width. The figure columns now take the width
+  of their widest figure or the longest word of their heading, which wraps, in every browser.
+
+## [2.11.1] - 2026-09-26
+
+### Fixed
+
+- Behind the scenes: the flame streaks on the worst routes and worst trips boards are worked out
+  from one day's figures at a time, each finished day kept for a week, and only as far back as a
+  streak actually runs. They were one fortnight-wide query that took around four minutes on every
+  cache miss, and with a few running at once it slowed every page on the site and timed out the
+  automated checks.
+
+## [2.11.0] - 2026-09-26
+
+### Changed
+
+- The home page is laid out by rules, type size and alignment rather than a box round everything, so
+  the day's question is the largest thing on it and every control sits on one row. Each row on the
+  rankings carries a bar scaled to the worst row on that board, the day's verdict sits over its real
+  on time, late and early split rather than a five-step meter, and the verdict word is a size under
+  the question it answers. The Avg off by explainer now shows its arithmetic: how much of the
+  average comes from running late, how much from running early, and what that balances out to.
+
+## [2.10.0] - 2026-09-26
+
+### Added
+
+- The live map draws every route's line in grey beneath the vehicle dots, so a dot reads against the
+  road or rail it is on. Each route is drawn once, along its busiest path, thinned to about 30m
+  detail so the whole network loads as one small file that is kept for a day.
+
+## [2.9.6] - 2026-09-26
+
+### Fixed
+
+- The home page's question matches whether the day it asks about is over: "How bad is it today?"
+  while today is still running, "How bad has it been" over the last 7 days and this month, since
+  both reach up to today, and "How bad was it" only for a day, week or month that has closed. A
+  shared link's title and the generic share card ask the same way.
+
+## [2.9.5] - 2026-09-26
+
+### Changed
+
+- A page now waits on one loading wheel rather than a box-for-box skeleton of itself, and a section
+  still loading inside a page says what it is waiting for ("Loading the board"). The skeletons were
+  thirteen hand-kept copies of the pages they stood in for; the trade is that a page now arrives on
+  the wheel and moves more as it fills in.
+
+## [2.9.4] - 2026-09-26
+
+### Changed
+
+- Behind the scenes only: patch updates to four development tools - @types/node, lint-staged, vite
+  and vitest. Nothing on the site changes.
+
 ## [2.9.3] - 2026-09-25
 
 ### Fixed

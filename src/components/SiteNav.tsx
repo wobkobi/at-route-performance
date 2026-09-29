@@ -26,8 +26,10 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
         // page's own state, which on Routes is the whole explorer (search,
         // area, sort, lean). A section tab from one of its sub-pages stays a
         // link, since /route/20 > /routes is a real navigation.
+        // px-2 below sm keeps all five tabs inside a 360px phone; wider
+        // padding pushed Cancellations past the edge of the scroll strip.
         const className = cn(
-          "shrink-0 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
+          "shrink-0 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
           active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
         );
         return pathname === s.href ? (

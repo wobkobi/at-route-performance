@@ -31,7 +31,8 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import type { DateRange } from "@/lib/time";
+import { requestNow } from "@/lib/request-now";
+import { nzServiceDayString, type DateRange } from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -93,9 +94,13 @@ export default async function CancellationsPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const now = await requestNow();
+  const today = nzServiceDayString(now);
   if (window === "day") {
-    clampDayParam("/cancellations", sp);
-    dropTodayParam("/cancellations", sp);
+    clampDayParam("/cancellations", sp, today);
+    dropTodayParam("/cancellations", sp, today);
   }
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
@@ -109,12 +114,15 @@ export default async function CancellationsPage({
   let nav: RangeNav;
   let linkDay: string | undefined;
   let period: string | null = null;
+  // Set only while reading the live day, whose list splits at this instant.
+  let liveAt: number | null = null;
   if (window === "day") {
-    const shown = await resolveShownDay(resolveRequestedDay(sp.day));
+    const shown = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = shown.range;
     trips = await getNetworkCancelledTrips(range);
-    nav = dayRangeNav(shown, earliest);
+    nav = dayRangeNav(shown, earliest, today);
     linkDay = nav.isToday ? undefined : shown.serviceDate;
+    if (nav.isToday) liveAt = now.getTime();
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/cancellations",
@@ -225,6 +233,7 @@ export default async function CancellationsPage({
           key={buildHref("", { ...stagePreserved, ...stageParam })}
           trips={visible}
           multiDay={window !== "day"}
+          liveAt={liveAt}
           stage={stage}
           basePath="/cancellations"
           preservedParams={stagePreserved}

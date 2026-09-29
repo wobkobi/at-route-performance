@@ -81,3 +81,24 @@ export function departureLabel(
     via: via === "" ? null : unshout(via),
   };
 }
+
+/**
+ * A run's trip headsign as the one line a list row or card prints, with the
+ * origin AT puts first dropped: "Lincoln Rd to New Lynn via Henderson" > "to New
+ * Lynn via Henderson". Printed whole, "to " read into the origin, and a phone's
+ * truncated row showed where the run started rather than where it was going.
+ * @param headsign - The trip headsign, or null.
+ * @param mode - The route's mode; a train's platform numbers are dropped.
+ * @returns "to <destination>", with its via when AT names one, or null when the
+ *   headsign is missing or only a number (which names nothing).
+ */
+export function boundFor(headsign: string | null | undefined, mode: string): string | null {
+  if (!headsign || !/\D/.test(headsign)) return null;
+  const { destination, via } = departureLabel(
+    headsign,
+    null,
+    mode === "TRAIN" || mode === "FERRY" ? mode : "BUS",
+  );
+  if (destination === null) return null;
+  return via === null ? `to ${destination}` : `to ${destination} via ${via}`;
+}

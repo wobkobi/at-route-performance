@@ -585,6 +585,10 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 
   const page = await browser.newPage();
   try {
+    // Pages share one browser, and each closes at network idle with the router's link prefetches
+    // possibly still in flight. The next page asks for the same prefetch URLs, waits on the cache
+    // entries the closed page left locked, and `networkidle2` sits out the 30 s until they abort.
+    await page.setCacheEnabled(false);
     const origin = new URL(baseUrl).origin;
     const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
     if (bypass) {

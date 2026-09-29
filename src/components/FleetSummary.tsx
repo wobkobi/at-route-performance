@@ -11,9 +11,10 @@ import {
   PunctualityStat,
   type PunctualityBreakdown,
 } from "@/components/PunctualityStat";
+import { SplitBar } from "@/components/SplitBar";
 import { cn } from "@/lib/cn";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
-import { dayVerdict, VERDICT_BANDS, verdictIndex } from "@/lib/verdict";
+import { dayVerdict, LEAN_PHRASE, VERDICT_BANDS, verdictLean } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
 
@@ -29,8 +30,7 @@ export interface FleetSummaryProps {
   verdict?: boolean;
 }
 
-const LABEL_CLASS = "text-xs tracking-zero text-at-muted uppercase";
-const VALUE_CLASS = "text-xl font-ultra tracking-zero";
+const LABEL_CLASS = "at-eyebrow text-at-muted";
 
 /**
  * The scale itself, listed under the on-time popover's footnote so the word
@@ -60,9 +60,16 @@ function VerdictScale(): JSX.Element {
 }
 
 /**
- * The verdict panel: the word, a five-rung meter, and the sentence the word is
- * built from. A window with no on-time share prints no word, a grey meter and
- * says so.
+ * The verdict panel: the word, the count and average it sits on, and the
+ * three-band bar the word is read off. A window with no on-time share prints no
+ * word, no bar, and says which kind of nothing it was.
+ *
+ * The panel shares the strip's four-column grid from `lg:` up, the word over the
+ * first two columns and the sentence over the last two, so the sentence starts
+ * on the same line as the third figure below it, with the bar across all four
+ * beneath them. Stacked, the largest element on the site left two thirds of its
+ * own width empty; pushed to the far right, the sentence floated with nothing
+ * tying it back to the word it describes.
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
  * @param props.breakdown - The on-time split behind the popover.
@@ -76,61 +83,77 @@ function VerdictPanel({
   breakdown: PunctualityBreakdown;
 }): JSX.Element {
   const band = dayVerdict(data.on_time_pct);
-  const rung = verdictIndex(band);
-  const rungs = VERDICT_BANDS.length;
+  const lean = band ? verdictLean(data.early_pct, data.late_pct) : null;
+  // All three shares or none: they are one aggregation's output, and a bar drawn
+  // from two of them would be short by the missing band and read as a bar that
+  // does not add up.
+  const split =
+    data.on_time_pct !== null && data.late_pct !== null && data.early_pct !== null
+      ? { onTime: data.on_time_pct, late: data.late_pct, early: data.early_pct }
+      : null;
   return (
-    <div className="space-y-3 border-b border-at-border p-4">
-      {/* Positioned, so the on-time popover drops from this row rather than from
-          the foot of the whole panel. */}
-      <div className={cn("relative flex items-center gap-1", LABEL_CLASS)}>
-        Verdict
-        <PunctualityInfo
-          label="On time"
-          breakdown={breakdown}
-          variant="split"
-          extra={<VerdictScale />}
-        />
-      </div>
-      <p
-        className={cn(
-          "text-5xl font-ultra tracking-zero sm:text-6xl",
-          band?.toneClass ?? "text-at-muted",
-        )}
-      >
-        {band?.label ?? UNKNOWN_VALUE}
-      </p>
-      <div
-        role="img"
-        aria-label={band ? `${band.label}, ${rung + 1} of ${rungs}` : "No verdict"}
-        className="flex h-2 max-w-xs gap-1"
-      >
-        {Array.from({ length: rungs }).map((_, i) => (
-          <span
-            key={i}
-            className={cn(
-              "flex-1 rounded-full",
-              band && i <= rung ? band.barClass : "bg-at-border",
-            )}
+    <div className="grid gap-x-6 gap-y-5 pb-6 lg:grid-cols-4 lg:items-end">
+      <div className="min-w-0 lg:col-span-2">
+        {/* Positioned, so the on-time popover drops from this row rather than from
+            the foot of the whole panel. */}
+        <div className={cn("relative flex items-center gap-1", LABEL_CLASS)}>
+          Verdict
+          <PunctualityInfo
+            label="On time"
+            breakdown={breakdown}
+            variant="split"
+            extra={<VerdictScale />}
           />
-        ))}
+        </div>
+        {/* One step down from the page's own h1: the question is the heading and
+            this is its answer, so the two read as a pair rather than as two
+            headlines competing at different sizes. */}
+        <p
+          className={cn(
+            "mt-1 text-4xl leading-headline font-ultra tracking-zero sm:text-5xl",
+            band?.toneClass ?? "text-at-muted",
+          )}
+        >
+          {band?.label ?? UNKNOWN_VALUE}
+        </p>
+        {/* The word is one share of arrivals and hides which side missed: a day
+            of buses leaving early and a day of buses stuck late score alike. */}
+        {lean && (
+          <p
+            className={cn(
+              "mt-1 text-lg font-semibold",
+              lean === "early"
+                ? "text-at-early-strong"
+                : lean === "late"
+                  ? "text-at-late"
+                  : "text-at-muted",
+            )}
+          >
+            {LEAN_PHRASE[lean]}
+          </p>
+        )}
       </div>
-      {/* The count and the percentage have different denominators on purpose:
-          arrivals include readings the nightly ghost pass hid, and every rate
-          divides by the real ones (see aggregate.ts). "X% of N arrivals" welded
-          them into one claim neither number supports, so they are listed. */}
-      <p className="text-sm text-at-muted">
-        {data.on_time_pct === null
-          ? // Zero arrivals and too few measured ones both leave the share null,
-            // and the verdict reads the same blank either way. Which one it was
-            // is the difference between a quiet window and an unmeasurable one.
-            data.events === 0
-            ? "No arrivals were recorded, so there is no verdict to give."
-            : "Too few measured arrivals for a verdict."
-          : `${data.events.toLocaleString()} arrivals, ${data.on_time_pct.toFixed(1)}% of those measured on time` +
-            (data.avg_abs_delay_sec === null
-              ? ""
-              : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
-      </p>
+      <div className="lg:col-span-2 lg:max-w-sm">
+        {/* The arrivals count and the shares below have different denominators on
+            purpose: arrivals include readings the nightly ghost pass hid, and
+            every rate divides by the real ones (see aggregate.ts). "X% of N
+            arrivals" welded them into one claim neither number supports, so the
+            count is stated here and the shares are read off the bar. */}
+        <p className="text-sm text-at-muted">
+          {data.on_time_pct === null
+            ? // Zero arrivals and too few measured ones both leave the share null,
+              // and the verdict reads the same blank either way. Which one it was
+              // is the difference between a quiet window and an unmeasurable one.
+              data.events === 0
+              ? "No arrivals were recorded, so there is no verdict to give."
+              : "Too few measured arrivals for a verdict."
+            : `${data.events.toLocaleString()} arrivals` +
+              (data.avg_abs_delay_sec === null
+                ? ""
+                : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
+        </p>
+      </div>
+      {split && <SplitBar {...split} mode={breakdown.mode} />}
     </div>
   );
 }
@@ -158,18 +181,27 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
     cancellations: "counted",
   };
 
+  // With the verdict, this is the home page's own band: no box, a hairline under
+  // the verdict, and figures large enough to be read across the row. Without it,
+  // the strip is still a bordered box on the pages that have not been rebuilt.
+  const cell = verdict ? undefined : "p-3";
+  // The home figures grow with the box gone; a bordered strip keeps its own
+  // scale so its cells stay level with PunctualityStat's `sm` siblings.
+  const valueClass = cn("at-figure", verdict ? "text-2xl sm:text-3xl" : "text-xl");
   return (
-    <div className="border border-at-border bg-at-surface">
+    <div className={verdict ? undefined : "border border-at-border bg-at-surface"}>
       {verdict && <VerdictPanel data={data} breakdown={breakdown} />}
       <div
         className={cn(
           "grid grid-cols-2",
-          verdict ? "lg:grid-cols-4" : "sm:grid-cols-3 lg:grid-cols-5",
+          verdict
+            ? "gap-x-6 gap-y-5 border-t border-at-border pt-5 lg:grid-cols-4"
+            : "sm:grid-cols-3 lg:grid-cols-5",
         )}
       >
-        <div className="p-3">
+        <div className={cell}>
           <div className={LABEL_CLASS}>Arrivals</div>
-          <div className={VALUE_CLASS}>{data.events.toLocaleString()}</div>
+          <div className={valueClass}>{data.events.toLocaleString()}</div>
         </div>
         {!verdict && (
           <PunctualityStat
@@ -183,7 +215,7 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
         )}
         <PunctualityStat
           bare
-          size="sm"
+          size={verdict ? "md" : "sm"}
           variant="average"
           label="Avg off by"
           value={
@@ -191,19 +223,19 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
           }
           breakdown={breakdown}
         />
-        <div className="p-3">
+        <div className={cell}>
           {/* One name with /cancellations, which counts the same flagged trips.
               The count is of AT's flags, not of trips that failed to run, so the
               note is part of the figure rather than a footnote to it. */}
           <div className={LABEL_CLASS}>Flagged cancelled</div>
-          <div className={cn(VALUE_CLASS, data.cancelled ? "text-at-late" : undefined)}>
+          <div className={cn(valueClass, data.cancelled ? "text-at-late" : undefined)}>
             {data.cancelled === null ? UNKNOWN_VALUE : data.cancelled.toLocaleString()}
           </div>
           <div className="text-xs text-at-muted">Reinstated trips included</div>
         </div>
-        <div className="p-3">
+        <div className={cell}>
           <div className={LABEL_CLASS}>Routes</div>
-          <div className={VALUE_CLASS}>{data.route_count.toLocaleString()}</div>
+          <div className={valueClass}>{data.route_count.toLocaleString()}</div>
         </div>
       </div>
       {/* A route with cancellations but no arrivals still counts under Routes, so

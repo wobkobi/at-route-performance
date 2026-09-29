@@ -130,84 +130,79 @@ export async function getShameRouteStreak(
   )();
 }
 
-/**
- * For each route in `routeIds`, compute its consecutive-day streak (ending
- * today) and the total number of hourly slots it was the worst route across
- * all previous streak days (today's hours are tracked separately by the caller).
- *
- * Runs one ArrivalEvent aggregation over the past 14 days: group by trip >
- * bucket by (serviceDay, hour) > pick worst route per slot > count hours per
- * (serviceDay, routeId) > collect per day. Streak breaks when a route is absent
- * from a day's shame set or when a day has no data at all.
- *
- * Today counts as day 1 by definition (caller confirms all routeIds are on
- * today's shame list). Result caps at 15 (today + 14 prior days).
- * @param routeIds - Route IDs to check (from today's shame list).
- * @param currentRange - UTC half-open window for today's service day.
- * @param filter - Mode/school filter matching the active shame page view.
- * @param filter.mode - Restrict to this mode; null means all modes.
- * @param filter.includeSchool - Include school services (default false).
- * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` - streak
- *   length (min 1), total hourly-slot appearances across *previous* streak days,
- *   and the count of consecutive prior days on which this route was also the
- *   worst of the day (highest avg absolute delay across all slots).
- */
-export async function getShameRouteStreaksBatch(
-  routeIds: string[],
-  currentRange: DateRange,
-  filter: ShameFilter,
-): Promise<Map<string, { count: number; prevHours: number; prevWorstOfDayDays: number }>> {
-  if (routeIds.length === 0) return new Map();
-  const { mode = null, includeSchool = false } = filter;
+/** Longest streak a route can carry back from today, in prior days. */
+const STREAK_DAYS = 14;
 
-  // Cache keyed only by day+filter, NOT by routeIds. The pipeline scans all
-  // routes anyway; including routeIds in the key caused a cache miss whenever
-  // the visible route set grew during the day, re-running the full 14-day
-  // aggregation on every new hourly cycle.
-  // By date, as the streak walk below steps, so a DST change cannot shift the
-  // window's start off 4am and drop its first day.
-  const fourteenDaysAgo = nzServiceDayRange(
-    shiftWeek(nzServiceDayString(currentRange.start), -14),
-  ).start;
-  const streakRange: DateRange = { start: fourteenDaysAgo, end: currentRange.start };
-  const firstBatch = await cachedForRange(
+/** One day's hourly shame slots: which route was worst of the day, and each route's hour count. */
+interface DayShameSlots {
+  worstOfDayRouteId: string;
+  hours: Map<string, number>;
+}
+
+/**
+ * Misses in flight on this instance, by cache key. `unstable_cache` does not fold
+ * concurrent misses together, so without this every request that arrived while a
+ * day was being computed ran the same aggregation again alongside it.
+ */
+const slotsInFlight = new Map<string, Promise<DayShameSlots | null>>();
+
+/**
+ * One service day's hourly worst-route slots, for the streak walk in
+ * {@link getShameRouteStreaksBatch}: group by run > bucket by the run's start
+ * hour > pick the worst route per hour > count each route's hours. The
+ * worst-of-day route is the one with the highest single-slot delay, the page's
+ * own worst-of-day criterion.
+ *
+ * Cached per day rather than per fortnight: a closed, summarised day never
+ * changes, so it holds for a week and each new day costs one day's scan. A
+ * fortnight in one aggregation read half of ArrivalEvent on every miss, some
+ * four minutes on the database, and the misses piled up behind each other.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param mode - Route mode filter (null = every mode).
+ * @param includeSchool - Whether school services are included.
+ * @returns The day's slots, or null for a day with no qualifying hour.
+ */
+function shameSlotsOfDay(
+  date: string,
+  mode: string | null,
+  includeSchool: boolean,
+): Promise<DayShameSlots | null> {
+  const key = [
+    "shame-route-slots-of-day-v1",
+    date,
+    mode ?? "all",
+    includeSchool ? "school" : "no-school",
+  ];
+  const flightKey = key.join("|");
+  const pending = slotsInFlight.get(flightKey);
+  if (pending) return pending;
+  const run = cachedForDay(
     async (classified) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipeline: any[] = [
         {
           $match: {
-            scheduledAt: {
-              $gte: { $date: fourteenDaysAgo.toISOString() },
-              $lt: { $date: padScanRange(streakRange).end.toISOString() },
-            },
-            serviceDate: { $in: serviceDatesInRange(streakRange) },
+            // The pad reaches the tail of a run that started before 4am; the
+            // equality keeps only the readings stamped to this day.
+            scheduledAt: scheduledAtWindow(padScanRange(nzServiceDayRange(date))),
+            serviceDate: date,
             ...realDeviationMatchFor(classified),
           },
         },
-        // Collapse to one row per run so time buckets use trip start rather than
-        // individual stop times. The service date is in the key because AT reuses
-        // a trip id on every day its timetable runs: keyed on the id alone, a
-        // fortnight of one trip's runs became a single row on its earliest day.
+        // One row per run, so an hour is bucketed by the run's start rather than
+        // by each stop time.
         {
           $group: {
-            _id: { routeId: "$routeId", tripId: "$tripId", serviceDay: "$serviceDate" },
+            _id: { routeId: "$routeId", tripId: "$tripId" },
             trip_start: { $min: "$scheduledAt" },
             events: { $sum: 1 },
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
           },
         },
-        // The day each run belongs to, as ingest stamped it, so the buckets
-        // match their day links (every service-day board shares this field).
-        {
-          $addFields: {
-            serviceDay: "$_id.serviceDay",
-            hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } },
-          },
-        },
-        // Group by (serviceDay, hour, routeId).
+        { $addFields: { hour: { $hour: { date: "$trip_start", timezone: NZ_TZ } } } },
         {
           $group: {
-            _id: { serviceDay: "$serviceDay", hour: "$hour", routeId: "$_id.routeId" },
+            _id: { hour: "$hour", routeId: "$_id.routeId" },
             events: { $sum: "$events" },
             avg_abs_delay_sec: { $avg: "$avg_abs_delay_sec" },
           },
@@ -245,107 +240,104 @@ export async function getShameRouteStreaksBatch(
       }
 
       pipeline.push(
-        // Worst-first so $first picks the most off-schedule route per slot.
+        // Worst-first so $first picks the most off-schedule route per hour.
         { $sort: { avg_abs_delay_sec: -1 } },
-        // Pick the worst route per (serviceDay, hour); keep its delay for worst-of-day.
         {
           $group: {
-            _id: { serviceDay: "$_id.serviceDay", hour: "$_id.hour" },
+            _id: "$_id.hour",
             worstRouteId: { $first: "$_id.routeId" },
             slotDelay: { $first: "$avg_abs_delay_sec" },
           },
         },
-        // Count hourly slots and track the highest slot delay per (serviceDay, route).
+        // Each route's hours, and its highest single-slot delay for worst-of-day.
         {
           $group: {
-            _id: { serviceDay: "$_id.serviceDay", routeId: "$worstRouteId" },
+            _id: "$worstRouteId",
             hourCount: { $sum: 1 },
             maxSlotDelay: { $max: "$slotDelay" },
           },
         },
-        // Sort so $first in the collect group picks the route with the highest
-        // single-slot delay - matching the page's worst-of-day criterion.
-        { $sort: { "_id.serviceDay": 1, maxSlotDelay: -1 } },
-        // Collect per-day: worst-of-day route id + array of { routeId, hourCount }.
-        {
-          $group: {
-            _id: "$_id.serviceDay",
-            worstOfDayRouteId: { $first: "$_id.routeId" },
-            slots: { $push: { routeId: "$_id.routeId", hourCount: "$hourCount" } },
-          },
-        },
+        { $sort: { maxSlotDelay: -1 } },
       );
 
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
           aggregate: "ArrivalEvent",
           pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
+          cursor: { batchSize: 1_000 },
         }),
-      )) as unknown as {
-        cursor: {
-          firstBatch: {
-            _id: string;
-            worstOfDayRouteId: string;
-            slots: { routeId: string; hourCount: number }[];
-          }[];
-        };
-      };
+      )) as unknown as { cursor: { firstBatch: { _id: string; hourCount: number }[] } };
 
-      return res.cursor.firstBatch;
+      // A plain array, since the cache stores JSON; the Map is built on read.
+      const rows = res.cursor.firstBatch;
+      return rows.length === 0
+        ? null
+        : {
+            worstOfDayRouteId: rows[0]!._id,
+            hours: rows.map((r) => [r._id, r.hourCount] as const),
+          };
     },
-    [
-      "shame-route-streaks-batch-v5",
-      currentRange.end.toISOString(),
-      mode ?? "all",
-      includeSchool ? "school" : "no-school",
-    ],
-    // The 14-day window ends at the current day's start, so it never includes
-    // the live day; it is held long once yesterday's summary exists and
-    // refreshed hourly until then.
-    { start: fourteenDaysAgo, end: currentRange.start },
+    key,
+    date,
     3600,
+  ).then((day) =>
+    day ? { worstOfDayRouteId: day.worstOfDayRouteId, hours: new Map(day.hours) } : null,
   );
+  slotsInFlight.set(flightKey, run);
+  void run.finally(() => slotsInFlight.delete(flightKey)).catch(() => {});
+  return run;
+}
 
-  // Build lookup structures from the cached data (fast O(n), runs outside cache).
-  const shameDays = new Map<string, Set<string>>();
-  const routeHoursPerDay = new Map<string, Map<string, number>>();
-  const worstOfDayPerDay = new Map<string, string>();
-  for (const row of firstBatch) {
-    const daySet = new Set<string>();
-    const hourMap = new Map<string, number>();
-    for (const slot of row.slots) {
-      daySet.add(slot.routeId);
-      hourMap.set(slot.routeId, slot.hourCount);
+/**
+ * For each route in `routeIds`, compute its consecutive-day streak (ending
+ * today) and the total number of hourly slots it was the worst route across
+ * all previous streak days (today's hours are tracked separately by the caller).
+ *
+ * Walks back a day at a time from yesterday, reading each day's slots from
+ * {@link shameSlotsOfDay}, and stops as soon as every route's streak has
+ * broken: most streaks end within a day or two, so a request reads that many
+ * days rather than the whole fortnight. A streak breaks when a route is absent
+ * from a day's shame set or when a day has no data at all.
+ *
+ * Today counts as day 1 by definition (caller confirms all routeIds are on
+ * today's shame list). Result caps at 15 (today + 14 prior days).
+ * @param routeIds - Route IDs to check (from today's shame list).
+ * @param currentRange - UTC half-open window for today's service day.
+ * @param filter - Mode/school filter matching the active shame page view.
+ * @param filter.mode - Restrict to this mode; null means all modes.
+ * @param filter.includeSchool - Include school services (default false).
+ * @returns Map of routeId to `{ count, prevHours, prevWorstOfDayDays }` - streak
+ *   length (min 1), total hourly-slot appearances across *previous* streak days,
+ *   and the count of consecutive prior days on which this route was also the
+ *   worst of the day (highest avg absolute delay across all slots).
+ */
+export async function getShameRouteStreaksBatch(
+  routeIds: string[],
+  currentRange: DateRange,
+  filter: ShameFilter,
+): Promise<Map<string, { count: number; prevHours: number; prevWorstOfDayDays: number }>> {
+  const { mode = null, includeSchool = false } = filter;
+  const result = new Map(
+    routeIds.map((id) => [id, { count: 1, prevHours: 0, prevWorstOfDayDays: 0 }]),
+  );
+  // Routes whose streak is unbroken so far, and those still on a worst-of-day run.
+  let open = new Set(routeIds);
+  let worstRun = new Set(routeIds);
+  // Step by date string, not fixed 24h of milliseconds: a millisecond step
+  // drifts an hour off the 4am boundary across a DST change and skips a day.
+  let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
+  for (let d = 0; d < STREAK_DAYS && open.size > 0; d++) {
+    const day = await shameSlotsOfDay(dayKey, mode, includeSchool);
+    if (!day) break;
+    open = new Set([...open].filter((id) => day.hours.has(id)));
+    worstRun = new Set([...worstRun].filter((id) => open.has(id) && day.worstOfDayRouteId === id));
+    for (const id of open) {
+      const r = result.get(id)!;
+      r.count++;
+      r.prevHours += day.hours.get(id)!;
+      if (worstRun.has(id)) r.prevWorstOfDayDays++;
     }
-    shameDays.set(row._id, daySet);
-    routeHoursPerDay.set(row._id, hourMap);
-    worstOfDayPerDay.set(row._id, row.worstOfDayRouteId);
-  }
-
-  const result = new Map<
-    string,
-    { count: number; prevHours: number; prevWorstOfDayDays: number }
-  >();
-  for (const routeId of routeIds) {
-    let count = 1; // today is always day 1 (caller confirmed)
-    let prevHours = 0;
-    let prevWorstOfDayDays = 0;
-    // Step by date string, not fixed 24h of milliseconds: a millisecond step
-    // drifts an hour off the 4am boundary across a DST change and skips a day.
-    let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
-    for (let d = 0; d < 14; d++) {
-      const daySet = shameDays.get(dayKey);
-      if (!daySet || !daySet.has(routeId)) break;
-      count++;
-      prevHours += routeHoursPerDay.get(dayKey)?.get(routeId) ?? 0;
-      // Consecutive worst-of-day run from yesterday backwards.
-      if (d === prevWorstOfDayDays && worstOfDayPerDay.get(dayKey) === routeId) {
-        prevWorstOfDayDays++;
-      }
-      dayKey = shiftWeek(dayKey, -1);
-    }
-    result.set(routeId, { count, prevHours, prevWorstOfDayDays });
+    dayKey = shiftWeek(dayKey, -1);
   }
   return result;
 }

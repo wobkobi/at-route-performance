@@ -24,6 +24,8 @@ describe("isNavActive", () => {
     expect(isNavActive(overview, "/routes")).toBe(false);
     expect(isNavActive(routes, "/route/NX1/trip/abc")).toBe(true);
     expect(isNavActive(routes, "/stop/123")).toBe(true);
+    expect(isNavActive(routes, "/operators")).toBe(true);
+    expect(isNavActive(routes, "/operator/go-bus")).toBe(true);
     expect(isNavActive(cancellations, "/cancellations")).toBe(true);
     expect(isNavActive(cancellations, "/")).toBe(false);
   });

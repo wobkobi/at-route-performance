@@ -1,10 +1,11 @@
 // src/components/AlertBanner.tsx
-// Region listing active service alerts, rendering nothing when
+// Region listing service alerts, running now or coming up, rendering nothing when
 // there are none. Built to inform without getting in the way: it stays
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
 // identical is a feed people learn to ignore.
 import {
+  alertPeriodToShow,
   alertSeverity,
   cleanAlertHeader,
   extractText,
@@ -32,6 +33,12 @@ export interface AlertBannerProps {
    * the day being read and a bare time there names nothing.
    */
   pastWindow?: boolean;
+  /**
+   * Whether these are alerts coming up rather than running now. The banner then
+   * stays muted whatever their effect, since nothing is stopped yet, and each
+   * alert shows its next period.
+   */
+  upcoming?: boolean;
 }
 
 /**
@@ -113,6 +120,7 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
  * @param props.heading - Accessible region label (defaults to "Service alerts").
  * @param props.routeNames - Map of route id to display name for the informed-entity pills.
  * @param props.pastWindow - Whether the page is showing a past day or period.
+ * @param props.upcoming - Whether the alerts are coming up rather than running now.
  * @returns Collapsible alert banner, or null when the list is empty.
  */
 export function AlertBanner({
@@ -120,9 +128,10 @@ export function AlertBanner({
   heading = "Service alerts",
   routeNames,
   pastWindow = false,
+  upcoming = false,
 }: AlertBannerProps): JSX.Element | null {
   if (!alerts.length) return null;
-  const severe = hasSevereAlert(alerts);
+  const severe = !upcoming && hasSevereAlert(alerts);
 
   return (
     <details
@@ -181,8 +190,8 @@ export function AlertBanner({
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>
         {pastWindow && (
           <p className="p-3 text-xs text-at-muted">
-            Auckland Transport publishes only the alerts running at this moment, so these are the
-            ones running now, not a record of what was disrupted in the period shown.
+            Auckland Transport publishes only current and upcoming alerts, so these are the ones
+            running now, not a record of what was disrupted in the period shown.
           </p>
         )}
         {alerts.map((alert, i) => {
@@ -191,12 +200,16 @@ export function AlertBanner({
           const rawDesc = extractText(alert.description_text);
           const cleanDesc = rawDesc ? cleanAlertHeader(rawDesc) : null;
           const urlText = extractText(alert.url);
+          // One pill per route: two feed versions of a route share a slug and a page.
           const routeIds = [
-            ...new Set(
-              alert.informed_entity.map((e) => e.route_id).filter((id): id is string => !!id),
-            ),
+            ...new Map(
+              alert.informed_entity
+                .map((e) => e.route_id)
+                .filter((id): id is string => !!id)
+                .map((id) => [routeSlug(id), id] as const),
+            ).values(),
           ];
-          const period = alert.active_period[0];
+          const period = alertPeriodToShow(alert);
           const periodText = periodLabel(period?.start, period?.end, pastWindow);
           const rowSevere = alertSeverity(alert) === "severe";
 
@@ -240,7 +253,7 @@ export function AlertBanner({
                       href={`/route/${encodeURIComponent(routeSlug(id))}`}
                       className="rounded-full bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
-                      {routeNames?.[id] ?? id}
+                      {routeNames?.[id] ?? routeSlug(id)}
                     </Link>
                   ))}
                 </div>

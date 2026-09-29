@@ -73,9 +73,11 @@ export function dayLinkParam(date: string | null | undefined, today?: string): s
  * @param basePath - The page path (e.g. "/", "/shame", "/route/501").
  * @param sp - The raw search params.
  * @param sp.day - The current `?day` value, if any.
+ * @param today - Today's service date; read from the clock when omitted
+ *   (injectable for tests).
  */
-export function dropTodayParam(basePath: string, sp: { day?: string }): void {
-  if (!sp.day || sp.day !== nzServiceDayString()) return;
+export function dropTodayParam(basePath: string, sp: { day?: string }, today?: string): void {
+  if (!sp.day || sp.day !== (today ?? nzServiceDayString())) return;
   const entries = Object.entries(sp as Record<string, string | undefined>);
   const params = new URLSearchParams(
     entries.filter(([k, v]) => k !== "day" && v != null) as [string, string][],

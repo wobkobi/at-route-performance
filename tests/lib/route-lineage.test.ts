@@ -10,6 +10,7 @@ import {
 } from "@/lib/route-lineage";
 import type { TopRouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
+import nextConfig from "../../next.config";
 
 /**
  * A ranking row with the averaged fields defaulted, so a test states only what it
@@ -226,5 +227,19 @@ describe("foldLineageRows", () => {
     ]);
     expect(folded[0]?.early_pct).toBe(15);
     expect(folded[0]?.late_pct).toBe(20);
+  });
+});
+
+describe("retired line redirects in next.config", () => {
+  it("send every retired line to its successor, and name no other line", async () => {
+    const rules = (await nextConfig.redirects!()).filter((r) => !r.source.includes(":"));
+    const pairs = rules.map((r) => [r.source, r.destination]);
+    const expected = allSuccessorSlugs().flatMap((to) =>
+      predecessorSlugs(to).map((from) => [`/route/${from}`, `/route/${to}`]),
+    );
+    expect(pairs.sort()).toEqual(expected.sort());
+    for (const [source, destination] of pairs) {
+      expect(`/route/${successorSlug(source!.slice("/route/".length))}`).toBe(destination);
+    }
   });
 });

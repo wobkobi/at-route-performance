@@ -11,7 +11,14 @@ import {
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { resolveRange } from "@/lib/rankings-page";
-import { type DateRange, nzServiceDayString, parseYmd, shiftMonth, shiftWeek } from "@/lib/time";
+import {
+  type DateRange,
+  nzServiceDayString,
+  parseYmd,
+  serviceDayLabel,
+  shiftMonth,
+  shiftWeek,
+} from "@/lib/time";
 import { buildHref } from "@/lib/utils";
 
 /** The window a range page shows. */
@@ -269,17 +276,21 @@ export function periodForCarriedDay(
 }
 
 /**
- * The shown window as the words that end "How bad was it ..." or "No shame
- * ...": "today" or "that day", "over the last 7 days" for the rolling week (the
- * week tab's default is seven days back from today, not the calendar week),
- * "that week", "this month" or "that month". The stepper beside it names the
- * date, so the words only say whether the window is the current one.
+ * The shown window as the words that end "How bad is it ..." or "No shame
+ * ...": "today", "yesterday" or a named day ("on Sat 19 Sep", the stepper's own
+ * label), "over the last 7 days" for the rolling week (the week tab's default is
+ * seven days back from today, not the calendar week), "that week", "this month"
+ * or "that month". A past day is named rather than called "that day", which
+ * points at nothing when the heading is read on its own.
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.
  * @returns The phrase.
  */
 export function windowPhrase(nav: RangeNav, period: string | null): string {
-  if (nav.window === "day") return nav.isToday ? "today" : "that day";
+  if (nav.window === "day") {
+    if (nav.isToday) return "today";
+    return nav.nextIsToday ? "yesterday" : `on ${serviceDayLabel(nav.serviceDate)}`;
+  }
   if (period !== null) return `that ${nav.window}`;
   return nav.window === "week" ? "over the last 7 days" : "this month";
 }
@@ -288,7 +299,7 @@ export function windowPhrase(nav: RangeNav, period: string | null): string {
  * The shown week or month as the words that follow "in": "the last 7 days" for
  * the rolling week, "that week" for a stepped-back one, "this month", "that
  * month". {@link windowPhrase} says the same thing where the phrase stands on
- * its own ("How bad was it over the last 7 days?").
+ * its own ("How bad has it been over the last 7 days?").
  * @param window - "week" or "month".
  * @param period - The shown week or month, or null for the current one.
  * @returns The phrase.
@@ -299,13 +310,18 @@ export function periodInPhrase(window: "week" | "month", period: string | null):
 }
 
 /**
- * The home page heading for a window (see {@link windowPhrase}).
+ * The home page heading for a window (see {@link windowPhrase}). The tense
+ * follows whether the window has closed: today is still running, so it asks in
+ * the present, and the rolling week and the current month reach back from today
+ * and so take the present perfect. Only a stepped-back window is past.
  * @param nav - The stepper state for the shown window.
  * @param period - The shown week or month, or null for the current one.
  * @returns The heading text.
  */
 export function overviewHeading(nav: RangeNav, period: string | null): string {
-  return `How bad was it ${windowPhrase(nav, period)}?`;
+  const when = windowPhrase(nav, period);
+  if (nav.window === "day") return `How bad ${nav.isToday ? "is" : "was"} it ${when}?`;
+  return period === null ? `How bad has it been ${when}?` : `How bad was it ${when}?`;
 }
 
 /**

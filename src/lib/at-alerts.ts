@@ -385,22 +385,118 @@ export function isAlertActive(alert: ServiceAlert, now: Date = new Date()): bool
 }
 
 /**
- * Cached snapshot of all currently-active service alerts (300s TTL), with each
- * trip-level alert's route resolved ({@link resolveFeedRoutes}). AT operators
- * enter alerts manually so sub-minute freshness adds no value. The longer
- * window keeps alert AT API calls at ~2,000/week - well within the 35,000/week
- * quota when combined with vehicle and ingest traffic.
- * @returns Active {@link ServiceAlert} array.
+ * How far ahead an alert counts as coming up. A week reaches the weekend
+ * closure AT announces on the Monday, without listing every recurring notice
+ * booked months out.
  */
-export async function getServiceAlerts(): Promise<ServiceAlert[]> {
+export const UPCOMING_HORIZON_SEC = 7 * 86_400;
+
+/**
+ * The next period of an alert that has yet to start at `now`, or null when
+ * none does. AT books a recurring disruption (a nightly detour, a weekend stop
+ * closure) as one alert with a period per occurrence, so between occurrences
+ * the next one is what a rider needs.
+ * @param alert - The alert.
+ * @param now - Point in time to measure from (defaults to the current time).
+ * @returns The earliest future period, or null.
+ */
+export function nextAlertPeriod(alert: ServiceAlert, now: Date = new Date()): ActivePeriod | null {
+  const ts = Math.floor(now.getTime() / 1000);
+  let next: ActivePeriod | null = null;
+  for (const p of alert.active_period) {
+    if (p.start !== undefined && p.start > ts && (next === null || p.start < next.start!)) next = p;
+  }
+  return next;
+}
+
+/**
+ * Whether an alert is not running at `now` but has a period starting within
+ * {@link UPCOMING_HORIZON_SEC}.
+ * @param alert - The alert.
+ * @param now - Point in time to test (defaults to the current time).
+ * @returns True when the alert is coming up.
+ */
+export function isAlertUpcoming(alert: ServiceAlert, now: Date = new Date()): boolean {
+  if (isAlertActive(alert, now)) return false;
+  const next = nextAlertPeriod(alert, now);
+  return next !== null && next.start! - now.getTime() / 1000 <= UPCOMING_HORIZON_SEC;
+}
+
+/**
+ * The period to show for an alert: the one running at `now`, else the next to
+ * come, else the first the feed lists. Showing the first outright would date a
+ * recurring alert by an occurrence weeks gone.
+ * @param alert - The alert.
+ * @param now - Point in time to measure from (defaults to the current time).
+ * @returns The period, or undefined for an alert with none.
+ */
+export function alertPeriodToShow(
+  alert: ServiceAlert,
+  now: Date = new Date(),
+): ActivePeriod | undefined {
+  const ts = Math.floor(now.getTime() / 1000);
+  return (
+    alert.active_period.find((p) => ts >= (p.start ?? -Infinity) && ts <= (p.end ?? Infinity)) ??
+    nextAlertPeriod(alert, now) ??
+    alert.active_period[0]
+  );
+}
+
+/** The feed split by when: running now, and coming up soonest first. */
+interface AlertSnapshot {
+  active: ServiceAlert[];
+  upcoming: ServiceAlert[];
+}
+
+/**
+ * Cached snapshot of the alerts running now and those coming up (300s TTL),
+ * with each trip-level alert's route resolved ({@link resolveFeedRoutes}). AT
+ * operators enter alerts manually so sub-minute freshness adds no value. The
+ * longer window keeps alert AT API calls at ~2,000/week - well within the
+ * 35,000/week quota when combined with vehicle and ingest traffic. One fetch
+ * serves both lists, so the upcoming list costs no extra AT call.
+ * @returns The two lists.
+ */
+function getAlertSnapshot(): Promise<AlertSnapshot> {
   return unstable_cache(
     async () => {
       const feed = await fetchAlerts();
-      return resolveFeedRoutes(feed.alerts.filter((a) => isAlertActive(a)));
+      const now = new Date();
+      const resolved = await resolveFeedRoutes(
+        feed.alerts.filter((a) => isAlertActive(a, now) || isAlertUpcoming(a, now)),
+      );
+      const upcoming = resolved.filter((a) => !isAlertActive(a, now));
+      /**
+       * When an upcoming alert next starts, for the soonest-first sort.
+       * @param a - The alert.
+       * @returns Its next start, Unix seconds.
+       */
+      const startOf = (a: ServiceAlert): number => nextAlertPeriod(a, now)?.start ?? Infinity;
+      return {
+        active: resolved.filter((a) => isAlertActive(a, now)),
+        upcoming: upcoming.sort((a, b) => startOf(a) - startOf(b)),
+      };
     },
-    ["service-alerts"],
+    ["service-alerts-v2"],
     { revalidate: 300 },
   )();
+}
+
+/**
+ * The service alerts running now, from the cached snapshot ({@link getAlertSnapshot}).
+ * @returns Active {@link ServiceAlert} array.
+ */
+export async function getServiceAlerts(): Promise<ServiceAlert[]> {
+  return (await getAlertSnapshot()).active;
+}
+
+/**
+ * The service alerts coming up within {@link UPCOMING_HORIZON_SEC}, soonest
+ * first, from the same cached snapshot as {@link getServiceAlerts}.
+ * @returns Upcoming {@link ServiceAlert} array.
+ */
+export async function getUpcomingAlerts(): Promise<ServiceAlert[]> {
+  return (await getAlertSnapshot()).upcoming;
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getRouteNames,
+  getRouteOperators,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -31,6 +32,8 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { vehicleOperatorCodes } from "@/lib/operator-stats";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -39,6 +42,7 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import {
   nzClockTime,
@@ -91,6 +95,7 @@ interface VehicleSearchParams {
   school?: string;
   sort?: string;
   show?: string;
+  op?: string;
 }
 
 /**
@@ -122,7 +127,7 @@ export async function generateMetadata({
  * @param root0 - Page props.
  * @param root0.params - Route params (`id`, the feed vehicle id).
  * @param root0.searchParams - Window (`window`, `day`, `period`), and the vehicles list's
- *   `mode`, `school`, `sort` and `show` for the back link.
+ *   `mode`, `school`, `sort`, `show` and `op` for the back link.
  * @returns Page markup.
  */
 export default async function VehiclePage({
@@ -137,19 +142,23 @@ export default async function VehiclePage({
   const basePath = `/vehicle/${id}`;
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam(basePath, sp);
-    dropTodayParam(basePath, sp);
+    clampDayParam(basePath, sp, today);
+    dropTodayParam(basePath, sp, today);
   }
   // Every mode and school runs too, so a school bus's own page is not empty; the
   // rank is then against that board, which the rank links to.
   const filter = { mode: null, includeSchool: true };
-  const [latest, earliest, fleet, live, modeOf] = await Promise.all([
+  const [latest, earliest, fleet, live, modeOf, operators] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
     getRouteModeMap(),
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
 
   let range: DateRange;
@@ -158,10 +167,10 @@ export default async function VehiclePage({
   let dayParam: string | undefined;
   let period: string | null = null;
   if (window === "day") {
-    const day = await resolveShownDay(resolveRequestedDay(sp.day));
+    const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
-    nav = dayRangeNav(day, earliest);
+    nav = dayRangeNav(day, earliest, today);
     dayParam = nav.isToday ? undefined : day.serviceDate;
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -210,7 +219,9 @@ export default async function VehiclePage({
     school: sp.school,
     sort: sp.sort,
     show: sp.show,
+    op: sp.op,
   };
+  const runBy = vehicleOperatorCodes({ routes: routeIds }, operators).map((c) => operatorOf(c)!);
   const rank = vehicleRank(board, id);
   const name = vehicleName(register?.label ?? now?.label, id);
   const plate = register?.plate ?? now?.plate ?? null;
@@ -238,6 +249,22 @@ export default async function VehiclePage({
             {mode && <span>{MODE_NAME[mode]}</span>}
             <span className="tabular-nums">Feed id {id}</span>
             {plate && <span>Plate {plate}</span>}
+            {runBy.length > 0 && (
+              <span>
+                Run by{" "}
+                {runBy.map((op, i) => (
+                  <span key={op.code}>
+                    {i > 0 && " and "}
+                    <Link
+                      href={buildHref(operatorHref(op), view)}
+                      className="text-at-shore hover:underline"
+                    >
+                      {op.name}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+            )}
           </p>
         </div>
         <RangeControls basePath={basePath} nav={nav} />
@@ -247,7 +274,7 @@ export default async function VehiclePage({
 
       {now?.tripId && liveMap && (
         <section className="border border-at-border bg-at-surface p-4">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-ultra tracking-zero">Where it is now</h2>
             <StopDotKey />
           </div>
@@ -258,6 +285,7 @@ export default async function VehiclePage({
             live
             filterTripId={now.tripId}
             mode={mode ?? undefined}
+            stopQuery=""
             className="h-100"
           />
           <MapMarkKey live offRoute={false} />
@@ -570,8 +598,9 @@ function RunsTable({
 }
 
 /**
- * The vehicle's days across a week or month, each linking to that day's runs. A
- * day it did not run stays in the table, so a gap reads as a gap.
+ * The vehicle's days across a week or month, each linking to that day's runs,
+ * newest first so the latest day tops the table. A day it did not run stays in
+ * the table, so a gap reads as a gap.
  * @param root0 - Props.
  * @param root0.days - Every day's rows, oldest first.
  * @param root0.id - The vehicle.
@@ -615,7 +644,7 @@ function DaysTable({
             </tr>
           </thead>
           <tbody>
-            {days.map(({ date, rows }) => {
+            {days.toReversed().map(({ date, rows }) => {
               const row = rows.find((r) => r.v === id);
               return (
                 <tr key={date} className="border-b border-at-border last:border-b-0">

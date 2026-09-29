@@ -50,7 +50,7 @@ describe("homeCardPath", () => {
 
 describe("homeCardTitle", () => {
   it("names the day, week or month the link is for", () => {
-    expect(homeCardTitle(parseHomeCard({}))).toBe("How bad was it today?");
+    expect(homeCardTitle(parseHomeCard({}))).toBe("How bad is it today?");
     expect(homeCardTitle(parseHomeCard({ day: "2026-09-20" }))).toBe(
       "How bad was it on Sun 20 Sep?",
     );
@@ -64,7 +64,7 @@ describe("homeCardTitle", () => {
 
   it("names the filter, and the rolling week as the last 7 days", () => {
     expect(homeCardTitle(parseHomeCard({ window: "week", mode: "TRAIN" }))).toBe(
-      "How bad was it over the last 7 days? (Trains)",
+      "How bad has it been over the last 7 days? (Trains)",
     );
   });
 });

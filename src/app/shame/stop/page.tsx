@@ -1,13 +1,13 @@
 // src/app/shame/stop/page.tsx
 // Worst-stop page listing the most off-schedule stop per hour (day view) or per day (week view).
 
+import { LoadingBlock } from "@/components/Loading";
 import {
   ShameBoard,
   ShameEmptyHourRow,
   ShameHourLabel,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
-import { ShameBoardSkeleton } from "@/components/shame/ShameBoardSkeleton";
 import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
@@ -29,11 +29,11 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  startedServiceHourCount,
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
 import type { DelayDirection } from "@/lib/rankings";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   buildShameHref,
   countById,
@@ -164,7 +164,7 @@ async function StopRangeBoard({
           {dayLabel} {d}/{m}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
@@ -251,7 +251,7 @@ async function StopDayBoard({
       >
         <ShameHourLabel hour={s.hour} serviceDate={serviceDate} />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
@@ -318,8 +318,11 @@ export default async function StopShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  clampDayParam(BASE, sp);
-  dropTodayParam(BASE, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(BASE, sp, today);
+  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle: modeSubtitle } = parseShameParams(sp);
   const subtitle = subtitleWithDirection(modeSubtitle, filter.direction);
 
@@ -357,14 +360,7 @@ export default async function StopShamePage({
             direction: { active: filter.direction },
           }}
         />
-        <Suspense
-          fallback={
-            <ShameBoardSkeleton
-              layout="week"
-              shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
-            />
-          }
-        >
+        <Suspense fallback={<LoadingBlock label="Loading the board" />}>
           <StopRangeBoard
             range={activeRange}
             filter={filter}
@@ -378,11 +374,11 @@ export default async function StopShamePage({
 
   // Day view: worst stop per hour.
   const [shown, earliestDay] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
   ]);
   const { range, serviceDate } = shown;
-  const dayNav = dayRangeNav(shown, earliestDay);
+  const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
 
   return (
@@ -405,15 +401,7 @@ export default async function StopShamePage({
           direction: { active: filter.direction },
         }}
       />
-      <Suspense
-        fallback={
-          <ShameBoardSkeleton
-            layout="day"
-            shape={{ icon: false, mobileLines: 2, gridLines: 2 }}
-            rows={startedServiceHourCount(serviceDate)}
-          />
-        }
-      >
+      <Suspense fallback={<LoadingBlock label="Loading the board" />}>
         <StopDayBoard
           range={range}
           serviceDate={serviceDate}

@@ -31,7 +31,8 @@ export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
 export type { DayRiderWait } from "@/lib/data/rider-wait";
-export { getRouteAreas } from "@/lib/data/route-areas";
+export { getRouteGeography } from "@/lib/data/route-areas";
+export type { RouteGeography } from "@/lib/data/route-areas";
 export { getRouteClosures } from "@/lib/data/route-closures";
 export { getRecentStopIds, getRouteDailyStats, getRouteStats } from "@/lib/data/route-stats";
 export type { RouteStats, RouteStatsParams } from "@/lib/data/route-stats";
@@ -43,6 +44,7 @@ export {
   getDirectoryRoutes,
   getRouteLabel,
   getRouteNames,
+  getRouteOperators,
   ownRouteIds,
   routeHasTraffic,
   routeIdsForSlug,
@@ -64,6 +66,7 @@ export {
   getShameOfDay,
   getShameOfWeek,
 } from "@/lib/data/shame-trips";
+export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,

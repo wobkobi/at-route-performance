@@ -23,8 +23,10 @@ export const TRIP_ROW_LINK_CLASS =
 export const TRIP_NAME_GROUP_CLASS = "flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1";
 
 /**
- * `min-w-40` is what pushes the badges onto a second line: a `flex-1` item has a
- * zero flex basis, so without a floor it would simply shrink and nothing would
- * ever wrap. Truncation is still there for a headsign too long for a full row.
+ * The 10rem floor is what pushes the badges onto a second line: a `flex-1` item
+ * has a zero flex basis, so without a floor it would simply shrink and nothing
+ * would ever wrap. The floor is capped at the group's own width, since on a 360px
+ * phone the group can be narrower than 10rem and a bare floor then spilled the
+ * name over the delay beside it. Truncation handles a headsign too long for a row.
  */
-export const TRIP_NAME_CLASS = "min-w-40 flex-1 truncate";
+export const TRIP_NAME_CLASS = "min-w-[min(10rem,100%)] flex-1 truncate";

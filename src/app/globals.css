@@ -174,6 +174,32 @@
 }
 
 /*
+  Editorial primitives. A hairline box around every container made a verdict, a
+  stat strip and a list row look like the same object, so structure is carried by
+  rules, scale and alignment instead: a section opens on a heavy ink rule, rows
+  are divided by hairlines, and figures line up because they share one numeral
+  width. None of these set a colour or a size - the caller does, so a tone class
+  beside them wins without a specificity fight.
+*/
+
+/* Opens a section. The 2px ink rule is the heaviest mark on a page, so nothing
+   else should use it: it is what tells a reader a new band has started. */
+.at-band {
+  @apply border-t-2 border-at-ink pt-4;
+}
+
+/* The small caps label naming a figure, a section or a card's role. */
+.at-eyebrow {
+  @apply text-xs font-semibold tracking-zero uppercase;
+}
+
+/* A figure. `tabular-nums` is the point: a column of counts, percentages and
+   durations only reads as a column when the digits are one width. */
+.at-figure {
+  @apply font-ultra tracking-zero tabular-nums;
+}
+
+/*
   The page grid, on at.govt.nz's own measurements: content capped at 96rem and
   centred, with 1rem side margins that widen to 2rem from 1024px. Those are
   `.at-css-grid`'s max-width and `--cds-grid-margin` read off at.govt.nz's
@@ -183,7 +209,7 @@
   larger screen from exactly where the cap stops rather than jumping.
 */
 .at-container {
-  @apply mx-auto w-full max-w-[96rem] px-4 min-[1920px]:max-w-[80vw] lg:px-8;
+  @apply mx-auto w-full max-w-384 px-4 min-[1920px]:max-w-[80vw] lg:px-8;
 }
 
 /*

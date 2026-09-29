@@ -12,12 +12,18 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { DayNav } from "@/components/DayNav";
 import { ChevronLeft } from "@/components/icons";
+import { LoadingBlock } from "@/components/Loading";
+import { StopDotKey } from "@/components/MapLegend";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/RankBoard";
-import { StopScheduleSkeleton } from "@/components/SkeletonParts";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
-import { alertsForStop, getServiceAlerts, type ServiceAlert } from "@/lib/at-alerts";
+import {
+  alertsForStop,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/at-alerts";
 import { getStopDepartures } from "@/lib/at-stop-trips";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
@@ -33,6 +39,8 @@ import { getRouteModeMap } from "@/lib/data/routes";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { serviceClockNow } from "@/lib/departure-board";
+import { fareZonesOf } from "@/lib/fare-zone-geo";
+import { FARE_ZONE_LABEL } from "@/lib/fare-zones";
 import {
   formatDuration,
   OFF_SCHEDULE_TONE_CLASS,
@@ -42,7 +50,8 @@ import {
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, routeLinkQuery } from "@/lib/range-page";
+import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
+import { requestServiceDay } from "@/lib/request-now";
 import {
   MIN_PLATFORM_EVENTS,
   platformNoun,
@@ -147,8 +156,11 @@ export default async function StopPage({
     redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
   }
 
-  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp);
-  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
+  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
 
   // Start the alerts fetch early so it overlaps the stats query. The banner is
   // awaited rather than streamed: it sits above the page's content, and letting
@@ -157,7 +169,7 @@ export default async function StopPage({
   // getEarliestDataDay and the sibling lookup are both independent of the day
   // and of the stop query.
   const [shown, earliestDay, siblings] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day)),
+    resolveShownDay(resolveRequestedDay(sp.day), today),
     getEarliestDataDay(1),
     getStationSiblings(id),
   ]);
@@ -165,11 +177,12 @@ export default async function StopPage({
   const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
   if (!stats) notFound();
 
-  const nav = dayRangeNav(shown, earliestDay);
+  const nav = dayRangeNav(shown, earliestDay, today);
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
   const linkDay = nav.isToday ? undefined : serviceDate;
 
   const { stop, summary, routes, routes_count } = stats;
+  const zones = fareZonesOf(stop.lat, stop.lon);
   // Net-average wording stays mode-less: a stop mixes modes, so no single window.
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
@@ -196,7 +209,7 @@ export default async function StopPage({
         className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
-        The worst stops {nav.isToday ? "today" : "that day"}
+        The worst stops {windowPhrase(nav, null)}
       </Link>
 
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -213,6 +226,22 @@ export default async function StopPage({
             )}
           </p>
           <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
+          {zones.length > 0 && (
+            <p className="mt-0.5 text-sm text-at-muted">
+              {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
+              {zones.map((z, i) => (
+                <Fragment key={z}>
+                  {i > 0 && " and "}
+                  <Link
+                    href={buildHref("/routes", { day: linkDay, zone: z })}
+                    className="text-at-shore hover:underline"
+                  >
+                    {FARE_ZONE_LABEL[z]}
+                  </Link>
+                </Fragment>
+              ))}
+            </p>
+          )}
           {/* AT models an interchange as two or more parent stations and this page
               stands for one of them, so without these links a reader at Manukau's
               bus station has no way to its trains. The names are AT's own, which
@@ -234,6 +263,14 @@ export default async function StopPage({
               ))}
             </p>
           )}
+          <p className="mt-1 text-sm">
+            <Link
+              href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
+              className="text-at-shore hover:underline"
+            >
+              Compare with other stops
+            </Link>
+          </p>
         </div>
         <DayNav
           basePath={`/stop/${encodeURIComponent(id)}`}
@@ -278,7 +315,9 @@ export default async function StopPage({
             bare
             variant="split"
             label="On time"
-            value={summary?.on_time_pct?.toFixed(1) ?? UNKNOWN_VALUE}
+            value={
+              summary?.on_time_pct == null ? UNKNOWN_VALUE : `${summary.on_time_pct.toFixed(1)}%`
+            }
             breakdown={punctuality}
           />
         </div>
@@ -298,43 +337,58 @@ export default async function StopPage({
           platformBreakdown. It sits straight under the strip because what it
           says is about the strip: the single figure above covers platforms that
           did not agree. */}
-      {stats.platforms.length > 0 && <PlatformTable stopName={stop.name} rows={stats.platforms} />}
+      {stats.platforms.length > 0 && (
+        <PlatformTable stopName={stop.name} rows={stats.platforms} linkDay={linkDay} />
+      )}
 
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="mb-2 text-lg font-ultra tracking-zero">Where it is</h2>
-        <StopMapWrapper
-          stops={[
-            {
-              stop_id: stop.stop_id,
-              name: stop.name,
-              lat: stop.lat,
-              lon: stop.lon,
-              avg_delay_sec: summary?.avg_delay_sec ?? null,
-              on_time_pct: summary?.on_time_pct ?? null,
-              avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
-            },
-          ]}
-          selectedStopId={stop.stop_id}
-          className="h-100"
+      {/* The map shares a row with the worst-routes board on a wide screen: one
+          stop's dot in a full-width strip is mostly empty street. The map takes
+          the board's height. */}
+      <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
+        <section className="border border-at-border bg-at-surface p-4 lg:flex lg:flex-col">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-ultra tracking-zero">Where it is</h2>
+            <StopDotKey noReading={summary?.avg_delay_sec == null} lone />
+          </div>
+          <StopMapWrapper
+            stops={[
+              {
+                stop_id: stop.stop_id,
+                name: stop.name,
+                lat: stop.lat,
+                lon: stop.lon,
+                avg_delay_sec: summary?.avg_delay_sec ?? null,
+                on_time_pct: summary?.on_time_pct ?? null,
+                avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
+              },
+            ]}
+            selectedStopId={stop.stop_id}
+            className="h-100 lg:h-auto lg:min-h-80 lg:flex-1"
+          />
+          <p className="mt-2 text-xs text-at-muted">
+            The dot is this stop, coloured by how early or late arrivals here were on average over
+            the day shown.
+          </p>
+        </section>
+
+        <RankBoard
+          title="Worst routes here"
+          accentClass="text-at-ink"
+          rows={routes}
+          metric="delay"
+          caption={ON_TIME_CAPTION}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
         />
-      </section>
+      </div>
 
-      <RankBoard
-        title="Worst routes here"
-        accentClass="text-at-ink"
-        rows={routes}
-        metric="delay"
-        caption={ON_TIME_CAPTION}
-        routeQuery={routeLinkQuery("day", linkDay, null)}
-      />
-
-      <Suspense fallback={<StopScheduleSkeleton />}>
+      <Suspense fallback={<LoadingBlock label="Loading the departures" />}>
         <StopScheduleSection
           scheduleStopId={stats.schedule_stop_id}
           serviceDate={serviceDate}
           showAll={sp.sched === "all"}
           nowHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: undefined })}
           allHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: "all" })}
+          routeQuery={routeLinkQuery("day", linkDay, null)}
         />
       </Suspense>
     </main>
@@ -348,9 +402,19 @@ export default async function StopPage({
  * @param root0 - Props.
  * @param root0.stopName - The station's name, for the sentence above the table.
  * @param root0.rows - The platforms to list.
+ * @param root0.linkDay - The day shown, carried by each platform and route link; undefined for today.
  * @returns The section.
  */
-function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow[] }): JSX.Element {
+function PlatformTable({
+  stopName,
+  rows,
+  linkDay,
+}: {
+  stopName: string;
+  rows: PlatformRow[];
+  linkDay: string | undefined;
+}): JSX.Element {
+  const routeQuery = routeLinkQuery("day", linkDay, null);
   const noun = platformNoun(rows);
   // Two different facts get a station here, so the sentence names the one that
   // applies: platforms that ran differently, or platforms that agree and differ
@@ -397,7 +461,14 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
               const value = offScheduleValue(p.avg_delay_sec, p.avg_abs_delay_sec, p.mode);
               return (
                 <tr key={p.stop_id} className="border-t border-at-border">
-                  <td className="px-3 py-2 font-semibold tabular-nums">{p.label}</td>
+                  <td className="px-3 py-2 font-semibold tabular-nums">
+                    <Link
+                      href={buildHref(`/stop/${encodeURIComponent(p.stop_id)}`, { day: linkDay })}
+                      className="text-at-shore hover:underline"
+                    >
+                      {p.label}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{p.events}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {p.on_time_pct == null ? UNKNOWN_VALUE : `${p.on_time_pct.toFixed(1)}%`}
@@ -413,7 +484,26 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
                   {/* Blank rather than a dash: no route being exclusive to a
                       platform is a fact about it, where the dash elsewhere on the
                       site means a figure the site does not have. */}
-                  <td className="px-3 py-2">{p.only_routes.join(", ")}</td>
+                  <td className="px-3 py-2">
+                    {p.only_routes.map((name, i) => {
+                      const slug = p.route_slugs?.[name];
+                      return (
+                        <Fragment key={name}>
+                          {i > 0 && ", "}
+                          {slug ? (
+                            <Link
+                              href={`/route/${encodeURIComponent(slug)}${routeQuery}`}
+                              className="text-at-shore hover:underline"
+                            >
+                              {name}
+                            </Link>
+                          ) : (
+                            name
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </td>
                 </tr>
               );
             })}
@@ -451,6 +541,7 @@ function PlatformTable({ stopName, rows }: { stopName: string; rows: PlatformRow
  * @param root0.showAll - Whether the reader asked for the whole day.
  * @param root0.nowHref - This page without the whole-day param.
  * @param root0.allHref - This page with it.
+ * @param root0.routeQuery - Query each route link carries, so a route opens on the same day.
  * @returns The departures board.
  */
 async function StopScheduleSection({
@@ -459,12 +550,14 @@ async function StopScheduleSection({
   showAll,
   nowHref,
   allHref,
+  routeQuery,
 }: {
   scheduleStopId: string;
   serviceDate: string;
   showAll: boolean;
   nowHref: string;
   allHref: string;
+  routeQuery: string;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
@@ -482,13 +575,15 @@ async function StopScheduleSection({
       showAll={showAll}
       nowHref={nowHref}
       allHref={allHref}
+      routeQuery={routeQuery}
     />
   );
 }
 
 /**
  * "Service alerts" banner for the stop, keeping the alerts that inform any of
- * its platforms. Renders nothing when there are none.
+ * its platforms, and on the current day a "Coming up" banner with those due in
+ * the next week. Renders nothing when there are none.
  * @param root0 - Props.
  * @param root0.alertsPromise - The in-flight network-wide service-alerts fetch.
  * @param root0.stopIds - Raw GTFS stop ids behind the page (a station's platforms).
@@ -504,11 +599,15 @@ async function StopAlertBanner({
   stopIds: string[];
   pastWindow: boolean;
 }): Promise<JSX.Element> {
+  const upcoming = pastWindow ? [] : await getUpcomingAlerts().catch((): ServiceAlert[] => []);
   return (
-    <AlertBanner
-      alerts={alertsForStop(await alertsPromise, stopIds)}
-      heading="Service alerts"
-      pastWindow={pastWindow}
-    />
+    <>
+      <AlertBanner
+        alerts={alertsForStop(await alertsPromise, stopIds)}
+        heading="Service alerts"
+        pastWindow={pastWindow}
+      />
+      <AlertBanner alerts={alertsForStop(upcoming, stopIds)} heading="Coming up" upcoming />
+    </>
   );
 }

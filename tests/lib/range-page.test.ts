@@ -196,25 +196,30 @@ describe("overviewHeading", () => {
     tabs,
   } as const;
 
-  it("names today, or another day, from the stepper", () => {
+  it("asks about a day that is still running in the present, and a finished one in the past", () => {
     expect(overviewHeading({ ...day, isToday: true, hasNext: false }, null)).toBe(
-      "How bad was it today?",
+      "How bad is it today?",
     );
-    expect(overviewHeading({ ...day, isToday: false, hasNext: true }, null)).toBe(
-      "How bad was it that day?",
-    );
+    expect(
+      overviewHeading({ ...day, serviceDate: "2026-09-12", isToday: false, hasNext: true }, null),
+    ).toBe("How bad was it on Sat 12 Sep?");
   });
 
   it("does not call yesterday today while today is pending, though neither has a next day", () => {
     expect(
-      overviewHeading({ ...day, isToday: false, nextPending: true, hasNext: false }, null),
-    ).toBe("How bad was it that day?");
+      overviewHeading(
+        { ...day, isToday: false, nextPending: true, nextIsToday: true, hasNext: false },
+        null,
+      ),
+    ).toBe("How bad was it yesterday?");
   });
 
   it("tells the rolling week and the current month from a stepped-back one", () => {
-    expect(overviewHeading(week, null)).toBe("How bad was it over the last 7 days?");
+    expect(overviewHeading(week, null)).toBe("How bad has it been over the last 7 days?");
     expect(overviewHeading(week, "2026-09-07")).toBe("How bad was it that week?");
-    expect(overviewHeading({ ...week, window: "month" }, null)).toBe("How bad was it this month?");
+    expect(overviewHeading({ ...week, window: "month" }, null)).toBe(
+      "How bad has it been this month?",
+    );
     expect(overviewHeading({ ...week, window: "month" }, "2026-08")).toBe(
       "How bad was it that month?",
     );
@@ -224,11 +229,13 @@ describe("overviewHeading", () => {
 describe("windowPhrase", () => {
   const tabs = { day: null, week: null, month: null } as const;
 
-  it("says today only on today, so a past day's shame rows say that day", () => {
+  it("says today only on today, yesterday for the day before, and names any earlier day", () => {
     const today = dayRangeNav({ serviceDate: TODAY, nextPending: false }, null, TODAY);
+    const yesterday = dayRangeNav({ serviceDate: "2026-09-13", nextPending: false }, null, TODAY);
     const past = dayRangeNav({ serviceDate: "2026-09-12", nextPending: false }, null, TODAY);
     expect(windowPhrase(today, null)).toBe("today");
-    expect(windowPhrase(past, null)).toBe("that day");
+    expect(windowPhrase(yesterday, null)).toBe("yesterday");
+    expect(windowPhrase(past, null)).toBe("on Sat 12 Sep");
   });
 
   it("names the rolling week as the last 7 days, since it is not the calendar week", () => {

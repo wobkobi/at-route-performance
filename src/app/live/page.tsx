@@ -5,7 +5,7 @@
 
 import { ChipLink } from "@/components/Chip";
 import LiveMapWrapper from "@/components/LiveMapWrapper";
-import { LiveFiguresSkeleton, LiveTableSkeleton } from "@/components/LiveSkeleton";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
@@ -93,7 +93,7 @@ export default async function LivePage({
         }}
       />
 
-      <Suspense fallback={<LiveFiguresSkeleton />}>
+      <Suspense fallback={<LoadingBlock label="Loading the live figures" />}>
         <LiveFigures mode={mode} />
       </Suspense>
 
@@ -107,7 +107,8 @@ export default async function LivePage({
         <LiveMapWrapper mode={mode} className="h-110 border border-at-border sm:h-140" />
         <p className="text-xs text-at-muted">
           Tap a dot for its route, how late it is, and links to its run and the vehicle. Buses are
-          the small dots. The table below lists the same routes.
+          the small dots. The grey lines are the roads and rails the routes follow. Near me zooms to
+          where you are. The table below lists the same routes.
         </p>
       </section>
 
@@ -132,7 +133,7 @@ export default async function LivePage({
             ))}
           </nav>
         </div>
-        <Suspense fallback={<LiveTableSkeleton />}>
+        <Suspense fallback={<LoadingBlock label="Loading the routes running" />}>
           <LiveTable mode={mode} sort={sort} all={all} />
         </Suspense>
       </section>

@@ -28,6 +28,8 @@ export interface JsonApi<T> {
 // GTFS route attributes (subset).
 export interface RouteAttr {
   route_id: string;
+  /** The operator's code in AT's agency list: "NZB", "RTH". */
+  agency_id?: string | null;
   route_short_name?: string | null;
   route_long_name: string;
   route_type: number;

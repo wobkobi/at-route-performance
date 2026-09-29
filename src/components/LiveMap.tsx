@@ -1,17 +1,22 @@
 "use client";
 // src/components/LiveMap.tsx
 // The live page's network map: every vehicle on a run as a dot in its delay
-// colour, redrawn from /api/live every two minutes. Dots are drawn on one canvas
-// rather than as DOM markers, since a weekday peak puts well over a thousand
-// vehicles on the map at once. The table under the map carries the same service
-// for keyboard and screen-reader readers, so the dots are not focusable.
+// colour, redrawn from /api/live every two minutes, over the road paths the
+// routes follow. Dots are drawn on one canvas rather than as DOM markers, since
+// a weekday peak puts well over a thousand vehicles on the map at once. The
+// table under the map carries the same service for keyboard and screen-reader
+// readers, so the dots are not focusable.
 
+import { LocateArrow } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
+import { coreBounds } from "@/lib/map-frame";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus } from "@/lib/vehicle-status";
+import type { NetworkLine } from "@/types/api";
 import type * as Leaflet from "leaflet";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type JSX } from "react";
@@ -21,6 +26,25 @@ const POLL_MS = 120_000;
 
 /** Central Auckland, for the view before the first poll lands. */
 const AUCKLAND: [number, number] = [-36.8485, 174.7633];
+
+/**
+ * Roughly the region AT serves, Wellsford to Pukekohe and out to Great Barrier.
+ * A reader outside it has no vehicle nearby, so the map stays on the network
+ * rather than flying to an empty patch of sea or another city.
+ */
+const AUCKLAND_BOUNDS: [[number, number], [number, number]] = [
+  [-37.45, 174.1],
+  [-35.85, 175.6],
+];
+
+/** The zoom a located reader lands on: a few streets either way, so the nearby dots stand apart. */
+const NEAR_ZOOM = 15;
+
+/**
+ * The pane the road paths draw in. Leaflet puts tiles at 200 and the vehicle
+ * dots at 400, so 350 leaves a dot on top of the line it is running along.
+ */
+const LINE_PANE = "network-lines";
 
 /** The word a vehicle's popup names it by. */
 const MODE_WORD: Record<LiveMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
@@ -50,7 +74,7 @@ function cssVar(name: string): string {
 
 /**
  * A vehicle's popup: its route and name, its delay in the words the route maps
- * use, and links to its run and its own page.
+ * use, its operator, and links to its run and its own page.
  * @param v - The vehicle.
  * @param detail - Its delay line.
  * @returns Popup HTML.
@@ -59,8 +83,11 @@ function popupHtml(v: LiveMapVehicle, detail: string): string {
   const name = `${MODE_WORD[v.mode]} ${v.label ?? v.id}`;
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
+  const op = operatorOf(v.op);
+  const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
   return (
-    `<strong>Route ${esc(v.slug)}</strong><br>${esc(name)}${cars}<br>${esc(detail)}<br>` +
+    `<a href="/route/${encodeURIComponent(v.slug)}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
+    `${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
     `<a href="${esc(run)}">Open this run</a> &middot; ` +
     `<a href="/vehicle/${encodeURIComponent(v.id)}">This vehicle</a>`
   );
@@ -87,11 +114,20 @@ export default function LiveMap({
     map: Leaflet.Map;
     layer: Leaflet.LayerGroup;
     renderer: Leaflet.Canvas;
+    lineLayer: Leaflet.LayerGroup;
+    lineRenderer: Leaflet.Canvas;
+    hereLayer: Leaflet.LayerGroup;
   } | null>(null);
   // The last poll's vehicles, so a mode change redraws without refetching.
   const [vehicles, setVehicles] = useState<LiveMapVehicle[] | null>(null);
+  // The routes' road paths: fetched once, since they are the same for every
+  // reader and only change when the GTFS shapes sync runs.
+  const [lines, setLines] = useState<NetworkLine[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [locating, setLocating] = useState(false);
+  // Why the last locate did not move the map, if it did not.
+  const [locateNote, setLocateNote] = useState<string | null>(null);
   const framed = useRef(false);
 
   // Build the map once.
@@ -102,7 +138,12 @@ export default function LiveMap({
       if (dead || !divRef.current) return;
       // One-finger drag off and the wheel only on a settled mouse, as on the
       // route maps, so the page still scrolls past a map that fills a screen.
-      const map = L.map(divRef.current, { scrollWheelZoom: false, dragging: !L.Browser.mobile });
+      // Quarter-step zoom so the opening frame fits the city, not the next level out.
+      const map = L.map(divRef.current, {
+        scrollWheelZoom: false,
+        dragging: !L.Browser.mobile,
+        zoomSnap: 0.25,
+      });
       wheelZoomOnHover(map);
       map.setView(AUCKLAND, 11);
       L.tileLayer(
@@ -114,9 +155,24 @@ export default function LiveMap({
           referrerPolicy: "strict-origin-when-cross-origin",
         },
       ).addTo(map);
+      // The road paths get a pane of their own under the dots (see LINE_PANE),
+      // and a canvas with room to spare so a pan does not tear the lines at the
+      // edge of the drawn area.
+      map.createPane(LINE_PANE);
+      const linePane = map.getPane(LINE_PANE);
+      if (linePane) linePane.style.zIndex = "350";
+      const lineRenderer = L.canvas({ pane: LINE_PANE, padding: 0.3 });
       // A bigger hit tolerance, so a tap near a 5px dot still opens it.
       const renderer = L.canvas({ tolerance: 6 });
-      mapRef.current = { L, map, layer: L.layerGroup().addTo(map), renderer };
+      mapRef.current = {
+        L,
+        map,
+        layer: L.layerGroup().addTo(map),
+        renderer,
+        lineLayer: L.layerGroup().addTo(map),
+        lineRenderer,
+        hereLayer: L.layerGroup().addTo(map),
+      };
       setReady(true);
     })();
     return () => {
@@ -190,6 +246,61 @@ export default function LiveMap({
     };
   }, [ready]);
 
+  // The road paths, fetched once the map exists. A failure costs the underlay
+  // and nothing else, so it is not reported: the dots draw without it.
+  useEffect(() => {
+    if (!ready) return;
+    let dead = false;
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch("/api/network-lines", { signal: ctrl.signal });
+        if (dead || !res.ok) return;
+        const data = (await res.json()) as { lines: NetworkLine[] };
+        if (!dead) setLines(data.lines);
+      } catch {
+        // Leave the map to its dots.
+      }
+    })();
+    return () => {
+      dead = true;
+      ctrl.abort();
+    };
+  }, [ready]);
+
+  // Draw the road paths, and redraw them on a mode change so the lines match the
+  // dots. Rebuilt rather than filtered in place: it is one pass over a few
+  // hundred paths, against holding a layer per route to toggle.
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m || !lines) return;
+    const { L, lineLayer, lineRenderer } = m;
+    lineLayer.clearLayers();
+    const colour = cssVar("--color-at-muted");
+    for (const line of lines) {
+      if (mode && line.mode !== mode) continue;
+      const points: [number, number][] = [];
+      for (let i = 0; i + 1 < line.path.length; i += 2) {
+        const lat = line.path[i];
+        const lon = line.path[i + 1];
+        if (lat === undefined || lon === undefined) continue;
+        points.push([lat, lon]);
+      }
+      if (points.length < 2) continue;
+      L.polyline(points, {
+        renderer: lineRenderer,
+        pane: LINE_PANE,
+        color: colour,
+        // Rail and ferry lines are few and long, so they carry a little more
+        // weight without crowding; bus roads overlap and stay hairlines.
+        weight: line.mode === "BUS" ? 1.5 : 2.5,
+        opacity: 0.4,
+        // Background, not a target: the dots and the table carry every link.
+        interactive: false,
+      }).addTo(lineLayer);
+    }
+  }, [lines, mode, ready]);
+
   // Redraw on each poll and on a mode change. An open popup closes with its
   // dot; a two-minute redraw is rare enough that keying dots by id is not worth it.
   useEffect(() => {
@@ -218,16 +329,93 @@ export default function LiveMap({
         .bindPopup(popupHtml(v, status.detail))
         .addTo(layer);
     }
-    // Frame the vehicles once; after that the reader's pan and zoom are kept.
-    if (!framed.current && shown.length > 0) {
+    // Frame the vehicles once, on the core rather than every outlier (see
+    // coreBounds); after that the reader's pan and zoom are kept.
+    const core = coreBounds(shown.map((v) => [v.lat, v.lon] as const));
+    if (!framed.current && core) {
       framed.current = true;
-      map.fitBounds(L.latLngBounds(shown.map((v) => [v.lat, v.lon])), { padding: [16, 16] });
+      map.fitBounds(L.latLngBounds(core), { padding: [16, 16] });
     }
   }, [vehicles, mode]);
+
+  /**
+   * Ask for the reader's position and fly to it, marking where they are with a
+   * dot and a ring for how sure the browser is. Asked on the press rather than on
+   * load: a prompt nobody asked for gets refused, and iOS only shows it after a tap.
+   */
+  const locate = (): void => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!("geolocation" in navigator)) {
+      setLocateNote("This browser cannot share a location.");
+      return;
+    }
+    setLocating(true);
+    setLocateNote(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const { L, map, hereLayer } = m;
+        const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
+          setLocateNote("You look to be outside Auckland, so there is nothing nearby to show.");
+          return;
+        }
+        hereLayer.clearLayers();
+        // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
+        const ink = cssVar("--color-at-ink");
+        L.circle(here, {
+          radius: pos.coords.accuracy,
+          color: ink,
+          weight: 1,
+          fillOpacity: 0.08,
+          interactive: false,
+        }).addTo(hereLayer);
+        L.circleMarker(here, {
+          radius: 7,
+          weight: 3,
+          color: "#ffffff",
+          fillColor: ink,
+          fillOpacity: 1,
+          interactive: false,
+        }).addTo(hereLayer);
+        // The reader chose this view, so the first poll must not frame it away.
+        framed.current = true;
+        map.flyTo(here, NEAR_ZOOM);
+      },
+      (err) => {
+        setLocating(false);
+        setLocateNote(
+          err.code === err.PERMISSION_DENIED
+            ? "Location is turned off for this site. Allow it in your browser's settings to zoom to where you are."
+            : "Your location could not be found. Try again in a moment.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+    );
+  };
 
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
+      {/* Clear of Leaflet's attribution in the corner below it. */}
+      <button
+        type="button"
+        onClick={locate}
+        disabled={!ready || locating}
+        className="absolute right-2.5 bottom-7 z-10 flex items-center gap-1.5 border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
+      >
+        <LocateArrow className="text-at-shore" />
+        {locating ? "Finding you…" : "Near me"}
+      </button>
+      {locateNote && (
+        <p
+          role="status"
+          className="absolute right-2.5 bottom-19 z-10 max-w-64 border border-at-border bg-at-surface px-2 py-1 text-xs text-at-ink"
+        >
+          {locateNote}
+        </p>
+      )}
       {failed && (
         <p
           role="status"

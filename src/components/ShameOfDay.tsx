@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { boundFor } from "@/lib/departure-label";
 import { routeSlug } from "@/lib/route-slug";
 import { nzClockTime } from "@/lib/time";
 import type { ShameTrip } from "@/types/dashboard";
@@ -18,7 +19,7 @@ export interface ShameOfDayProps {
   /** Override the card's link target; defaults to the run's own page. */
   href?: string;
   /**
-   * The shown window as words for the empty-state copy ("today", "that day",
+   * The shown window as words for the empty-state copy ("today", "on Sat 19 Sep",
    * "over the last 7 days"; see `windowPhrase`). Defaults to "today".
    */
   when?: string;
@@ -56,8 +57,8 @@ export function ShameOfDay({
   // Same quiet state the worst-route and worst-stop cards beside this one use.
   if (!ranked) {
     return (
-      <div className="flex flex-col gap-1 border border-at-border bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">Worst trip</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-muted">Worst trip</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
         <p className="text-sm text-at-muted">No run has enough arrivals in this period.</p>
       </div>
@@ -66,8 +67,8 @@ export function ShameOfDay({
   // Runs ranked and none was past the late bound, so the board crowns nothing.
   if (!trip) {
     return (
-      <div className="flex flex-col gap-1 border border-at-ontime/40 bg-at-surface px-6 py-5">
-        <p className="text-xs font-semibold tracking-zero text-at-ontime uppercase">Worst trip</p>
+      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
+        <p className="at-eyebrow text-at-ontime">Worst trip</p>
         <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
         <p className="text-sm text-at-muted">
           No trip stood out {when}, so there is nothing to call out.
@@ -77,6 +78,7 @@ export function ShameOfDay({
   }
 
   const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
+  const bound = boundFor(trip.headsign, trip.mode);
   const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
   // The card names one run, so it opens that run. `?d` is the run's own instant,
   // which is how the trip page tells this day's run from the same trip id on
@@ -87,9 +89,9 @@ export function ShameOfDay({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1 border border-at-late/40 bg-at-surface px-6 py-5 transition-colors hover:bg-at-late/5"
+      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
     >
-      <p className="text-xs font-semibold tracking-zero text-at-late uppercase">Worst trip</p>
+      <p className="at-eyebrow text-at-late">Worst trip</p>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={trip.mode}
@@ -102,7 +104,7 @@ export function ShameOfDay({
       </div>
       {/* The anchor line holds only the route, so it sits level with the stop
           card's name beside it; the headsign takes its own line. */}
-      {trip.headsign && <p className="text-base text-at-muted">to {trip.headsign}</p>}
+      {bound && <p className="text-base text-at-muted">{bound}</p>}
       <OffScheduleLine
         signedSec={trip.avg_delay_sec}
         absSec={trip.avg_abs_delay_sec}

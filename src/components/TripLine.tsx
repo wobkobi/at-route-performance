@@ -10,6 +10,7 @@ import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip-line";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Height of one stop's row (px). */
@@ -108,6 +109,8 @@ export interface TripLineProps {
   mode: string;
   /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
   colour: string | null;
+  /** Query each stop's link carries, so it opens on the run's day ("" for today). */
+  stopQuery: string;
 }
 
 /**
@@ -119,9 +122,10 @@ export interface TripLineProps {
  * @param props.line - The line.
  * @param props.mode - The route's mode.
  * @param props.colour - The route's colour.
+ * @param props.stopQuery - Query each stop's link carries.
  * @returns The timeline and its key.
  */
-export function TripLine({ line, mode, colour }: TripLineProps): JSX.Element {
+export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.Element {
   const present = {
     unrecorded: line.stops.some((s) => s.state === "unrecorded"),
     skipped: line.stops.some((s) => s.state === "skipped"),
@@ -132,14 +136,34 @@ export function TripLine({ line, mode, colour }: TripLineProps): JSX.Element {
   return (
     <>
       <div className="sm:hidden">
-        <LineSvg line={line} mode={mode} colour={colour} width={PHONE_W} compact />
+        <LineSvg
+          line={line}
+          mode={mode}
+          colour={colour}
+          width={PHONE_W}
+          compact
+          stopQuery={stopQuery}
+        />
       </div>
       <div className="hidden sm:block">
-        <LineSvg line={line} mode={mode} colour={colour} width={WIDE_W} compact={false} />
+        <LineSvg
+          line={line}
+          mode={mode}
+          colour={colour}
+          width={WIDE_W}
+          compact={false}
+          stopQuery={stopQuery}
+        />
       </div>
+      {/* The drawing's name links are out of the tab order; these are the ones a keyboard or
+          screen reader reaches. */}
       <ol className="sr-only">
         {line.stops.map((s, i) => (
-          <li key={`${s.stop_id}-${i}`}>{stopSentence(s, mode)}</li>
+          <li key={`${s.stop_id}-${i}`}>
+            <Link href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}>
+              {stopSentence(s, mode)}
+            </Link>
+          </li>
         ))}
       </ol>
       <LineKey present={present} />
@@ -169,6 +193,7 @@ function jumpsSkipped(stops: readonly LineStop[], leg: LineLeg): boolean {
  * @param props.colour - The route's colour.
  * @param props.width - The narrowest this layout is drawn (px).
  * @param props.compact - Shorter wording for the phone.
+ * @param props.stopQuery - Query each stop's name link carries.
  * @returns The svg.
  */
 function LineSvg({
@@ -177,12 +202,14 @@ function LineSvg({
   colour,
   width,
   compact,
+  stopQuery,
 }: {
   line: TripLineData;
   mode: string;
   colour: string | null;
   width: number;
   compact: boolean;
+  stopQuery: string;
 }): JSX.Element {
   const { stops, legs, bypasses } = line;
   const bowed = legs.map((g) => jumpsSkipped(stops, g));
@@ -302,18 +329,20 @@ function LineSvg({
               strokeDasharray={s.state === "skipped" ? "2 2.7" : undefined}
               className={cn("fill-at-surface", ring)}
             />
-            <text
-              x={textX}
-              y={y0 + DOT_Y + 5}
-              fontSize={NAME_PX}
-              className={cn(
-                "font-medium",
-                muted ? "fill-at-muted" : "fill-at-ink",
-                s.state === "not-served" && "line-through",
-              )}
-            >
-              {name}
-            </text>
+            <a href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`} tabIndex={-1}>
+              <text
+                x={textX}
+                y={y0 + DOT_Y + 5}
+                fontSize={NAME_PX}
+                className={cn(
+                  "font-medium hover:fill-at-shore hover:underline",
+                  muted ? "fill-at-muted" : "fill-at-ink",
+                  s.state === "not-served" && "line-through",
+                )}
+              >
+                {name}
+              </text>
+            </a>
             <text
               x={textX}
               y={y0 + DOT_Y + 23}

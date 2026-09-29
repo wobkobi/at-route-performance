@@ -33,12 +33,14 @@ export const TRAIN_COUNT_NOTE =
   "Trains are counted by the unit carrying each run; a unit coupled behind it is not seen.";
 
 /**
- * One card: an eyebrow naming the span, then a figure per mode.
+ * One span's figures: an eyebrow naming the span on a hairline, then a figure
+ * per mode. Same shape as the fleet strip - a rule, a label, then the numbers -
+ * so the two read as one set rather than as two kinds of container.
  * @param props - Component props.
  * @param props.eyebrow - The span the figures cover.
  * @param props.counts - Distinct vehicles per mode.
  * @param props.modes - Which modes to show.
- * @returns The card.
+ * @returns The column.
  */
 function VehicleCard({
   eyebrow,
@@ -50,8 +52,8 @@ function VehicleCard({
   modes: readonly VehicleMode[];
 }): JSX.Element {
   return (
-    <div className="flex flex-col gap-4 border border-at-border bg-at-surface px-6 py-5">
-      <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">{eyebrow}</p>
+    <div className="flex flex-col gap-4 border-t border-at-border pt-4">
+      <p className="at-eyebrow text-at-muted">{eyebrow}</p>
       <dl className="grid grid-cols-3 gap-4">
         {modes.map((m) => (
           <div key={m} className="flex flex-col gap-1">
@@ -98,7 +100,7 @@ export async function VehicleCards({
   const modes = vehicleModesShown(mode);
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
         <VehicleCard eyebrow={label} counts={inWindow} modes={modes} />
         <VehicleCard
           eyebrow={`All time, since ${DATA_START_SHORT}`}

@@ -1,5 +1,5 @@
 // src/lib/data/route-areas.ts
-// Which areas of Auckland each route serves, for the Routes page filter. The
+// Which areas and fare zones each route serves, for the Routes page filters. The
 // schedule would need a stoptimes call per trip pattern per route, so the stops
 // come from what each route actually served instead: the (route, stop) pairs in
 // ArrivalEvent over the last week of completed service days. A week catches
@@ -7,6 +7,8 @@
 import { type AreaKey, routeAreas } from "@/lib/areas";
 import { cachedForDay } from "@/lib/data/cache";
 import { prisma, runCommand } from "@/lib/db";
+import { routeFareZones } from "@/lib/fare-zone-geo";
+import type { FareZoneKey } from "@/lib/fare-zones";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
@@ -55,13 +57,21 @@ function routeStopsOfDay(date: string): Promise<Record<string, string[]>> {
   );
 }
 
+/** Each route's areas and fare zones, keyed by route slug. */
+export interface RouteGeography {
+  areas: Record<string, AreaKey[]>;
+  zones: Record<string, FareZoneKey[]>;
+}
+
 /**
- * The areas each route served over the last week of completed service days,
- * keyed by route slug. A route with no arrival in that week has no entry, so it
- * matches no area filter. Cached for six hours on top of the per-day scans.
- * @returns Route slug to its areas, in display order.
+ * The areas and fare zones each route served over the last week of completed
+ * service days, keyed by route slug; both are placed from the same stops, so
+ * they come from one pass. A route with no arrival in that week has no entry,
+ * so it matches no area or zone filter. Cached for six hours on top of the
+ * per-day scans.
+ * @returns Route slug to its areas and to its zones, each in display order.
  */
-export async function getRouteAreas(): Promise<Record<string, AreaKey[]>> {
+export async function getRouteGeography(): Promise<RouteGeography> {
   const yesterday = shiftWeek(nzServiceDayString(), -1);
   return unstable_cache(
     async () => {
@@ -81,16 +91,17 @@ export async function getRouteAreas(): Promise<Record<string, AreaKey[]>> {
         select: { id: true, lat: true, lon: true },
       });
       const coordById = new Map(coords.map((c) => [c.id, c]));
-      const out: Record<string, AreaKey[]> = {};
+      const out: RouteGeography = { areas: {}, zones: {} };
       for (const [slug, stops] of stopsBySlug) {
         const points = [...stops]
           .map((id) => coordById.get(id))
           .filter((c): c is NonNullable<typeof c> => c !== undefined);
-        out[slug] = routeAreas(points);
+        out.areas[slug] = routeAreas(points);
+        out.zones[slug] = routeFareZones(points);
       }
       return out;
     },
-    ["route-areas", yesterday],
+    ["route-geography", yesterday],
     { revalidate: 6 * 3600 },
   )();
 }

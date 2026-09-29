@@ -4,6 +4,7 @@
 
 import type { Sighting } from "@/lib/off-route";
 import { nzClockTime } from "@/lib/time";
+import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link TripDetourNote}. */
@@ -12,8 +13,8 @@ export interface TripDetourNoteProps {
   sightings: Sighting[];
   /** An active reroute alert on the route at the time, or null. */
   alert: string | null;
-  /** The stop nearest the furthest reading, when the trip's stops are known. */
-  nearestStop: string | null;
+  /** The stop nearest the furthest reading, with the link to its page, when the trip's stops are known. */
+  nearestStop: { name: string; href: string } | null;
   /** What to call the vehicle ("bus", "train"). */
   noun: string;
 }
@@ -51,7 +52,15 @@ export function TripDetourNote({
       <p className="mt-1 text-sm text-at-muted">
         GPS put this {noun} up to {furthest.toLocaleString()} m from its planned road path in{" "}
         {sightings.length} readings {window}
-        {nearestStop ? `, nearest ${nearestStop}` : ""}, with stops served before and after.
+        {nearestStop && (
+          <>
+            , nearest{" "}
+            <Link href={nearestStop.href} className="text-at-shore hover:underline">
+              {nearestStop.name}
+            </Link>
+          </>
+        )}
+        , with stops served before and after.
         {alert ? "" : " AT had no detour alert out for the route at the time."}
       </p>
       {alert && (

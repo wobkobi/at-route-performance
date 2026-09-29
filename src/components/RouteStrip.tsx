@@ -25,7 +25,8 @@ import type { StopSplit } from "@/lib/stop-split";
 import type { StripMarks } from "@/lib/strip-marks";
 import { stripView, type HalfTone, type StripView } from "@/lib/strip-view";
 import { useUrlParam } from "@/lib/use-url-param";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 /** Where a column's drawing sits: the first ring centred in the first row, the line in from the left. */
@@ -142,6 +143,8 @@ export interface RouteStripProps {
   alertRows: string[];
   /** The day's closures and detours placed on the strip, or null where none are read (the week). */
   marks: StripMarks | null;
+  /** Query a stop's link carries, so it opens on the day shown ("" for today or the week). */
+  stopQuery: string;
 }
 
 /**
@@ -160,6 +163,7 @@ export interface RouteStripProps {
  * @param props.side - The direction picked.
  * @param props.alertRows - Rows named in a live alert.
  * @param props.marks - The day's closures and detours, or null.
+ * @param props.stopQuery - Query each stop's link carries.
  * @returns The diagram section.
  */
 export function RouteStrip({
@@ -170,7 +174,9 @@ export function RouteStrip({
   side,
   alertRows,
   marks,
+  stopQuery,
 }: RouteStripProps): JSX.Element {
+  const router = useRouter();
   const searchParams = useSearchParams();
   // Seeded from the live URL, since Back restores a page rendered before `ver` was written.
   // Only a key with a chip on screen counts: a minor version has none, and neither does a route
@@ -232,12 +238,28 @@ export function RouteStrip({
   const hasAlert = strip.rows.some((r) => alerts.has(r.key));
 
   /**
-   * Step along the rows from the keyboard: the arrows move one stop, Home and End to either end.
+   * A row's stop page. A row can merge the stops either side of the road; it opens the first.
+   * @param i - The row.
+   * @returns The link, or null for a row with no stop id.
+   */
+  const hrefOf = (i: number): string | null => {
+    const id = strip.rows[i]?.stopIds[0];
+    return id ? `/stop/${encodeURIComponent(id)}${stopQuery}` : null;
+  };
+
+  /**
+   * Step along the rows from the keyboard: the arrows move one stop, Home and End to either end,
+   * and Enter opens the focused stop (its name is a link kept out of the tab order).
    * @param e - The key event.
    * @param layout - Which copy of the strip has focus.
    * @param i - The focused row.
    */
   const onKey = (e: KeyboardEvent<HTMLLIElement>, layout: "one" | "two", i: number): void => {
+    if (e.key === "Enter") {
+      const href = hrefOf(i);
+      if (href) router.push(href);
+      return;
+    }
     const last = strip.rows.length - 1;
     const to =
       e.key === "ArrowDown" || e.key === "ArrowRight"
@@ -279,6 +301,7 @@ export function RouteStrip({
         }}
         onFocusRow={setActive}
         onKey={(e, i) => onKey(e, layout, i)}
+        hrefOf={hrefOf}
       />
     ));
 
@@ -358,6 +381,7 @@ export function RouteStrip({
  * @param props.setRef - Keeps each row's element, for moving focus.
  * @param props.onFocusRow - Makes a focused row the one in the tab order.
  * @param props.onKey - Steps along the rows.
+ * @param props.hrefOf - A row's stop page, or null.
  * @returns The column.
  */
 function Column({
@@ -374,6 +398,7 @@ function Column({
   setRef,
   onFocusRow,
   onKey,
+  hrefOf,
 }: {
   col: StripColumn;
   view: StripView;
@@ -388,6 +413,7 @@ function Column({
   setRef: (i: number, el: HTMLLIElement | null) => void;
   onFocusRow: (i: number) => void;
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
+  hrefOf: (i: number) => string | null;
 }): JSX.Element {
   const lineHex = brandColour(colour);
   const detour = detourClass(lineHex);
@@ -406,12 +432,15 @@ function Column({
       className={cn(
         // content-start: a column shorter than its neighbour keeps its rows at the top, level
         // with the neighbour's, rather than spreading the extra height between them.
+        // A figure column is min-content: as wide as its widest figure (they never wrap) or the
+        // longest word of its heading, which wraps inside it. WebKit sizes an auto track from a
+        // w-min heading's one-line width, which left a phone's names no room at all.
         "grid content-start gap-x-2 sm:gap-x-3",
         !figures
           ? "grid-cols-1"
           : twoWay
-            ? "grid-cols-[minmax(0,1fr)_auto_auto]"
-            : "grid-cols-[minmax(0,1fr)_auto]",
+            ? "grid-cols-[minmax(0,1fr)_min-content_min-content]"
+            : "grid-cols-[minmax(0,1fr)_min-content]",
       )}
     >
       {figures && (
@@ -420,12 +449,11 @@ function Column({
           className="col-span-full grid grid-cols-subgrid items-end border-b border-at-border pb-1.5 text-xs font-semibold text-at-muted"
         >
           <span />
-          {/* w-min: a heading widens its column only to its longest word, and wraps within it. */}
-          <span className={cn("w-min min-w-full text-right text-balance", DIM_TEXT.down)}>
+          <span className={cn("text-right text-balance", DIM_TEXT.down)}>
             {view.downHeading}&nbsp;▾
           </span>
           {twoWay && (
-            <span className={cn("w-min min-w-full text-right text-balance", DIM_TEXT.up)}>
+            <span className={cn("text-right text-balance", DIM_TEXT.up)}>
               {view.upHeading}&nbsp;▴
             </span>
           )}
@@ -491,6 +519,20 @@ function Column({
           {col.rows.map(({ index }) => {
             const row = view.rows[index]!;
             const shown = row.state === "on";
+            const href = hrefOf(index);
+            const nameClass = cn(
+              // Two 16px lines fill a 32px row, so a phone wraps a long name
+              // rather than cutting it to a few letters. Wider, one line: a clamp,
+              // not truncate, since Chrome still breaks at a wbr under nowrap.
+              "line-clamp-2 text-xs sm:line-clamp-1 sm:text-sm",
+              row.state !== "on"
+                ? "text-at-muted/50"
+                : row.bothWays
+                  ? "font-medium text-at-ink"
+                  : "text-at-muted",
+              row.terminus && "font-bold",
+              row.struck && "line-through",
+            );
             return (
               <li
                 key={index}
@@ -501,25 +543,23 @@ function Column({
                 className="col-span-full grid grid-cols-subgrid items-center"
               >
                 <span className="sr-only">{row.sentence}</span>
-                <span
-                  aria-hidden="true"
-                  style={{ paddingLeft: nameX }}
-                  className={cn(
-                    // Two 16px lines fill a 32px row, so a phone wraps a long name
-                    // rather than cutting it to a few letters. Wider, one line: a clamp,
-                    // not truncate, since Chrome still breaks at a wbr under nowrap.
-                    "line-clamp-2 text-xs sm:line-clamp-1 sm:text-sm",
-                    row.state !== "on"
-                      ? "text-at-muted/50"
-                      : row.bothWays
-                        ? "font-medium text-at-ink"
-                        : "text-at-muted",
-                    row.terminus && "font-bold",
-                    row.struck && "line-through",
-                  )}
-                >
-                  {breakable(row.name)}
-                </span>
+                {href ? (
+                  // Out of the tab order and hidden from screen readers: the row is the focus
+                  // stop and reads the sentence above, and Enter on it follows this link.
+                  <Link
+                    href={href}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    style={{ marginLeft: nameX }}
+                    className={cn(nameClass, "hover:text-at-shore hover:underline")}
+                  >
+                    {breakable(row.name)}
+                  </Link>
+                ) : (
+                  <span aria-hidden="true" style={{ paddingLeft: nameX }} className={nameClass}>
+                    {breakable(row.name)}
+                  </span>
+                )}
                 {figures && (
                   <span
                     aria-hidden="true"

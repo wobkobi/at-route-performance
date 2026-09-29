@@ -133,18 +133,23 @@ export interface LiveMapVehicle {
   lon: number;
   delaySec: number | null;
   cars: number | null;
+  /** The route's operator code, which the popup names through lib/operators; null when unrecorded. */
+  op: string | null;
 }
 
 /**
  * The network map's vehicles: those on a run, trimmed to the fields the map
- * reads, so a poll of a thousand-odd vehicles stays small.
+ * reads, so a poll of a thousand-odd vehicles stays small. The operator goes as
+ * its short code rather than its name for the same reason.
  * @param vehicles - Every vehicle in the feed.
  * @param modeOf - Route id > mode; a route missing from it counts as a bus.
+ * @param operators - Route slug > operator code.
  * @returns The map's vehicles.
  */
 export function mapVehicles(
   vehicles: readonly LiveVehicle[],
   modeOf: ReadonlyMap<string, string>,
+  operators: Readonly<Record<string, string>> = {},
 ): LiveMapVehicle[] {
   return onARun(vehicles).map((v) => ({
     id: v.vehicleId,
@@ -157,6 +162,7 @@ export function mapVehicles(
     lon: Math.round(v.lon * 1e5) / 1e5,
     delaySec: v.delaySec,
     cars: v.cars,
+    op: operators[routeSlug(v.routeId)] ?? null,
   }));
 }
 

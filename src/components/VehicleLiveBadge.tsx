@@ -3,14 +3,16 @@
 // own Suspense boundary per row, so a board never waits on AT's realtime feed.
 
 import { routeSlug } from "@/lib/route-slug";
+import { liveRunHref } from "@/lib/vehicle-detail";
 import type { LiveVehicle } from "@/lib/vehicles";
+import Link from "next/link";
 import { type JSX, Suspense } from "react";
 
 /** Live vehicles by feed id, as one read of the feed gives them. */
 export type LiveVehicleMap = ReadonlyMap<string, LiveVehicle>;
 
 /**
- * The badge, once the live set is in.
+ * The badge, once the live set is in, linking to the run the vehicle is on.
  * @param props - Component props.
  * @param props.vehicleId - The vehicle.
  * @param props.live - The live set, unresolved.
@@ -26,12 +28,13 @@ async function LiveBadge({
   const v = (await live).get(vehicleId);
   if (!v?.tripId) return null;
   return (
-    <span
+    <Link
+      href={liveRunHref({ routeId: v.routeId, tripId: v.tripId })}
       title={`On a run now, route ${routeSlug(v.routeId)}`}
-      className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white"
+      className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white hover:underline"
     >
       LIVE
-    </span>
+    </Link>
   );
 }
 

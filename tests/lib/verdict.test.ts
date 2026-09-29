@@ -1,4 +1,4 @@
-import { VERDICT_BANDS, dayVerdict, verdictIndex } from "@/lib/verdict";
+import { VERDICT_BANDS, dayVerdict, verdictIndex, verdictLean } from "@/lib/verdict";
 import { describe, expect, it } from "vitest";
 
 describe("dayVerdict", () => {
@@ -21,12 +21,26 @@ describe("dayVerdict", () => {
   });
 
   it("puts every full day on record mid-scale, not all in one band", () => {
-    // Event-weighted network on-time share for 10-17 Sep 2026. If a change to
-    // the data shape collapses these into one band, the scale stops moving.
-    const observed = [62.4, 67.3, 65.6, 60.8, 63.0, 63.0, 63.6, 62.4];
+    // Event-weighted network on-time share for 10-17 Sep 2026, plus the first
+    // school-holiday Monday (28 Sep). If a change to the data shape collapses
+    // these into one band, the scale stops moving.
+    const observed = [62.4, 67.3, 65.6, 60.8, 63.0, 63.0, 63.6, 62.4, 58.0];
     const labels = observed.map((pct) => dayVerdict(pct)?.label);
     for (const label of labels) expect(["Bit bad", "Meh"]).toContain(label);
     expect(new Set(labels).size).toBe(2);
+  });
+});
+
+describe("verdictLean", () => {
+  it("names the side at least twice the other", () => {
+    expect(verdictLean(38.2, 3.8)).toBe("early");
+    expect(verdictLean(4, 12)).toBe("late");
+    expect(verdictLean(9, 12)).toBe("both");
+  });
+
+  it("gives no lean without both shares or with nothing off schedule", () => {
+    expect(verdictLean(null, 5)).toBeNull();
+    expect(verdictLean(0, 0)).toBeNull();
   });
 });
 

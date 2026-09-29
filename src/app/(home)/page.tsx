@@ -14,6 +14,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { DelayFilter } from "@/components/DelayFilter";
 import { FleetSummary } from "@/components/FleetSummary";
+import { LoadingBlock } from "@/components/Loading";
 import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
 import {
   loadPeriodBatch,
@@ -27,21 +28,14 @@ import {
 } from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
 import { RankBoard } from "@/components/RankBoard";
-import { RankingsBodySkeleton } from "@/components/RankingsBodySkeleton";
 import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/ShameOfDay";
-import {
-  FeatureCardRowSkeleton,
-  FeatureCardSkeleton,
-  KpiStripSkeleton,
-  VehicleCardsSkeleton,
-} from "@/components/SkeletonParts";
-import { VehicleCards, vehicleModesShown, VehiclesHeading } from "@/components/VehiclesSection";
+import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getServiceAlerts, networkWideAlerts } from "@/lib/at-alerts";
+import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
@@ -154,17 +148,6 @@ function periodLabel(window: "week" | "month", range: DateRange): string {
 }
 
 /**
- * The vehicles band's fallback, sized to the modes the cards will show.
- * @param root0 - Props.
- * @param root0.mode - Mode filter, or null for every mode.
- * @returns The skeleton.
- */
-function VehicleCardsFallback({ mode }: { mode: ModeFilterValue }): JSX.Element {
-  const modes = vehicleModesShown(mode);
-  return <VehicleCardsSkeleton modes={modes.length} trainNote={modes.includes("TRAIN")} />;
-}
-
-/**
  * Home for a week or month. The header and stepper render from two cheap cached
  * lookups; the ranking batch streams in behind them.
  * @param root0 - Props.
@@ -216,21 +199,25 @@ async function PeriodHome({
   // The same three bands as the day view; see its render for the layout rule.
   return (
     <main className="space-y-10">
-      <section className="space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {overviewHeading(nav, period)}
-          </h1>
-          <RangeControls basePath="/" nav={nav} />
-        </header>
+      <section className="space-y-5">
+        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
+          {overviewHeading(nav, period)}
+        </h1>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Suspense
-            fallback={<ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />}
-          >
-            <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
-          </Suspense>
-          <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-at-border py-3">
+          <RangeControls basePath="/" nav={nav} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Suspense
+              fallback={<ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />}
+            >
+              <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
+            </Suspense>
+            <SchoolBusToggle
+              active={includeSchool}
+              basePath="/"
+              preservedParams={schoolPreserved}
+            />
+          </div>
           <Link
             href={buildHref("/days", {
               window,
@@ -244,7 +231,7 @@ async function PeriodHome({
           </Link>
         </div>
 
-        <Suspense fallback={<KpiStripSkeleton verdict />}>
+        <Suspense fallback={<LoadingBlock label="Loading the verdict" />}>
           <PeriodVerdict batch={batch} />
         </Suspense>
       </section>
@@ -254,24 +241,23 @@ async function PeriodHome({
           title={`Worst of the ${window}`}
           href={buildShameHref("/shame/trip", shameNav, shameFilter)}
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Suspense fallback={<FeatureCardSkeleton withHeadsign narrow />}>
+        {/* One boundary for the three cards, not one each: they all read the same
+            batch promise, so they arrive together and three wheels in a row would
+            only be three ways of saying the same thing. */}
+        <Suspense fallback={<LoadingBlock label="Loading the worst of the period" />}>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <PeriodTripCard batch={batch} when={windowPhrase(nav, period)} />
-          </Suspense>
-          <Suspense fallback={<FeatureCardSkeleton />}>
             <PeriodRouteCard batch={batch} when={windowPhrase(nav, period)} />
-          </Suspense>
-          <Suspense fallback={<FeatureCardSkeleton />}>
             <PeriodStopCard batch={batch} when={windowPhrase(nav, period)} />
-          </Suspense>
-        </div>
+          </div>
+        </Suspense>
       </section>
 
       <section className="space-y-4">
         <RankingsHeader>
           <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
         </RankingsHeader>
-        <Suspense fallback={<RankingsBodySkeleton />}>
+        <Suspense fallback={<LoadingBlock label="Loading the route rankings" />}>
           <PeriodBoards batch={batch} view={view} />
         </Suspense>
       </section>
@@ -285,7 +271,7 @@ async function PeriodHome({
             school: includeSchool ? "1" : undefined,
           })}
         />
-        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+        <Suspense fallback={<LoadingBlock label="Loading the vehicle counts" />}>
           <VehicleCards
             range={range}
             label={periodLabel(window, range)}
@@ -312,16 +298,16 @@ export default async function Home({
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   if (window !== "day") return <PeriodHome window={window} sp={sp} />;
-  clampDayParam("/", sp);
-  dropTodayParam("/", sp);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
+  clampDayParam("/", sp, today);
+  dropTodayParam("/", sp, today);
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
-  // One request-time clock read for the whole render, handed to every helper
-  // that places a day against today (see lib/request-now.ts).
-  const today = await requestServiceDay();
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).
   const requestedDay = resolveRequestedDay(sp.day);
@@ -371,7 +357,7 @@ export default async function Home({
     dir: dirPreserved,
   } = preservedFilters({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
 
-  const nav = dayRangeNav(shown, earliestDay);
+  const nav = dayRangeNav(shown, earliestDay, today);
 
   // Three bands: the day's verdict, its shame, and the route rankings. Mode and
   // school sit in the first band because they filter all three; the direction
@@ -379,13 +365,30 @@ export default async function Home({
   // board.
   return (
     <main className="space-y-10">
-      <section className="space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {overviewHeading(nav, null)}
-          </h1>
+      <section className="space-y-5">
+        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
+          {overviewHeading(nav, null)}
+        </h1>
+
+        {/* Every control the page has, on one rule-bounded row. Stacked - window
+            tabs, then the day stepper, then the mode chips, then the school
+            toggle - they filled a phone screen before a single figure. */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-at-border py-3">
           <RangeControls basePath="/" nav={nav} />
-        </header>
+          <div className="flex flex-wrap items-center gap-3">
+            <ModeFilter
+              active={mode}
+              basePath="/"
+              preservedParams={modePreserved}
+              availableModes={availableModes}
+            />
+            <SchoolBusToggle
+              active={includeSchool}
+              basePath="/"
+              preservedParams={schoolPreserved}
+            />
+          </div>
+        </div>
 
         {serviceDate === DATA_START_DAY && (
           <p className="text-sm text-at-muted">
@@ -397,16 +400,13 @@ export default async function Home({
           alerts={networkWideAlerts(await alertsPromise)}
           pastWindow={linkDay !== undefined}
         />
-
-        <div className="flex flex-wrap items-center gap-3">
-          <ModeFilter
-            active={mode}
-            basePath="/"
-            preservedParams={modePreserved}
-            availableModes={availableModes}
+        {linkDay === undefined && (
+          <AlertBanner
+            alerts={networkWideAlerts(await getUpcomingAlerts().catch(() => []))}
+            heading="Coming up"
+            upcoming
           />
-          <SchoolBusToggle active={includeSchool} basePath="/" preservedParams={schoolPreserved} />
-        </div>
+        )}
 
         <FleetSummary data={heroData} verdict />
       </section>
@@ -420,7 +420,7 @@ export default async function Home({
             { mode, includeSchool, direction: null },
           )}
         />
-        <Suspense fallback={<FeatureCardRowSkeleton />}>
+        <Suspense fallback={<LoadingBlock label="Loading the worst of the day" />}>
           <HomeShameCards
             range={range}
             serviceDate={serviceDate}
@@ -498,7 +498,7 @@ export default async function Home({
             school: includeSchool ? "1" : undefined,
           })}
         />
-        <Suspense fallback={<VehicleCardsFallback mode={mode} />}>
+        <Suspense fallback={<LoadingBlock label="Loading the vehicle counts" />}>
           <VehicleCards
             range={range}
             label={linkDay ? serviceDayLabel(serviceDate) : "Today"}

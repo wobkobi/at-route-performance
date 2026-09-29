@@ -25,6 +25,8 @@ model Route {
   mode       Mode
   colour     String?
   textColour String?
+  // The operator's code in AT's agency list ("NZB", "RTH"); see src/lib/operators.ts.
+  agencyId   String?
   lastSeenAt DateTime?
   events     ArrivalEvent[]
   tripDelays TripDelay[]

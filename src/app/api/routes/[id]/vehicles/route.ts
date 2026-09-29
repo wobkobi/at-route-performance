@@ -1,6 +1,8 @@
 // src/app/api/routes/[id]/vehicles/route.ts
 // GET handler returning live vehicle positions JSON for a route, each with its current delay.
 
+import { getRouteOperators } from "@/lib/data/routes";
+import { readFallback } from "@/lib/db";
 import { routeSlug } from "@/lib/route-slug";
 import { getLiveVehicles } from "@/lib/vehicles";
 import { NextResponse } from "next/server";
@@ -13,7 +15,8 @@ import { NextResponse } from "next/server";
  * @param _req - Incoming request (unused).
  * @param ctx - Route context.
  * @param ctx.params - Promise resolving to the dynamic `{ id }` route param.
- * @returns JSON `{ vehicles }`, or 502 with an empty list on upstream failure.
+ * @returns JSON `{ vehicles, op }` (`op` the route's operator code, or null), or
+ *   502 with an empty list on upstream failure.
  */
 export async function GET(
   _req: Request,
@@ -21,10 +24,16 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
   try {
-    const all = await getLiveVehicles();
+    const [all, operators] = await Promise.all([
+      getLiveVehicles(),
+      getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
+    ]);
     // AT's real-time feed includes versioned route ids (e.g. "NX1-202409"); strip
     // the version suffix before comparing so they match the URL slug "NX1".
-    return NextResponse.json({ vehicles: all.filter((v) => routeSlug(v.routeId) === id) });
+    return NextResponse.json({
+      vehicles: all.filter((v) => routeSlug(v.routeId) === id),
+      op: operators[id] ?? null,
+    });
   } catch (err) {
     console.error("[API] GET /api/routes/[id]/vehicles failed", {
       routeId: id,

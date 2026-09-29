@@ -27,6 +27,7 @@ export function GET(request: NextRequest): NextResponse {
   const target = buildHref("/", {
     // The home day view is the bare path, so the param is left off for it.
     window: window === "day" ? undefined : window,
+    day: window === "day" ? sp.get("day") : undefined,
     period: sp.get("period"),
     mode: sp.get("mode"),
     school: sp.get("school"),

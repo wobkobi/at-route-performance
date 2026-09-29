@@ -21,6 +21,7 @@ import {
 } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
+import { boundFor } from "@/lib/departure-label";
 import { UNKNOWN_VALUE } from "@/lib/format";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
 import {
@@ -33,7 +34,7 @@ import { useUrlParam } from "@/lib/use-url-param";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState, type JSX } from "react";
+import { Fragment, useMemo, useState, type JSX } from "react";
 
 /** Trips shown before "Show more", and how many each press adds. */
 const PAGE_SIZE = 30;
@@ -44,6 +45,12 @@ export interface CancelledTripListProps {
   trips: NetworkCancelledTrip[];
   /** Whether the window spans several days, so each row names its day. */
   multiDay: boolean;
+  /**
+   * The request's instant in epoch ms while the window is the live day, else
+   * null. The list then splits there: trips AT has already called off for later
+   * today first, then the ones already due.
+   */
+  liveAt: number | null;
   /** The stage the list is filtered to, or null for every stage. */
   stage: CancellationStage | null;
   /** The page path the stage chips link to. */
@@ -71,11 +78,25 @@ function parseShown(raw: string | null): number {
 }
 
 /**
- * List a window's flagged trips, filterable by stage. A single day reads in
- * departure order; a week or month puts the most recent first.
+ * Whether a flagged trip has yet to reach its scheduled start.
+ * @param t - The trip.
+ * @param at - The instant to test, epoch ms.
+ * @returns True when it starts after `at`.
+ */
+function notDueYet(t: NetworkCancelledTrip, at: number): boolean {
+  return t.scheduled_start !== null && Date.parse(t.scheduled_start) > at;
+}
+
+/**
+ * List a window's flagged trips, filterable by stage. A past day reads in
+ * departure order and a week or month puts the most recent first. The live day
+ * leads with the trips not due yet, soonest first, then the ones already due,
+ * most recent first: in departure order the trips a rider could still be
+ * waiting for sat at the foot of the list, behind "Show more".
  * @param props - Component props.
  * @param props.trips - The flagged trips.
  * @param props.multiDay - Whether each row names its day.
+ * @param props.liveAt - The instant the live day splits at, or null for any other window.
  * @param props.stage - The stage filtered to, or null for all.
  * @param props.basePath - The page path the stage chips link to.
  * @param props.preservedParams - The page's other params, carried on the chips.
@@ -84,6 +105,7 @@ function parseShown(raw: string | null): number {
 export function CancelledTripList({
   trips,
   multiDay,
+  liveAt,
   stage,
   basePath,
   preservedParams,
@@ -93,8 +115,14 @@ export function CancelledTripList({
   const searchParams = useSearchParams();
   const [shown, setShown] = useState(() => parseShown(searchParams.get("show")));
   useUrlParam("show", shown > PAGE_SIZE ? String(shown) : null);
-  const ordered = useMemo(() => (multiDay ? [...trips].reverse() : trips), [trips, multiDay]);
-  const visible = stage ? ordered.filter((t) => t.stage === stage) : ordered;
+  const { visible, notDue } = useMemo(() => {
+    const staged = stage ? trips.filter((t) => t.stage === stage) : trips;
+    if (multiDay) return { visible: [...staged].reverse(), notDue: 0 };
+    if (liveAt === null) return { visible: staged, notDue: 0 };
+    const later = staged.filter((t) => notDueYet(t, liveAt));
+    const due = staged.filter((t) => !notDueYet(t, liveAt)).reverse();
+    return { visible: [...later, ...due], notDue: later.length };
+  }, [trips, stage, multiDay, liveAt]);
   // Key entries for the stages on screen, so no badge is explained in a hover a
   // phone cannot reach - and none is explained that the reader cannot see. The
   // filter chips name the stages in their own words ("Never ran", "Cut short"),
@@ -157,52 +185,71 @@ export function CancelledTripList({
         </p>
       ) : (
         <ol>
-          {visible.slice(0, shown).map((t) => {
+          {visible.slice(0, shown).map((t, i) => {
             const at = t.scheduled_start ?? nzServiceDayRange(t.service_date).start.toISOString();
+            // Group labels only when the live day has trips on both sides of now,
+            // or a lone "Not due yet" group; a list of due trips needs none.
+            const label =
+              notDue > 0 && i === 0
+                ? `Not due yet · ${notDue}`
+                : notDue > 0 && i === notDue
+                  ? "Already due"
+                  : null;
             return (
-              <li key={`${t.service_date}-${t.trip_id}`} className={TRIP_ROW_CLASS}>
-                <Link
-                  href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
-                  prefetch={false}
-                  className={TRIP_ROW_LINK_CLASS}
-                >
-                  <span className="w-16 shrink-0 tabular-nums">
-                    {multiDay && (
-                      <span className="block text-xs text-at-muted">
-                        {serviceDayLabel(t.service_date)}
-                      </span>
-                    )}
-                    <span className="font-semibold text-at-shore">
-                      {t.scheduled_start ? nzClockTime(t.scheduled_start) : UNKNOWN_VALUE}
-                    </span>
-                  </span>
-                  <ModeIcon
-                    mode={t.mode}
-                    shortName={t.short_name}
-                    longName={t.long_name}
-                    colour={t.colour}
-                  />
-                  <span className={TRIP_NAME_GROUP_CLASS}>
-                    <span className={TRIP_NAME_CLASS}>
-                      <span className="font-semibold text-at-ink">
-                        {t.short_name ?? t.route_id}
-                      </span>
-                      <span className="text-at-muted">{t.headsign ? ` to ${t.headsign}` : ""}</span>
-                    </span>
-                    <span
-                      title={CANCELLATION_BADGE_MEANING[t.stage]}
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                        CANCELLATION_BADGE_CLASS[t.stage],
+              <Fragment key={`${t.service_date}-${t.trip_id}`}>
+                {label && (
+                  <li className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-muted uppercase first:pt-0">
+                    {label}
+                  </li>
+                )}
+                <li className={TRIP_ROW_CLASS}>
+                  <Link
+                    href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
+                    prefetch={false}
+                    className={TRIP_ROW_LINK_CLASS}
+                  >
+                    <span className="w-16 shrink-0 tabular-nums">
+                      {multiDay && (
+                        <span className="block text-xs text-at-muted">
+                          {serviceDayLabel(t.service_date)}
+                        </span>
                       )}
-                    >
-                      <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
-                      <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                      <span className="font-semibold text-at-shore">
+                        {t.scheduled_start ? nzClockTime(t.scheduled_start) : UNKNOWN_VALUE}
+                      </span>
                     </span>
-                  </span>
-                  <ChevronRight className="shrink-0 text-at-muted" />
-                </Link>
-              </li>
+                    <ModeIcon
+                      mode={t.mode}
+                      shortName={t.short_name}
+                      longName={t.long_name}
+                      colour={t.colour}
+                    />
+                    <span className={TRIP_NAME_GROUP_CLASS}>
+                      <span className={TRIP_NAME_CLASS}>
+                        <span className="font-semibold text-at-ink">
+                          {t.short_name ?? t.route_id}
+                        </span>
+                        <span className="text-at-muted">
+                          {t.headsign
+                            ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}`
+                            : ""}
+                        </span>
+                      </span>
+                      <span
+                        title={CANCELLATION_BADGE_MEANING[t.stage]}
+                        className={cn(
+                          "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
+                          CANCELLATION_BADGE_CLASS[t.stage],
+                        )}
+                      >
+                        <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
+                        <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
+                      </span>
+                    </span>
+                    <ChevronRight className="shrink-0 text-at-muted" />
+                  </Link>
+                </li>
+              </Fragment>
             );
           })}
         </ol>

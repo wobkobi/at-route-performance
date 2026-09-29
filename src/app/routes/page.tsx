@@ -1,7 +1,7 @@
 // src/app/routes/page.tsx
 // Routes page: every route with arrivals in a day, week or month, with filters
-// (mode, area, late or early, enough data, cancellations, school services,
-// running now),
+// (mode, area, fare zone, operator, late or early, enough data, cancellations,
+// school services, running now),
 // sorts, a KPI strip over the routes that pass, and a link to each route's page.
 // The window is resolved here on the server; the filters run on the client in
 // RouteExplorer. The day view opens on the same day as every other day page
@@ -14,13 +14,16 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getRankings,
-  getRouteAreas,
+  getRouteGeography,
+  getRouteOperators,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { clampDayParam, dropTodayParam } from "@/lib/day-url";
+import { readFallback } from "@/lib/db";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -88,17 +91,14 @@ export default async function RoutesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
+  // One request-time clock read for the whole render, taken before the day-param redirects
+  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  const today = await requestServiceDay();
   if (window === "day") {
-    clampDayParam("/routes", sp);
-    dropTodayParam("/routes", sp);
+    clampDayParam("/routes", sp, today);
+    dropTodayParam("/routes", sp, today);
   }
-  // One request-time clock read for the whole render, handed to every helper
-  // that places a day against today (see lib/request-now.ts).
-  const [today, latest, earliest] = await Promise.all([
-    requestServiceDay(),
-    getLatestEventDate(),
-    getEarliestDataDay(1),
-  ]);
+  const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
   let rows: TopRouteRow[];
@@ -124,9 +124,10 @@ export default async function RoutesPage({
   }
 
   // Every mode and school services too: the explorer filters those itself.
-  const [cancelledRoutes, areas] = await Promise.all([
+  const [cancelledRoutes, geo, operators] = await Promise.all([
     getCancelledRoutes(range, { mode: null, includeSchool: true }, ALL_ROUTES, revalidate),
-    getRouteAreas(),
+    getRouteGeography(),
+    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
   ]);
   const rowSlugs = new Set(rows.map((r) => routeSlug(r.route_id)));
   // The rows fold a retired train line into its successor (see foldLineageRows),
@@ -148,9 +149,11 @@ export default async function RoutesPage({
     return {
       ...r,
       slug,
-      areas: areas[slug] ?? [],
+      areas: geo.areas[slug] ?? [],
+      zones: geo.zones[slug] ?? [],
       cancelled: cancelledBySlug.get(slug) ?? 0,
       school: isSchoolBus(r.short_name, r.long_name),
+      operator: operatorOf(operators[slug])?.slug ?? null,
     };
   };
   // A route that cancelled trips but recorded no arrival (a service with no
@@ -191,9 +194,10 @@ export default async function RoutesPage({
       />
 
       <p className="text-xs text-at-muted">
-        Areas come from the stops each route served over the last seven days, placed against
-        approximate boundaries; a route is listed under every area it serves. Routes with
-        cancellations but no recorded arrivals are listed without punctuality figures.{" "}
+        Areas and fare zones come from the stops each route served over the last seven days. Areas
+        are placed against approximate boundaries, and a route is listed under every area it serves;
+        fare zones are AT&apos;s own, and a route is listed under every zone one of its stops is in.
+        Routes with cancellations but no recorded arrivals are listed without punctuality figures.{" "}
         {CANCELLED_SPLIT_COPY}
       </p>
     </main>
