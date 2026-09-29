@@ -91,7 +91,8 @@ describe("filterRoutes", () => {
 
   it("hides school services unless asked", () => {
     expect(slugs(filterRoutes(rows, DEFAULT_FILTERS))).toEqual(["NX1", "70", "S-C"]);
-    expect(slugs(filterRoutes(rows, filters({ school: true })))).toContain("046");
+    expect(slugs(filterRoutes(rows, filters({ school: "include" })))).toContain("046");
+    expect(slugs(filterRoutes(rows, filters({ school: "only" })))).toEqual(["046"]);
   });
 
   it("matches a route serving any chosen area", () => {

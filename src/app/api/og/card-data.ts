@@ -51,6 +51,7 @@ import { periodRangeNav } from "@/lib/range-page";
 import { summariseRows, visibleRows } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route-slug";
 import { aggregateWeek } from "@/lib/route-week";
+import { schoolAllows } from "@/lib/school-bus";
 import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/shame-page";
 import {
   nzClockTime,
@@ -106,7 +107,7 @@ function arrivals(n: number): string {
  */
 export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
   const today = nzServiceDayString();
-  const filter = { mode: card.mode, includeSchool: card.includeSchool };
+  const filter = { mode: card.mode, schools: card.schools };
   if (card.window === "day") {
     const { range, serviceDate } = await resolveShownDay(card.day, today);
     const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
@@ -473,8 +474,8 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
  */
 export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
   const { head, noun } = SHAME_HEADINGS[card.board];
-  const filter = { mode: card.mode, includeSchool: card.includeSchool };
-  const filterLabel = cardFilterLabel(card.mode, card.includeSchool);
+  const filter = { mode: card.mode, schools: card.schools };
+  const filterLabel = cardFilterLabel(card.mode, card.schools);
   const today = nzServiceDayString();
 
   if (card.window === "week" || card.window === "month") {
@@ -584,7 +585,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
  * @returns The card.
  */
 export async function listCardData(card: ListCard): Promise<SubjectCardData> {
-  const filter = { mode: card.mode, includeSchool: card.includeSchool };
+  const filter = { mode: card.mode, schools: card.schools };
   const today = nzServiceDayString();
   const isRoutes = card.page === "routes";
   /**
@@ -604,7 +605,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
       return { routes: summariseRows(ran), count: ran.length, trips: [] };
     }
     const trips = (await getNetworkCancelledTrips(range)).filter(
-      (t) => (!card.mode || t.mode === card.mode) && (card.includeSchool || !t.school),
+      (t) => (!card.mode || t.mode === card.mode) && schoolAllows(card.schools, t.school),
     );
     return { routes: null, count: trips.length, trips };
   };
@@ -627,7 +628,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
   const eyebrow = eyebrowOf(
     isRoutes ? "Routes" : "Cancellations",
     when,
-    cardFilterLabel(card.mode, card.includeSchool),
+    cardFilterLabel(card.mode, card.schools),
   );
   if (isRoutes) {
     const s = data.routes;

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.33.0] - 2026-09-29
+
+### Added
+
+- The school bus switch has three settings: leave school buses out, add them in, or show only school
+  buses. Pages say how much the school routes added, and old `?school=1` links still work.
+
 ## [2.32.1] - 2026-09-29
 
 ### Fixed

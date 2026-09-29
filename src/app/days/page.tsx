@@ -84,7 +84,7 @@ export default async function DaysPage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
-  const includeSchool = sp.school === "1";
+  const schools = parseSchoolFilter(sp.school);
   // One request-time clock read for the whole render, handed to every helper that
   // places a day against today (see lib/request-now.ts). Resolved before the
   // redirect below, which needs it to place a carried day in its week.
@@ -101,7 +101,7 @@ export default async function DaysPage({
         window: "week",
         period: periodForCarriedDay("week", sp.period, sp.day, today),
         mode: mode ?? undefined,
-        school: includeSchool ? "1" : undefined,
+        school: schoolFilterParam(schools),
       }),
     );
   }

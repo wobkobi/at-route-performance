@@ -25,7 +25,7 @@ function row(over: Partial<TopRouteRow>): TopRouteRow {
   };
 }
 
-const ALL = { mode: null, includeSchool: false };
+const ALL = { mode: null, schools: "exclude" as const };
 
 describe("daySlot", () => {
   it("leaves a day still to come blank", () => {
@@ -78,14 +78,14 @@ describe("daySlot", () => {
     };
     const train = daySlot("2026-09-20", "2026-09-22", data, {
       mode: "TRAIN",
-      includeSchool: false,
+      schools: "exclude",
     });
     expect(train.kind === "day" && train.verdict?.label).toBe("Great");
-    const bus = daySlot("2026-09-20", "2026-09-22", data, { mode: "BUS", includeSchool: false });
+    const bus = daySlot("2026-09-20", "2026-09-22", data, { mode: "BUS", schools: "exclude" });
     expect(bus.kind === "day" && bus.summary.events).toBe(100);
     const withSchool = daySlot("2026-09-20", "2026-09-22", data, {
       mode: "BUS",
-      includeSchool: true,
+      schools: "include",
     });
     expect(withSchool.kind === "day" && withSchool.summary.on_time_pct).toBe(30);
   });

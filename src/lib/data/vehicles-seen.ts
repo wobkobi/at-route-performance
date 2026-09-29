@@ -34,18 +34,18 @@ const COMPLETED_DAYS_REVALIDATE = 86_400;
  * @param date - Service date (`YYYY-MM-DD`).
  * @param filter - Mode/school filters, as the boards take them.
  * @param filter.mode - Restrict to this mode; null for every mode.
- * @param filter.includeSchool - Whether school services are included.
+ * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's vehicle ids per mode.
  */
 function cachedVehiclesOfDay(
   date: string,
-  { mode = null, includeSchool = false }: ShameFilter,
+  { mode = null, schools = "exclude" }: ShameFilter,
   revalidate: number,
 ): Promise<VehiclesByMode> {
   return cachedForDay(
     async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       // Feed ids are all digits; the few rows holding a fleet label or nothing
       // at all would count one vehicle twice or count a blank.
       const match: Record<string, unknown> = {
@@ -70,7 +70,7 @@ function cachedVehiclesOfDay(
       ]);
       return vehiclesByMode(res.cursor.firstBatch, modeOf);
     },
-    ["vehicles-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    ["vehicles-of-day", date, mode ?? "all", schools],
     date,
     revalidate,
   );
@@ -112,7 +112,7 @@ export async function getVehicleCountsAllTime(
   revalidate: number,
 ): Promise<VehicleCounts> {
   const today = nzServiceDayString();
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   const before = unstable_cache(
     async () => {
       const days: string[] = [];
@@ -121,7 +121,7 @@ export async function getVehicleCountsAllTime(
         await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate))),
       );
     },
-    ["vehicles-before", today, mode ?? "all", includeSchool ? "school" : "no-school"],
+    ["vehicles-before", today, mode ?? "all", schools],
     { revalidate: COMPLETED_DAYS_REVALIDATE },
   )();
   const [past, current] = await Promise.all([

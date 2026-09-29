@@ -303,10 +303,10 @@ export async function getCancelledCount(
   filter: ShameFilter,
   revalidate: number,
 ): Promise<number> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   return cachedForRange(
     async () => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       return prisma.cancelledTrip.count({
         where: {
           // The window's service dates: the stored date is the run's own day as
@@ -316,13 +316,7 @@ export async function getCancelledCount(
         },
       });
     },
-    [
-      "cancelled-count",
-      range.start.toISOString(),
-      range.end.toISOString(),
-      mode ?? "all",
-      String(includeSchool),
-    ],
+    ["cancelled-count", range.start.toISOString(), range.end.toISOString(), mode ?? "all", schools],
     range,
     revalidate,
   );
@@ -376,10 +370,10 @@ export async function getCancelledRoutes(
   limit: number,
   revalidate: number,
 ): Promise<CancelledRouteRow[]> {
-  const { mode = null, includeSchool = false } = filter;
+  const { mode = null, schools = "exclude" } = filter;
   return cachedForRange(
     async () => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       const grouped = await prisma.cancelledTrip.groupBy({
         by: ["routeId"],
         where: {
@@ -427,7 +421,7 @@ export async function getCancelledRoutes(
       range.start.toISOString(),
       range.end.toISOString(),
       mode ?? "all",
-      String(includeSchool),
+      schools,
       String(limit),
     ],
     range,

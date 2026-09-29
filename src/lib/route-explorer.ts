@@ -6,6 +6,12 @@
 import { type AreaKey, isAreaKey } from "@/lib/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/fare-zones";
 import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
+import {
+  parseSchoolFilter,
+  schoolAllows,
+  type SchoolFilter,
+  schoolFilterParam,
+} from "@/lib/school-bus";
 import type { TopRouteRow } from "@/types/api";
 
 /** One route on the Routes page: its window stats plus what the filters need. */
@@ -60,8 +66,8 @@ export interface ExplorerFilters {
   zones: FareZoneKey[];
   /** Operator slug to match, or null for every operator. */
   op: string | null;
-  /** Include school services. */
-  school: boolean;
+  /** Which school services count. */
+  school: SchoolFilter;
   lean: ExplorerLean;
   /** Only routes with enough arrivals to rank on the boards. */
   enoughData: boolean;
@@ -80,7 +86,7 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
   areas: [],
   zones: [],
   op: null,
-  school: false,
+  school: "exclude",
   lean: null,
   enoughData: false,
   cancelledOnly: false,
@@ -117,7 +123,7 @@ export function parseExplorerFilters(sp: Record<string, string | undefined>): Ex
     // Checked only for shape: which operators exist is the rows' business, and
     // a slug no route carries simply matches nothing.
     op: /^[a-z0-9-]{1,60}$/.test(sp.op ?? "") ? sp.op! : null,
-    school: sp.school === "1",
+    school: parseSchoolFilter(sp.school),
     lean: sp.lean === "late" || sp.lean === "early" ? sp.lean : null,
     enoughData: sp.data === "1",
     cancelledOnly: sp.cancelled === "1",
@@ -139,7 +145,8 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   if (f.areas.length > 0) out.area = f.areas.join(",");
   if (f.zones.length > 0) out.zone = f.zones.join(",");
   if (f.op) out.op = f.op;
-  if (f.school) out.school = "1";
+  const school = schoolFilterParam(f.school);
+  if (school) out.school = school;
   if (f.lean) out.lean = f.lean;
   if (f.enoughData) out.data = "1";
   if (f.cancelledOnly) out.cancelled = "1";
@@ -212,7 +219,7 @@ export function filterRoutes(
     if (f.areas.length > 0 && !r.areas.some((a) => f.areas.includes(a))) return false;
     if (f.zones.length > 0 && !r.zones.some((z) => f.zones.includes(z))) return false;
     if (f.op && r.operator !== f.op) return false;
-    if (!f.school && r.school) return false;
+    if (!schoolAllows(f.school, r.school)) return false;
     if (f.lean === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
     if (f.lean === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
     if (f.enoughData && r.events < minEvents) return false;

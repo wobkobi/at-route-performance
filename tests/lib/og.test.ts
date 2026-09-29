@@ -71,12 +71,16 @@ describe("homeCardTitle", () => {
 
 describe("cardFilterLabel", () => {
   it("is null for the whole network", () => {
-    expect(cardFilterLabel(null, false)).toBeNull();
+    expect(cardFilterLabel(null, "exclude")).toBeNull();
   });
 
   it("says when school services are in", () => {
-    expect(cardFilterLabel("BUS", true)).toBe("Buses incl. school");
-    expect(cardFilterLabel(null, true)).toBe("Incl. school services");
+    expect(cardFilterLabel("BUS", "include")).toBe("Buses incl. school");
+    expect(cardFilterLabel(null, "include")).toBe("Incl. school services");
+  });
+
+  it("names school buses alone", () => {
+    expect(cardFilterLabel(null, "only")).toBe("School buses");
   });
 });
 

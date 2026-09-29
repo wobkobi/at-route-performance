@@ -18,3 +18,91 @@ const SCHOOL_BUS_RE = /^S\d{3}[A-Z]*$/i;
 export function isSchoolBus(...names: Array<string | null | undefined>): boolean {
   return names.some((n) => !!n && SCHOOL_BUS_RE.test(n));
 }
+
+/** How much including school services added to each count in a summary. */
+export interface SchoolDelta {
+  events: number;
+  cancelled: number;
+  route_count: number;
+}
+
+/**
+ * What school services add to a summary's counts: their routes, those routes'
+ * arrivals, and the cancelled count's difference with them left out, which the
+ * caller reads separately since cancellations leave no arrival row.
+ * @param rows - The shown routes, school services included.
+ * @param cancelled - The cancelled count with school services included.
+ * @param cancelledWithout - The same count with them left out.
+ * @returns The amounts added, each 0 or more.
+ */
+export function schoolDelta(
+  rows: ReadonlyArray<{ short_name?: string | null; long_name?: string | null; events: number }>,
+  cancelled: number | null,
+  cancelledWithout: number | null,
+): SchoolDelta {
+  const school = rows.filter((r) => isSchoolBus(r.short_name, r.long_name));
+  return {
+    events: school.reduce((sum, r) => sum + r.events, 0),
+    cancelled: Math.max(0, (cancelled ?? 0) - (cancelledWithout ?? 0)),
+    route_count: school.length,
+  };
+}
+
+/**
+ * Which services the School buses filter keeps: every service but school ones
+ * (the default), every service, or school ones alone.
+ */
+export type SchoolFilter = "exclude" | "include" | "only";
+
+/** The filter's choices in menu order, with their labels. */
+export const SCHOOL_FILTERS: ReadonlyArray<{ key: SchoolFilter; label: string }> = [
+  { key: "exclude", label: "Leave out" },
+  { key: "include", label: "Include" },
+  { key: "only", label: "Only school buses" },
+];
+
+/**
+ * Read the `school` query param. `1` is include, the value links carried when
+ * the filter was a plain on/off switch; anything unreadable is the default.
+ * @param value - The raw param.
+ * @returns The filter.
+ */
+export function parseSchoolFilter(value: string | undefined): SchoolFilter {
+  if (value === "1" || value === "include") return "include";
+  if (value === "only") return "only";
+  return "exclude";
+}
+
+/**
+ * The `school` query param for a filter, or undefined for the default so the
+ * param comes off.
+ * @param filter - The filter.
+ * @returns The param value.
+ */
+export function schoolFilterParam(filter: SchoolFilter): string | undefined {
+  if (filter === "include") return "1";
+  if (filter === "only") return "only";
+  return undefined;
+}
+
+/**
+ * Whether a service passes the filter.
+ * @param filter - The filter.
+ * @param school - Whether the service is a school one.
+ * @returns True when the filter keeps it.
+ */
+export function schoolAllows(filter: SchoolFilter, school: boolean): boolean {
+  if (filter === "include") return true;
+  return filter === "only" ? school : !school;
+}
+
+/**
+ * What a filter box shows for the choice, or null for the default, which shows
+ * the plain label.
+ * @param filter - The filter.
+ * @returns The summary, or null.
+ */
+export function schoolFilterSummary(filter: SchoolFilter): string | null {
+  if (filter === "include") return "Included";
+  return filter === "only" ? "Only" : null;
+}

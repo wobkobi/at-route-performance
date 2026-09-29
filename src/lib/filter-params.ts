@@ -5,13 +5,14 @@
 // for themselves.
 
 import type { DelayDirection } from "@/lib/rankings";
+import { schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 
 /** The three filters a board can carry, as the chip rows hold them. */
 export interface CarriedFilters {
   /** Active mode, or null for every mode. */
   mode: string | null;
-  /** Whether school services are included. */
-  includeSchool: boolean;
+  /** Which school services count. */
+  schools: SchoolFilter;
   /** Active delay direction, or null for both. */
   dir: DelayDirection;
 }
@@ -33,7 +34,7 @@ export function preservedFilters(
   const all: Record<string, string | undefined> = {
     ...view,
     mode: filters.mode ?? undefined,
-    school: filters.includeSchool ? "1" : undefined,
+    school: schoolFilterParam(filters.schools),
     dir: filters.dir ?? undefined,
   };
   /**

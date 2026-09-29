@@ -25,18 +25,18 @@ type RawVehicleDay = Omit<VehicleDayRow, "m">;
  * @param date - Service date (`YYYY-MM-DD`).
  * @param filter - Mode/school filters, as the boards take them.
  * @param filter.mode - Restrict to this mode; null for every mode.
- * @param filter.includeSchool - Whether school services are included.
+ * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
  * @returns One row per vehicle.
  */
 function cachedVehicleWorkOfDay(
   date: string,
-  { mode = null, includeSchool = false }: ShameFilter,
+  { mode = null, schools = "exclude" }: ShameFilter,
   revalidate: number,
 ): Promise<VehicleDayRow[]> {
   return cachedForDay(
     async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, includeSchool);
+      const routeIds = await worstStopRouteIds(mode, schools);
       // Feed ids are all digits, the same rule as the home page's vehicle counts.
       const match: Record<string, unknown> = {
         scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
@@ -94,7 +94,7 @@ function cachedVehicleWorkOfDay(
       }
       return rows;
     },
-    ["vehicle-work-of-day", date, mode ?? "all", includeSchool ? "school" : "no-school"],
+    ["vehicle-work-of-day", date, mode ?? "all", schools],
     date,
     revalidate,
   );

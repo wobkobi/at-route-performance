@@ -288,7 +288,7 @@ export default async function ComparePage({
   if (kind === "routes") {
     const [rows, cancelled, busiest] = await Promise.all([
       getRankings(range, ON_TIME_LATE_SEC, revalidate),
-      getCancelledByRoute(range, { mode: null, includeSchool: true }, revalidate),
+      getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
       ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
     const bySlug = new Map(rows.map((r) => [routeSlug(r.route_id).toLowerCase(), r]));

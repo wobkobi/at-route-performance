@@ -11,9 +11,11 @@ import {
   PunctualityStat,
   type PunctualityBreakdown,
 } from "@/components/PunctualityStat";
+import { SchoolAdded } from "@/components/SchoolAdded";
 import { SplitBar } from "@/components/SplitBar";
 import { cn } from "@/lib/cn";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import type { SchoolDelta } from "@/lib/school-bus";
 import { dayVerdict, LEAN_PHRASE, VERDICT_BANDS, verdictLean } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
@@ -28,6 +30,11 @@ export interface FleetSummaryProps {
    * the plain five-cell strip.
    */
   verdict?: boolean;
+  /**
+   * How much the School buses filter added to each count, marked "+N" beside
+   * it. Omitted, or null, while school services are left out.
+   */
+  schoolAdded?: SchoolDelta | null;
 }
 
 const LABEL_CLASS = "at-eyebrow text-at-muted";
@@ -167,9 +174,14 @@ function VerdictPanel({
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
  * @param props.verdict - Lead with the verdict panel.
+ * @param props.schoolAdded - How much including school services added to each count.
  * @returns The KPI strip element.
  */
-export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.Element {
+export function FleetSummary({
+  data,
+  verdict = false,
+  schoolAdded = null,
+}: FleetSummaryProps): JSX.Element {
   const breakdown: PunctualityBreakdown = {
     on_time_pct: data.on_time_pct,
     early_pct: data.early_pct,
@@ -201,7 +213,10 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
       >
         <div className={cell}>
           <div className={LABEL_CLASS}>Arrivals</div>
-          <div className={valueClass}>{data.events.toLocaleString()}</div>
+          <div className={valueClass}>
+            {data.events.toLocaleString()}
+            <SchoolAdded n={schoolAdded?.events} />
+          </div>
         </div>
         {!verdict && (
           <PunctualityStat
@@ -230,12 +245,16 @@ export function FleetSummary({ data, verdict = false }: FleetSummaryProps): JSX.
           <div className={LABEL_CLASS}>Flagged cancelled</div>
           <div className={cn(valueClass, data.cancelled ? "text-at-late" : undefined)}>
             {data.cancelled === null ? UNKNOWN_VALUE : data.cancelled.toLocaleString()}
+            <SchoolAdded n={schoolAdded?.cancelled} />
           </div>
           <div className="text-xs text-at-muted">Reinstated trips included</div>
         </div>
         <div className={cell}>
           <div className={LABEL_CLASS}>Routes</div>
-          <div className={valueClass}>{data.route_count.toLocaleString()}</div>
+          <div className={valueClass}>
+            {data.route_count.toLocaleString()}
+            <SchoolAdded n={schoolAdded?.route_count} />
+          </div>
         </div>
       </div>
       {/* A route with cancellations but no arrivals still counts under Routes, so
