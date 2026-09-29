@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.38.1] - 2026-09-29
+
+### Fixed
+
+- Maps no longer grow taller than about 60% of the screen, and pan with one finger on touch screens.
+
 ## [2.38.0] - 2026-09-29
 
 ### Added

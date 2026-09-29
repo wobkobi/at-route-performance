@@ -83,7 +83,7 @@ export function RouteMapDiagram({
         mode={mode as "BUS" | "TRAIN" | "FERRY"}
         filterDirectionIds={filterDirectionIds}
         stopQuery={stopQuery}
-        className="h-125"
+        className="h-[min(31.25rem,60svh)]"
       />
       <MapMarkKey live={live} />
     </section>

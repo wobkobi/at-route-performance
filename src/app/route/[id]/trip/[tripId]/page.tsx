@@ -380,7 +380,7 @@ export default async function TripPage({
               }))}
               mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
               stopQuery={dayQuery}
-              className="h-100 lg:h-[min(44rem,calc(100dvh-12rem))]"
+              className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
             <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
           </section>

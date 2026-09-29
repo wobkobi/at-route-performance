@@ -637,16 +637,16 @@ export default function StopMap({
 
       const colours = readColours();
       /*
-        Leaflet's always-on wheel zoom and one-finger drag would take a scroll the
-        reader meant for the page - on a phone the map is most of the viewport. So
-        one-finger drag is off on touch (pinch and the zoom buttons still work),
-        and the wheel zooms only once the mouse has settled on the map.
+        Leaflet's always-on wheel zoom would take a scroll the reader meant for the
+        page, so the wheel zooms only once the mouse has settled on the map.
+        One-finger drag stays on for touch, since a map that only pinches cannot
+        be moved about; every page caps its map below the screen's height
+        (60svh), so a swipe above or below it still scrolls the page.
       */
       // Quarter-step zoom so a fitted route fills its box: whole steps round the
       // fit down a level, which can leave half the map empty around the line.
       const map = L.map(divRef.current, {
         scrollWheelZoom: false,
-        dragging: !L.Browser.mobile,
         zoomSnap: 0.25,
       });
       wheelZoomOnHover(map);
