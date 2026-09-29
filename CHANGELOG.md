@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.32.0] - 2026-09-29
+
+### Added
+
+- Days, Operators, Vehicles and Compare each get their own tab in the top bar, which wraps onto a
+  second line on narrow screens instead of overflowing.
+
 ## [2.31.8] - 2026-09-29
 
 ### Fixed

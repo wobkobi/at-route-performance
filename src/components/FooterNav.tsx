@@ -10,13 +10,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
 /**
- * The footer's destinations, in the order they are listed.
- *
- * `/days` is here because this is its only unconditional link: the home page
- * offers it from the week and month views only, and it has no tab of its own, so
- * a reader on the day view had no path to it at all. `/operators` has no tab
- * either; beyond this list it is reached from the "Run by" links on route and
- * vehicle pages.
+ * The footer's destinations, in the order they are listed. Unlike the top bar,
+ * the three shame boards are listed one by one.
  */
 const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },

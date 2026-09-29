@@ -26,8 +26,7 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
         // page's own state, which on Routes is the whole explorer (search,
         // area, sort, lean). A section tab from one of its sub-pages stays a
         // link, since /route/20 > /routes is a real navigation.
-        // px-2 below sm keeps all five tabs inside a 360px phone; wider
-        // padding pushed Cancellations past the edge of the scroll strip.
+        // px-2 below sm keeps the tabs to two wrapped rows on a 360px phone.
         const className = cn(
           "shrink-0 px-2 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
           active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
@@ -68,7 +67,9 @@ function NavLinksWithParams(): JSX.Element {
  */
 export function SiteNav(): JSX.Element {
   return (
-    <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto sm:gap-1">
+    // Wrapped rather than scrolled: a tab past the edge of a scroll strip is one
+    // a reader never finds.
+    <nav className="flex min-w-0 flex-wrap items-center gap-0.5 sm:gap-1">
       {/* Reading the query suspends a statically rendered page; plain links stand in. */}
       <Suspense fallback={<NavLinks params={new URLSearchParams()} />}>
         <NavLinksWithParams />
