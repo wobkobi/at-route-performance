@@ -62,12 +62,14 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        {/* Sticky white masthead. The rule under it is the page's heaviest mark,
-            in ink rather than the hairline grey every container used to carry. */}
-        <header className="sticky top-0 z-40 border-b-2 border-at-ink bg-at-surface">
+        {/* White masthead. The rule under it is the page's heaviest mark, in ink
+            rather than the hairline grey every container used to carry. It sticks
+            from sm up only: on a phone the logo row and two rows of tabs are a
+            fifth of the screen, too much to hold over every page. */}
+        <header className="z-40 border-b-2 border-at-ink bg-at-surface sm:sticky sm:top-0">
           {/* Nine tabs need about 900px, so the nav takes a row of its own under
               the logo until the viewport leaves room beside it. */}
-          <div className="at-container flex flex-col gap-2 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+          <div className="at-container flex flex-col gap-2 py-2 sm:py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
             {/* The label is on the link, not the logo: the wordmark beside it is
                 hidden on a phone, so an empty alt there would leave the home link
                 with no accessible name, and naming the logo "Auckland Transport"
@@ -84,7 +86,7 @@ export default function RootLayout({
                 width={48}
                 height={48}
                 priority
-                className="h-11 w-auto"
+                className="h-9 w-auto sm:h-11"
               />
               {/* Always shown: the nav has a row of its own until there is room for
                   logo, name and tabs on one. */}
@@ -115,8 +117,8 @@ export default function RootLayout({
                 <span className="font-ultra tracking-zero">{SITE_NAME}</span>
               </div>
               <p className="max-w-xs text-sm text-white/70">
-                Built from Auckland Transport&apos;s public GTFS feeds. All times are Auckland
-                local.
+                An independent project built from Auckland Transport&apos;s public GTFS feeds, not
+                affiliated with Auckland Transport.
               </p>
             </div>
             <nav className="space-y-3 text-sm">
@@ -126,11 +128,12 @@ export default function RootLayout({
               <FooterNav />
             </nav>
             <div className="space-y-3 text-sm">
-              <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">About</h2>
-              <p className="max-w-xs text-white/70">
-                An independent project, not affiliated with Auckland Transport.
+              <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">
+                About the data
+              </h2>
+              <p className="text-xs text-white/50">
+                Records start {DATA_START_LABEL}. All times are Auckland local.
               </p>
-              <p className="text-xs text-white/50">Records start {DATA_START_LABEL}.</p>
               {/* The 4am boundary decides which day a 1am run is counted in, and the
                   day stepper could only say so on hover. */}
               <p className="text-xs text-white/50">{SERVICE_DAY_NOTE}</p>

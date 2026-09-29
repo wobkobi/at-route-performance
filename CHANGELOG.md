@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.6] - 2026-09-30
+
+### Changed
+
+- The top bar's tabs sit in three groups: Overview, Days and Live; Routes, Operators and Vehicles;
+  then Shame, Cancellations and Compare. A rule divides them on a wide screen, and on a phone each
+  group takes a row. On a phone the header now scrolls away with the page instead of holding a fifth
+  of the screen. In the footer, the note that this is an independent project sits beside the logo,
+  the Explore links sit in two columns, and the notes about the data are gathered under About the
+  data.
+
 ## [2.40.5] - 2026-09-30
 
 ### Changed
