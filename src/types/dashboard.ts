@@ -46,6 +46,15 @@ export interface ShameTrip {
   headsign?: string | null;
 }
 
+/**
+ * A day board narrowed to part of the day: every qualifying row in it, worst
+ * first, cut to the board's cap, with how many qualified before the cut.
+ */
+export interface ShameRanked<T> {
+  rows: T[];
+  total: number;
+}
+
 /** The day's single worst run plus the worst run of each hour. */
 export interface ShameOfDay {
   worst: ShameTrip | null;

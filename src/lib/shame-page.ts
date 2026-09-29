@@ -7,6 +7,15 @@
 // crown nothing.
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
+import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
+import { SERVICE_START_HOUR } from "@/lib/time";
+import {
+  type HourRange,
+  hourRangeLabel,
+  hourRangeParam,
+  parseHourRange,
+  singleHourRange,
+} from "@/lib/time-of-day";
 import { buildHref } from "@/lib/utils";
 
 /** Cache TTL for the week boards (seconds). */
@@ -26,7 +35,7 @@ export type ShameMode = "BUS" | "TRAIN" | "FERRY" | null;
  */
 export interface ShameFilter {
   mode: ShameMode;
-  includeSchool: boolean;
+  schools: SchoolFilter;
   direction: DelayDirection;
 }
 
@@ -38,6 +47,11 @@ export interface ShameSearchParams {
   window?: string;
   period?: string;
   dir?: string;
+  /**
+   * Part of the day to rank on the day board (`7-9`, see src/lib/time-of-day.ts),
+   * or `all` for the whole service day.
+   */
+  hours?: string;
 }
 
 /**
@@ -56,6 +70,7 @@ export const SHAME_PARAMS = [
   "school",
   "window",
   "period",
+  "hours",
 ] as const satisfies ReadonlyArray<keyof ShameSearchParams>;
 
 /** Human label for an active mode filter, used in the page subtitle. */
@@ -88,16 +103,61 @@ export function subtitleWithDirection(subtitle: string, direction: DelayDirectio
   return direction ? `${subtitle} · ${DIRECTION_LABEL[direction]}` : subtitle;
 }
 
+/** The `hours` param naming the whole service day on a day board. */
+export const WHOLE_DAY_PARAM = "all";
+
+/**
+ * The whole 4am-to-4am service day as a range, for the ranked list a week or
+ * month row opens. The route page and the time-of-day filters refuse a range
+ * with the same hour at both ends, so this lives here, behind its own `all`
+ * param, and never reaches them.
+ */
+export const WHOLE_DAY: HourRange = { from: SERVICE_START_HOUR, to: SERVICE_START_HOUR };
+
+/**
+ * Whether a range is {@link WHOLE_DAY}.
+ * @param hours - The range.
+ * @returns True for the whole service day.
+ */
+export function isWholeDay(hours: HourRange): boolean {
+  return hours.from === hours.to;
+}
+
+/**
+ * The `hours` param for a board link, `all` for {@link WHOLE_DAY}.
+ * @param hours - The range, or null for the hourly board.
+ * @returns The param value, or undefined to leave it off.
+ */
+export function shameHoursParam(hours: HourRange | null): string | undefined {
+  return hours && isWholeDay(hours) ? WHOLE_DAY_PARAM : hourRangeParam(hours);
+}
+
+/**
+ * A ranked list's part of the day in a heading: "8am hour", "Morning peak" or
+ * "whole day".
+ * @param hours - The range.
+ * @returns The label.
+ */
+export function shameHoursLabel(hours: HourRange): string {
+  return isWholeDay(hours) ? "whole day" : hourRangeLabel(hours);
+}
+
 /** Which board view is active: the hourly day board or a per-day range board. */
 export type ShameView = "day" | "week" | "month";
 
 /** Parsed shame-page params: the active filter plus its derived view state. */
 export interface ParsedShameParams {
   mode: ShameMode;
-  includeSchool: boolean;
+  schools: SchoolFilter;
   direction: DelayDirection;
   filter: ShameFilter;
   view: ShameView;
+  /**
+   * The part of the day the day board ranks, or null for its hourly board;
+   * {@link WHOLE_DAY} for a day opened from a week or month row. Always null off
+   * the day view: the week and month boards have no hours.
+   */
+  hours: HourRange | null;
   /** Params to preserve on `DayNav` links (mode, school and direction). */
   preserved: Record<string, string>;
   /** Subtitle describing the active filter ("Buses" / "All services" / …). */
@@ -114,24 +174,31 @@ export interface ParsedShameParams {
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
-  const includeSchool = sp.school === "1";
+  const schools = parseSchoolFilter(sp.school);
   const direction = parseDelayDirection(sp.dir);
-  const subtitle = mode
-    ? (MODE_LABEL[mode] ?? mode)
-    : includeSchool
-      ? "All services"
-      : "Buses, trains & ferries";
+  const subtitle =
+    schools === "only"
+      ? "School buses"
+      : mode
+        ? (MODE_LABEL[mode] ?? mode)
+        : schools === "include"
+          ? "All services"
+          : "Buses, trains & ferries";
   const preserved: Record<string, string> = {};
   if (mode) preserved.mode = mode;
-  if (includeSchool) preserved.school = "1";
+  const schoolParam = schoolFilterParam(schools);
+  if (schoolParam) preserved.school = schoolParam;
   if (direction) preserved.dir = direction;
   const view: ShameView = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
+  const hours =
+    view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);
   return {
     mode,
-    includeSchool,
+    schools,
     direction,
-    filter: { mode, includeSchool, direction },
+    filter: { mode, schools, direction },
     view,
+    hours,
     preserved,
     subtitle,
   };
@@ -144,21 +211,86 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
  * @param nav.window - `week` when in week view.
  * @param nav.period - ISO week-start date when `window` is `week`.
  * @param nav.day - ISO service date for past-day day-view links.
+ * @param nav.hours - Part of the day the day board ranks, or null/undefined for every hour.
  * @param filter - Active mode/school filter.
+ * @param extra - Further params for the one board that reads them (the stop
+ *   board's `dir`); undefined values are left off.
  * @returns The href.
  */
 export function buildShameHref(
   base: string,
-  nav: { window?: string; period?: string; day?: string },
+  nav: { window?: string; period?: string; day?: string; hours?: HourRange | null },
   filter: ShameFilter,
+  extra: Record<string, string | undefined> = {},
 ): string {
   return buildHref(base, {
+    ...extra,
     window: nav.window,
     period: nav.period,
     day: nav.day,
+    hours: shameHoursParam(nav.hours ?? null),
     mode: filter.mode,
-    school: filter.includeSchool ? "1" : undefined,
+    school: schoolFilterParam(filter.schools),
   });
+}
+
+/**
+ * How a ranked board's copy names its part of the day, after "runs starting".
+ * @param hours - The part of the day.
+ * @returns "in this hour" for a single hour, "that day" for the whole day, else "in these hours".
+ */
+export function hoursNoun(hours: HourRange): string {
+  if (isWholeDay(hours)) return "that day";
+  return (hours.from + 1) % 24 === hours.to ? "in this hour" : "in these hours";
+}
+
+/**
+ * A ranked board's empty state when none of its hours has started yet today.
+ * @param hours - The part of the day.
+ * @returns The message.
+ */
+export function notStartedMessage(hours: HourRange): string {
+  if (isWholeDay(hours)) return "This day has not started yet.";
+  return hoursNoun(hours) === "in this hour"
+    ? "This hour has not started yet."
+    : "These hours have not started yet.";
+}
+
+/**
+ * The link an hourly board's hour opens: the same board, ranked in full for that hour.
+ * @param base - The board's path.
+ * @param day - The shown day's param, or undefined for today.
+ * @param hour - Auckland clock hour, 0-23.
+ * @param filter - Active mode/school filter.
+ * @param extra - Further params the board reads (see {@link buildShameHref}).
+ * @returns The href.
+ */
+export function shameHourHref(
+  base: string,
+  day: string | undefined,
+  hour: number,
+  filter: ShameFilter,
+  extra: Record<string, string | undefined> = {},
+): string {
+  return buildShameHref(base, { day, hours: singleHourRange(hour) }, filter, extra);
+}
+
+/**
+ * The link a week or month board's day opens: the same board's day view, ranked
+ * over that whole day.
+ * @param base - The board's path.
+ * @param day - The day's param, or undefined for today.
+ * @param filter - Active mode/school filter.
+ * @param extra - Further params the board reads (see {@link buildShameHref}).
+ * @returns The href.
+ */
+export function shameDayListHref(
+  base: string,
+  day: string | undefined,
+  filter: ShameFilter,
+  extra: Record<string, string | undefined> = {},
+): string {
+  return buildShameHref(base, { day, hours: WHOLE_DAY }, filter, extra);
 }
 
 /**

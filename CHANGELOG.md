@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.36.0] - 2026-09-29
+
+### Added
+
+- On the shame boards, clicking an hour opens the full ranked list for that hour, while the route
+  number still opens the route. Clicking a day on the week or month board opens the list for that
+  whole day.
+
 ## [2.35.1] - 2026-09-29
 
 ### Fixed

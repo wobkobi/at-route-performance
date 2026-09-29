@@ -59,18 +59,22 @@ export {
   getShameRouteOfWeek,
   getShameRouteStreak,
   getShameRouteStreaksBatch,
+  getShameRoutesInHours,
 } from "@/lib/data/shame-routes";
 export {
   SHAME_MIN_STOPS,
+  SHAME_RANKED_LIMIT,
   cachedWorstTripsOfDay,
   getShameOfDay,
   getShameOfWeek,
+  getShameTripsInHours,
 } from "@/lib/data/shame-trips";
 export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,
   findCurrentStationId,
+  getShameStopsInHours,
   getStationSiblings,
   getStopIdentity,
   getStopStats,
