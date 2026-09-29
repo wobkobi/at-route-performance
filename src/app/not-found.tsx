@@ -1,16 +1,17 @@
 // src/app/not-found.tsx
-// Global 404 page with a page directory and the full route list.
+// Global 404 page: a directory of every page, and a way on to the route list.
 
-import { ModeIcon } from "@/components/ModeIcon";
-import { getDirectoryRoutes, type DirectoryRoute } from "@/lib/data";
-import { logReadFailure } from "@/lib/db";
-import { routeSlug } from "@/lib/route-slug";
-import { isSchoolBus } from "@/lib/school-bus";
+import { viewQuery } from "@/lib/route-explorer";
+import { SITE_PAGES } from "@/lib/site-nav";
+import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
+import type { IconType } from "react-icons";
 import {
+  FaBalanceScale,
   FaBan,
   FaBroadcastTower,
+  FaBuilding,
   FaBus,
   FaCalendarAlt,
   FaChartBar,
@@ -21,69 +22,38 @@ import {
 } from "react-icons/fa";
 
 /**
- * Every page a reader can go to, in the order the top bar and the footer list
- * them. This is the one page whose whole job is being a way out, so a section
- * missing from it is a dead end: Live and Cancellations are top-bar sections, and
- * Day by day and Vehicles have no tab of their own.
+ * An icon for each page in {@link SITE_PAGES}. This is the one page whose whole
+ * job is being a way out, so the list itself is the site's, and a page added
+ * there fails the typecheck here until it has an icon.
  */
-const PAGES = [
-  { href: "/", icon: FaHome, label: "Overview" },
-  { href: "/days", icon: FaCalendarAlt, label: "Day by day" },
-  { href: "/routes", icon: FaChartBar, label: "Routes" },
-  { href: "/live", icon: FaBroadcastTower, label: "Live now" },
-  { href: "/shame/trip", icon: FaExclamationTriangle, label: "Worst trips" },
-  { href: "/shame/route", icon: FaRoute, label: "Worst routes" },
-  { href: "/shame/stop", icon: FaMapMarkerAlt, label: "Worst stops" },
-  { href: "/cancellations", icon: FaBan, label: "Cancellations" },
-  { href: "/vehicles", icon: FaBus, label: "Vehicles" },
-] as const;
+const ICONS: Record<(typeof SITE_PAGES)[number]["href"], IconType> = {
+  "/": FaHome,
+  "/days": FaCalendarAlt,
+  "/routes": FaChartBar,
+  "/operators": FaBuilding,
+  "/vehicles": FaBus,
+  "/live": FaBroadcastTower,
+  "/shame/trip": FaExclamationTriangle,
+  "/shame/route": FaRoute,
+  "/shame/stop": FaMapMarkerAlt,
+  "/cancellations": FaBan,
+  "/compare": FaBalanceScale,
+};
 
-// Not yet converted to a prerendered shell: the route list is read above any
-// Suspense boundary, so this segment is allowed to block, as the thirteen real
-// pages are. Without it a build cannot prerender this page at all unless the
-// route read happens to answer, which is why CI - which builds with no
-// DATABASE_URL - could not build it.
-export const instant = false;
+/** Every route, in number order: the Routes page's full list rather than its ranking. */
+const ALL_ROUTES_HREF = buildHref("/routes", viewQuery("all"));
 
 /**
  * Global 404 page - rendered by Next.js when `notFound()` is called from any
- * route or stop page, or when a path matches no route segment. Loads the route
- * directory from Prisma; renders without it when that read fails.
+ * route or stop page, or when a path matches no route segment.
+ *
+ * It links to the route list rather than listing the routes itself. Next.js
+ * sends a layout's not-found tree with every page it renders, so that
+ * `notFound()` can show without a round trip, and a list of every route made
+ * that tree most of what each page sent.
  * @returns 404 markup.
  */
-export default async function NotFound(): Promise<JSX.Element> {
-  let rawRoutes: DirectoryRoute[] = [];
-
-  try {
-    rawRoutes = await getDirectoryRoutes();
-  } catch (err) {
-    // DATABASE_URL not configured (CI builds, static export) - show page without
-    // route list. Logged because the same catch takes an unreachable database,
-    // which is not an expected state and would otherwise pass unremarked.
-    logReadFailure("not-found-routes", err);
-  }
-
-  // Deduplicate by slug (same route across feed versions), keep first encountered.
-  const bySlug = new Map<string, DirectoryRoute>();
-  for (const r of rawRoutes) {
-    const slug = routeSlug(r.id);
-    if (!bySlug.has(slug)) bySlug.set(slug, r);
-  }
-
-  const all = [...bySlug.values()];
-  // Sort numerically then alphabetically: "1" < "2" < "10" < "27T" < "195" < "NX1".
-  all.sort((a, b) => {
-    const numA = parseInt(a.shortName ?? "", 10);
-    const numB = parseInt(b.shortName ?? "", 10);
-    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    if (!isNaN(numA)) return -1;
-    if (!isNaN(numB)) return 1;
-    return (a.shortName ?? "").localeCompare(b.shortName ?? "");
-  });
-
-  const regular = all.filter((r) => !isSchoolBus(r.shortName, r.longName ?? ""));
-  const school = all.filter((r) => isSchoolBus(r.shortName, r.longName ?? ""));
-
+export default function NotFound(): JSX.Element {
   return (
     <main className="space-y-10 py-8">
       {/* 404 block */}
@@ -100,83 +70,32 @@ export default async function NotFound(): Promise<JSX.Element> {
       </div>
 
       {/* Page directory */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        {PAGES.map(({ href, icon: Icon, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center gap-3 border border-at-border bg-at-surface p-4 transition-colors hover:bg-at-shore-pale"
-          >
-            <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden="true" />
-            <p className="font-semibold text-at-ink">{label}</p>
-          </Link>
-        ))}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {SITE_PAGES.map(({ href, label }) => {
+          const Icon = ICONS[href];
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 border border-at-border bg-at-surface p-4 transition-colors hover:bg-at-shore-pale"
+            >
+              <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden="true" />
+              <p className="font-semibold text-at-ink">{label}</p>
+            </Link>
+          );
+        })}
       </div>
 
-      {/* Route directory */}
-      {all.length === 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
-          <p className="text-sm text-at-muted">
-            The route directory is not available right now. The home page lists every route with
-            arrivals today.
-          </p>
-        </section>
-      ) : (
-        <section className="space-y-3">
-          <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(3.5rem, 1fr))" }}
-          >
-            {regular.map((r) => (
-              <Link
-                key={routeSlug(r.id)}
-                href={`/route/${encodeURIComponent(routeSlug(r.id))}`}
-                className="flex aspect-square flex-col items-center justify-center gap-1 border border-at-border bg-at-surface p-2 text-center transition-colors hover:bg-at-shore-pale"
-              >
-                <ModeIcon
-                  mode={r.mode}
-                  shortName={r.shortName}
-                  longName={r.longName}
-                  colour={r.colour}
-                  className="h-4 w-4 shrink-0"
-                />
-                <span className="text-xs leading-none font-semibold text-at-ink">
-                  {r.shortName ?? r.id}
-                </span>
-              </Link>
-            ))}
-          </div>
-          {school.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-semibold text-at-muted">
-                School buses ({school.length})
-              </summary>
-              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                {school.map((r) => (
-                  <Link
-                    key={routeSlug(r.id)}
-                    href={`/route/${encodeURIComponent(routeSlug(r.id))}`}
-                    className="flex items-center gap-2 border border-at-border bg-at-surface px-3 py-2 transition-colors hover:bg-at-shore-pale"
-                  >
-                    <ModeIcon
-                      mode={r.mode}
-                      shortName={r.shortName}
-                      longName={r.longName}
-                      colour={r.colour}
-                      className="h-4 w-4 shrink-0"
-                    />
-                    <span className="truncate text-sm font-medium text-at-ink">
-                      {r.longName ?? r.shortName ?? r.id}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-        </section>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
+        <p className="text-sm text-at-muted">
+          Looking for a route?{" "}
+          <Link href={ALL_ROUTES_HREF} className="font-semibold text-at-shore underline">
+            Every route
+          </Link>{" "}
+          is on the Routes page, school buses included.
+        </p>
+      </section>
     </main>
   );
 }

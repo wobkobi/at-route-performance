@@ -27,20 +27,63 @@ export interface NavSection {
   carries?: readonly string[];
 }
 
-export const NAV_SECTIONS: readonly NavSection[] = [
-  { href: "/", label: "Overview", under: [] },
-  { href: "/days", label: "Days", under: [] },
-  { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
-  // A single operator's or vehicle's page is not a prefix match of the list it
-  // opens from (`/operator/` against `/operators`), so each is listed.
-  { href: "/operators", label: "Operators", under: ["/operator/"] },
-  { href: "/vehicles", label: "Vehicles", under: ["/vehicle/"] },
-  { href: "/live", label: "Live", under: [], carries: ["mode"] },
-  // The section's own tab: /shame redirects here, and the other two boards sit beside it.
-  { href: "/shame/trip", label: "Shame", under: ["/shame"] },
-  { href: "/cancellations", label: "Cancellations", under: [] },
-  { href: "/compare", label: "Compare", under: [] },
+/**
+ * The top bar's tabs in three groups, shown apart: the network as a whole over
+ * time (the day, the days before it, right now), the things it is made of
+ * (routes, operators, vehicles), and the boards that pick out what went wrong,
+ * with Compare beside them.
+ */
+export const NAV_GROUPS: readonly (readonly NavSection[])[] = [
+  [
+    { href: "/", label: "Overview", under: [] },
+    { href: "/days", label: "Days", under: [] },
+    { href: "/live", label: "Live", under: [], carries: ["mode"] },
+  ],
+  [
+    { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
+    // A single operator's or vehicle's page is not a prefix match of the list it
+    // opens from (`/operator/` against `/operators`), so each is listed.
+    { href: "/operators", label: "Operators", under: ["/operator/"] },
+    { href: "/vehicles", label: "Vehicles", under: ["/vehicle/"] },
+  ],
+  [
+    // The section's own tab: /shame redirects here, and the other two boards sit beside it.
+    { href: "/shame/trip", label: "Shame", under: ["/shame"] },
+    { href: "/cancellations", label: "Cancellations", under: [] },
+    { href: "/compare", label: "Compare", under: [] },
+  ],
 ];
+
+/** Every top-bar tab, in order. */
+export const NAV_SECTIONS: readonly NavSection[] = NAV_GROUPS.flat();
+
+/** A page in the site directory. */
+export interface SitePage {
+  href: string;
+  label: string;
+  /** As {@link NavSection.carries}: the params the link carries, when not the usual ones. */
+  carries?: readonly string[];
+}
+
+/**
+ * Every page a reader can go to, in top-bar order: the footer's Explore list and
+ * the 404 page's directory. It differs from {@link NAV_SECTIONS} only in giving
+ * the three worst-of boards one entry each where the top bar has a single Shame
+ * tab, and in spelling out the two short tab labels.
+ */
+export const SITE_PAGES = [
+  { href: "/", label: "Overview" },
+  { href: "/days", label: "Day by day" },
+  { href: "/live", label: "Live now", carries: ["mode"] },
+  { href: "/routes", label: "Routes" },
+  { href: "/operators", label: "Operators" },
+  { href: "/vehicles", label: "Vehicles" },
+  { href: "/shame/trip", label: "Worst trips" },
+  { href: "/shame/route", label: "Worst routes" },
+  { href: "/shame/stop", label: "Worst stops" },
+  { href: "/cancellations", label: "Cancellations" },
+  { href: "/compare", label: "Compare" },
+] as const satisfies readonly SitePage[];
 
 /**
  * Params every section reads with the same meaning. `dir` stays behind: it is
@@ -96,12 +139,13 @@ export function carriedHref(path: string, params: URLSearchParams): string {
 }
 
 /**
- * The link to a section, carrying the current day, window, period and mode.
- * @param section - The section.
+ * The link to a section or directory page, carrying the current day, window,
+ * period and mode, or only the params it names in `carries`.
+ * @param section - The section or page.
  * @param params - The current URL's query params.
  * @returns The href.
  */
-export function navHref(section: NavSection, params: URLSearchParams): string {
+export function navHref(section: SitePage, params: URLSearchParams): string {
   if (!section.carries) return carriedHref(section.href, params);
   const carried = carriedParams(params);
   return buildHref(

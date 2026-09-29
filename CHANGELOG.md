@@ -32,6 +32,17 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.5] - 2026-09-30
+
+### Changed
+
+- Every page sends much less. The not-found page listed every route, and Next.js sends that page
+  along with every other page so it can show one without a round trip, which made the list most of
+  what each page sent (the home page drops from over 1 MB to 180 KB). The not-found page now points
+  to the full list on the Routes page. It and the footer now share one list of all eleven pages in
+  top-bar order, so neither leaves a page out: the not-found page had no Operators or Compare, and
+  the footer had no Vehicles or Live.
+
 ## [2.40.4] - 2026-09-30
 
 ### Fixed
