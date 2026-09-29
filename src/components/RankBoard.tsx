@@ -267,10 +267,7 @@ export function RankBoard({
                   </span>
                   {/* Decorative: the figure the bar is drawn from is printed on the
                       row beside it, in the colour the board's key names. */}
-                  <span
-                    aria-hidden
-                    className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-at-bg"
-                  >
+                  <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden bg-at-bg">
                     <span className={barClass} style={{ width: barWidth(share) }} />
                   </span>
                 </Link>

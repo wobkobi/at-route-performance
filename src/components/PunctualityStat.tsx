@@ -222,7 +222,7 @@ function AverageDetail({
               above. Drawn only when there is a miss to split: at zero on both halves an empty
               bar would read as no data rather than as running to the minute. */}
           {split.magnitude > 0 && (
-            <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
+            <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
               <span className="bg-at-late" style={{ width: barWidth(split.latePct) }} />
               <span className="bg-at-early" style={{ width: barWidth(split.earlyPct) }} />
             </div>
@@ -418,7 +418,7 @@ export function PunctualityInfo({
                 ) : (
                   <>
                     {/* Stacked share bar: on time / late / early. */}
-                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-at-bg">
+                    <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
                       <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
                       <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
                       <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />

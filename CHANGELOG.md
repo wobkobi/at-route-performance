@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.31.7] - 2026-09-29
+
+### Fixed
+
+- Chips, badges, buttons, the nav tabs, the alert and area tags and the progress bars are
+  square-cornered like the filter boxes, not pill-shaped.
+
 ## [2.31.6] - 2026-09-29
 
 ### Fixed

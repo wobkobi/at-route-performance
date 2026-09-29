@@ -248,7 +248,7 @@ function RouteWeekNav({
 }
 
 /**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` pill classes. Each
+ * Day / Week toggle using `chip chip-on` / `chip chip-off` box classes. Each
  * side keeps the direction and stays on the period being looked at: a past day's
  * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
  *

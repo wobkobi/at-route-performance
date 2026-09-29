@@ -91,8 +91,8 @@ const TOGGLES = [
 ] as const;
 
 /**
- * What a filter pill says for a multi-choice filter: the first choice by name
- * and a count of the rest, as in "Central +2", so the pill stays one line.
+ * What a filter box says for a multi-choice filter: the first choice by name
+ * and a count of the rest, as in "Central +2", so the box stays one line.
  * @param labels - The chosen options' labels, in display order.
  * @returns The summary, or null with nothing chosen.
  */
@@ -540,7 +540,7 @@ export function RouteExplorer({
                               if (!filters.areas.includes(a)) toggleArea(a);
                             }}
                             aria-pressed={filters.areas.includes(a)}
-                            className="rounded-full bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
+                            className="bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
                           >
                             {AREA_LABEL[a]}
                           </button>

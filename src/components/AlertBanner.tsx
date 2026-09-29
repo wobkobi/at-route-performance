@@ -111,14 +111,14 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
  * stays muted, and each row is tinted by its own severity.
  *
  * Each alert shows a cleaned header (AT's schedule-time bracket stripped), an
- * active-period line, an effect badge, description, and route pill links for any
+ * active-period line, an effect badge, description, and route badge links for any
  * `informed_entity` entries that carry a `route_id`.
  *
  * Returns null when no alerts are present so callers need no guard wrapper.
  * @param props - Component props.
  * @param props.alerts - Alerts to display.
  * @param props.heading - Accessible region label (defaults to "Service alerts").
- * @param props.routeNames - Map of route id to display name for the informed-entity pills.
+ * @param props.routeNames - Map of route id to display name for the informed-entity badges.
  * @param props.pastWindow - Whether the page is showing a past day or period.
  * @param props.upcoming - Whether the alerts are coming up rather than running now.
  * @returns Collapsible alert banner, or null when the list is empty.
@@ -164,7 +164,7 @@ export function AlertBanner({
         </span>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-xs tabular-nums",
+            "px-2 py-0.5 text-xs tabular-nums",
             severe ? "bg-at-disruption text-white" : "bg-at-border text-at-ink",
           )}
         >
@@ -200,7 +200,7 @@ export function AlertBanner({
           const rawDesc = extractText(alert.description_text);
           const cleanDesc = rawDesc ? cleanAlertHeader(rawDesc) : null;
           const urlText = extractText(alert.url);
-          // One pill per route: two feed versions of a route share a slug and a page.
+          // One badge per route: two feed versions of a route share a slug and a page.
           const routeIds = [
             ...new Map(
               alert.informed_entity
@@ -251,7 +251,7 @@ export function AlertBanner({
                     <Link
                       key={id}
                       href={`/route/${encodeURIComponent(routeSlug(id))}`}
-                      className="rounded-full bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
+                      className="bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
                       {routeNames?.[id] ?? routeSlug(id)}
                     </Link>
