@@ -28,6 +28,8 @@ import {
 } from "@/components/PeriodOverview";
 import { RangeControls } from "@/components/RangeControls";
 import { RankBoard } from "@/components/RankBoard";
+import { RankingFilterMenus } from "@/components/RankingFilterMenus";
+import { RankingFiltersNote } from "@/components/RankingFiltersNote";
 import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
@@ -41,8 +43,9 @@ import {
   getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
+  getFilteredCancellations,
+  getFilteredRankings,
   getLatestEventDate,
-  getRankings,
   getShameOfDay,
   getShameRouteOfDay,
   getShameRouteStreak,
@@ -53,7 +56,6 @@ import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -65,6 +67,12 @@ import {
   windowPhrase,
 } from "@/lib/range-page";
 import {
+  hasRankingFilters,
+  parseRankingFilters,
+  rankingFilterParams,
+  routeQueryWithHours,
+} from "@/lib/ranking-filters";
+import {
   deriveBoards,
   deriveOffSchedule,
   MIN_BOARD_EVENTS,
@@ -73,12 +81,25 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { parseRankingsParams } from "@/lib/rankings-page";
-import { requestServiceDay } from "@/lib/request-now";
+import { requestNow, requestServiceDay } from "@/lib/request-now";
 import { viewQuery } from "@/lib/route-explorer";
-import { isSchoolBus } from "@/lib/school-bus";
+import {
+  isSchoolBus,
+  parseSchoolFilter,
+  schoolAllows,
+  schoolDelta,
+  schoolFilterParam,
+  type SchoolFilter,
+} from "@/lib/school-bus";
 import { buildShameHref, crownedRow } from "@/lib/shame-page";
-import { monthRangeLabel, serviceDatesInRange, serviceDayLabel, type DateRange } from "@/lib/time";
-import { buildHref } from "@/lib/utils";
+import {
+  monthRangeLabel,
+  nzLocalHour,
+  serviceDatesInRange,
+  serviceDayLabel,
+  type DateRange,
+} from "@/lib/time";
+import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
@@ -88,8 +109,6 @@ import { Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-// Late bound for the on-time window + cache-key versioning; early side is per-mode.
-const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 /** Routes each board shows; the full ranking is on the Routes page. */
 const BOARD_SIZE = 10;
 
@@ -101,6 +120,9 @@ interface HomeSearchParams {
   school?: string;
   dir?: string;
   day?: string;
+  hours?: string;
+  days?: string;
+  area?: string;
 }
 
 /**
@@ -162,7 +184,7 @@ async function PeriodHome({
   window: "week" | "month";
   sp: HomeSearchParams;
 }): Promise<JSX.Element> {
-  const { mode, dir, includeSchool } = parseRankingsParams(sp);
+  const { mode, dir, schools } = parseRankingsParams(sp);
   // Anchor every window to the latest day with data so a quiet "today" still
   // shows a populated period. Today itself is one request-time clock read for
   // the whole render (see lib/request-now.ts).
@@ -173,14 +195,16 @@ async function PeriodHome({
   ]);
   const anchor = latest ?? new Date();
   const { range, period, nav } = periodRangeNav("/", window, sp.period, anchor, earliest, today);
+  const filters = parseRankingFilters(sp, false);
   const view: PeriodView = {
     window,
     mode,
     dir,
-    includeSchool,
+    schools,
     period: period ?? undefined,
     range,
     anchor,
+    filters,
   };
   // Started here and not awaited: each band's data part awaits the one promise,
   // so the headings and chips between them never wait on the batch.
@@ -189,12 +213,23 @@ async function PeriodHome({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFilters({ mode, includeSchool, dir }, { window, period: view.period });
+  } = preservedFilters(
+    { mode, schools, dir },
+    { window, period: view.period, ...rankingFilterParams(filters) },
+  );
+  // Everything but the narrowing params, which the filter boxes set themselves.
+  const filterPreserved = stripUnset({
+    window,
+    period: view.period,
+    mode: mode ?? undefined,
+    school: schoolFilterParam(schools),
+    dir: dir ?? undefined,
+  });
   // The shame boards take the same window and filters, so their links carry both.
   const shameNav = { window, period: view.period };
   // No direction: the home page's `dir` narrows its own route boards, and the
   // link goes to the trips board, which ranks whole runs and reads none.
-  const shameFilter = { mode, includeSchool, direction: null };
+  const shameFilter = { mode, schools, direction: null };
 
   // The same three bands as the day view; see its render for the layout rule.
   return (
@@ -212,10 +247,15 @@ async function PeriodHome({
             >
               <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
             </Suspense>
-            <SchoolBusToggle
-              active={includeSchool}
+            <SchoolBusToggle value={schools} basePath="/" preservedParams={schoolPreserved} />
+            <RankingFilterMenus
               basePath="/"
-              preservedParams={schoolPreserved}
+              preservedParams={filterPreserved}
+              hours={filters.hours}
+              days={filters.days}
+              areas={filters.areas}
+              showDays
+              nowHour={null}
             />
           </div>
           <Link
@@ -223,7 +263,7 @@ async function PeriodHome({
               window,
               period: view.period,
               mode: mode ?? undefined,
-              school: includeSchool ? "1" : undefined,
+              school: schoolFilterParam(schools),
             })}
             className="ml-auto text-sm font-semibold text-at-shore hover:underline"
           >
@@ -234,6 +274,7 @@ async function PeriodHome({
         <Suspense fallback={<LoadingBlock label="Loading the verdict" />}>
           <PeriodVerdict batch={batch} />
         </Suspense>
+        <RankingFiltersNote filters={filters} window={window} live={false} />
       </section>
 
       <section className="space-y-4">
@@ -268,7 +309,7 @@ async function PeriodHome({
             window,
             period: view.period,
             mode: mode ?? undefined,
-            school: includeSchool ? "1" : undefined,
+            school: schoolFilterParam(schools),
           })}
         />
         <Suspense fallback={<LoadingBlock label="Loading the vehicle counts" />}>
@@ -276,7 +317,7 @@ async function PeriodHome({
             range={range}
             label={periodLabel(window, range)}
             mode={mode}
-            includeSchool={includeSchool}
+            schools={schools}
           />
         </Suspense>
       </section>
@@ -313,9 +354,13 @@ export default async function Home({
   const requestedDay = resolveRequestedDay(sp.day);
   const shown = await resolveShownDay(requestedDay, today);
   const { range, serviceDate } = shown;
-  const rows = await getRankings(range, THRESHOLD_SEC, TODAY_REVALIDATE);
-  // Filters narrow the route lists. School services (S###) are hidden unless ?school=1.
-  const includeSchool = sp.school === "1";
+  // Time of day and area narrow the rankings and the KPI strip; a day is
+  // already one kind of day, so the day type is a week and month filter only.
+  const filters = parseRankingFilters(sp, true);
+  const rows = await getFilteredRankings(range, filters, TODAY_REVALIDATE);
+  // Filters narrow the route lists. School services (S###) are left out unless
+  // ?school=1 adds them or ?school=only keeps them alone.
+  const schools = parseSchoolFilter(sp.school);
   // Kick the alerts fetch off early so it overlaps the queries below; it is
   // awaited at render (see the banner) rather than streamed, and its 5-minute
   // cache means only the first request in a window pays AT's latency. The
@@ -326,18 +371,29 @@ export default async function Home({
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
   const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const visible = includeSchool
-    ? modeFiltered
-    : modeFiltered.filter((r) => !isSchoolBus(r.short_name, r.long_name));
+  const visible = modeFiltered.filter((r) =>
+    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
+  );
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need
   // their own count under the same filters.
-  const [cancelledTotal, cancelledByRoute] = await Promise.all([
-    getCancelledCount(range, { mode, includeSchool }, TODAY_REVALIDATE),
-    getCancelledByRoute(range, { mode, includeSchool }, TODAY_REVALIDATE),
-  ]);
+  const [cancelledTotal, cancelledByRoute, cancelledWithoutSchool] = hasRankingFilters(filters)
+    ? await getFilteredCancellations(range, filters, { mode, schools }).then(
+        (c) => [c.total, c.byRoute, schools === "include" ? c.withoutSchool : null] as const,
+      )
+    : await Promise.all([
+        getCancelledCount(range, { mode, schools }, TODAY_REVALIDATE),
+        getCancelledByRoute(range, { mode, schools }, TODAY_REVALIDATE),
+        // The count school services leave out, for the "+N" beside each figure.
+        schools === "include"
+          ? getCancelledCount(range, { mode, schools: "exclude" }, TODAY_REVALIDATE)
+          : null,
+      ]);
   const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
+  // "+N" only when school services sit beside the rest; alone they add to nothing.
+  const schoolAdded =
+    schools === "include" ? schoolDelta(visible, cancelledTotal, cancelledWithoutSchool) : null;
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Mode chips are hidden when that mode has no qualifying rows for the day.
@@ -355,7 +411,20 @@ export default async function Home({
     mode: modePreserved,
     school: schoolPreserved,
     dir: dirPreserved,
-  } = preservedFilters({ mode, includeSchool, dir }, { day: requestedDay ?? undefined });
+  } = preservedFilters(
+    { mode, schools, dir },
+    { day: requestedDay ?? undefined, ...rankingFilterParams(filters) },
+  );
+  // Everything but the narrowing params, which the filter boxes set themselves.
+  const filterPreserved = stripUnset({
+    day: requestedDay ?? undefined,
+    mode: mode ?? undefined,
+    school: schoolFilterParam(schools),
+    dir: dir ?? undefined,
+  });
+  const routeQuery = routeQueryWithHours(routeLinkQuery("day", linkDay, null), filters.hours);
+  // The hour under way today, so the time box can grey the hours still to come.
+  const nowHour = linkDay === undefined ? nzLocalHour(await requestNow()) : null;
 
   const nav = dayRangeNav(shown, earliestDay, today);
 
@@ -382,10 +451,15 @@ export default async function Home({
               preservedParams={modePreserved}
               availableModes={availableModes}
             />
-            <SchoolBusToggle
-              active={includeSchool}
+            <SchoolBusToggle value={schools} basePath="/" preservedParams={schoolPreserved} />
+            <RankingFilterMenus
               basePath="/"
-              preservedParams={schoolPreserved}
+              preservedParams={filterPreserved}
+              hours={filters.hours}
+              days={null}
+              areas={filters.areas}
+              showDays={false}
+              nowHour={nowHour}
             />
           </div>
         </div>
@@ -408,24 +482,21 @@ export default async function Home({
           />
         )}
 
-        <FleetSummary data={heroData} verdict />
+        <FleetSummary data={heroData} verdict schoolAdded={schoolAdded} />
+        <RankingFiltersNote filters={filters} window="day" live={linkDay === undefined} />
       </section>
 
       <section className="space-y-4">
         <SectionLink
           title="Worst of the day"
-          href={buildShameHref(
-            "/shame/trip",
-            { day: linkDay },
-            { mode, includeSchool, direction: null },
-          )}
+          href={buildShameHref("/shame/trip", { day: linkDay }, { mode, schools, direction: null })}
         />
         <Suspense fallback={<LoadingBlock label="Loading the worst of the day" />}>
           <HomeShameCards
             range={range}
             serviceDate={serviceDate}
             mode={mode}
-            includeSchool={includeSchool}
+            schools={schools}
             linkDay={linkDay}
             when={windowPhrase(nav, null)}
           />
@@ -446,7 +517,7 @@ export default async function Home({
                 // The week this day sits in, not the running one.
                 period: weekPeriodOf(serviceDate),
                 mode,
-                school: includeSchool ? "1" : undefined,
+                school: schoolFilterParam(schools),
                 dir,
               })}
               className="underline"
@@ -465,12 +536,12 @@ export default async function Home({
             metric="delay"
             caption={ON_TIME_CAPTION}
             cancelled={cancelledByRoute}
-            routeQuery={routeLinkQuery("day", linkDay, null)}
+            routeQuery={routeQuery}
             total={offSchedule.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
-              ...viewQuery("off", { mode, school: includeSchool, lean: dir }),
+              ...viewQuery("off", { mode, school: schools, lean: dir, areas: filters.areas }),
             })}
           />
           <RankBoard
@@ -479,12 +550,12 @@ export default async function Home({
             rows={boards.reliable.slice(0, BOARD_SIZE)}
             metric="onTime"
             caption={ON_TIME_SHARE_CAPTION}
-            routeQuery={routeLinkQuery("day", linkDay, null)}
+            routeQuery={routeQuery}
             total={boards.reliable.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
-              ...viewQuery("reliable", { mode, school: includeSchool }),
+              ...viewQuery("reliable", { mode, school: schools, areas: filters.areas }),
             })}
           />
         </div>
@@ -495,7 +566,7 @@ export default async function Home({
           href={buildHref("/vehicles", {
             day: linkDay,
             mode: mode ?? undefined,
-            school: includeSchool ? "1" : undefined,
+            school: schoolFilterParam(schools),
           })}
         />
         <Suspense fallback={<LoadingBlock label="Loading the vehicle counts" />}>
@@ -503,7 +574,7 @@ export default async function Home({
             range={range}
             label={linkDay ? serviceDayLabel(serviceDate) : "Today"}
             mode={mode}
-            includeSchool={includeSchool}
+            schools={schools}
           />
         </Suspense>
       </section>
@@ -522,7 +593,7 @@ export default async function Home({
  * @param root0.range - The resolved service-day window.
  * @param root0.serviceDate - The shown service date, for dropping hours still under way.
  * @param root0.mode - Active mode filter, or null for every mode.
- * @param root0.includeSchool - Whether school services are included.
+ * @param root0.schools - Which school services count (default leave them out).
  * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
  * @param root0.when - The shown day as words ("today" or "that day").
  * @returns The three-card grid.
@@ -531,18 +602,18 @@ async function HomeShameCards({
   range,
   serviceDate,
   mode,
-  includeSchool,
+  schools,
   linkDay,
   when,
 }: {
   range: DateRange;
   serviceDate: string;
   mode: ModeFilterValue;
-  includeSchool: boolean;
+  schools: SchoolFilter;
   linkDay: string | undefined;
   when: string;
 }): Promise<JSX.Element> {
-  const filter = { mode, includeSchool };
+  const filter = { mode, schools };
   const [shameTrips, shameRoutes, shameStops] = await Promise.all([
     getShameOfDay(range, filter, TODAY_REVALIDATE),
     getShameRouteOfDay(range, filter, TODAY_REVALIDATE),

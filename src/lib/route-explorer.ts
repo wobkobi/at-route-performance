@@ -337,12 +337,12 @@ export function activeView(f: ExplorerFilters): ExplorerView | null {
 /**
  * The Routes page query for a preset, keeping the given filters.
  * @param view - The preset.
- * @param keep - Filters to carry (mode, school services, lean).
+ * @param keep - Filters to carry (mode, school services, lean, areas).
  * @returns Param name to value.
  */
 export function viewQuery(
   view: ExplorerView,
-  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "lean">> = {},
+  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "lean" | "areas">> = {},
 ): Record<string, string> {
   const preset = EXPLORER_VIEWS.find((v) => v.key === view)?.filters ?? {};
   return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...preset });

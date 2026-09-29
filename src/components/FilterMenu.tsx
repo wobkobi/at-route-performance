@@ -16,6 +16,17 @@ import {
   type ReactNode,
 } from "react";
 
+/**
+ * What a filter box says for a multi-choice filter: the first choice by name
+ * and a count of the rest, as in "Central +2", so the box stays one line.
+ * @param labels - The chosen options' labels, in display order.
+ * @returns The summary, or null with nothing chosen.
+ */
+export function choiceSummary(labels: readonly string[]): string | null {
+  if (labels.length === 0) return null;
+  return labels.length === 1 ? labels[0]! : `${labels[0]} +${labels.length - 1}`;
+}
+
 /** Shape shared by the box and its reset, square-cornered like the search field. */
 const BOX = "inline-flex items-center border py-1.5 text-sm transition-colors";
 
@@ -29,6 +40,8 @@ const BOX = "inline-flex items-center border py-1.5 text-sm transition-colors";
  * @param props.onReset - Put the filter back to its default.
  * @param props.activeClass - Border, fill and text for the box once it has a
  *   choice, for a filter that colours its choice (late red, early green).
+ * @param props.wide - Give the list a wider panel with no height cap, for a
+ *   grid of options rather than a column of them.
  * @param props.children - The options, usually {@link FilterOption}s.
  * @returns The box and, while open, the list.
  */
@@ -37,12 +50,14 @@ export function FilterMenu({
   summary,
   onReset,
   activeClass = "border-at-shore bg-at-shore-pale text-at-shore",
+  wide = false,
   children,
 }: {
   label: string;
   summary: string | null;
   onReset: () => void;
   activeClass?: string;
+  wide?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -120,12 +135,17 @@ export function FilterMenu({
             role="group"
             aria-label={label}
             onKeyDown={onKeyDown}
-            className="fixed inset-x-3 bottom-3 z-50 border border-at-border bg-at-surface text-at-ink shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1 sm:w-64"
+            className={cn(
+              "fixed inset-x-3 bottom-3 z-50 border border-at-border bg-at-surface text-at-ink shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1",
+              wide ? "sm:w-96" : "sm:w-64",
+            )}
           >
             <p className="px-3 pt-3 text-xs font-semibold tracking-zero text-at-muted uppercase">
               {label}
             </p>
-            <div className="max-h-[60vh] overflow-y-auto p-1.5 sm:max-h-72">{children}</div>
+            <div className={cn("max-h-[60vh] overflow-y-auto p-1.5", !wide && "sm:max-h-72")}>
+              {children}
+            </div>
             <div className="flex items-center justify-between border-t border-at-border px-3 py-2">
               <button
                 type="button"

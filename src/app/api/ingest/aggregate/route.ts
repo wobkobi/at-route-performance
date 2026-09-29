@@ -34,13 +34,14 @@ async function runAggregate(startTime: number, dates: readonly string[]): Promis
   for (const serviceDate of dates) {
     const dayStart = Date.now();
     try {
-      const { aggregated, ghosts } = await aggregateDay(
+      const { aggregated, hourly, ghosts } = await aggregateDay(
         nzServiceDayRange(serviceDate),
         serviceDate,
       );
       console.log("[AGGREGATE] Complete", {
         date: serviceDate,
         aggregated,
+        hourly,
         ghost_trips: ghosts.trips,
         ghost_rows: ghosts.flagged,
         ghost_runs: ghosts.hidden,

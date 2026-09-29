@@ -147,3 +147,27 @@ export function hourRangeLabel(range: HourRange | null): string {
   if ((range.from + 1) % 24 === range.to) return `${nzHourLabel(range.from)} hour`;
   return `${nzHourLabel(range.from)} to ${nzHourLabel(range.to)}`;
 }
+
+/**
+ * An hour's place in the service day, 0 for the 4am start up to 23 for 3am.
+ * @param hour - Auckland clock hour, 0-23.
+ * @returns Hours since the service day began.
+ */
+export function serviceHourIndex(hour: number): number {
+  return (hour - SERVICE_START_HOUR + 24) % 24;
+}
+
+/**
+ * A range as clock times, for a from-to picker and the note beside it. A range
+ * running to the service day's end reads "to now" while the day is under way
+ * (the figures stop at the present anyway) and "to end of day" once it is not.
+ * @param range - The range, or null for all day.
+ * @param live - Whether the window is the day still under way.
+ * @returns E.g. "6am to 8am", "9am to now" or "All day".
+ */
+export function hourRangeClock(range: HourRange | null, live: boolean): string {
+  if (!range) return "All day";
+  const end =
+    range.to === SERVICE_START_HOUR ? (live ? "now" : "end of day") : nzHourLabel(range.to);
+  return `${nzHourLabel(range.from)} to ${end}`;
+}

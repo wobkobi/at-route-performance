@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.37.0] - 2026-09-29
+
+### Added
+
+- The overview rankings can be narrowed to a time of day (7am to 9am, say), to weekdays or weekends,
+  and to an area. A new hourly summary per route, written by the nightly rollup, keeps those views
+  quick.
+
 ## [2.36.0] - 2026-09-29
 
 ### Added

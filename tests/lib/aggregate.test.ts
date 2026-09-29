@@ -1,16 +1,19 @@
 // tests/lib/aggregate.test.ts
 // Unit tests for the pure parts of the nightly rollup: the pipeline shape, the
-// upsert entries and the catch-up rule.
+// upsert entries (daily and hourly) and the catch-up rule.
 import {
   CATCH_UP_EXTRA_DAYS,
   catchUpDates,
   dailySummaryPipeline,
   daySummarised,
+  HOURLY_SUMMARY_INDEXES,
+  hourlySummaryPipeline,
+  hourlyUpsertOps,
   summaryUpsertOps,
   type DailyStats,
 } from "@/lib/aggregate";
-import { NO_DELAY_SOURCE, UNCLASSIFIED_LIMIT_SEC, realDeviationExprFor } from "@/lib/deviation";
-import { nzServiceDayRange } from "@/lib/time";
+import { NO_DELAY_SOURCE, realDeviationExprFor, UNCLASSIFIED_LIMIT_SEC } from "@/lib/deviation";
+import { NZ_TZ, nzServiceDayRange } from "@/lib/time";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
@@ -107,6 +110,74 @@ describe("summaryUpsertOps", () => {
         },
         upsert: true,
       },
+    ]);
+  });
+});
+
+describe("hourlySummaryPipeline", () => {
+  it("matches the day as the daily pipeline does and groups by route and Auckland hour", () => {
+    const [match, group] = hourlySummaryPipeline(range, true);
+    expect(match).toEqual(dailySummaryPipeline(range, true)[0]);
+    expect((group as { $group: { _id: unknown } }).$group._id).toEqual({
+      routeId: "$routeId",
+      hour: { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+    });
+  });
+
+  it("stores counts picked by mode, not rates", () => {
+    const stages = hourlySummaryPipeline(range, true);
+    const project = (stages.at(-1) as { $project: Record<string, unknown> }).$project;
+    expect(Object.keys(project).sort()).toEqual(
+      ["_id", "early", "events", "late", "on_time", "plausible", "sum_abs", "sum_delay"].sort(),
+    );
+    expect(JSON.stringify(stages)).not.toContain("$divide");
+  });
+});
+
+describe("hourlyUpsertOps", () => {
+  it("keys each entry on (routeId, date, hour)", () => {
+    const [op] = hourlyUpsertOps(
+      [
+        {
+          _id: { routeId: "NX1-201", hour: 7 },
+          events: 50,
+          plausible: 48,
+          sum_delay: 960,
+          sum_abs: 1200,
+          on_time: 40,
+          early: 2,
+          late: 6,
+        },
+      ],
+      range.start,
+      300,
+    );
+    expect(op).toEqual({
+      q: { routeId: "NX1-201", date: { $date: "2026-09-10T16:00:00.000Z" }, hour: 7 },
+      u: {
+        $set: {
+          routeId: "NX1-201",
+          date: { $date: "2026-09-10T16:00:00.000Z" },
+          hour: 7,
+          events: 50,
+          plausible: 48,
+          sumDelaySec: 960,
+          sumAbsDelaySec: 1200,
+          onTime: 40,
+          early: 2,
+          late: 6,
+          thresholdSec: 300,
+        },
+      },
+      upsert: true,
+    });
+  });
+
+  it("names its indexes the way Prisma names the model's", () => {
+    const names = (HOURLY_SUMMARY_INDEXES.indexes as { name: string }[]).map((i) => i.name);
+    expect(names).toEqual([
+      "HourlyRouteSummary_routeId_date_hour_key",
+      "HourlyRouteSummary_date_idx",
     ]);
   });
 });
