@@ -3,6 +3,7 @@
 import {
   applyPenalty,
   applyRoutePenalties,
+  penaltiesInHours,
   riderWaitPenalties,
   WAIT_CAP_SEC,
   withTripPenalty,
@@ -49,7 +50,7 @@ describe("riderWaitPenalties", () => {
 
   it("charges a trip that never ran every stop at the wait for the next run", () => {
     const { routes, trips } = riderWaitPenalties(runs, [flag("x", 5)]);
-    expect(trips.x).toEqual({ waitSec: 300, events: 20 });
+    expect(trips.x).toMatchObject({ waitSec: 300, events: 20 });
     expect(routes.R).toEqual({ events: 20, delaySec: 6000, lateEvents: 0 });
   });
 
@@ -63,7 +64,7 @@ describe("riderWaitPenalties", () => {
       [...runs, run("cut", 12, 8)],
       [flag("cut", 12, "mid-trip")],
     );
-    expect(trips.cut).toEqual({ waitSec: 480, events: 12 });
+    expect(trips.cut).toEqual({ waitSec: 480, events: 12, route: "R", start: T0 + 12 * MIN });
   });
 
   it("charges a reinstated trip nothing and skips a flag with no start", () => {
@@ -77,7 +78,7 @@ describe("riderWaitPenalties", () => {
   it("never takes another cancelled trip as the next trip", () => {
     const leftover = run("gone", 7, 1);
     const { trips } = riderWaitPenalties([...runs, leftover], [flag("x", 5), flag("gone", 7)]);
-    expect(trips.x).toEqual({ waitSec: 300, events: 20 });
+    expect(trips.x).toMatchObject({ waitSec: 300, events: 20 });
   });
 
   it("waits the cap when nothing runs after", () => {
@@ -88,6 +89,23 @@ describe("riderWaitPenalties", () => {
   it("looks at any direction when the flag's is unknown", () => {
     const { trips } = riderWaitPenalties(runs, [flag("x", 25, "before", { direction: null })]);
     expect(trips.x?.waitSec).toBe(300);
+  });
+});
+
+describe("penaltiesInHours", () => {
+  const runs = [run("a", 0), run("b", 10), run("c", 40), run("d", 70)];
+
+  it("sums only the trips due to start in the hours, late ones as late", () => {
+    // T0 is 8am in Auckland: "x" is due at 8:05 and waits five minutes, "y" at
+    // 9:15 and waits the cap, "z" at 8:15 and waits 25 minutes.
+    const { trips } = riderWaitPenalties(runs, [flag("x", 5), flag("y", 75), flag("z", 15)]);
+    expect(penaltiesInHours(trips, { from: 9, to: 10 })).toEqual({
+      R: { events: 20, delaySec: 20 * WAIT_CAP_SEC, lateEvents: 20 },
+    });
+    expect(penaltiesInHours(trips, { from: 8, to: 9 })).toEqual({
+      R: { events: 40, delaySec: 20 * 300 + 20 * 1500, lateEvents: 20 },
+    });
+    expect(penaltiesInHours(trips, { from: 12, to: 15 })).toEqual({});
   });
 });
 

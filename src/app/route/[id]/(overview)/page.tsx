@@ -446,11 +446,9 @@ export default async function RoutePage({
     avg_delay_sec: summary?.avg_delay_sec ?? null,
     avg_abs_delay_sec: summary?.avg_abs_delay_sec ?? null,
     mode: routeMode,
-    // getRouteStats drops the penalty for a part-of-day view, because it is
-    // counted per service day and cannot be narrowed to a few hours. The
-    // footnote has to follow it, or choosing "Morning peak" lifts the on-time
-    // share while the explainer still says cancellations are counted.
-    cancellations: hours ? "excluded" : "counted",
+    // A part-of-day view keeps the penalty too: getRouteStats charges it only
+    // for the cancelled trips due to start in those hours.
+    cancellations: "counted",
   };
 
   // Week view period: an explicit ?period snaps to that week's seven service
@@ -996,19 +994,14 @@ export default async function RoutePage({
             )}
           </section>
 
-          {/* What the chips above do not reach. Both figures come from one
-              getRouteStats call, which takes no direction at all and drops the
-              cancellation penalty as soon as hours narrow the window - so
-              "Trips" and the runs below describe one direction while "Arrivals"
-              and "On time" describe both, and a peak can read better than the
-              day did without anything having improved. The week view has said
-              its half of this since it shipped; the day view said neither. */}
-          {(activeDir != null || hours != null) && (
+          {/* What the direction chips do not reach. Both figures come from one
+              getRouteStats call, which takes no direction at all, so "Trips"
+              and the runs below describe one direction while "Arrivals" and
+              "On time" describe both. */}
+          {activeDir != null && (
             <p className="text-xs text-at-muted">
-              {activeDir != null &&
-                "Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map and the diagram pick out this one. "}
-              {hours != null &&
-                "Cancellations are left out of a part-of-day view, so these figures count only the trips that ran."}
+              Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map
+              and the diagram pick out this one.
             </p>
           )}
 

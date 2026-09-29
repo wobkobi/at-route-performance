@@ -98,8 +98,8 @@ export interface PunctualityBreakdown {
   /**
    * Whether the cancellation penalty is inside these percentages. Required, and
    * deliberately not defaulted: the footnote states which it is, and a default
-   * would let a surface keep the wrong claim by saying nothing. A part-of-day
-   * filter and every stop figure are `"excluded"`; see {@link CANCELLED_SPLIT_COPY}.
+   * would let a surface keep the wrong claim by saying nothing. Every stop figure
+   * is `"excluded"`; see {@link CANCELLED_SPLIT_COPY}.
    */
   cancellations: CancellationBasis;
 }

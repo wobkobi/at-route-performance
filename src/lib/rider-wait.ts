@@ -12,6 +12,8 @@ import type { CancellationStage } from "@/lib/cancellation";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
+import { nzLocalHour } from "@/lib/time";
+import { isHourInRange, type HourRange } from "@/lib/time-of-day";
 import type { PerTripStat } from "@/types/api";
 
 /**
@@ -63,6 +65,14 @@ export interface TripPenalty {
   events: number;
 }
 
+/** A flagged trip's penalty with the route and start it belongs to. */
+export interface FlaggedTripPenalty extends TripPenalty {
+  /** Route slug. */
+  route: string;
+  /** Scheduled start, epoch ms. */
+  start: number;
+}
+
 /**
  * The median of a list of counts.
  * @param values - The counts.
@@ -91,7 +101,7 @@ function medianCount(values: number[]): number | null {
 export function riderWaitPenalties(
   runs: readonly DayRun[],
   flags: readonly DayFlag[],
-): { routes: Record<string, Penalty>; trips: Record<string, TripPenalty> } {
+): { routes: Record<string, Penalty>; trips: Record<string, FlaggedTripPenalty> } {
   const groups = new Map<string, DayRun[]>();
   for (const r of runs) {
     for (const key of [`${r.route}|${r.direction ?? "?"}`, `${r.route}|*`]) {
@@ -104,7 +114,7 @@ export function riderWaitPenalties(
   // not serve the stops a rider was waiting at.
   const flaggedIds = new Set(flags.filter((f) => f.stage !== "ran").map((f) => f.tripId));
   const routes: Record<string, Penalty> = {};
-  const trips: Record<string, TripPenalty> = {};
+  const trips: Record<string, FlaggedTripPenalty> = {};
 
   for (const f of flags) {
     if (f.stage === "ran" || f.start === null) continue;
@@ -124,13 +134,38 @@ export function riderWaitPenalties(
     const served = f.stage === "mid-trip" ? (runById.get(f.tripId)?.stops ?? 0) : 0;
     const events = Math.max(0, median - served);
     if (events === 0) continue;
-    trips[f.tripId] = { waitSec, events };
+    trips[f.tripId] = { waitSec, events, route: f.route, start };
     const p = (routes[f.route] ??= { events: 0, delaySec: 0, lateEvents: 0 });
     p.events += events;
     p.delaySec += waitSec * events;
     if (waitSec > ON_TIME_LATE_SEC) p.lateEvents += events;
   }
   return { routes, trips };
+}
+
+/**
+ * The route penalties of the flagged trips that were due to start in a part of
+ * the day, rebuilt trip by trip the way {@link riderWaitPenalties} sums them. A
+ * trip is placed by its scheduled start, as a run is on the shame boards; its
+ * unserved stops may have fallen in the next hour, but the rider was left
+ * waiting in the one it was due.
+ * @param trips - Trip id to its penalty, as {@link riderWaitPenalties} returns them.
+ * @param hours - The part of the day.
+ * @returns Route slug to the penalty of its trips in those hours.
+ */
+export function penaltiesInHours(
+  trips: Readonly<Record<string, FlaggedTripPenalty>>,
+  hours: HourRange,
+): Record<string, Penalty> {
+  const out: Record<string, Penalty> = {};
+  for (const t of Object.values(trips)) {
+    if (!isHourInRange(nzLocalHour(new Date(t.start)), hours)) continue;
+    const p = (out[t.route] ??= { events: 0, delaySec: 0, lateEvents: 0 });
+    p.events += t.events;
+    p.delaySec += t.waitSec * t.events;
+    if (t.waitSec > ON_TIME_LATE_SEC) p.lateEvents += t.events;
+  }
+  return out;
 }
 
 /**

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.35.1] - 2026-09-29
+
+### Fixed
+
+- With a part-of-day filter on, a cancelled trip's rider wait counts towards the hours it was due to
+  start in, not the whole day.
+
 ## [2.35.0] - 2026-09-29
 
 ### Added
