@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.1] - 2026-09-29
+
+### Fixed
+
+- Google's own crawlers (AdsBot-Google, Mediapartners-Google, Google-InspectionTool) are recognised
+  as link-preview bots again; the pattern read `\w` in a plain string as a bare `w`.
+
 ## [2.40.0] - 2026-09-29
 
 ### Added
