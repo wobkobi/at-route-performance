@@ -32,8 +32,30 @@ const cspDev =
   "base-uri 'self'; " +
   "form-action 'self';";
 
+/**
+ * Agents that read a page's HTML once, without running it, so they need the
+ * metadata in `<head>` rather than streamed into the body behind the page. The
+ * first half is Next's default list (next/dist/shared/lib/router/utils/html-bots.js);
+ * the rest are link-preview agents it leaves out, which otherwise find no
+ * `og:` tags in the first few hundred kilobytes and post a bare link.
+ */
+const HTML_LIMITED_BOTS = new RegExp(
+  [
+    "[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou",
+    "bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview",
+    "applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot",
+    "WhatsApp|SkypeUriPreview|Yeti|googleweblight",
+    // Link previews beyond the default: Telegram, Mastodon, Bluesky (Cardyb),
+    // Pinterest, Viber, Line, KakaoTalk, Snapchat and the embed services.
+    "TelegramBot|Mastodon|Cardyb|Pinterest|Viber|Line/|kakaotalk-scrap|Snap URL Preview",
+    "Embedly|Iframely|Google-PageRenderer",
+  ].join("|"),
+  "i",
+);
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  htmlLimitedBots: HTML_LIMITED_BOTS,
   /**
    * Partial prerendering for every route: each page ships a static shell (the
    * masthead, the nav, the footer and its loading skeleton) and streams the

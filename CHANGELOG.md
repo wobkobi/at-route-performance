@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.32.1] - 2026-09-29
+
+### Fixed
+
+- Shared links unfurl with their preview card again: link-preview bots get the page metadata
+  straight away, and robots.txt lets them fetch the card image.
+
 ## [2.32.0] - 2026-09-29
 
 ### Added

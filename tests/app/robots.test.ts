@@ -34,7 +34,7 @@ describe("robots", () => {
     // One route page multiplies by day, window, mode, direction, part of day,
     // sort and page. Without this the crawlable site is combinatorial.
     const general = rules().find((r) => r.userAgent === "*");
-    expect(general?.allow).toBe("/");
+    expect(general?.allow).toContain("/");
     expect(general?.disallow).toContain("/*?");
     expect(general?.disallow).toContain("/route/*/trip/");
     expect(general?.disallow).toContain("/vehicle/");
@@ -49,6 +49,15 @@ describe("robots", () => {
     }
     expect(disallow).not.toContain("/route/");
     expect(disallow).not.toContain("/stop/");
+  });
+
+  it("lets link previews fetch the share card through the /api/ and query-string rules", () => {
+    // A shared route link unfurls with /api/og?card=route&id=35 as its image;
+    // agents that honour robots.txt drop the image when either rule covers it.
+    const general = rules().find((r) => r.userAgent === "*");
+    expect(general?.allow).toContain("/api/og");
+    // Longer than both rules it has to outrank, so it wins under RFC 9309.
+    expect("/api/og".length).toBeGreaterThan("/api/".length);
   });
 
   it("keeps the search engines that send readers", () => {

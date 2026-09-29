@@ -54,6 +54,15 @@ const COSTLY_PATHS = [
 ];
 
 /**
+ * Paths let through despite a costly-path rule above. The share card is an
+ * `/api/` URL with a query string, so both `/api/` and `/*?` would otherwise
+ * cover it, and the link-preview agents that honour robots.txt (Facebook's for
+ * Messenger and iMessage, Twitterbot, Slackbot, LinkedIn) then post a link with
+ * no image. The longer path wins under RFC 9309, so this outranks both.
+ */
+const PREVIEW_PATHS = ["/api/og"];
+
+/**
  * Generate robots.txt.
  * @returns The rules, and where to find the sitemap.
  */
@@ -68,7 +77,7 @@ export default function robots(): MetadataRoute.Robots {
 
   return {
     rules: [
-      { userAgent: "*", allow: "/", disallow: COSTLY_PATHS },
+      { userAgent: "*", allow: ["/", ...PREVIEW_PATHS], disallow: COSTLY_PATHS },
       { userAgent: NON_READER_AGENTS, disallow: "/" },
     ],
     sitemap: `${origin}/sitemap.xml`,
