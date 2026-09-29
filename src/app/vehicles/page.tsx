@@ -14,6 +14,8 @@ import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import {
   getEarliestDataDay,
   getLatestEventDate,
+  getOperators,
+  getRankings,
   getRouteNames,
   getRouteOperators,
   getVehicleWork,
@@ -23,8 +25,9 @@ import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
+import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
-import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
+import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
   dayRangeNav,
@@ -35,14 +38,11 @@ import {
 } from "@/lib/range-page";
 import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
+import { parseSchoolFilter, schoolFilterParam } from "@/lib/school-bus";
+import { sortRows, tableSort, type SortColumn } from "@/lib/table-sort";
 import type { DateRange } from "@/lib/time";
 import { buildHref, stripUnset } from "@/lib/utils";
-import {
-  parseVehicleSort,
-  sortVehicles,
-  type VehicleSort,
-  type VehicleTotal,
-} from "@/lib/vehicle-rank";
+import { sortVehicles, type VehicleSort, type VehicleTotal } from "@/lib/vehicle-rank";
 import { getLiveVehicleMap } from "@/lib/vehicles";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -62,6 +62,16 @@ export const metadata: Metadata = {
 /** Rows per page; "Show more" adds another page. */
 const PAGE_SIZE = 50;
 
+/** The table's sortable columns; the chips above offer the four figures too. */
+const COLUMNS: SortColumn<VehicleTotal>[] = [
+  { key: "vehicle", value: "vehicleId", first: "asc" },
+  { key: "hours", value: "serviceSec" },
+  { key: "runs", value: "runs" },
+  { key: "arrivals", value: "arrivals" },
+  { key: "days", value: "days" },
+  { key: "off", value: "avgOffSec" },
+];
+
 const SORT_LABEL: Record<VehicleSort, string> = {
   hours: "Time in service",
   runs: "Runs",
@@ -76,7 +86,10 @@ interface VehiclesSearchParams {
   period?: string;
   mode?: string;
   school?: string;
+  /** The sorted column; absent is time in service. */
   sort?: string;
+  /** "1" sorts the column the other way. */
+  rev?: string;
   show?: string;
   /** Operator slug, to list only the vehicles that ran its routes. */
   op?: string;
@@ -85,7 +98,7 @@ interface VehiclesSearchParams {
 /**
  * Hardest-worked vehicles page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `day`, `period`), filters (`mode`, `school`), `sort` and `show`.
+ * @param root0.searchParams - Window (`window`, `day`, `period`), filters (`mode`, `school`), sort (`sort`, `rev`) and `show`.
  * @returns Page markup.
  */
 export default async function VehiclesPage({
@@ -105,16 +118,18 @@ export default async function VehiclesPage({
   const mode = (
     ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
   ) as ModeFilterValue;
-  const includeSchool = sp.school === "1";
-  const sort = parseVehicleSort(sp.sort);
+  const schools = parseSchoolFilter(sp.school);
   const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
-  const filter = { mode, includeSchool };
-  const [latest, earliest, operators] = await Promise.all([
+  const filter = { mode, schools };
+  const [latest, earliest, operators, directory] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
+    getOperators().catch(readFallback<Operator[]>("operators", [])),
   ]);
-  const operator = sp.op ? operatorBySlug(sp.op, new Set(Object.values(operators))) : null;
+  const operator = sp.op
+    ? operatorBySlug(sp.op, directory, new Set(Object.values(operators)))
+    : null;
 
   let range: DateRange;
   let nav: RangeNav;
@@ -139,18 +154,41 @@ export default async function VehiclesPage({
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
   }
 
+  // Which modes ran, so the Mode box only offers a mode that changes the list.
+  // The window's route rankings answer it from their cache; the vehicle rows
+  // are already filtered.
+  const rankRows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+
   // The operators that ran anything in the window, for the drop-down, counted
   // before the operator filter narrows the list.
   const vehicleOps = new Map(
     vehicles.map((v) => [v.vehicleId, vehicleOperatorCodes(v, operators)]),
   );
   const opOptions = [...new Set([...vehicleOps.values()].flat())]
-    .map((code) => operatorOf(code)!)
+    .map((code) => operatorOf(code, directory)!)
     .sort((a, b) => a.name.localeCompare(b.name, "en-NZ"));
-  const ranked = sortVehicles(
-    operator
-      ? vehicles.filter((v) => vehicleOps.get(v.vehicleId)?.includes(operator.code))
-      : vehicles,
+  const view = {
+    window: window === "day" ? undefined : window,
+    day: dayParam,
+    period: period ?? undefined,
+  };
+  const filters = {
+    mode: mode ?? undefined,
+    school: schoolFilterParam(schools),
+    op: operator?.slug,
+  };
+  const { sort, head, keep } = tableSort(sp, COLUMNS, "hours", (p) =>
+    buildHref("/vehicles", { ...view, ...filters, ...p }),
+  );
+  // Sorted in full before the page is cut, so Show more continues the same order.
+  const ranked = sortRows(
+    sortVehicles(
+      operator
+        ? vehicles.filter((v) => vehicleOps.get(v.vehicleId)?.includes(operator.code))
+        : vehicles,
+      "hours",
+    ),
+    COLUMNS,
     sort,
   );
   const rows = ranked.slice(0, shown);
@@ -165,34 +203,23 @@ export default async function VehiclesPage({
   const multiDay = window !== "day";
   const routeQuery = routeLinkQuery(window, dayParam, period);
 
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
-  const filters = {
-    mode: mode ?? undefined,
-    school: includeSchool ? "1" : undefined,
-    op: operator?.slug,
-  };
-  const sortParam = sort === "hours" ? undefined : sort;
   // How the list is being read, for a vehicle's link to hand back on its way out.
   const listState = stripUnset({
     ...filters,
-    sort: sortParam,
+    ...keep,
     show: shown > PAGE_SIZE ? String(shown) : undefined,
   });
   const modePreserved = stripUnset({
     ...view,
     school: filters.school,
     op: filters.op,
-    sort: sortParam,
+    ...keep,
   });
   const schoolPreserved = stripUnset({
     ...view,
     mode: filters.mode,
     op: filters.op,
-    sort: sortParam,
+    ...keep,
   });
   const showsTrains = mode === null || mode === "TRAIN";
 
@@ -224,17 +251,18 @@ export default async function VehiclesPage({
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <ModeFilter active={mode} basePath="/vehicles" preservedParams={modePreserved} />
-        <SchoolBusToggle
-          active={includeSchool}
+        <ModeFilter
+          active={mode}
           basePath="/vehicles"
-          preservedParams={schoolPreserved}
+          preservedParams={modePreserved}
+          availableModes={new Set(rankRows.map((r) => r.mode))}
         />
+        <SchoolBusToggle value={schools} basePath="/vehicles" preservedParams={schoolPreserved} />
         <OperatorSelect
           options={opOptions}
           active={operator?.slug ?? null}
           basePath="/vehicles"
-          preservedParams={stripUnset({ ...view, ...filters, sort: sortParam })}
+          preservedParams={stripUnset({ ...view, ...filters, ...keep })}
         />
       </div>
 
@@ -252,7 +280,7 @@ export default async function VehiclesPage({
               ...filters,
               sort: s === "hours" ? undefined : s,
             })}
-            active={s === sort}
+            active={s === sort?.key}
           >
             {SORT_LABEL[s]}
           </ChipLink>
@@ -271,16 +299,20 @@ export default async function VehiclesPage({
                 <th scope="col" className="w-10 p-3 text-right font-semibold">
                   #
                 </th>
-                <th scope="col" className="p-3 font-semibold">
+                <SortHeader {...head("vehicle")} align="left">
                   Vehicle
-                </th>
-                <SortHeader active={sort === "hours"}>In service</SortHeader>
-                <SortHeader active={sort === "runs"}>Runs</SortHeader>
-                <SortHeader active={sort === "arrivals"} className="hidden sm:table-cell">
+                </SortHeader>
+                <SortHeader {...head("hours")}>In service</SortHeader>
+                <SortHeader {...head("runs")}>Runs</SortHeader>
+                <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
                   Arrivals
                 </SortHeader>
-                {multiDay && <SortHeader className="hidden sm:table-cell">Days</SortHeader>}
-                <SortHeader active={sort === "off"} className="hidden sm:table-cell">
+                {multiDay && (
+                  <SortHeader {...head("days")} className="hidden sm:table-cell">
+                    Days
+                  </SortHeader>
+                )}
+                <SortHeader {...head("off")} className="hidden sm:table-cell">
                   Avg off
                 </SortHeader>
                 <th scope="col" className="hidden p-3 font-semibold md:table-cell">
@@ -340,7 +372,7 @@ export default async function VehiclesPage({
             href={buildHref("/vehicles", {
               ...view,
               ...filters,
-              sort: sortParam,
+              ...keep,
               show: String(shown + PAGE_SIZE),
             })}
             scroll={false}

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.38.0] - 2026-09-29
+
+### Added
+
+- Operators come from AT's own agency list, refreshed each night, instead of a list kept in the
+  code: a new operator shows under its real name without a code change, a renamed one keeps its page
+  address, and one AT drops stays named on its old routes but leaves the sitemap.
+
 ## [2.37.0] - 2026-09-29
 
 ### Added

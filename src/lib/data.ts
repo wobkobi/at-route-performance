@@ -23,10 +23,13 @@ export {
   getLatestEventDate,
   getMostRecentDataDay,
 } from "@/lib/data/data-days";
+export { getFilteredCancellations, getFilteredRankings } from "@/lib/data/filtered-rankings";
+export type { FilteredCancellations } from "@/lib/data/filtered-rankings";
 export { getGhostRun, getGhostRunFor } from "@/lib/data/ghost-runs";
 export type { GhostRunRow } from "@/lib/data/ghost-runs";
 export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
+export { getOperators } from "@/lib/data/operators";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";

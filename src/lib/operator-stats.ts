@@ -62,6 +62,7 @@ export function operatorCodeOf(
  * @param operators - Route slug > agency code.
  * @param cancelledBySlug - Route slug > trips cancelled in the window.
  * @param vehicles - Vehicle totals for the window, or null to leave the fleet uncounted.
+ * @param directory - The stored operator list, which names each code.
  * @returns One row per operator with at least one route in the window.
  */
 export function operatorRows(
@@ -69,6 +70,7 @@ export function operatorRows(
   operators: Record<string, string>,
   cancelledBySlug: ReadonlyMap<string, number> = new Map(),
   vehicles: readonly VehicleTotal[] | null = null,
+  directory: readonly Operator[] = [],
 ): OperatorRow[] {
   interface Acc {
     slugs: Set<string>;
@@ -132,7 +134,7 @@ export function operatorRows(
 
   const out: OperatorRow[] = [];
   for (const [code, a] of acc) {
-    const op = operatorOf(code)!;
+    const op = operatorOf(code, directory)!;
     /**
      * One weighted figure, to one decimal place.
      * @param k - The figure.

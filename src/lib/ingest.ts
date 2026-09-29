@@ -7,8 +7,15 @@
 // so one bad row does not abort the rest.
 import { fetchRoutes, fetchStops, mapRouteType, type RouteAttr } from "@/lib/at-static";
 import { prisma } from "@/lib/db";
+import {
+  AGENCIES_SETTING,
+  type AgencyRecord,
+  mergeAgencies,
+  parseStoredAgencies,
+} from "@/lib/gtfs-agencies";
+import { getSetting, setSetting } from "@/lib/gtfs-settings";
 import { fetchShapes } from "@/lib/gtfs-shapes";
-import { fetchRouteTrips, fetchTrips, routesMissingFromZip } from "@/lib/gtfs-trips";
+import { fetchRouteTrips, fetchTripsAndAgencies, routesMissingFromZip } from "@/lib/gtfs-trips";
 
 /** Max update operations per bulk `update` command (well under Mongo's 1000 cap). */
 const BATCH = 500;
@@ -150,15 +157,21 @@ export async function syncShapes(): Promise<{ upserted: number }> {
  * `tripMeta` collection (headsign, direction and shape keyed by trip_id).
  * The zip leaves out every school route, so each route AT's API lists with no
  * zip trip is filled from the API instead; without those rows a school
- * route's line diagram cannot place an arrival in a direction.
- * @returns Trips upserted, how many of them came from the API, and the routes whose API call failed.
+ * route's line diagram cannot place an arrival in a direction. The same zip
+ * carries the operator list, which {@link syncAgencies} stores.
+ * @returns Trips upserted, how many of them came from the API, the routes whose
+ *   API call failed, and the operators AT currently lists.
  */
 export async function syncTripMeta(): Promise<{
   upserted: number;
   fromApi: number;
   failedRoutes: number;
+  agencies: number;
 }> {
-  const [zipTrips, routes] = await Promise.all([fetchTrips(), fetchRoutes()]);
+  const [{ trips: zipTrips, agencies }, routes] = await Promise.all([
+    fetchTripsAndAgencies(),
+    fetchRoutes(),
+  ]);
   const missing = routesMissingFromZip(
     zipTrips,
     routes.map((r) => r.route_id),
@@ -178,5 +191,23 @@ export async function syncTripMeta(): Promise<{
   }));
 
   await bulkUpsert("tripMeta", ops);
-  return { upserted: ops.length, fromApi: api.trips.length, failedRoutes: api.failed };
+  await syncAgencies(agencies);
+  return {
+    upserted: ops.length,
+    fromApi: api.trips.length,
+    failedRoutes: api.failed,
+    agencies: agencies.length,
+  };
+}
+
+/**
+ * Merge the operators in the latest `agency.txt` into the stored list
+ * ({@link mergeAgencies}). An empty feed leaves the list alone: a zip that
+ * lost the file would otherwise mark every operator dropped.
+ * @param feed - The rows of the latest `agency.txt`.
+ */
+export async function syncAgencies(feed: readonly AgencyRecord[]): Promise<void> {
+  if (feed.length === 0) return;
+  const stored = parseStoredAgencies(await getSetting(AGENCIES_SETTING));
+  await setSetting(AGENCIES_SETTING, JSON.stringify(mergeAgencies(stored, feed)));
 }

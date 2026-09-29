@@ -8,7 +8,7 @@ import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/line-arrows";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
 import { wheelZoomOnHover } from "@/lib/map-wheel";
-import { operatorHref, operatorOf } from "@/lib/operators";
+import { operatorHref, type Operator } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { liveRunHref } from "@/lib/vehicle-detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle-status";
@@ -276,15 +276,14 @@ function glide(marker: Leaflet.Marker): void {
  * @param state - The map state holding the vehicle layer and markers.
  * @param vehicles - The vehicles to show, already filtered to this map.
  * @param mode - The route's mode, which sets the glyph and the on-time window.
- * @param opCode - The route's operator code, for the popup's "Run by" line; null when unrecorded.
+ * @param op - The route's operator, for the popup's "Run by" line; null when unrecorded.
  */
 function syncVehicles(
   state: MapState,
   vehicles: LiveVehicle[],
   mode: RouteMode,
-  opCode: string | null,
+  op: Operator | null,
 ): void {
-  const op = operatorOf(opCode);
   const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
   const { L, colours } = state;
   const seen = new Set<string>();
@@ -804,7 +803,7 @@ export default function StopMap({
           setVehiclesFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: string | null };
+        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: Operator | null };
         if (dead) return;
         setVehiclesFailed(false);
 
