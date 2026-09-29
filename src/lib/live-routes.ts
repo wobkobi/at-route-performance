@@ -133,8 +133,10 @@ export interface LiveMapVehicle {
   lon: number;
   delaySec: number | null;
   cars: number | null;
-  /** The route's operator code, which the popup names through lib/operators; null when unrecorded. */
+  /** The route's operator code, which the popup names from the response's operator list; null when unrecorded. */
   op: string | null;
+  /** Whether the trip has any history stored; the map never draws a trip with none. */
+  stored: boolean;
 }
 
 /**
@@ -144,12 +146,15 @@ export interface LiveMapVehicle {
  * @param vehicles - Every vehicle in the feed.
  * @param modeOf - Route id > mode; a route missing from it counts as a bus.
  * @param operators - Route slug > operator code.
+ * @param stored - Trip ids with any history stored, or null when the lookup
+ *   failed, which marks every trip stored so the map hides none.
  * @returns The map's vehicles.
  */
 export function mapVehicles(
   vehicles: readonly LiveVehicle[],
   modeOf: ReadonlyMap<string, string>,
   operators: Readonly<Record<string, string>> = {},
+  stored: ReadonlySet<string> | null = null,
 ): LiveMapVehicle[] {
   return onARun(vehicles).map((v) => ({
     id: v.vehicleId,
@@ -163,6 +168,7 @@ export function mapVehicles(
     delaySec: v.delaySec,
     cars: v.cars,
     op: operators[routeSlug(v.routeId)] ?? null,
+    stored: stored === null || stored.has(v.tripId as string),
   }));
 }
 

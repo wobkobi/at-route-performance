@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.39.0] - 2026-09-29
+
+### Added
+
+- The live map draws each route's whole line in its colour, branches and long tails included (route
+  65's three western ends, NX1 through to Hibiscus Coast), with routes that share a road set side by
+  side and one bundle over the Harbour Bridge. Toggles show or hide each delay band's dots and the
+  route lines, with an All vehicles switch, and zoomed in each dot carries its mode's icon. A trip
+  or route with nothing recorded (route MEX, say) stays off the map until its first run lands.
+
 ## [2.38.1] - 2026-09-29
 
 ### Fixed

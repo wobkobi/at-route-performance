@@ -4,13 +4,21 @@ import type { PlatformRow } from "@/lib/station-platforms";
 
 // One route's road path, returned by /api/network-lines for the live map's underlay
 export interface NetworkLine {
+  /** Version-stripped route slug, for the line's popup link. */
+  slug: string;
+  /** The route's name ("South City Line", or AT's long name), or null when it has none. */
+  name: string | null;
   /** The mode that drives it, so the map's mode filter can hide the rest. */
   mode: "BUS" | "TRAIN" | "FERRY";
+  /** The route icon's colour: `#rrggbb`, or a `--color-*` custom property to resolve. */
+  colour: string;
   /**
-   * The path as flat `[lat, lon, lat, lon, ...]`. Flat rather than pairs because
-   * five hundred paths pay for every bracket twice over.
+   * The path in stretches, each at the lane its colour takes on that road (see
+   * src/lib/shared-roads.ts). `slot` counts line widths to the left of travel;
+   * `path` is flat `[lat, lon, lat, lon, ...]`, since a few hundred routes pay
+   * for every bracket twice over.
    */
-  path: number[];
+  runs: { slot: number; path: number[] }[];
 }
 
 // Top routes row returned by /api/routes/top

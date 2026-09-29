@@ -125,4 +125,11 @@ describe("mapVehicles", () => {
     );
     expect(out.map((v) => v.op)).toEqual(["HE", null]);
   });
+
+  it("marks a vehicle stored only when its trip has history, and every one when the lookup failed", () => {
+    const vehicles = [veh("70-202", 30, "t1"), veh("70-202", 0, "t2")];
+    const out = mapVehicles(vehicles, new Map(), {}, new Set(["t1"]));
+    expect(out.map((v) => v.stored)).toEqual([true, false]);
+    expect(mapVehicles(vehicles, new Map()).map((v) => v.stored)).toEqual([true, true]);
+  });
 });
