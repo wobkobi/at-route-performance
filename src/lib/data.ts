@@ -92,5 +92,10 @@ export {
   getWorstTripsOfDay,
 } from "@/lib/data/trips";
 export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";
-export { getVehicleRunsOfDay, getVehicleWork, getVehicleWorkByDay } from "@/lib/data/vehicle-rank";
+export {
+  getVehicleDayMap,
+  getVehicleRunsOfDay,
+  getVehicleWork,
+  getVehicleWorkByDay,
+} from "@/lib/data/vehicle-rank";
 export { getVehicleCounts, getVehicleCountsAllTime } from "@/lib/data/vehicles-seen";
