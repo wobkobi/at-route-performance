@@ -32,6 +32,53 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.6] - 2026-09-30
+
+### Changed
+
+- The top bar's tabs sit in three groups: Overview, Days and Live; Routes, Operators and Vehicles;
+  then Shame, Cancellations and Compare. A rule divides them on a wide screen, and on a phone each
+  group takes a row. On a phone the header now scrolls away with the page instead of holding a fifth
+  of the screen. In the footer, the note that this is an independent project sits beside the logo,
+  the Explore links sit in two columns, and the notes about the data are gathered under About the
+  data.
+
+## [2.40.5] - 2026-09-30
+
+### Changed
+
+- Every page sends much less. The not-found page listed every route, and Next.js sends that page
+  along with every other page so it can show one without a round trip, which made the list most of
+  what each page sent (the home page drops from over 1 MB to 180 KB). The not-found page now points
+  to the full list on the Routes page. It and the footer now share one list of all eleven pages in
+  top-bar order, so neither leaves a page out: the not-found page had no Operators or Compare, and
+  the footer had no Vehicles or Live.
+
+## [2.40.4] - 2026-09-30
+
+### Fixed
+
+- The smoke test's slow-page warning and hang limit now go on each page's load time instead of its
+  first byte. The first byte is the prerendered shell, sent before any figure is read, so it could
+  never show a slow page. A new column gives each page's HTML size and flags anything over 1 MB.
+
+## [2.40.3] - 2026-09-30
+
+### Fixed
+
+- Pages showing today no longer turn slow every two minutes. Today's cached figures were filed under
+  the latest ingest run, so each run started them over and the next visitor waited for a fresh read
+  of the database. They are now kept for the whole service day and refreshed in the background, so a
+  reader gets them straight away, at most one ingest behind.
+
+## [2.40.2] - 2026-09-30
+
+### Fixed
+
+- The home page's worst stop of the day loads faster on a fresh visit. The database now merges
+  platforms into their stations and ranks each hour itself, so it sends back about 200 rows instead
+  of every stop's figures for the day (several megabytes from the database's home connection).
+
 ## [2.40.1] - 2026-09-29
 
 ### Fixed

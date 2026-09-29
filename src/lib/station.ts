@@ -204,6 +204,86 @@ export const stationProjection = {
   platform_code: "$stop.platformCode",
 } as const;
 
+/**
+ * Whether a string field is set, the way JavaScript's truthiness reads it: not
+ * missing, null or empty.
+ * @param field - The field path, as `$$var` or `$path`.
+ * @returns The aggregation expression.
+ */
+function isSetExpr(field: string): Record<string, unknown> {
+  return { $gt: [{ $strLenCP: { $ifNull: [field, ""] } }, 0] };
+}
+
+/**
+ * The same regex test as `re.test(name)`, as an aggregation expression.
+ * @param re - One of this module's case-insensitive name patterns.
+ * @returns The aggregation expression.
+ */
+function nameMatchesExpr(re: RegExp): Record<string, unknown> {
+  return { $regexMatch: { input: "$$name", regex: re.source, options: "i" } };
+}
+
+/**
+ * {@link stationId} as an aggregation expression, for a pipeline whose document
+ * `_id` is the stop id and which has joined its Stop record as `stop`. The same
+ * three steps in the same order: AT's parent id, then the two name rules of
+ * {@link isPlatformStop} with {@link legacyStationId}'s name-derived id, else
+ * the stop's own id. The name branch lower-cases with `$toLower`, which folds
+ * ASCII only; no stop reaches it while every platform carries a parent.
+ */
+export const stationIdExpr = {
+  $let: {
+    vars: { parent: "$stop.parentStation", code: "$stop.platformCode", name: "$stop.name" },
+    in: {
+      $switch: {
+        branches: [
+          { case: isSetExpr("$$parent"), then: { $concat: [STATION_PREFIX, "$$parent"] } },
+          {
+            case: {
+              $or: [
+                nameMatchesExpr(PLATFORM_RE),
+                { $and: [isSetExpr("$$code"), nameMatchesExpr(STATION_RE)] },
+              ],
+            },
+            // stationName(name) with no parts: the numbered pattern's station
+            // part, else the whole name.
+            then: {
+              $concat: [
+                STATION_PREFIX,
+                {
+                  $toLower: {
+                    $ifNull: [
+                      {
+                        $arrayElemAt: [
+                          {
+                            $getField: {
+                              field: "captures",
+                              input: {
+                                $regexFind: {
+                                  input: "$$name",
+                                  regex: PLATFORM_RE.source,
+                                  options: "i",
+                                },
+                              },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                      "$$name",
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        default: { $toString: "$_id" },
+      },
+    },
+  },
+} as const;
+
 /** A projected row carrying AT's station grouping (see {@link stationProjection}). */
 export interface StationRow {
   parent_station?: string | null;

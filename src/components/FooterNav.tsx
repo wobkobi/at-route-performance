@@ -4,26 +4,10 @@
 // way the top bar does (see lib/site-nav.ts), so following one from an archived
 // day stays on that day rather than jumping to the present.
 
-import { carriedHref } from "@/lib/site-nav";
+import { navHref, SITE_PAGES } from "@/lib/site-nav";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, type JSX } from "react";
-
-/**
- * The footer's destinations, in the order they are listed. Unlike the top bar,
- * the three shame boards are listed one by one.
- */
-const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
-  { href: "/", label: "Overview" },
-  { href: "/days", label: "Day by day" },
-  { href: "/routes", label: "Routes" },
-  { href: "/operators", label: "Operators" },
-  { href: "/shame/trip", label: "Worst trips" },
-  { href: "/shame/route", label: "Worst routes" },
-  { href: "/shame/stop", label: "Worst stops" },
-  { href: "/cancellations", label: "Cancellations" },
-  { href: "/compare", label: "Compare" },
-];
 
 /**
  * The list items, given the params to carry.
@@ -34,10 +18,10 @@ const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
 function FooterLinks({ params }: { params: URLSearchParams }): JSX.Element {
   return (
     <>
-      {FOOTER_LINKS.map((l) => (
-        <li key={l.href}>
-          <Link href={carriedHref(l.href, params)} className="text-white/90 hover:text-at-safety">
-            {l.label}
+      {SITE_PAGES.map((p) => (
+        <li key={p.href}>
+          <Link href={navHref(p, params)} className="text-white/90 hover:text-at-safety">
+            {p.label}
           </Link>
         </li>
       ))}
@@ -60,7 +44,10 @@ function FooterLinksWithParams(): JSX.Element {
  */
 export function FooterNav(): JSX.Element {
   return (
-    <ul className="space-y-2">
+    // Two columns filled top to bottom: six rows put the top bar's first two
+    // groups on the left and its third (the worst-of boards, cancellations and
+    // compare) on the right, and keep the list half the height on a phone.
+    <ul className="grid grid-flow-col grid-rows-6 gap-x-6 gap-y-2">
       {/* Reading the query suspends a statically rendered page; plain links stand in. */}
       <Suspense fallback={<FooterLinks params={new URLSearchParams()} />}>
         <FooterLinksWithParams />

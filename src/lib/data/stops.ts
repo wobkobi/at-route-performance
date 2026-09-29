@@ -19,6 +19,7 @@ import {
   legacyStationId,
   platformLabelOf,
   stationId,
+  stationIdExpr,
   stationNameOf,
   stationProjection,
 } from "@/lib/station";
@@ -107,11 +108,14 @@ function dominantMode(
   return "FERRY";
 }
 
-/** One stop's per-hour figures from the Stop Shame hour aggregation, before platforms merge. */
-type HourlyStopDoc = Omit<RankedStopRow, HourFigure> & {
-  hours: (Pick<RankedStopRow, HourFigure> & { hour: number })[];
-};
-type HourFigure = "events" | "avg_delay_sec" | "avg_abs_delay_sec" | "routeIds";
+/**
+ * Stations per hour the Stop Shame aggregation returns for the final ranking.
+ * The pipeline orders on the raw average, while {@link worstStopOfDay} orders on
+ * the figure rounded to a tenth and re-tests the direction on the rounded signed
+ * average, so the raw leader can tie a runner-up or drop out; a handful of
+ * runners-up covers both without sending every station back.
+ */
+const HOUR_CANDIDATES = 10;
 
 /**
  * The day's "Stop Shame": the single most off-schedule station plus the worst
@@ -170,9 +174,7 @@ export async function getWorstStopsOfDay(
                 routeIds: { $addToSet: "$routeId" },
               },
             },
-            // Every (hour, stop) row, with no floor yet: a station's platforms
-            // only clear the floor together, so it applies after the merge.
-            // Folded back to one document per stop so the Stop lookup runs a few
+            // Folded to one document per stop so the Stop lookup runs a few
             // thousand times rather than once per hour of every stop.
             {
               $group: {
@@ -190,28 +192,97 @@ export async function getWorstStopsOfDay(
             },
             { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
             { $unwind: "$stop" },
+            // The joined stop goes once its station is known: carried into the
+            // group below it multiplies that stage's time several times over.
+            { $project: { hours: 1, station: stationIdExpr } },
+            { $unwind: "$hours" },
+            // A stop that is its own station is its whole station, so an hour below
+            // the floor can never clear it and goes before the group. Platforms
+            // only clear the floor together, so theirs stay. Most rows go here,
+            // which keeps the group under the memory limit past which it spills
+            // to disk.
+            {
+              $match: {
+                $or: [
+                  { "hours.events": { $gte: MIN_STOP_EVENTS_HOUR } },
+                  { $expr: { $ne: ["$station", { $toString: "$_id" }] } },
+                ],
+              },
+            },
+            // Each hour's platforms merged into their station, so the floor applies
+            // to the station's services together, as worstStopOfDay applies it.
+            // The stop ids and hour figures are pushed as they stand, in step, and
+            // zipped back into rows only for the stations that make the cut.
+            {
+              $group: {
+                _id: { hour: "$hours.hour", station: "$station" },
+                events: { $sum: "$hours.events" },
+                absSum: { $sum: { $multiply: ["$hours.avg_abs_delay_sec", "$hours.events"] } },
+                signedSum: {
+                  $sum: { $multiply: [{ $ifNull: ["$hours.avg_delay_sec", 0] }, "$hours.events"] },
+                },
+                stopIds: { $push: "$_id" },
+                figures: { $push: "$hours" },
+              },
+            },
+            // The direction test here is on the raw sign, which the rounded
+            // figure worstStopOfDay tests can only narrow, never widen.
+            {
+              $match: {
+                events: { $gte: MIN_STOP_EVENTS_HOUR },
+                ...(direction === "late" ? { signedSum: { $gt: 0 } } : {}),
+                ...(direction === "early" ? { signedSum: { $lt: 0 } } : {}),
+              },
+            },
+            { $addFields: { abs: { $divide: ["$absSum", "$events"] } } },
+            // Only each hour's leading stations come back, with their platform rows,
+            // so the reply is a few hundred rows rather than every stop's every hour.
+            {
+              $group: {
+                _id: "$_id.hour",
+                top: {
+                  $topN: {
+                    n: HOUR_CANDIDATES,
+                    sortBy: { abs: -1, "_id.station": 1 },
+                    output: { stopIds: "$stopIds", figures: "$figures" },
+                  },
+                },
+              },
+            },
+            { $unwind: "$top" },
+            { $unwind: { path: "$top.stopIds", includeArrayIndex: "i" } },
             {
               $project: {
                 _id: 0,
-                stop_id: { $toString: "$_id" },
+                hour: "$_id",
+                stopId: "$top.stopIds",
+                f: { $arrayElemAt: ["$top.figures", "$i"] },
+              },
+            },
+            { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+            { $unwind: "$stop" },
+            {
+              $project: {
+                hour: 1,
+                stop_id: { $toString: "$stopId" },
                 name: "$stop.name",
-                hours: 1,
                 ...stationProjection,
+                events: "$f.events",
+                avg_delay_sec: "$f.avg_delay_sec",
+                avg_abs_delay_sec: "$f.avg_abs_delay_sec",
+                routeIds: "$f.routeIds",
               },
             },
           ] as never,
           cursor: { batchSize: 100_000 },
         }),
-      )) as unknown as { cursor: { firstBatch: HourlyStopDoc[] } };
+      )) as unknown as { cursor: { firstBatch: (RankedStopRow & { hour: number })[] } };
 
       const byHour = new Map<number, RankedStopRow[]>();
-      for (const { hours: stopHours, ...stop } of res.cursor.firstBatch) {
-        for (const { hour, ...figures } of stopHours) {
-          const row = { ...stop, ...figures };
-          const rows = byHour.get(hour);
-          if (rows) rows.push(row);
-          else byHour.set(hour, [row]);
-        }
+      for (const { hour, ...row } of res.cursor.firstBatch) {
+        const rows = byHour.get(hour);
+        if (rows) rows.push(row);
+        else byHour.set(hour, [row]);
       }
 
       // Direction narrows each hour's candidates, not the board: filtering the

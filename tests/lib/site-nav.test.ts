@@ -1,6 +1,6 @@
 // tests/lib/site-nav.test.ts
-// Unit tests for the top-bar sections.
-import { isNavActive, NAV_SECTIONS, navHref } from "@/lib/site-nav";
+// Unit tests for the top-bar sections and the site directory.
+import { isNavActive, NAV_SECTIONS, navHref, SITE_PAGES } from "@/lib/site-nav";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -59,5 +59,27 @@ describe("navHref", () => {
   it("leaves page-specific params behind", () => {
     const params = new URLSearchParams("dir=1&tsort=late&q=nx&sort=off_by");
     expect(navHref(cancellations, params)).toBe("/cancellations");
+  });
+});
+
+describe("SITE_PAGES", () => {
+  it("lists every top-bar section, so the footer and the 404 page miss none", () => {
+    const listed = new Set<string>(SITE_PAGES.map((p) => p.href));
+    for (const s of NAV_SECTIONS) expect(listed).toContain(s.href);
+  });
+
+  it("follows the top bar's order", () => {
+    const order = SITE_PAGES.map((p) => p.href).filter((h) =>
+      NAV_SECTIONS.some((s) => s.href === h),
+    );
+    expect(order).toEqual(NAV_SECTIONS.map((s) => s.href));
+  });
+
+  it("carries what the matching tab carries", () => {
+    const params = new URLSearchParams("day=2026-09-13&mode=TRAIN");
+    for (const s of NAV_SECTIONS) {
+      const page = SITE_PAGES.find((p) => p.href === s.href);
+      expect(page && navHref(page, params)).toBe(navHref(s, params));
+    }
   });
 });

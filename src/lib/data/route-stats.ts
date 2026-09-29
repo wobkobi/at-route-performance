@@ -273,11 +273,10 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
       String(p.thresholdSec),
       hourRangeParam(p.hours ?? null) ?? "",
     ],
-    // The resolved window rather than null for the rolling default: it spans
-    // seven service days, so runIndependentState settles its state from the date
-    // alone and the read stops keying on the ingest run stamp - one fewer
-    // uncached round trip in front of the render. Stable within a service day,
-    // since nzLast7DaysRange ends on the 4am boundary rather than at now.
+    // The resolved window rather than null for the rolling default, so the key
+    // holds for the service day (see cacheState) instead of turning over every
+    // TTL. Stable within a service day, since nzLast7DaysRange ends on the 4am
+    // boundary rather than at now.
     range,
     300,
   );
