@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.3] - 2026-09-30
+
+### Fixed
+
+- Pages showing today no longer turn slow every two minutes. Today's cached figures were filed under
+  the latest ingest run, so each run started them over and the next visitor waited for a fresh read
+  of the database. They are now kept for the whole service day and refreshed in the background, so a
+  reader gets them straight away, at most one ingest behind.
+
 ## [2.40.2] - 2026-09-30
 
 ### Fixed

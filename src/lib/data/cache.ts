@@ -3,7 +3,7 @@
 // and the live-day clip on scheduledAt.
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { getLastIngestRun, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
+import { INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
 import { unstable_cache } from "@/lib/mem-cache";
 import {
   type DateRange,
@@ -49,9 +49,9 @@ export function cacheKey(keyParts: readonly string[], state: string): string[] {
 /**
  * Cache TTL for a window that can still change - anything touching the live
  * service day. One ingest cycle: the readings only move when a run lands, so a
- * shorter hold re-runs the aggregation over figures that have not changed. It
- * is a backstop rather than the mechanism, since a live entry is keyed by the
- * run behind it (see {@link cacheState}) and turns over as soon as one lands.
+ * shorter hold re-runs the aggregation over figures that have not changed. The
+ * entry is refreshed in the background once it expires (see {@link cacheState}),
+ * so a reader sees figures at most this far behind the latest run.
  */
 export const TODAY_REVALIDATE = INGEST_INTERVAL_SEC;
 
@@ -106,29 +106,22 @@ export async function rangeIsFinal(range: DateRange | null): Promise<boolean> {
  * - `ended` for a window that is over but not yet summarised, so a board
  *   computed while the day was still running (cut off at that moment) is never
  *   served for the finished day;
- * - `open-<service date>` for a still-running window of more than one day (the
- *   current week or month), one key per service day, so the Data Cache serves
+ * - `open-<service date>` for a still-running window - the live day, the
+ *   current week or month - one key per service day, so the Data Cache serves
  *   the last result and refreshes it in the background once the caller's TTL
- *   passes. Keyed by run, a week-wide scan would be thrown away every couple of
- *   minutes and paid again by the next reader, for figures one run barely
- *   moves. The day in the key means a new day still starts a fresh entry;
- * - `run-<ms>` for a single live day, keyed by the ingest run behind it;
- * - `live-<n>` for a running window with no run logged yet, a new key every TTL,
- *   so the live day is never more than one TTL behind however long ago the last
- *   visit was.
+ *   passes. The day in the key means a new day still starts a fresh entry;
+ * - `live-<n>` for a rolling window with no range, a new key every TTL.
  *
- * A live window is keyed by the run rather than by a clock bucket because the
- * figures only move when a run lands. A bucket turns over on a boundary that
- * has nothing to do with ingest, so a reader who arrives just after a run can
- * still be served the bucket computed just before it - which is what an open
- * tab asking for fresher numbers would get back unchanged. Keyed by the run,
- * the entry turns over exactly when there is something new behind it, and
- * holds still in between.
+ * A running window keys on the day rather than on the ingest run behind it. A
+ * run lands every couple of minutes, and a key that turned over with each one
+ * left nothing stale to serve: on a quiet site almost every reader was the first
+ * after a run and waited out the whole aggregation. Keyed by day, a reader gets
+ * the last result at once, at most one TTL behind, and the refresh happens
+ * behind them.
  * @param final - Whether every day in the window is summarised.
  * @param range - The queried half-open window, or null for a rolling live one.
  * @param liveRevalidate - TTL while the window can still change, in seconds.
  * @param now - The current time, epoch ms (injectable for tests).
- * @param lastIngestMs - The newest successful realtime run, epoch ms, or null when none is logged.
  * @returns The key part.
  */
 export function cacheState(
@@ -136,39 +129,11 @@ export function cacheState(
   range: DateRange | null,
   liveRevalidate: number,
   now: number = Date.now(),
-  lastIngestMs: number | null = null,
 ): string {
-  const fixed = runIndependentState(final, range, now);
-  if (fixed !== null) return fixed;
-  if (lastIngestMs !== null) return `run-${lastIngestMs}`;
-  return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
-}
-
-/**
- * The key part for a window whose state does not depend on the ingest run, or
- * null when only the run can decide it - which is the single live day alone.
- *
- * Split out of {@link cacheState} so a caller can skip the run lookup entirely
- * for the windows that never use it. The lookup is a database read held per
- * worker thread, so it is not shared the way the aggregations themselves are:
- * asking for it on every window put an uncached read in front of every render,
- * including the current week and month, which key on the service date instead.
- * @param final - Whether every day in the window is summarised.
- * @param range - The queried half-open window, or null for a rolling live one.
- * @param now - The current time, epoch ms.
- * @returns The key part, or null when the run stamp is needed to build one.
- */
-export function runIndependentState(
-  final: boolean,
-  range: DateRange | null,
-  now: number = Date.now(),
-): string | null {
   if (final) return "final";
   if (range !== null && range.end.getTime() <= now) return "ended";
-  if (range !== null && serviceDatesInRange(range).length > 1) {
-    return `open-${nzServiceDayString(new Date(now))}`;
-  }
-  return null;
+  if (range !== null) return `open-${nzServiceDayString(new Date(now))}`;
+  return `live-${Math.floor(now / (liveRevalidate * 1000))}`;
 }
 
 /**
@@ -197,22 +162,9 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  const now = Date.now();
-  // Only a single live day keys on the run stamp (see runIndependentState).
-  // Fetching it for every window that merely *could* change meant the current
-  // week, the current month and every ended-but-unsummarised window each paid a
-  // read they then discarded. The lookup is held per worker thread rather than in
-  // the shared Data Cache, so a cold instance paid it before any aggregation
-  // could resolve its key - one uncached round trip in front of every render.
-  const lastIngestMs =
-    runIndependentState(final, range, now) !== null
-      ? null
-      : ((await getLastIngestRun("at"))?.completedAt.getTime() ?? null);
-  return unstable_cache(
-    fn,
-    cacheKey(keyParts, cacheState(final, range, liveRevalidate, now, lastIngestMs)),
-    { revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate },
-  )(final);
+  return unstable_cache(fn, cacheKey(keyParts, cacheState(final, range, liveRevalidate)), {
+    revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
+  })(final);
 }
 
 /**
