@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.2] - 2026-09-30
+
+### Fixed
+
+- The home page's worst stop of the day loads faster on a fresh visit. The database now merges
+  platforms into their stations and ranks each hour itself, so it sends back about 200 rows instead
+  of every stop's figures for the day (several megabytes from the database's home connection).
+
 ## [2.40.1] - 2026-09-29
 
 ### Fixed
