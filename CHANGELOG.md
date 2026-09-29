@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.4] - 2026-09-30
+
+### Fixed
+
+- The smoke test's slow-page warning and hang limit now go on each page's load time instead of its
+  first byte. The first byte is the prerendered shell, sent before any figure is read, so it could
+  never show a slow page. A new column gives each page's HTML size and flags anything over 1 MB.
+
 ## [2.40.3] - 2026-09-30
 
 ### Fixed

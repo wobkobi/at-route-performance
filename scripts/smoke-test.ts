@@ -37,6 +37,8 @@ interface PageResult {
   ttfbMs: number | null;
   fcpMs: number | null;
   loadMs: number | null;
+  /** The HTML document's decoded size, streamed figures included. */
+  docBytes: number | null;
   errors: string[];
 }
 
@@ -147,18 +149,31 @@ const PAGE_FILE_NAMES: ReadonlyArray<string> = ["page.tsx", "page.ts", "page.jsx
 const APP_DIR = path.join("src", "app");
 
 /**
- * Warn (but don't fail) when TTFB exceeds this. Set above the normal ~3-4s
- * server-render of these DB-aggregation pages so the marker flags a real
+ * Warn (but don't fail) when a page takes longer than this to finish loading.
+ * The limits go on the load time rather than TTFB because every page is a
+ * prerendered shell: the first byte is the shell, sent before any figure is
+ * read, and the figures stream into the same response behind it. Only the load
+ * event waits for that stream, so only it measures the database reads. Set above
+ * the normal ~3-4s render of these aggregation pages so the marker flags a real
  * regression rather than lighting up on every page.
  */
-const TTFB_WARN_MS = 5_000;
+const LOAD_WARN_MS = 5_000;
 
 /**
- * Fail when TTFB exceeds this - a true hang. Set well above the cold-cache render
- * time of the heaviest pages (the home page's week and month views run aggregations the
- * first time it's hit), so slow-but-working pages warn rather than fail.
+ * Fail when a page takes longer than this to load - a true hang. Set well above
+ * the cold-cache render of the heaviest pages (the home page's week and month
+ * views run aggregations the first time they are hit), so slow-but-working pages
+ * warn rather than fail.
  */
-const TTFB_FAIL_MS = 45_000;
+const LOAD_FAIL_MS = 45_000;
+
+/**
+ * Warn when a page's HTML document is larger than this. The streamed figures
+ * travel inside the document, so a component that sends far more than it shows
+ * (a route list inlined into every page, say) shows up here before it shows up
+ * as a slow page.
+ */
+const DOC_WARN_BYTES = 1_000_000;
 
 /** Per-page navigation timeout (heavy pages render slowly on a cold cache). */
 const NAV_TIMEOUT_MS = 60_000;
@@ -425,6 +440,7 @@ async function checkApis(baseUrl: string): Promise<PageResult[]> {
       ttfbMs,
       fcpMs: null,
       loadMs: null,
+      docBytes: null,
       errors,
     });
   }
@@ -717,15 +733,16 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
       const fcp = performance
         .getEntriesByType("paint")
         .find((e) => e.name === "first-contentful-paint");
-      if (!nav) return { ttfb: null, fcp: null, load: null };
+      if (!nav) return { ttfb: null, fcp: null, load: null, bytes: null };
       return {
         ttfb: Math.round(nav.responseStart - nav.requestStart),
         fcp: fcp ? Math.round(fcp.startTime) : null,
         load: Math.round(nav.loadEventEnd - nav.requestStart),
+        bytes: nav.decodedBodySize,
       };
     });
 
-    const failed = errors.length > 0 || (timing.ttfb !== null && timing.ttfb > TTFB_FAIL_MS);
+    const failed = errors.length > 0 || (timing.load !== null && timing.load > LOAD_FAIL_MS);
     return {
       path: spec.path,
       name: spec.name,
@@ -733,6 +750,7 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
       ttfbMs: timing.ttfb,
       fcpMs: timing.fcp,
       loadMs: timing.load,
+      docBytes: timing.bytes,
       errors,
     };
   } catch (err: unknown) {
@@ -744,6 +762,7 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
       ttfbMs: null,
       fcpMs: null,
       loadMs: null,
+      docBytes: null,
       errors: [`Failed to load page: ${message}`],
     };
   } finally {
@@ -759,7 +778,18 @@ async function checkPage(browser: Browser, baseUrl: string, spec: PageSpec): Pro
 function fmtMs(ms: number | null): string {
   if (ms === null) return "  -  ";
   const s = `${ms}ms`.padStart(7);
-  return ms > TTFB_WARN_MS ? `${s} !` : s;
+  return ms > LOAD_WARN_MS ? `${s} !` : s;
+}
+
+/**
+ * Formats a document size in kilobytes, with a warning marker past {@link DOC_WARN_BYTES}.
+ * @param bytes - Decoded size in bytes (or null).
+ * @returns Formatted string.
+ */
+function fmtKb(bytes: number | null): string {
+  if (bytes === null) return "  -  ";
+  const s = `${Math.round(bytes / 1000)}KB`.padStart(7);
+  return bytes > DOC_WARN_BYTES ? `${s} !` : s;
 }
 
 /**
@@ -773,7 +803,8 @@ function printTable(results: PageResult[]): void {
     "Name".padEnd(col1) +
     " TTFB".padStart(9) +
     "  FCP".padStart(9) +
-    "  Load".padStart(9);
+    "  Load".padStart(9) +
+    "  HTML".padStart(9);
   console.log("\n" + header);
   console.log("-".repeat(header.length));
   for (const r of results) {
@@ -783,7 +814,8 @@ function printTable(results: PageResult[]): void {
         r.name.padEnd(col1) +
         fmtMs(r.ttfbMs).padStart(9) +
         fmtMs(r.fcpMs).padStart(9) +
-        fmtMs(r.loadMs).padStart(9),
+        fmtMs(r.loadMs).padStart(9) +
+        fmtKb(r.docBytes).padStart(9),
     );
     for (const e of r.errors) console.log(`             > ${e}`);
   }
@@ -845,7 +877,7 @@ async function main(): Promise<void> {
       const result = await checkPage(browser, baseUrl, spec);
       results.push(result);
       const icon = result.status === "pass" ? "ok" : "x";
-      process.stdout.write(`  ${icon} ${spec.path.padEnd(40)} ${result.ttfbMs ?? "-"}ms TTFB\n`);
+      process.stdout.write(`  ${icon} ${spec.path.padEnd(40)} ${result.loadMs ?? "-"}ms load\n`);
     }
     results.push(...(await checkApis(baseUrl)));
 
