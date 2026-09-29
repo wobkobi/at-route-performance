@@ -39,6 +39,9 @@
   /* Pale Shore tint (at.govt.nz tint-shore-10) for icon badges, section bands
      and table heads - the last of those is what `.at-table thead` uses there. */
   --color-at-shore-pale: #ebf5fb;
+  /* Every other row of a table or ranked list: neutral, so it never reads as
+     the Shore hover, and faint enough that a hovered row still stands out. */
+  --color-at-stripe: #f4f6f8;
 
   /* Semantic status */
   --color-at-ontime: #0073bd;
@@ -244,6 +247,20 @@
   */
   .bg-at-ocean :focus-visible {
     outline-color: var(--color-at-safety);
+  }
+}
+
+/*
+  Alternate rows for readability. Every table body stripes; a list opts in with
+  `.striped`, and there the stripe goes on the row's link (or the row's box, where
+  a row holds two links), which bleeds past the list edge to match its hover. A group label or divider row takes `.no-stripe`
+  and drops out of the count, so the rows either side of it still alternate.
+  In the base layer, so a row's own hover or highlight utility wins over it.
+*/
+@layer base {
+  tbody > tr:nth-child(even of :not(.no-stripe)),
+  .striped > li:nth-child(even of :not(.no-stripe)) > :is(a, div) {
+    background-color: var(--color-at-stripe);
   }
 }
 

@@ -568,7 +568,7 @@ function CandidateList({
   return (
     <div>
       <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">{heading}</p>
-      <ul className="mt-1 divide-y divide-at-border">
+      <ul className="striped mt-1 divide-y divide-at-border">
         {items.map((c) => (
           <li key={c.id}>
             <Link

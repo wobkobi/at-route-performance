@@ -163,7 +163,7 @@ export function StopSchedule({
                 return (
                   <Fragment key={dep.tripId || i}>
                     {i === firstUpcoming && i > 0 && (
-                      <tr className="border-b border-at-shore">
+                      <tr className="no-stripe border-b border-at-shore">
                         <td
                           colSpan={3}
                           className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-shore uppercase"
@@ -173,7 +173,7 @@ export function StopSchedule({
                       </tr>
                     )}
                     {i === firstAfterMidnight && (
-                      <tr className="border-b border-at-border/40">
+                      <tr className="no-stripe border-b border-at-border/40">
                         <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
                           {afterMidnightNote(serviceDate)}
                         </td>

@@ -199,7 +199,7 @@ export function RankBoard({
             : `No route reached ${minEvents} arrivals in this window, so there is nothing to rank.`}
         </p>
       ) : (
-        <ol className="border-t border-at-border">
+        <ol className="striped border-t border-at-border">
           {rows.map((r, i) => {
             // Ranked by abs deviation, so the value always names a distance and
             // the column reads in descending order.

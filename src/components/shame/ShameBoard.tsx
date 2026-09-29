@@ -153,7 +153,7 @@ export function ShameBoard<T>({
     <>
       <div className="border border-at-border bg-at-surface">
         {/* Mobile: sequential single-column list */}
-        <ul className="md:hidden">
+        <ul className="striped md:hidden">
           {items.map((item, i) => (
             <li key={keyOf(item, i)}>
               {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
@@ -181,6 +181,8 @@ export function ShameBoard<T>({
                 key={keyOf(item, i)}
                 className={cn(
                   rowIdx > 0 && "border-t border-at-border",
+                  // Striped by grid row, not list order, so a row reads across both columns.
+                  rowIdx % 2 === 1 && "bg-at-stripe",
                   isRight && "border-l border-at-border",
                   closesShortColumn && "border-b border-at-border",
                 )}
