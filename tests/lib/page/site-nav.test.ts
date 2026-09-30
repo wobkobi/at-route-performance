@@ -57,7 +57,7 @@ describe("navHref", () => {
   });
 
   it("leaves page-specific params behind", () => {
-    const params = new URLSearchParams("dir=1&tsort=late&q=nx&sort=off_by");
+    const params = new URLSearchParams("heading=1&tsort=late&q=nx&sort=off");
     expect(navHref(cancellations, params)).toBe("/cancellations");
   });
 });

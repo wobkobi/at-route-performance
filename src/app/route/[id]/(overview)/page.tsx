@@ -161,7 +161,8 @@ interface StatsSearchParams {
   tpage?: string;
   /** Reverse the active sort direction when "1". */
   trev?: string;
-  dir?: string;
+  /** Travel direction id to narrow the page to; unset for both. */
+  heading?: string;
   window?: string;
   /** Week start (`YYYY-MM-DD` Monday) when stepping back through the week view. */
   period?: string;
@@ -176,7 +177,7 @@ interface StatsSearchParams {
 const STOP_COLUMNS: SortColumn<RouteByStop>[] = [
   { key: "stop", value: "name", first: "asc" },
   { key: "arrivals", value: "events" },
-  { key: "late", value: "avg_delay_sec" },
+  { key: "delay", value: "avg_delay_sec" },
 ];
 
 /** The Stops table's own names: `tsort` and `trev` belong to the trips board. */
@@ -414,8 +415,8 @@ export default async function RoutePage({
     .map(([d, dir]): [number, { variants: RouteVariant[] }] => [Number(d), dir])
     .sort(([a], [b]) => a - b);
   const dirKeys = dirEntries.map(([d]) => d);
-  const requestedDir = sp.dir != null && /^\d+$/.test(sp.dir) ? Number(sp.dir) : null;
-  // An unknown ?dir falls back to the unfiltered "both" view.
+  const requestedDir = sp.heading != null && /^\d+$/.test(sp.heading) ? Number(sp.heading) : null;
+  // An unknown ?heading falls back to the unfiltered "both" view.
   const activeEntry =
     requestedDir == null ? null : (dirEntries.find(([d]) => d === requestedDir) ?? null);
   const activeDir = activeEntry?.[0] ?? null;
@@ -425,7 +426,7 @@ export default async function RoutePage({
   // stepper keeps the whole set; the direction chips and the trips board each
   // drop the one param they set themselves, so the three cannot drift apart.
   const viewParams: Record<string, string> = {
-    ...(activeDir != null ? { dir: String(activeDir) } : {}),
+    ...(activeDir != null ? { heading: String(activeDir) } : {}),
     ...(sp.thresholdSec ? { thresholdSec: sp.thresholdSec } : {}),
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
@@ -499,7 +500,7 @@ export default async function RoutePage({
    * @returns The href.
    */
   const dirHref = (dir: number | null): string =>
-    buildHref(routePath, { ...viewBase, dir: dir == null ? undefined : String(dir) });
+    buildHref(routePath, { ...viewBase, heading: dir == null ? undefined : String(dir) });
   /**
    * Link to this view with a different part of the day.
    * @param range - The range, or null for all day.
@@ -725,7 +726,7 @@ export default async function RoutePage({
             dayHref={(date) =>
               buildHref(routePath, {
                 day: dayLinkParam(date, today),
-                dir: activeDir == null ? undefined : String(activeDir),
+                heading: activeDir == null ? undefined : String(activeDir),
               })
             }
           />
@@ -892,7 +893,7 @@ export default async function RoutePage({
                       <SortHeader {...stopSort.head("arrivals")} className="px-3 py-2">
                         Arrivals
                       </SortHeader>
-                      <SortHeader {...stopSort.head("late")} className="px-3 py-2">
+                      <SortHeader {...stopSort.head("delay")} className="px-3 py-2">
                         Early or late
                       </SortHeader>
                     </tr>

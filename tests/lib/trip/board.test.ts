@@ -213,14 +213,14 @@ describe("tripBoardView", () => {
     expect(
       tripBoardView({
         d: "2026-09-20T01:00:00.000Z",
-        dir: "1",
+        heading: "1",
         thresholdSec: "",
         tsort: "late",
         trev: undefined,
         tpage: "2",
         mode: "BUS",
       }),
-    ).toEqual({ dir: "1", tsort: "late", tpage: "2" });
+    ).toEqual({ heading: "1", tsort: "late", tpage: "2" });
   });
 
   it("skips a repeated param rather than guessing which value", () => {
@@ -228,6 +228,6 @@ describe("tripBoardView", () => {
   });
 
   it("carries the part of the day, which narrows the board like the direction does", () => {
-    expect(tripBoardView({ dir: "0", hours: "7-9" })).toEqual({ dir: "0", hours: "7-9" });
+    expect(tripBoardView({ heading: "0", hours: "7-9" })).toEqual({ heading: "0", hours: "7-9" });
   });
 });

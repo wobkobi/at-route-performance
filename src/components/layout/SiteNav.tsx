@@ -37,7 +37,7 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
             // The tab for the page you are already on is not a link: following it
             // would rebuild the URL from the carried params alone and drop the
             // page's own state, which on Routes is the whole explorer (search,
-            // area, sort, lean). A section tab from one of its sub-pages stays a
+            // area, sort, late or early). A section tab from one of its sub-pages stays a
             // link, since /route/20 > /routes is a real navigation.
             // px-2 below sm keeps each group to one row on a 360px phone.
             const className = cn(

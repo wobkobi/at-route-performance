@@ -86,7 +86,7 @@ const MODE_OPTIONS: [Mode | null, string][] = [
 ];
 
 /** The Running filter's choices, null for either way. */
-const LEANS = [
+const DIRECTIONS = [
   [null, "Either way"],
   ["late", "Late"],
   ["early", "Early"],
@@ -397,21 +397,23 @@ export function RouteExplorer({
           </FilterMenu>
           <FilterMenu
             label="Running"
-            summary={LEANS.find(([key]) => key !== null && key === filters.lean)?.[1] ?? null}
-            onReset={() => update({ lean: null })}
+            summary={
+              DIRECTIONS.find(([key]) => key !== null && key === filters.direction)?.[1] ?? null
+            }
+            onReset={() => update({ direction: null })}
             activeClass={
-              filters.lean === "late"
+              filters.direction === "late"
                 ? "border-at-late bg-at-surface text-at-late"
                 : "border-at-early-strong bg-at-surface text-at-early-strong"
             }
           >
-            {LEANS.map(([key, label]) => (
+            {DIRECTIONS.map(([key, label]) => (
               <FilterOption
                 key={label}
                 type="radio"
-                name="explorer-lean"
-                checked={filters.lean === key}
-                onChange={() => update({ lean: key })}
+                name="explorer-direction"
+                checked={filters.direction === key}
+                onChange={() => update({ direction: key })}
               >
                 {label}
               </FilterOption>

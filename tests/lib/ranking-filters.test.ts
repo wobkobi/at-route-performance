@@ -18,13 +18,13 @@ const ROUTE_AREAS = { NX1: ["central", "north"], "70": ["central", "east"] } as 
 describe("parseRankingFilters", () => {
   it("reads all three and drops unreadable parts", () => {
     expect(
-      parseRankingFilters({ hours: "7-9", days: "sat", area: "north,bogus,north" }, false),
+      parseRankingFilters({ hours: "7-9", daytype: "sat", area: "north,bogus,north" }, false),
     ).toEqual({ hours: { from: 7, to: 9 }, days: "sat", areas: ["north"] });
-    expect(parseRankingFilters({ hours: "9-9", days: "x" }, false)).toEqual(NO_RANKING_FILTERS);
+    expect(parseRankingFilters({ hours: "9-9", daytype: "x" }, false)).toEqual(NO_RANKING_FILTERS);
   });
 
   it("ignores the day type on a single day", () => {
-    expect(parseRankingFilters({ days: "sun" }, true).days).toBeNull();
+    expect(parseRankingFilters({ daytype: "sun" }, true).days).toBeNull();
   });
 });
 
@@ -32,7 +32,7 @@ describe("rankingFilterParams", () => {
   it("round-trips through the parser and leaves unset params off", () => {
     const f: RankingFilters = { hours: { from: 22, to: 2 }, days: "weekday", areas: ["west"] };
     const params = rankingFilterParams(f);
-    expect(params).toEqual({ hours: "22-2", days: "weekday", area: "west" });
+    expect(params).toEqual({ hours: "22-2", daytype: "weekday", area: "west" });
     expect(parseRankingFilters(params, false)).toEqual(f);
     expect(rankingFilterParams(NO_RANKING_FILTERS)).toEqual({
       hours: undefined,

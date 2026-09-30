@@ -7,7 +7,7 @@ import { isKeyOf, labelOf, type KeyedLabel } from "@/lib/collections";
 import { weekdayOf } from "@/lib/time/service-day";
 
 /** The query param holding the day type. */
-export const DAYS_PARAM = "days";
+export const DAY_TYPE_PARAM = "daytype";
 
 /** A kind of service day. */
 export type DayType = "weekday" | "sat" | "sun";

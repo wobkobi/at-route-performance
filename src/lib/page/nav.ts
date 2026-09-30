@@ -165,7 +165,7 @@ export function fillServiceHours<H extends { hour: number }>(
 
 /** The prev/next week-stepper links and the period label for a week view. */
 export interface WeekNav {
-  /** Human label for the active period ("Last 7 days" or "DD/MM to DD/MM"). */
+  /** Human label for the active period ("Last 7 days" or "21 to 27 Sep"). */
   periodLabel: string;
   /** Previous-week link, or null at the earliest data. */
   prevHref: string | null;

@@ -82,7 +82,7 @@ const PAGE_OVERRIDES: Record<
 const DYNAMIC_SAMPLES: ReadonlyArray<PageSpec> = [
   { path: "/route/NX1", name: "Route NX1", mustContain: ["Route map"] },
   { path: "/route/65", name: "Route 65" },
-  { path: "/route/NX1?dir=0", name: "Route NX1 (one direction)" },
+  { path: "/route/NX1?heading=0", name: "Route NX1 (one direction)" },
   { path: "/route/NX1?window=week", name: "Route NX1 (week)", mustContain: ["Last 7 days"] },
   { path: "/?window=week", name: "Home (week)", mustContain: ["Last 7 days"] },
   { path: "/?window=month", name: "Home (month)" },

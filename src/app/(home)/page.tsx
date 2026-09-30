@@ -126,7 +126,7 @@ interface HomeSearchParams {
   dir?: string;
   day?: string;
   hours?: string;
-  days?: string;
+  daytype?: string;
   area?: string;
 }
 
@@ -545,7 +545,7 @@ export default async function Home({
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
-              ...viewQuery("off", { mode, school: schools, lean: dir, areas: filters.areas }),
+              ...viewQuery("off", { mode, school: schools, direction: dir, areas: filters.areas }),
             })}
           />
           <RankBoard

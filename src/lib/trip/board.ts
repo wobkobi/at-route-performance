@@ -41,7 +41,7 @@ type RunRow = Extract<TripBoardRow, { kind: "run" }>;
  * all-day board and gave the trip page an all-day route to describe.
  */
 export const TRIP_BOARD_VIEW_PARAMS = [
-  "dir",
+  "heading",
   "hours",
   "thresholdSec",
   "tsort",

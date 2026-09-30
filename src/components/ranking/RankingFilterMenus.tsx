@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { labelOf, labelsOf } from "@/lib/collections";
 import { AREAS, type AreaKey } from "@/lib/geo/areas";
 import { AREA_PARAM } from "@/lib/ranking-filters";
-import { DAY_TYPES, DAYS_PARAM, type DayType } from "@/lib/time/day-type";
+import { DAY_TYPE_PARAM, DAY_TYPES, type DayType } from "@/lib/time/day-type";
 import { nzHourLabel, SERVICE_START_HOUR } from "@/lib/time/service-day";
 import {
   hourRangeClock,
@@ -137,7 +137,7 @@ export function RankingFilterMenus({
       buildHref(basePath, {
         ...preservedParams,
         [HOURS_PARAM]: hourRangeParam(hours),
-        [DAYS_PARAM]: days ?? undefined,
+        [DAY_TYPE_PARAM]: days ?? undefined,
         [AREA_PARAM]: areas.length > 0 ? areas.join(",") : undefined,
         ...params,
       }),
@@ -206,13 +206,13 @@ export function RankingFilterMenus({
         <FilterMenu
           label="Days"
           summary={labelOf(DAY_TYPES, days) ?? null}
-          onReset={() => go({ [DAYS_PARAM]: undefined })}
+          onReset={() => go({ [DAY_TYPE_PARAM]: undefined })}
         >
           <FilterOption
             type="radio"
             name={daysName}
             checked={days === null}
-            onChange={() => go({ [DAYS_PARAM]: undefined })}
+            onChange={() => go({ [DAY_TYPE_PARAM]: undefined })}
           >
             Every day
           </FilterOption>
@@ -222,7 +222,7 @@ export function RankingFilterMenus({
               type="radio"
               name={daysName}
               checked={days === d.key}
-              onChange={() => go({ [DAYS_PARAM]: d.key })}
+              onChange={() => go({ [DAY_TYPE_PARAM]: d.key })}
             >
               {d.label}
             </FilterOption>

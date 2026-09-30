@@ -6,10 +6,53 @@
 /** Which way a column is sorted. */
 export type SortDir = "asc" | "desc";
 
+/**
+ * Every `sort` value the site uses, so one `?sort=` means the same measure on
+ * every page: `ontime` is the on-time share, `off` the average off by, `delay`
+ * the signed early-or-late average, `late`/`early` their shares or counts, and
+ * `arrivals` the arrival count.
+ */
+export const SORT_KEYS = [
+  "route",
+  "stop",
+  "name",
+  "vehicle",
+  "day",
+  "start",
+  "departure",
+  "ontime",
+  "off",
+  "delay",
+  "late",
+  "early",
+  "arrivals",
+  "cancelled",
+  "routes",
+  "vehicles",
+  "running",
+  "hours",
+  "runs",
+  "days",
+  "length",
+  "cars",
+] as const;
+
+/** One `sort` value. */
+export type SortKey = (typeof SORT_KEYS)[number];
+
+/**
+ * The other direction.
+ * @param dir - A direction.
+ * @returns Its opposite.
+ */
+export function flipDir(dir: SortDir): SortDir {
+  return dir === "asc" ? "desc" : "asc";
+}
+
 /** One sortable column. */
 export interface SortColumn<T> {
   /** The column's `sort` value in the URL. */
-  key: string;
+  key: SortKey;
   /**
    * The value sorted on: a row field, or a function for anything nested. Null
    * (or a missing field) always sorts last, whichever way.
@@ -24,7 +67,7 @@ export interface SortColumn<T> {
 
 /** The active sort: a column's key and its direction. */
 export interface TableSort {
-  key: string;
+  key: SortKey;
   dir: SortDir;
 }
 
@@ -82,12 +125,12 @@ export function parseTableSort<T>(
   sortRaw: string | undefined,
   revRaw: string | undefined,
   columns: readonly SortColumn<T>[],
-  fallback: string | null,
+  fallback: SortKey | null,
 ): TableSort | null {
   const col = columns.find((c) => c.key === sortRaw) ?? columns.find((c) => c.key === fallback);
   if (!col) return null;
   const dir = firstDir(col);
-  return { key: col.key, dir: revRaw === "1" ? (dir === "asc" ? "desc" : "asc") : dir };
+  return { key: col.key, dir: revRaw === "1" ? flipDir(dir) : dir };
 }
 
 /**
@@ -136,9 +179,9 @@ export function sortRows<T>(
  */
 export function sortParams<T>(
   sort: TableSort | null,
-  key: string,
+  key: SortKey,
   columns: readonly SortColumn<T>[],
-  fallback: string | null,
+  fallback: SortKey | null,
   names: SortParamNames = SORT_PARAMS,
 ): Record<string, string | undefined> {
   const col = columns.find((c) => c.key === key);
@@ -163,7 +206,7 @@ export function sortParams<T>(
 export function keepSort<T>(
   sp: object,
   columns: readonly SortColumn<T>[],
-  fallback: string | null,
+  fallback: SortKey | null,
   names: SortParamNames = SORT_PARAMS,
 ): Record<string, string | undefined> {
   const sort = parseTableSort(param(sp, names.sort), param(sp, names.rev), columns, fallback);
@@ -188,12 +231,12 @@ export function keepSort<T>(
 export function tableSort<T>(
   sp: object,
   columns: readonly SortColumn<T>[],
-  fallback: string | null,
+  fallback: SortKey | null,
   hrefFor: (params: Record<string, string | undefined>) => string,
   names: SortParamNames = SORT_PARAMS,
 ): {
   sort: TableSort | null;
-  head: (key: string) => { href: string; dir: SortDir | null };
+  head: (key: SortKey) => { href: string; dir: SortDir | null };
   keep: Record<string, string | undefined>;
 } {
   const sort = parseTableSort(param(sp, names.sort), param(sp, names.rev), columns, fallback);

@@ -9,7 +9,7 @@ import type { LinkQuery } from "@/lib/page/hrefs";
 import type { RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import {
-  DAYS_PARAM,
+  DAY_TYPE_PARAM,
   dayTypeLabel,
   dayTypeOf,
   parseDayType,
@@ -46,18 +46,18 @@ export const NO_RANKING_FILTERS: RankingFilters = { hours: null, days: null, are
  * only: a single day already is one kind of day, so the param is ignored there.
  * @param sp - The page's params.
  * @param sp.hours - `hours`, e.g. `7-9`.
- * @param sp.days - `days`: weekday, sat or sun.
+ * @param sp.daytype - `daytype`: weekday, sat or sun.
  * @param sp.area - `area`, a comma list of area keys.
  * @param singleDay - Whether the page shows one service day.
  * @returns The filters, each unreadable part dropped.
  */
 export function parseRankingFilters(
-  sp: { hours?: string; days?: string; area?: string },
+  sp: { hours?: string; daytype?: string; area?: string },
   singleDay: boolean,
 ): RankingFilters {
   return {
     hours: parseHourRange(sp.hours),
-    days: singleDay ? null : parseDayType(sp.days),
+    days: singleDay ? null : parseDayType(sp.daytype),
     areas: [...new Set((sp.area ?? "").split(",").filter(isAreaKey))],
   };
 }
@@ -79,7 +79,7 @@ export function hasRankingFilters(f: RankingFilters): boolean {
 export function rankingFilterParams(f: RankingFilters): Record<string, string | undefined> {
   return {
     [HOURS_PARAM]: hourRangeParam(f.hours),
-    [DAYS_PARAM]: f.days ?? undefined,
+    [DAY_TYPE_PARAM]: f.days ?? undefined,
     [AREA_PARAM]: f.areas.length > 0 ? f.areas.join(",") : undefined,
   };
 }

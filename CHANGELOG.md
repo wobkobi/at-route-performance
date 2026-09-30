@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.19] - 2026-10-01
+
+### Changed
+
+- One sort vocabulary across the site (ontime, off, arrivals, delay), and clashing URL params
+  renamed: the Routes page uses rev=1 for sort direction and dir for late or early, the route page's
+  travel direction is heading, and the day type is daytype.
+
 ## [2.41.18] - 2026-10-01
 
 ### Changed

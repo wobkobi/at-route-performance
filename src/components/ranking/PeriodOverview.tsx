@@ -367,7 +367,7 @@ export async function PeriodBoards({
           seeAllHref={buildHref("/routes", {
             window,
             period,
-            ...viewQuery("off", { mode, school: schools, lean: dir, areas: filters.areas }),
+            ...viewQuery("off", { mode, school: schools, direction: dir, areas: filters.areas }),
           })}
         />
         <RankBoard

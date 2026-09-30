@@ -100,9 +100,9 @@ describe("filterRoutes", () => {
     ]);
   });
 
-  it("filters by mode, lean, search and cancellations", () => {
+  it("filters by mode, direction, search and cancellations", () => {
     expect(slugs(filterRoutes(rows, filters({ mode: "TRAIN" })))).toEqual(["S-C"]);
-    expect(slugs(filterRoutes(rows, filters({ lean: "early" })))).toEqual(["70"]);
+    expect(slugs(filterRoutes(rows, filters({ direction: "early" })))).toEqual(["70"]);
     expect(slugs(filterRoutes(rows, filters({ q: "nx" })))).toEqual(["NX1"]);
     expect(slugs(filterRoutes(rows, filters({ cancelledOnly: true })))).toEqual(["70"]);
   });
@@ -132,8 +132,8 @@ describe("sortRoutes", () => {
   });
 
   it("puts routes with no value last in either direction", () => {
-    expect(slugs(sortRoutes(rows, "on_time", "desc"))).toEqual(["25", "100", "9"]);
-    expect(slugs(sortRoutes(rows, "on_time", "asc"))).toEqual(["100", "25", "9"]);
+    expect(slugs(sortRoutes(rows, "ontime", "desc"))).toEqual(["25", "100", "9"]);
+    expect(slugs(sortRoutes(rows, "ontime", "asc"))).toEqual(["100", "25", "9"]);
   });
 });
 
@@ -144,7 +144,7 @@ describe("query round trip", () => {
       zones: ["isthmus", "city"],
       op: "go-bus",
       mode: "BUS",
-      sort: "off_by",
+      sort: "off",
       dir: "desc",
     });
     const q = explorerQuery(f);
@@ -153,7 +153,7 @@ describe("query round trip", () => {
       area: "west,north",
       zone: "isthmus,city",
       op: "go-bus",
-      sort: "off_by",
+      sort: "off",
     });
     expect(parseExplorerFilters(q)).toEqual(f);
     expect(explorerQuery(DEFAULT_FILTERS)).toEqual({});
@@ -175,19 +175,17 @@ describe("query round trip", () => {
 describe("board presets", () => {
   it("recognise the Most off-schedule and Most reliable boards", () => {
     expect(activeView(DEFAULT_FILTERS)).toBe("all");
-    expect(activeView(filters({ sort: "off_by", dir: "desc", enoughData: true }))).toBe("off");
-    expect(activeView(filters({ sort: "on_time", dir: "desc", enoughData: true }))).toBe(
-      "reliable",
-    );
-    expect(activeView(filters({ sort: "on_time", dir: "desc" }))).toBeNull();
+    expect(activeView(filters({ sort: "off", dir: "desc", enoughData: true }))).toBe("off");
+    expect(activeView(filters({ sort: "ontime", dir: "desc", enoughData: true }))).toBe("reliable");
+    expect(activeView(filters({ sort: "ontime", dir: "desc" }))).toBeNull();
   });
 
   it("link to a board with the filters carried", () => {
-    expect(viewQuery("reliable", { mode: "BUS", lean: "late" })).toEqual({
+    expect(viewQuery("reliable", { mode: "BUS", direction: "late" })).toEqual({
       mode: "BUS",
-      lean: "late",
+      dir: "late",
       data: "1",
-      sort: "on_time",
+      sort: "ontime",
     });
     expect(viewQuery("all")).toEqual({});
   });
@@ -197,7 +195,7 @@ describe("board presets", () => {
       route("wobbly", { on_time_pct: 90, avg_abs_delay_sec: 200 }),
       route("steady", { on_time_pct: 90, avg_abs_delay_sec: 50 }),
     ];
-    expect(slugs(sortRoutes(rows, "on_time", "desc"))).toEqual(["steady", "wobbly"]);
+    expect(slugs(sortRoutes(rows, "ontime", "desc"))).toEqual(["steady", "wobbly"]);
   });
 
   it("rank a route with no absolute average by its signed one on off-by", () => {
@@ -205,6 +203,6 @@ describe("board presets", () => {
       route("abs", { avg_abs_delay_sec: 100 }),
       route("signed", { avg_abs_delay_sec: null, avg_delay_sec: -300 }),
     ];
-    expect(slugs(sortRoutes(rows, "off_by", "desc"))).toEqual(["signed", "abs"]);
+    expect(slugs(sortRoutes(rows, "off", "desc"))).toEqual(["signed", "abs"]);
   });
 });

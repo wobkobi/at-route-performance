@@ -31,6 +31,7 @@ import {
   tableSort,
   type SortColumn,
   type SortDir,
+  type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
@@ -283,7 +284,7 @@ async function DaysBody({
   schools: SchoolFilter;
   today: string;
   sort: TableSort | null;
-  head: (key: string) => { href: string; dir: SortDir | null };
+  head: (key: SortKey) => { href: string; dir: SortDir | null };
 }): Promise<JSX.Element> {
   const allRows = await dayRows;
   const slots: DaySlot[] = await Promise.all(

@@ -23,6 +23,7 @@ import {
   tableSort,
   type SortColumn,
   type SortDir,
+  type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
 import { routeSlug, routeSubtitle } from "@/lib/route/slug";
@@ -59,7 +60,7 @@ const COLUMNS: SortColumn<LiveRouteRow>[] = [
   { key: "late", value: "late" },
   { key: "ontime", value: "onTime" },
   { key: "early", value: "early" },
-  { key: "avg", value: "avgDelaySec" },
+  { key: "delay", value: "avgDelaySec" },
 ];
 
 /** Routes the table opens with; `?all=1` lists every one. */
@@ -266,7 +267,7 @@ async function LiveTable({
 }: {
   mode: Mode | null;
   sort: TableSort | null;
-  head: (key: string) => { href: string; dir: SortDir | null };
+  head: (key: SortKey) => { href: string; dir: SortDir | null };
   keep: Record<string, string | undefined>;
   all: boolean;
 }): Promise<JSX.Element> {
@@ -314,7 +315,7 @@ async function LiveTable({
               <SortHeader {...head("early")} className="hidden sm:table-cell">
                 Early
               </SortHeader>
-              <SortHeader {...head("avg")} className="hidden md:table-cell">
+              <SortHeader {...head("delay")} className="hidden md:table-cell">
                 Early or late, avg
               </SortHeader>
             </tr>

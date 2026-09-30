@@ -5,10 +5,14 @@
 // the defaults, so a filtered view is a shareable link.
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
-import type { Mode } from "@/lib/mode";
-import type { SortDir } from "@/lib/page/table-sort";
-import type { DelayDirection } from "@/lib/rankings";
-import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
+import { type Mode, parseMode } from "@/lib/mode";
+import { flipDir, type SortDir } from "@/lib/page/table-sort";
+import {
+  type DelayDirection,
+  MIN_BOARD_EVENTS,
+  MIN_MODE_EVENTS,
+  parseDelayDirection,
+} from "@/lib/rankings";
 import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
@@ -36,17 +40,17 @@ export interface ExplorerRoute extends RouteRow {
 
 /** A sortable measure. */
 export type ExplorerSort =
-  "route" | "on_time" | "off_by" | "delay" | "late" | "early" | "events" | "cancelled";
+  "route" | "ontime" | "off" | "delay" | "late" | "early" | "arrivals" | "cancelled";
 
 /** Every sort with its label and the direction it opens in (the more telling end first). */
 export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; dir: SortDir }> = [
   { key: "route", label: "Route number", dir: "asc" },
-  { key: "on_time", label: "On time %", dir: "desc" },
-  { key: "off_by", label: "Average off by", dir: "desc" },
+  { key: "ontime", label: "On time %", dir: "desc" },
+  { key: "off", label: "Average off by", dir: "desc" },
   { key: "delay", label: "Early or late", dir: "desc" },
   { key: "late", label: "Late %", dir: "desc" },
   { key: "early", label: "Early %", dir: "desc" },
-  { key: "events", label: "Arrivals", dir: "desc" },
+  { key: "arrivals", label: "Arrivals", dir: "desc" },
   { key: "cancelled", label: "Cancellations", dir: "desc" },
 ];
 
@@ -63,7 +67,8 @@ export interface ExplorerFilters {
   op: string | null;
   /** Which school services count. */
   school: SchoolFilter;
-  lean: DelayDirection;
+  /** Only routes running late, or early, on average; null for both. */
+  direction: DelayDirection;
   /** Only routes with enough arrivals to rank on the boards. */
   enoughData: boolean;
   /** Only routes with at least one cancellation. */
@@ -82,7 +87,7 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
   zones: [],
   op: null,
   school: "exclude",
-  lean: null,
+  direction: null,
   enoughData: false,
   cancelledOnly: false,
   runningNow: false,
@@ -109,17 +114,17 @@ export function parseExplorerFilters(sp: Record<string, string | undefined>): Ex
   const sort = EXPLORER_SORTS.some((s) => s.key === sp.sort)
     ? (sp.sort as ExplorerSort)
     : DEFAULT_FILTERS.sort;
-  const dir: SortDir = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : defaultDir(sort);
+  const dir = sp.rev === "1" ? flipDir(defaultDir(sort)) : defaultDir(sort);
   return {
     q: sp.q?.slice(0, 100) ?? "",
-    mode: sp.mode === "BUS" || sp.mode === "TRAIN" || sp.mode === "FERRY" ? sp.mode : null,
+    mode: parseMode(sp.mode),
     areas: [...new Set((sp.area ?? "").split(",").filter(isAreaKey))],
     zones: [...new Set((sp.zone ?? "").split(",").filter(isFareZoneKey))],
     // Checked only for shape: which operators exist is the rows' business, and
     // a slug no route carries simply matches nothing.
     op: /^[a-z0-9-]{1,60}$/.test(sp.op ?? "") ? sp.op! : null,
     school: parseSchoolFilter(sp.school),
-    lean: sp.lean === "late" || sp.lean === "early" ? sp.lean : null,
+    direction: parseDelayDirection(sp.dir),
     enoughData: sp.data === "1",
     cancelledOnly: sp.cancelled === "1",
     runningNow: sp.live === "1",
@@ -142,12 +147,12 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   if (f.op) out.op = f.op;
   const school = schoolFilterParam(f.school);
   if (school) out.school = school;
-  if (f.lean) out.lean = f.lean;
+  if (f.direction) out.dir = f.direction;
   if (f.enoughData) out.data = "1";
   if (f.cancelledOnly) out.cancelled = "1";
   if (f.runningNow) out.live = "1";
   if (f.sort !== DEFAULT_FILTERS.sort) out.sort = f.sort;
-  if (f.dir !== defaultDir(f.sort)) out.dir = f.dir;
+  if (f.dir !== defaultDir(f.sort)) out.rev = "1";
   return out;
 }
 
@@ -162,11 +167,11 @@ export const EXPLORER_PARAMS = [
   "zone",
   "op",
   "school",
-  "lean",
   "data",
   "cancelled",
   "live",
   "sort",
+  "rev",
   "dir",
 ];
 
@@ -198,8 +203,8 @@ export function filterRoutes(
     if (f.zones.length > 0 && !r.zones.some((z) => f.zones.includes(z))) return false;
     if (f.op && r.operator !== f.op) return false;
     if (!schoolAllows(f.school, r.school)) return false;
-    if (f.lean === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
-    if (f.lean === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
+    if (f.direction === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
+    if (f.direction === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
     if (f.enoughData && r.events < minEvents) return false;
     if (f.cancelledOnly && r.cancelled === 0) return false;
     if (f.runningNow && running && !running.has(r.slug)) return false;
@@ -215,9 +220,9 @@ export function filterRoutes(
  */
 function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): number | null {
   switch (sort) {
-    case "on_time":
+    case "ontime":
       return r.on_time_pct;
-    case "off_by":
+    case "off":
       // As the Most off-schedule board: the signed average stands in when a row has no absolute one.
       return r.avg_abs_delay_sec ?? (r.avg_delay_sec === null ? null : Math.abs(r.avg_delay_sec));
     case "delay":
@@ -226,7 +231,7 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
       return r.late_pct ?? null;
     case "early":
       return r.early_pct ?? null;
-    case "events":
+    case "arrivals":
       return r.events;
     case "cancelled":
       return r.cancelled;
@@ -264,7 +269,7 @@ export function sortRoutes(
     const vb = sortValue(b, sort);
     if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
     const tie =
-      sort === "on_time" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
+      sort === "ontime" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
     return sign * (va - vb) || tie || byName(a, b);
   });
 }
@@ -285,12 +290,12 @@ export const EXPLORER_VIEWS: ReadonlyArray<{
   {
     key: "off",
     label: "Most off-schedule",
-    filters: { sort: "off_by", dir: "desc", enoughData: true },
+    filters: { sort: "off", dir: "desc", enoughData: true },
   },
   {
     key: "reliable",
     label: "Most reliable",
-    filters: { sort: "on_time", dir: "desc", enoughData: true },
+    filters: { sort: "ontime", dir: "desc", enoughData: true },
   },
 ];
 
@@ -313,12 +318,12 @@ export function activeView(f: ExplorerFilters): ExplorerView | null {
 /**
  * The Routes page query for a preset, keeping the given filters.
  * @param view - The preset.
- * @param keep - Filters to carry (mode, school services, lean, areas).
+ * @param keep - Filters to carry (mode, school services, late or early, areas).
  * @returns Param name to value.
  */
 export function viewQuery(
   view: ExplorerView,
-  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "lean" | "areas">> = {},
+  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "direction" | "areas">> = {},
 ): Record<string, string> {
   const preset = EXPLORER_VIEWS.find((v) => v.key === view)?.filters ?? {};
   return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...preset });
