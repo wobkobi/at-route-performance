@@ -4,7 +4,6 @@
 // stages and updates against MongoDB.
 import {
   anchorGapSec,
-  bsonWindow,
   findSilentSibling,
   ghostLevelStages,
   ghostPassPipeline,
@@ -17,6 +16,7 @@ import {
   type GhostRunCandidate,
   type TripLevel,
 } from "@/lib/cron/ghost-pass";
+import { dateWindow } from "@/lib/data/raw";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
 import {
   nzServiceDayRange,
@@ -29,7 +29,7 @@ import { describe, expect, it, vi } from "vitest";
 // The module under test imports the Prisma client; the pure parts never touch it.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-const window = bsonWindow(nzServiceDayRange("2026-09-11"));
+const window = dateWindow(nzServiceDayRange("2026-09-11"));
 
 describe("ghostPassPipeline", () => {
   it("matches the day on scheduledAt and then reduces to one level per trip", () => {

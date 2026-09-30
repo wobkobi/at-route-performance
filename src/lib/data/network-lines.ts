@@ -11,8 +11,9 @@
 // road are set side by side (src/lib/map/shared-roads.ts).
 
 import { routeColour } from "@/components/ModeIcon";
+import { aggregateRows } from "@/lib/data/raw";
 import { getDirectoryRoutes } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { type RouteShape, routePaths } from "@/lib/map/route-branches";
 import { laneRuns } from "@/lib/map/shared-roads";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -63,17 +64,11 @@ interface HeldLine {
  * @returns One row per route and shape, with its trip count.
  */
 async function tripsPerRouteShape(): Promise<RouteShapeTrips[]> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "tripMeta",
-      pipeline: [
-        { $match: { shapeId: { $type: "string" }, routeId: { $type: "string" } } },
-        { $group: { _id: { routeId: "$routeId", shapeId: "$shapeId" }, trips: { $sum: 1 } } },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteShapeTrips[] } };
-  return res.cursor.firstBatch;
+  const res = await aggregateRows<RouteShapeTrips>("tripMeta", [
+    { $match: { shapeId: { $type: "string" }, routeId: { $type: "string" } } },
+    { $group: { _id: { routeId: "$routeId", shapeId: "$shapeId" }, trips: { $sum: 1 } } },
+  ]);
+  return res;
 }
 
 /**
@@ -86,14 +81,12 @@ async function tripsPerRouteShape(): Promise<RouteShapeTrips[]> {
  * @returns The ids with history.
  */
 async function routesWithHistory(ids: string[]): Promise<Set<string>> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [{ $match: { routeId: { $in: ids } } }, { $group: { _id: "$routeId" } }],
-      cursor: { batchSize: 10_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
-  return new Set(res.cursor.firstBatch.map((r) => r._id));
+  const res = await aggregateRows<{ _id: string }>(
+    "ArrivalEvent",
+    [{ $match: { routeId: { $in: ids } } }, { $group: { _id: "$routeId" } }],
+    10_000,
+  );
+  return new Set(res.map((r) => r._id));
 }
 
 /**

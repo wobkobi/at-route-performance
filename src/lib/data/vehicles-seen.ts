@@ -2,9 +2,9 @@
 // How many distinct buses, trains and ferries ran the ranked routes, over a
 // window and since the archive began.
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
@@ -66,20 +66,14 @@ function cachedVehiclesOfDay(
         };
       }
       const [res, modeOf] = await Promise.all([
-        runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              { $match: match },
-              { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
-              { $project: { _id: 0, v: "$_id", r: 1 } },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        ) as unknown as Promise<{ cursor: { firstBatch: VehicleRouteRow[] } }>,
+        aggregateRows<VehicleRouteRow>("ArrivalEvent", [
+          { $match: match },
+          { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
+          { $project: { _id: 0, v: "$_id", r: 1 } },
+        ]),
         getRouteModeMap(),
       ]);
-      return vehiclesByMode(res.cursor.firstBatch, modeOf);
+      return vehiclesByMode(res, modeOf);
     },
     // The hours go last and only when set, so the whole-day entries keep their keys.
     [

@@ -16,6 +16,7 @@
 // level clears it. The whole-run rule hides such a run outright and records why
 // in GhostRun, reading trip metadata by `_id` range for the handful of runs a
 // night whose shape could qualify.
+import { aggregateRows, dateWindow, toIso, type BsonWindow } from "@/lib/data/raw";
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
 import { SEC_PER_DAY, serviceDayClockSeconds, type DateRange } from "@/lib/time/service-day";
@@ -198,17 +199,6 @@ export function findSilentSibling(
   return null;
 }
 
-/**
- * A `scheduledAt` window in extended JSON, as raw commands take it. A type
- * alias rather than an interface so it satisfies the JSON shape raw commands
- * accept (interfaces carry no implicit index signature).
- */
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- needs the implicit index signature
-export type BsonWindow = {
-  $gte: { $date: string };
-  $lt: { $date: string };
-};
-
 /** One trip's run level for the day. */
 export interface TripLevel {
   tripId: string;
@@ -265,15 +255,6 @@ interface LevelRow {
   stops: number;
   routeId: string;
   vehicleId?: string | null;
-}
-
-/**
- * The window a service day's rows fall in, in extended JSON.
- * @param range - The service-day window.
- * @returns The `$gte`/`$lt` bounds.
- */
-export function bsonWindow(range: DateRange): BsonWindow {
-  return { $gte: { $date: range.start.toISOString() }, $lt: { $date: range.end.toISOString() } };
 }
 
 /**
@@ -400,15 +381,6 @@ export function ghostUpdateBatches(
 }
 
 /**
- * An extended-JSON date from a raw reply as a Date.
- * @param v - The raw field value.
- * @returns The instant.
- */
-function bsonDate(v: { $date: string } | string): Date {
-  return new Date(typeof v === "string" ? v : v.$date);
-}
-
-/**
  * The upsert entries that record a day's hidden runs, keyed on the unique
  * `(tripId, serviceDate)` so a re-run rewrites rather than duplicates.
  * @param records - The runs hidden this pass.
@@ -480,21 +452,15 @@ export async function classifyGhosts(
   target: GhostPassTarget = {},
 ): Promise<GhostPassResult> {
   const { events = "ArrivalEvent", runs = "GhostRun", meta = "tripMeta" } = target;
-  const window = bsonWindow(range);
+  const window = dateWindow(range);
 
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: events,
-      pipeline: ghostPassPipeline(window),
-      cursor: { batchSize: LEVEL_BATCH_SIZE },
-    }),
-  )) as unknown as { cursor: { firstBatch: LevelRow[] } };
-  if (res.cursor.firstBatch.length >= LEVEL_BATCH_SIZE) {
+  const res = await aggregateRows<LevelRow>(events, ghostPassPipeline(window), LEVEL_BATCH_SIZE);
+  if (res.length >= LEVEL_BATCH_SIZE) {
     throw new Error(
       `ghost pass: the day holds ${LEVEL_BATCH_SIZE} or more trips, more than one batch returns`,
     );
   }
-  const rows = res.cursor.firstBatch;
+  const rows = res;
   const levels: TripLevel[] = rows.map((t) => ({ tripId: t._id, level: t.level }));
   const reported = new Set(levels.map((l) => l.tripId));
 
@@ -510,7 +476,7 @@ export async function classifyGhosts(
       stops: row.stops,
       minAbsSec: row.minAbs,
       levelSec: row.level,
-      firstScheduled: bsonDate(row.firstScheduled),
+      firstScheduled: new Date(toIso(row.firstScheduled)),
       dayStart: range.start,
     };
     if (!wholeGhostShape(candidate)) continue;

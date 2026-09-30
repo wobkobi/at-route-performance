@@ -1,6 +1,7 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
-import { prisma, runCommand } from "@/lib/db";
+import { aggregateRows } from "@/lib/data/raw";
+import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
 import {
@@ -334,21 +335,19 @@ export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
   return unstable_cache(
     async () => {
       const since = new Date(Date.now() - 7 * MS_PER_DAY);
-      const result = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "DailyRouteSummary",
-          pipeline: [
-            { $match: { date: { $gte: { $date: since.toISOString() } } } },
-            { $group: { _id: "$routeId", events: { $sum: "$events" } } },
-            { $sort: { events: -1 } },
-            // Room for the slug fold below to collapse republished versions.
-            { $limit: limit * 2 },
-          ] as never,
-          cursor: { batchSize: 1000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      const result = await aggregateRows<{ _id: string }>(
+        "DailyRouteSummary",
+        [
+          { $match: { date: { $gte: { $date: since.toISOString() } } } },
+          { $group: { _id: "$routeId", events: { $sum: "$events" } } },
+          { $sort: { events: -1 } },
+          // Room for the slug fold below to collapse republished versions.
+          { $limit: limit * 2 },
+        ],
+        1000,
+      );
       const slugs: string[] = [];
-      for (const row of result.cursor.firstBatch) {
+      for (const row of result) {
         const slug = routeSlug(row._id);
         if (!slugs.includes(slug)) slugs.push(slug);
         if (slugs.length === limit) break;

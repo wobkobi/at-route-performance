@@ -1,5 +1,6 @@
 // src/lib/data/data-days.ts
 // The edges of the archive: the earliest and latest days with enough data to show.
+import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
@@ -19,20 +20,14 @@ import {
  * @returns That event's `scheduledAt`, or null when the collection is empty.
  */
 async function endpointEventTime(direction: 1 | -1): Promise<Date | null> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $sort: { scheduledAt: direction } },
-        { $limit: 1 },
-        { $project: { _id: 0, scheduledAt: 1 } },
-      ] as never,
-      cursor: {},
-    }),
-  )) as unknown as { cursor: { firstBatch: { scheduledAt?: { $date: string } | string }[] } };
-  const raw = res.cursor.firstBatch[0]?.scheduledAt;
+  const res = await aggregateRows<{ scheduledAt?: { $date: string } | string }>("ArrivalEvent", [
+    { $sort: { scheduledAt: direction } },
+    { $limit: 1 },
+    { $project: { _id: 0, scheduledAt: 1 } },
+  ]);
+  const raw = res[0]?.scheduledAt;
   if (!raw) return null;
-  return new Date(typeof raw === "string" ? raw : raw.$date);
+  return new Date(toIso(raw));
 }
 
 /**
@@ -133,10 +128,7 @@ export async function currentDayIsOpen(revalidate: number): Promise<boolean> {
         prisma.$runCommandRaw({
           count: "ArrivalEvent",
           query: {
-            scheduledAt: {
-              $gte: { $date: start.toISOString() },
-              $lt: { $date: new Date().toISOString() },
-            },
+            scheduledAt: dateWindow({ start, end: new Date() }),
           },
           limit: DAY_OPEN_EVENTS,
         }),

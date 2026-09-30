@@ -1,6 +1,7 @@
 // src/lib/data/cache.ts
 // Cache policy for the date-scoped aggregations: when a window is final, how long it holds,
 // and the live-day clip on scheduledAt.
+import { type BsonWindow, dateWindow } from "@/lib/data/raw";
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { INGEST_INTERVAL_SEC } from "@/lib/feed/ingest-run";
@@ -12,16 +13,6 @@ import {
   SEC_PER_DAY,
   serviceDatesInRange,
 } from "@/lib/time/service-day";
-
-/**
- * Normalise an extended-JSON date (`{ $date }`) or ISO string to an ISO string.
- * `$runCommandRaw` returns dates as `{ $date }`; this flattens them.
- * @param d - An extended-JSON date or an ISO string.
- * @returns The ISO instant string.
- */
-export function toIso(d: { $date: string } | string): string {
-  return typeof d === "string" ? d : d.$date;
-}
 
 /** Cache TTL for a completed, classified service day's aggregation (seconds). */
 const COMPLETED_DAY_REVALIDATE = 7 * SEC_PER_DAY;
@@ -193,14 +184,8 @@ export function cachedForDay<T>(
  * @param range - UTC half-open window.
  * @returns The `$gte`/`$lt` bounds in extended JSON.
  */
-export function scheduledAtWindow(range: DateRange): {
-  $gte: { $date: string };
-  $lt: { $date: string };
-} {
-  return {
-    $gte: { $date: range.start.toISOString() },
-    $lt: { $date: windowEnd(range).toISOString() },
-  };
+export function scheduledAtWindow(range: DateRange): BsonWindow {
+  return dateWindow({ start: range.start, end: windowEnd(range) });
 }
 
 /**

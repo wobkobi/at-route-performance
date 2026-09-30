@@ -10,9 +10,9 @@ import { addTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { getRankings } from "@/lib/data/rankings";
+import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { getRiderWaitOfDates } from "@/lib/data/rider-wait";
 import { getRouteGeography } from "@/lib/data/route-areas";
-import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import {
   earlyTwoCounts,
@@ -91,23 +91,6 @@ const ROW_PROJECT = {
 };
 
 /**
- * Run an aggregation and return its rows.
- * @param collection - The collection to aggregate.
- * @param pipeline - The stages.
- * @returns The first batch, which the batch size makes the whole result.
- */
-async function aggregateRows<T>(collection: string, pipeline: object[]): Promise<T[]> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: collection,
-      pipeline,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: T[] } };
-  return res.cursor.firstBatch;
-}
-
-/**
  * Whether the nightly rollup has written hourly rows for a day.
  * @param range - The service-day window.
  * @returns True when at least one row exists.
@@ -116,10 +99,7 @@ async function hasHourlyRows(range: DateRange): Promise<boolean> {
   const rows = await aggregateRows<unknown>("HourlyRouteSummary", [
     {
       $match: {
-        date: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        date: dateWindow(range),
       },
     },
     { $limit: 1 },
@@ -138,10 +118,7 @@ function hourlySummaryRows(range: DateRange, hours: number[]): Promise<RouteRow[
   return aggregateRows<RouteRow>("HourlyRouteSummary", [
     {
       $match: {
-        date: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        date: dateWindow(range),
         hour: { $in: hours },
       },
     },

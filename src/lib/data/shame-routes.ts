@@ -1,9 +1,9 @@
 // src/lib/data/shame-routes.ts
 // The worst routes: hourly and per-day boards, and the streak batch behind the flame badges.
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { type ShameFilter, schoolRouteMatch } from "@/lib/data/shame-filter";
 import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { type Mode, modeOrBus } from "@/lib/mode";
@@ -73,49 +73,38 @@ export async function getShameRouteStreak(
       const sevenDaysAgo = nzServiceDayRange(
         shiftDays(nzServiceDayString(currentRange.start), -6),
       ).start;
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "DailyRouteSummary",
-          pipeline: [
-            {
-              $match: {
-                date: {
-                  $gte: { $date: sevenDaysAgo.toISOString() },
-                  $lt: { $date: currentRange.end.toISOString() },
-                },
+      const res = await aggregateRows<{ date: string; topRouteId: string }>("DailyRouteSummary", [
+        {
+          $match: {
+            date: dateWindow({ start: sevenDaysAgo, end: currentRange.end }),
+          },
+        },
+        // Sort so that within each date the highest-delay route comes first,
+        // then $first picks it up as the day's top route.
+        { $sort: { date: 1, avgAbsDelaySec: -1 } },
+        {
+          $group: {
+            _id: "$date",
+            topRouteId: { $first: "$routeId" },
+          },
+        },
+        { $sort: { _id: 1 } },
+        {
+          $project: {
+            _id: 0,
+            date: {
+              $dateToString: {
+                date: "$_id",
+                format: "%Y-%m-%d",
+                timezone: NZ_TZ,
               },
             },
-            // Sort so that within each date the highest-delay route comes first,
-            // then $first picks it up as the day's top route.
-            { $sort: { date: 1, avgAbsDelaySec: -1 } },
-            {
-              $group: {
-                _id: "$date",
-                topRouteId: { $first: "$routeId" },
-              },
-            },
-            { $sort: { _id: 1 } },
-            {
-              $project: {
-                _id: 0,
-                date: {
-                  $dateToString: {
-                    date: "$_id",
-                    format: "%Y-%m-%d",
-                    timezone: NZ_TZ,
-                  },
-                },
-                topRouteId: 1,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: { date: string; topRouteId: string }[] };
-      };
+            topRouteId: 1,
+          },
+        },
+      ]);
 
-      const rows = res.cursor.firstBatch;
+      const rows = res;
       // Require day-on-day adjacency so a date with no summary row breaks the
       // run instead of being silently bridged.
       let count = 0;
@@ -181,8 +170,7 @@ function shameSlotsOfDay(
   if (pending) return pending;
   const run = cachedForDay(
     async (classified) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pipeline: any[] = [
+      const pipeline: object[] = [
         {
           $match: {
             // The pad reaches the tail of a run that started before 4am; the
@@ -241,16 +229,14 @@ function shameSlotsOfDay(
         { $sort: { maxSlotDelay: -1 } },
       );
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 1_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string; hourCount: number }[] } };
+      const res = await aggregateRows<{ _id: string; hourCount: number }>(
+        "ArrivalEvent",
+        pipeline,
+        1_000,
+      );
 
       // A plain array, since the cache stores JSON; the Map is built on read.
-      const rows = res.cursor.firstBatch;
+      const rows = res;
       return rows.length === 0
         ? null
         : {
@@ -358,13 +344,10 @@ function routeShamePipelineBase(
   schools: SchoolFilter,
   classified: boolean,
   groupKey: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addFieldsStage: Record<string, any>,
+  addFieldsStage: Record<string, unknown>,
   tripHours: number[] | null = null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pipeline: any[] = [
+): object[] {
+  const pipeline: object[] = [
     {
       $match: {
         scheduledAt: scheduledAtWindow(padScanRange(range)),
@@ -482,15 +465,9 @@ export async function getShameRouteOfDay(
           },
         },
       );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: ShameRouteRaw[] } };
+      const res = await aggregateRows<ShameRouteRaw>("ArrivalEvent", pipeline);
 
-      const hours: ShameRouteRow[] = res.cursor.firstBatch.map((r) => ({
+      const hours: ShameRouteRow[] = res.map((r) => ({
         hour: r.hour,
         routeId: r.routeId,
         shortName: r.shortName ?? null,
@@ -578,16 +555,11 @@ export async function getShameRoutesInHours(
           },
         },
       });
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: { total: number; rows: Omit<ShameRouteRaw, "hour">[] }[] };
-      };
-      const doc = res.cursor.firstBatch[0];
+      const res = await aggregateRows<{ total: number; rows: Omit<ShameRouteRaw, "hour">[] }>(
+        "ArrivalEvent",
+        pipeline,
+      );
+      const doc = res[0];
       return {
         total: doc?.total ?? 0,
         rows: (doc?.rows ?? []).map((r) => ({
@@ -709,17 +681,12 @@ async function worstRoutesForRange(
       },
     },
   );
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: pipeline as never,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as {
-    cursor: { firstBatch: (Omit<ShameRouteRaw, "hour"> & { _id: string })[] };
-  };
+  const res = await aggregateRows<Omit<ShameRouteRaw, "hour"> & { _id: string }>(
+    "ArrivalEvent",
+    pipeline,
+  );
 
-  return res.cursor.firstBatch.map((r) => ({
+  return res.map((r) => ({
     hour: 0,
     date: r._id,
     routeId: r.routeId,

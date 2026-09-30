@@ -5,7 +5,8 @@
 // ArrivalEvent over the last week of completed service days. A week catches
 // weekend-only and weekday-only services alike.
 import { cachedForDay } from "@/lib/data/cache";
-import { prisma, runCommand } from "@/lib/db";
+import { aggregateRows, dateWindow } from "@/lib/data/raw";
+import { prisma } from "@/lib/db";
 import { type AreaKey, routeAreas } from "@/lib/geo/areas";
 import { routeFareZones } from "@/lib/geo/fare-zone-geo";
 import type { FareZoneKey } from "@/lib/geo/fare-zones";
@@ -27,25 +28,16 @@ function routeStopsOfDay(date: string): Promise<Record<string, string[]>> {
   return cachedForDay(
     async () => {
       const range = nzServiceDayRange(date);
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                scheduledAt: {
-                  $gte: { $date: range.start.toISOString() },
-                  $lt: { $date: range.end.toISOString() },
-                },
-              },
-            },
-            { $group: { _id: "$routeId", stops: { $addToSet: "$stopId" } } },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string; stops: string[] }[] } };
+      const res = await aggregateRows<{ _id: string; stops: string[] }>("ArrivalEvent", [
+        {
+          $match: {
+            scheduledAt: dateWindow(range),
+          },
+        },
+        { $group: { _id: "$routeId", stops: { $addToSet: "$stopId" } } },
+      ]);
       const bySlug: Record<string, string[]> = {};
-      for (const row of res.cursor.firstBatch) {
+      for (const row of res) {
         const slug = routeSlug(row._id);
         bySlug[slug] = [...new Set([...(bySlug[slug] ?? []), ...row.stops])];
       }

@@ -4,6 +4,7 @@
 // the catch-up rule that picks which days a run covers. The route handler is a thin wrapper so the pipeline, the upsert ops
 // and the catch-up choice can be tested as plain functions.
 import { classifyGhosts, type GhostPassResult } from "@/lib/cron/ghost-pass";
+import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import {
@@ -71,10 +72,7 @@ export function dailySummaryPipeline(
   return [
     {
       $match: {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        scheduledAt: dateWindow(range),
         // Loose-mode rows carry no delay and store deviationSec 0; they would
         // read as perfectly on-time arrivals that were never observed.
         source: { $ne: NO_DELAY_SOURCE },
@@ -195,10 +193,7 @@ export function hourlySummaryPipeline(
   return [
     {
       $match: {
-        scheduledAt: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        scheduledAt: dateWindow(range),
         source: { $ne: NO_DELAY_SOURCE },
       },
     },
@@ -295,14 +290,10 @@ export const HOURLY_SUMMARY_INDEXES: Prisma.InputJsonObject = {
  * @returns How many route-hours were written.
  */
 export async function writeHourlySummary(range: DateRange): Promise<number> {
-  const result = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: hourlySummaryPipeline(range, true),
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: HourlyStats[] } };
-  const stats = result.cursor.firstBatch;
+  const stats = await aggregateRows<HourlyStats>(
+    "ArrivalEvent",
+    hourlySummaryPipeline(range, true),
+  );
   if (stats.length === 0) return 0;
   // A no-op once the indexes exist; without the unique one every upsert below
   // would scan the collection to find its row.
@@ -403,14 +394,7 @@ export async function aggregateDay(
   const ghosts = await classifyGhosts(range, serviceDate);
   console.log("[AGGREGATE] Ghost pass complete", { date: serviceDate, ...ghosts });
 
-  const result = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: dailySummaryPipeline(range, true),
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: DailyStats[] } };
-  const stats = result.cursor.firstBatch;
+  const stats = await aggregateRows<DailyStats>("ArrivalEvent", dailySummaryPipeline(range, true));
 
   if (stats.length > 0) {
     const reply = await runCommand(() =>

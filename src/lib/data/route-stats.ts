@@ -2,9 +2,10 @@
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
 import { groupBy } from "@/lib/collections";
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
@@ -124,93 +125,81 @@ async function queryRouteStats(
       : {}),
   };
 
-  const summaryResult = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $match: match },
-        {
-          $group: {
-            _id: null,
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-            on_time_count: onTimeSingleModeSum(mode),
-            early_count: earlySingleModeSum(mode),
-            late_count: lateSum(),
-          },
-        },
-        {
-          $addFields: {
-            on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-            early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
-            late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            events: 1,
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-            on_time_pct: { $round: ["$on_time_pct", 1] },
-            early_pct: { $round: ["$early_pct", 1] },
-            late_pct: { $round: ["$late_pct", 1] },
-          },
-        },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteSummary[] } };
+  const summaryResult = await aggregateRows<RouteSummary>("ArrivalEvent", [
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        events: { $sum: 1 },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+        on_time_count: onTimeSingleModeSum(mode),
+        early_count: earlySingleModeSum(mode),
+        late_count: lateSum(),
+      },
+    },
+    {
+      $addFields: {
+        on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+        early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+        late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        events: 1,
+        avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+        avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+        on_time_pct: { $round: ["$on_time_pct", 1] },
+        early_pct: { $round: ["$early_pct", 1] },
+        late_pct: { $round: ["$late_pct", 1] },
+      },
+    },
+  ]);
 
-  const byStopResult = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $match: match },
-        {
-          $group: {
-            _id: "$stopId",
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            on_time_count: onTimeSingleModeSum(mode),
-          },
+  const byStopResult = await aggregateRows<RouteByStop>("ArrivalEvent", [
+    { $match: match },
+    {
+      $group: {
+        _id: "$stopId",
+        events: { $sum: 1 },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        on_time_count: onTimeSingleModeSum(mode),
+      },
+    },
+    {
+      $addFields: {
+        on_time_pct: {
+          $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
         },
-        {
-          $addFields: {
-            on_time_pct: {
-              $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "Stop",
-            localField: "_id",
-            foreignField: "_id",
-            as: "stop",
-          },
-        },
-        { $unwind: "$stop" },
-        { $sort: { events: -1 as const } },
-        { $limit: 200 },
-        {
-          $project: {
-            _id: 0,
-            stop_id: { $toString: "$_id" },
-            name: "$stop.name",
-            lat: "$stop.lat",
-            lon: "$stop.lon",
-            events: 1,
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            on_time_pct: { $round: ["$on_time_pct", 1] },
-            ...stationProjection,
-          },
-        },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteByStop[] } };
+      },
+    },
+    {
+      $lookup: {
+        from: "Stop",
+        localField: "_id",
+        foreignField: "_id",
+        as: "stop",
+      },
+    },
+    { $unwind: "$stop" },
+    { $sort: { events: -1 as const } },
+    { $limit: 200 },
+    {
+      $project: {
+        _id: 0,
+        stop_id: { $toString: "$_id" },
+        name: "$stop.name",
+        lat: "$stop.lat",
+        lon: "$stop.lon",
+        events: 1,
+        avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+        on_time_pct: { $round: ["$on_time_pct", 1] },
+        ...stationProjection,
+      },
+    },
+  ]);
 
   return {
     route: route
@@ -221,8 +210,8 @@ async function queryRouteStats(
           colour: route.colour ?? null,
         }
       : null,
-    summary: summaryResult.cursor.firstBatch[0] ?? null,
-    byStop: collapseStations(byStopResult.cursor.firstBatch),
+    summary: summaryResult[0] ?? null,
+    byStop: collapseStations(byStopResult),
   };
 }
 
@@ -296,22 +285,16 @@ export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<s
   const ids = await unstable_cache(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                routeId: { $in: routeIds },
-                scheduledAt: { $gte: { $date: since.toISOString() } },
-              },
-            },
-            { $group: { _id: "$stopId" } },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
-      return res.cursor.firstBatch.map((r) => r._id);
+      const res = await aggregateRows<{ _id: string }>("ArrivalEvent", [
+        {
+          $match: {
+            routeId: { $in: routeIds },
+            scheduledAt: { $gte: { $date: since.toISOString() } },
+          },
+        },
+        { $group: { _id: "$stopId" } },
+      ]);
+      return res.map((r) => r._id);
     },
     ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
     { revalidate: 3600 },
@@ -418,52 +401,44 @@ export async function getRouteDailyStats(
           select: { mode: true },
         });
         const mode = route?.mode ?? "BUS";
-        const res = (await runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              {
-                $match: {
-                  routeId: { $in: routeIds },
-                  // liveDates, not serviceDatesInRange(live): a summarised day
-                  // sitting between two unsummarised ones is already excluded
-                  // from the list, and the equality must not let it back in.
-                  scheduledAt: scheduledAtWindow(padScanRange(live)),
-                  serviceDate: { $in: liveDates },
-                  // Only unsummarised days are scanned here, so the guard stays on.
-                  ...realDeviationMatchFor(false),
-                },
+        const res = await aggregateRows<Omit<RouteDay, "date"> & { _id: string }>("ArrivalEvent", [
+          {
+            $match: {
+              routeId: { $in: routeIds },
+              // liveDates, not serviceDatesInRange(live): a summarised day
+              // sitting between two unsummarised ones is already excluded
+              // from the list, and the equality must not let it back in.
+              scheduledAt: scheduledAtWindow(padScanRange(live)),
+              serviceDate: { $in: liveDates },
+              // Only unsummarised days are scanned here, so the guard stays on.
+              ...realDeviationMatchFor(false),
+            },
+          },
+          {
+            $group: {
+              _id: "$serviceDate",
+              events: { $sum: 1 },
+              avg_delay_sec: { $avg: "$deviationSec" },
+              avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+              on_time_count: onTimeSingleModeSum(mode),
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              events: 1,
+              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+              avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+              on_time_pct: {
+                $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
               },
-              {
-                $group: {
-                  _id: "$serviceDate",
-                  events: { $sum: 1 },
-                  avg_delay_sec: { $avg: "$deviationSec" },
-                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                  on_time_count: onTimeSingleModeSum(mode),
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  events: 1,
-                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                  on_time_pct: {
-                    $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
-                  },
-                },
-              },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        )) as unknown as {
-          cursor: { firstBatch: (Omit<RouteDay, "date"> & { _id: string })[] };
-        };
+            },
+          },
+        ]);
         // The live window may span a summarised day in between; keep only the
         // dates that have no summary.
         const wanted = new Set(liveDates);
-        for (const row of res.cursor.firstBatch) {
+        for (const row of res) {
           if (wanted.has(row._id)) days.push({ ...row, date: row._id });
         }
       }

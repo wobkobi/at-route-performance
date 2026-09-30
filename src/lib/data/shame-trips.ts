@@ -1,8 +1,8 @@
 // src/lib/data/shame-trips.ts
 // The worst runs: the hourly shame board, its per-day week form and the day cache.
-import { cachedForDay, cachedForRange, scheduledAtWindow, toIso } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows, toIso } from "@/lib/data/raw";
 import { schoolRouteMatch, type ShameFilter } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { type Mode, modeOrBus } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
@@ -77,8 +77,7 @@ export async function getShameOfDay(
   const { mode = null, schools = "exclude" } = filter;
   return cachedForRange(
     async (classified) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pipeline: any[] = [
+      const pipeline: object[] = [
         {
           $match: {
             scheduledAt: scheduledAtWindow(padScanRange(range)),
@@ -157,15 +156,9 @@ export async function getShameOfDay(
           },
         },
       );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: ShameTripRaw[] } };
+      const res = await aggregateRows<ShameTripRaw>("ArrivalEvent", pipeline);
 
-      const hours: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
+      const hours: ShameTrip[] = res.map((t) => ({
         hour: t.hour,
         trip_id: t.trip_id,
         routeId: t.routeId,
@@ -258,14 +251,11 @@ export async function getShameTripsInHours(
           },
         },
       );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { total: number; rows: ShameTripRaw[] }[] } };
-      const doc = res.cursor.firstBatch[0];
+      const res = await aggregateRows<{ total: number; rows: ShameTripRaw[] }>(
+        "ArrivalEvent",
+        pipeline,
+      );
+      const doc = res[0];
       return {
         total: doc?.total ?? 0,
         rows: (doc?.rows ?? []).map((t) => ({
@@ -315,10 +305,8 @@ function shamePipelineBase(
   mode: string | null,
   schools: SchoolFilter,
   classified: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pipeline: any[] = [
+): object[] {
+  const pipeline: object[] = [
     {
       $match: {
         scheduledAt: scheduledAtWindow(padScanRange(range)),
@@ -460,17 +448,12 @@ async function worstTripsForRange(
       },
     },
   );
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: pipeline as never,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as {
-    cursor: { firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: string })[] };
-  };
+  const res = await aggregateRows<Omit<ShameTripRaw, "hour"> & { _id: string }>(
+    "ArrivalEvent",
+    pipeline,
+  );
 
-  return res.cursor.firstBatch.map((t) => ({
+  return res.map((t) => ({
     hour: 0,
     date: t._id,
     trip_id: t.trip_id,

@@ -2,10 +2,11 @@
 // Stops and stations: worst-stop boards, station grouping and one stop's stats.
 import { groupBy, pushTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
 import { getRouteModeMap, routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
@@ -150,139 +151,133 @@ export async function getWorstStopsOfDay(
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            {
-              $group: {
-                _id: {
-                  // A run's tail past the day's 4am end reads as 4am-6am on the
-                  // clock, which is this board's first slot; it goes in the last
-                  // one instead, with the rest of the day's after-midnight calls.
-                  // Compared as epoch ms, so no date literal crosses the raw command.
-                  hour: {
-                    $cond: [
-                      { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
-                      { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
-                      (SERVICE_START_HOUR + 23) % 24,
-                    ],
-                  },
-                  stop_id: "$stopId",
-                },
-                events: { $sum: 1 },
-                avg_delay_sec: { $avg: "$deviationSec" },
-                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                routeIds: { $addToSet: "$routeId" },
-              },
-            },
-            // Folded to one document per stop so the Stop lookup runs a few
-            // thousand times rather than once per hour of every stop.
-            {
-              $group: {
-                _id: "$_id.stop_id",
-                hours: {
-                  $push: {
-                    hour: "$_id.hour",
-                    events: "$events",
-                    avg_delay_sec: "$avg_delay_sec",
-                    avg_abs_delay_sec: "$avg_abs_delay_sec",
-                    routeIds: "$routeIds",
-                  },
-                },
-              },
-            },
-            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            // The joined stop goes once its station is known: carried into the
-            // group below it multiplies that stage's time several times over.
-            { $project: { hours: 1, station: stationIdExpr } },
-            { $unwind: "$hours" },
-            // A stop that is its own station is its whole station, so an hour below
-            // the floor can never clear it and goes before the group. Platforms
-            // only clear the floor together, so theirs stay. Most rows go here,
-            // which keeps the group under the memory limit past which it spills
-            // to disk.
-            {
-              $match: {
-                $or: [
-                  { "hours.events": { $gte: MIN_STOP_EVENTS_HOUR } },
-                  { $expr: { $ne: ["$station", { $toString: "$_id" }] } },
+      const res = await aggregateRows<RankedStopRow & { hour: number }>("ArrivalEvent", [
+        { $match: match },
+        {
+          $group: {
+            _id: {
+              // A run's tail past the day's 4am end reads as 4am-6am on the
+              // clock, which is this board's first slot; it goes in the last
+              // one instead, with the rest of the day's after-midnight calls.
+              // Compared as epoch ms, so no date literal crosses the raw command.
+              hour: {
+                $cond: [
+                  { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
+                  { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+                  (SERVICE_START_HOUR + 23) % 24,
                 ],
               },
+              stop_id: "$stopId",
             },
-            // Each hour's platforms merged into their station, so the floor applies
-            // to the station's services together, as worstStopOfDay applies it.
-            // The stop ids and hour figures are pushed as they stand, in step, and
-            // zipped back into rows only for the stations that make the cut.
-            {
-              $group: {
-                _id: { hour: "$hours.hour", station: "$station" },
-                events: { $sum: "$hours.events" },
-                absSum: { $sum: { $multiply: ["$hours.avg_abs_delay_sec", "$hours.events"] } },
-                signedSum: {
-                  $sum: { $multiply: [{ $ifNull: ["$hours.avg_delay_sec", 0] }, "$hours.events"] },
-                },
-                stopIds: { $push: "$_id" },
-                figures: { $push: "$hours" },
+            events: { $sum: 1 },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+            routeIds: { $addToSet: "$routeId" },
+          },
+        },
+        // Folded to one document per stop so the Stop lookup runs a few
+        // thousand times rather than once per hour of every stop.
+        {
+          $group: {
+            _id: "$_id.stop_id",
+            hours: {
+              $push: {
+                hour: "$_id.hour",
+                events: "$events",
+                avg_delay_sec: "$avg_delay_sec",
+                avg_abs_delay_sec: "$avg_abs_delay_sec",
+                routeIds: "$routeIds",
               },
             },
-            // The direction test here is on the raw sign, which the rounded
-            // figure worstStopOfDay tests can only narrow, never widen.
-            {
-              $match: {
-                events: { $gte: MIN_STOP_EVENTS_HOUR },
-                ...(direction === "late" ? { signedSum: { $gt: 0 } } : {}),
-                ...(direction === "early" ? { signedSum: { $lt: 0 } } : {}),
+          },
+        },
+        { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+        { $unwind: "$stop" },
+        // The joined stop goes once its station is known: carried into the
+        // group below it multiplies that stage's time several times over.
+        { $project: { hours: 1, station: stationIdExpr } },
+        { $unwind: "$hours" },
+        // A stop that is its own station is its whole station, so an hour below
+        // the floor can never clear it and goes before the group. Platforms
+        // only clear the floor together, so theirs stay. Most rows go here,
+        // which keeps the group under the memory limit past which it spills
+        // to disk.
+        {
+          $match: {
+            $or: [
+              { "hours.events": { $gte: MIN_STOP_EVENTS_HOUR } },
+              { $expr: { $ne: ["$station", { $toString: "$_id" }] } },
+            ],
+          },
+        },
+        // Each hour's platforms merged into their station, so the floor applies
+        // to the station's services together, as worstStopOfDay applies it.
+        // The stop ids and hour figures are pushed as they stand, in step, and
+        // zipped back into rows only for the stations that make the cut.
+        {
+          $group: {
+            _id: { hour: "$hours.hour", station: "$station" },
+            events: { $sum: "$hours.events" },
+            absSum: { $sum: { $multiply: ["$hours.avg_abs_delay_sec", "$hours.events"] } },
+            signedSum: {
+              $sum: { $multiply: [{ $ifNull: ["$hours.avg_delay_sec", 0] }, "$hours.events"] },
+            },
+            stopIds: { $push: "$_id" },
+            figures: { $push: "$hours" },
+          },
+        },
+        // The direction test here is on the raw sign, which the rounded
+        // figure worstStopOfDay tests can only narrow, never widen.
+        {
+          $match: {
+            events: { $gte: MIN_STOP_EVENTS_HOUR },
+            ...(direction === "late" ? { signedSum: { $gt: 0 } } : {}),
+            ...(direction === "early" ? { signedSum: { $lt: 0 } } : {}),
+          },
+        },
+        { $addFields: { abs: { $divide: ["$absSum", "$events"] } } },
+        // Only each hour's leading stations come back, with their platform rows,
+        // so the reply is a few hundred rows rather than every stop's every hour.
+        {
+          $group: {
+            _id: "$_id.hour",
+            top: {
+              $topN: {
+                n: HOUR_CANDIDATES,
+                sortBy: { abs: -1, "_id.station": 1 },
+                output: { stopIds: "$stopIds", figures: "$figures" },
               },
             },
-            { $addFields: { abs: { $divide: ["$absSum", "$events"] } } },
-            // Only each hour's leading stations come back, with their platform rows,
-            // so the reply is a few hundred rows rather than every stop's every hour.
-            {
-              $group: {
-                _id: "$_id.hour",
-                top: {
-                  $topN: {
-                    n: HOUR_CANDIDATES,
-                    sortBy: { abs: -1, "_id.station": 1 },
-                    output: { stopIds: "$stopIds", figures: "$figures" },
-                  },
-                },
-              },
-            },
-            { $unwind: "$top" },
-            { $unwind: { path: "$top.stopIds", includeArrayIndex: "i" } },
-            {
-              $project: {
-                _id: 0,
-                hour: "$_id",
-                stopId: "$top.stopIds",
-                f: { $arrayElemAt: ["$top.figures", "$i"] },
-              },
-            },
-            { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            {
-              $project: {
-                hour: 1,
-                stop_id: { $toString: "$stopId" },
-                name: "$stop.name",
-                ...stationProjection,
-                events: "$f.events",
-                avg_delay_sec: "$f.avg_delay_sec",
-                avg_abs_delay_sec: "$f.avg_abs_delay_sec",
-                routeIds: "$f.routeIds",
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: (RankedStopRow & { hour: number })[] } };
+          },
+        },
+        { $unwind: "$top" },
+        { $unwind: { path: "$top.stopIds", includeArrayIndex: "i" } },
+        {
+          $project: {
+            _id: 0,
+            hour: "$_id",
+            stopId: "$top.stopIds",
+            f: { $arrayElemAt: ["$top.figures", "$i"] },
+          },
+        },
+        { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+        { $unwind: "$stop" },
+        {
+          $project: {
+            hour: 1,
+            stop_id: { $toString: "$stopId" },
+            name: "$stop.name",
+            ...stationProjection,
+            events: "$f.events",
+            avg_delay_sec: "$f.avg_delay_sec",
+            avg_abs_delay_sec: "$f.avg_abs_delay_sec",
+            routeIds: "$f.routeIds",
+          },
+        },
+      ]);
 
       const byHour = new Map<number, RankedStopRow[]>();
-      for (const { hour, ...row } of res.cursor.firstBatch) {
+      for (const { hour, ...row } of res) {
         pushTo(byHour, hour, row);
       }
 
@@ -352,54 +347,48 @@ export async function getShameStopsInHours(
       };
       if (routeIds) match.routeId = { $in: routeIds };
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            // The hourly board's bucket, tail rule included (see getWorstStopsOfDay).
-            {
-              $addFields: {
-                hour: {
-                  $cond: [
-                    { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
-                    { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
-                    (SERVICE_START_HOUR + 23) % 24,
-                  ],
-                },
-              },
+      const res = await aggregateRows<RankedStopRow>("ArrivalEvent", [
+        { $match: match },
+        // The hourly board's bucket, tail rule included (see getWorstStopsOfDay).
+        {
+          $addFields: {
+            hour: {
+              $cond: [
+                { $lt: [{ $toLong: "$scheduledAt" }, range.end.getTime()] },
+                { $hour: { date: "$scheduledAt", timezone: NZ_TZ } },
+                (SERVICE_START_HOUR + 23) % 24,
+              ],
             },
-            { $match: { hour: { $in: hourSet } } },
-            {
-              $group: {
-                _id: "$stopId",
-                events: { $sum: 1 },
-                avg_delay_sec: { $avg: "$deviationSec" },
-                avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                routeIds: { $addToSet: "$routeId" },
-              },
-            },
-            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            {
-              $project: {
-                _id: 0,
-                stop_id: { $toString: "$_id" },
-                name: "$stop.name",
-                events: 1,
-                avg_delay_sec: 1,
-                avg_abs_delay_sec: 1,
-                routeIds: 1,
-                ...stationProjection,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: RankedStopRow[] } };
+          },
+        },
+        { $match: { hour: { $in: hourSet } } },
+        {
+          $group: {
+            _id: "$stopId",
+            events: { $sum: 1 },
+            avg_delay_sec: { $avg: "$deviationSec" },
+            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+            routeIds: { $addToSet: "$routeId" },
+          },
+        },
+        { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+        { $unwind: "$stop" },
+        {
+          $project: {
+            _id: 0,
+            stop_id: { $toString: "$_id" },
+            name: "$stop.name",
+            events: 1,
+            avg_delay_sec: 1,
+            avg_abs_delay_sec: 1,
+            routeIds: 1,
+            ...stationProjection,
+          },
+        },
+      ]);
 
       const minEvents = Math.min(MIN_STOP_EVENTS, MIN_STOP_EVENTS_HOUR * hourSet.length);
-      const ranked = mergeStationPlatforms(res.cursor.firstBatch).filter(
+      const ranked = mergeStationPlatforms(res).filter(
         (r) => r.events >= minEvents && matchesDelayDirection(r, direction),
       );
       const modeMap = mode ? null : await getRouteModeMap();
@@ -499,52 +488,46 @@ async function worstStopsForRange(
   };
   if (routeIds) match.routeId = { $in: routeIds };
 
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $match: match },
-        {
-          $group: {
-            _id: {
-              serviceDay: "$serviceDate",
-              stop_id: "$stopId",
-            },
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-            routeIds: { $addToSet: "$routeId" },
-          },
+  const res = await aggregateRows<RankedStopRow & { date: string }>("ArrivalEvent", [
+    { $match: match },
+    {
+      $group: {
+        _id: {
+          serviceDay: "$serviceDate",
+          stop_id: "$stopId",
         },
-        // Every stop the day saw, not a ranked head: a station's average is only
-        // right with all of its platforms present, and the floor cannot apply
-        // until they are merged. One service day per call, so this is a few
-        // thousand rows, and the caller holds them for the day.
-        { $lookup: { from: "Stop", localField: "_id.stop_id", foreignField: "_id", as: "stop" } },
-        { $unwind: "$stop" },
-        {
-          $project: {
-            _id: 0,
-            date: "$_id.serviceDay",
-            stop_id: { $toString: "$_id.stop_id" },
-            name: "$stop.name",
-            events: 1,
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-            routeIds: 1,
-            ...stationProjection,
-          },
-        },
-      ] as never,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: (RankedStopRow & { date: string })[] } };
+        events: { $sum: 1 },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+        routeIds: { $addToSet: "$routeId" },
+      },
+    },
+    // Every stop the day saw, not a ranked head: a station's average is only
+    // right with all of its platforms present, and the floor cannot apply
+    // until they are merged. One service day per call, so this is a few
+    // thousand rows, and the caller holds them for the day.
+    { $lookup: { from: "Stop", localField: "_id.stop_id", foreignField: "_id", as: "stop" } },
+    { $unwind: "$stop" },
+    {
+      $project: {
+        _id: 0,
+        date: "$_id.serviceDay",
+        stop_id: { $toString: "$_id.stop_id" },
+        name: "$stop.name",
+        events: 1,
+        avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+        avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+        routeIds: 1,
+        ...stationProjection,
+      },
+    },
+  ]);
 
   // Ranked here rather than in the pipeline: merging platforms needs the station
   // rule in stop/station.ts, and sorting a few thousand rows costs nothing here
   // while a blocking $sort on this collection exceeds the cluster's 32MB
   // in-memory limit (the tier forbids disk spill).
-  const byDate = groupBy(res.cursor.firstBatch, (r) => r.date);
+  const byDate = groupBy(res, (r) => r.date);
 
   const modeMap = mode ? null : await getRouteModeMap();
   const days: ShameDayStop[] = [];
@@ -816,149 +799,143 @@ export async function getStopStats(
       if (!group) return null;
       const labels = new Map(group.platforms.map((p) => [p.id, p.label]));
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                stopId: { $in: group.ids },
-                scheduledAt: scheduledAtWindow(padScanRange(range)),
-                serviceDate: { $in: serviceDatesInRange(range) },
-                ...realDeviationMatchFor(classified),
+      const res = await aggregateRows<StopStatsFacet>("ArrivalEvent", [
+        {
+          $match: {
+            stopId: { $in: group.ids },
+            scheduledAt: scheduledAtWindow(padScanRange(range)),
+            serviceDate: { $in: serviceDatesInRange(range) },
+            ...realDeviationMatchFor(classified),
+          },
+        },
+        { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
+        { $unwind: "$route" },
+        {
+          $facet: {
+            summary: [
+              {
+                $group: {
+                  _id: null,
+                  events: { $sum: 1 },
+                  avg_delay_sec: { $avg: "$deviationSec" },
+                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                  on_time_count: onTimePerEventSum(),
+                  late_count: lateSum(),
+                },
               },
-            },
-            { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
-            { $unwind: "$route" },
-            {
-              $facet: {
-                summary: [
-                  {
-                    $group: {
-                      _id: null,
-                      events: { $sum: 1 },
-                      avg_delay_sec: { $avg: "$deviationSec" },
-                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                      on_time_count: onTimePerEventSum(),
-                      late_count: lateSum(),
-                    },
+              // Every event is exactly one of early/on-time/late, so early is
+              // the remainder - no separate mode-aware early accumulator needed.
+              {
+                $addFields: {
+                  early_count: {
+                    $subtract: ["$events", { $add: ["$on_time_count", "$late_count"] }],
                   },
-                  // Every event is exactly one of early/on-time/late, so early is
-                  // the remainder - no separate mode-aware early accumulator needed.
-                  {
-                    $addFields: {
-                      early_count: {
-                        $subtract: ["$events", { $add: ["$on_time_count", "$late_count"] }],
-                      },
-                    },
-                  },
-                  {
-                    $addFields: {
-                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-                      early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
-                      late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
-                    },
-                  },
-                  {
-                    $project: {
-                      _id: 0,
-                      events: 1,
-                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                      on_time_pct: { $round: ["$on_time_pct", 1] },
-                      early_pct: { $round: ["$early_pct", 1] },
-                      late_pct: { $round: ["$late_pct", 1] },
-                    },
-                  },
-                ],
-                routes: [
-                  {
-                    $group: {
-                      _id: "$routeId",
-                      events: { $sum: 1 },
-                      avg_delay_sec: { $avg: "$deviationSec" },
-                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                      on_time_count: onTimePerEventSum(),
-                      shortName: { $first: "$route.shortName" },
-                      longName: { $first: "$route.longName" },
-                      mode: { $first: "$route.mode" },
-                    },
-                  },
-                  {
-                    $addFields: {
-                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-                    },
-                  },
-                  { $sort: { avg_abs_delay_sec: -1 as const } },
-                  { $limit: 12 },
-                  {
-                    $project: {
-                      _id: 0,
-                      routeId: { $toString: "$_id" },
-                      shortName: 1,
-                      longName: 1,
-                      mode: 1,
-                      events: 1,
-                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                      on_time_pct: { $round: ["$on_time_pct", 1] },
-                    },
-                  },
-                ],
-                // Per platform, for the breakdown a station page shows when its
-                // platforms disagree (see platformBreakdown). It rides in this
-                // facet rather than its own query: the scan is already paid for,
-                // and a plain stop returns a single row the gate discards.
-                platforms: [
-                  {
-                    $group: {
-                      _id: "$stopId",
-                      events: { $sum: 1 },
-                      avg_delay_sec: { $avg: "$deviationSec" },
-                      avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                      on_time_count: onTimePerEventSum(),
-                      // By the name a rider uses, not the feed id: two feed
-                      // versions of one route are one route to whoever is
-                      // waiting, and "only route 33 leaves from here" has to
-                      // count them as one or it never holds.
-                      routes: { $addToSet: "$route.shortName" },
-                      // The same routes by id, only to link each name to its page.
-                      route_ids: { $addToSet: { name: "$route.shortName", id: "$routeId" } },
-                      // Not an arbitrary pick from the group: all 311 platforms
-                      // that recorded arrivals on a measured day served exactly
-                      // one mode, since a bay is buses and a pier is ferries.
-                      // It decides the early tolerance behind the row colour.
-                      mode: { $first: "$route.mode" },
-                    },
-                  },
-                  {
-                    $addFields: {
-                      on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-                    },
-                  },
-                  {
-                    $project: {
-                      _id: 0,
-                      stop_id: { $toString: "$_id" },
-                      events: 1,
-                      routes: 1,
-                      route_ids: 1,
-                      mode: 1,
-                      avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                      avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                      on_time_pct: { $round: ["$on_time_pct", 1] },
-                    },
-                  },
-                ],
-                routeCount: [{ $group: { _id: "$routeId" } }, { $count: "n" }],
+                },
               },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: StopStatsFacet[] } };
+              {
+                $addFields: {
+                  on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                  early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+                  late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  events: 1,
+                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                  on_time_pct: { $round: ["$on_time_pct", 1] },
+                  early_pct: { $round: ["$early_pct", 1] },
+                  late_pct: { $round: ["$late_pct", 1] },
+                },
+              },
+            ],
+            routes: [
+              {
+                $group: {
+                  _id: "$routeId",
+                  events: { $sum: 1 },
+                  avg_delay_sec: { $avg: "$deviationSec" },
+                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                  on_time_count: onTimePerEventSum(),
+                  shortName: { $first: "$route.shortName" },
+                  longName: { $first: "$route.longName" },
+                  mode: { $first: "$route.mode" },
+                },
+              },
+              {
+                $addFields: {
+                  on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                },
+              },
+              { $sort: { avg_abs_delay_sec: -1 as const } },
+              { $limit: 12 },
+              {
+                $project: {
+                  _id: 0,
+                  routeId: { $toString: "$_id" },
+                  shortName: 1,
+                  longName: 1,
+                  mode: 1,
+                  events: 1,
+                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                  on_time_pct: { $round: ["$on_time_pct", 1] },
+                },
+              },
+            ],
+            // Per platform, for the breakdown a station page shows when its
+            // platforms disagree (see platformBreakdown). It rides in this
+            // facet rather than its own query: the scan is already paid for,
+            // and a plain stop returns a single row the gate discards.
+            platforms: [
+              {
+                $group: {
+                  _id: "$stopId",
+                  events: { $sum: 1 },
+                  avg_delay_sec: { $avg: "$deviationSec" },
+                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+                  on_time_count: onTimePerEventSum(),
+                  // By the name a rider uses, not the feed id: two feed
+                  // versions of one route are one route to whoever is
+                  // waiting, and "only route 33 leaves from here" has to
+                  // count them as one or it never holds.
+                  routes: { $addToSet: "$route.shortName" },
+                  // The same routes by id, only to link each name to its page.
+                  route_ids: { $addToSet: { name: "$route.shortName", id: "$routeId" } },
+                  // Not an arbitrary pick from the group: all 311 platforms
+                  // that recorded arrivals on a measured day served exactly
+                  // one mode, since a bay is buses and a pier is ferries.
+                  // It decides the early tolerance behind the row colour.
+                  mode: { $first: "$route.mode" },
+                },
+              },
+              {
+                $addFields: {
+                  on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  stop_id: { $toString: "$_id" },
+                  events: 1,
+                  routes: 1,
+                  route_ids: 1,
+                  mode: 1,
+                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+                  on_time_pct: { $round: ["$on_time_pct", 1] },
+                },
+              },
+            ],
+            routeCount: [{ $group: { _id: "$routeId" } }, { $count: "n" }],
+          },
+        },
+      ]);
 
-      const facet = res.cursor.firstBatch[0];
+      const facet = res[0];
       return {
         stop: { stop_id: group.id, name: group.name, lat: group.lat, lon: group.lon },
         platform_ids: group.ids,

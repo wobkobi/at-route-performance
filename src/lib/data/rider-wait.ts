@@ -2,10 +2,10 @@
 // The rider-wait penalty of each service day's cancellations (lib/rider-wait.ts),
 // read for the routes that had one: their runs give the gap to the next trip and
 // the usual stop count. Cached under the day, so a week or month reuses each day.
-import { cachedForDay, toIso, windowEnd } from "@/lib/data/cache";
+import { cachedForDay, windowEnd } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
+import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
 import { routeIdsForSlug } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import {
   addPenalties,
@@ -68,42 +68,33 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
       if (flagged.length === 0) return { routes: {}, trips: {} };
       const slugs = [...new Set(flagged.map((c) => c.slug))];
       const routeIds = (await Promise.all(slugs.map(routeIdsForSlug))).flat();
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                routeId: { $in: routeIds },
-                scheduledAt: {
-                  $gte: { $date: range.start.toISOString() },
-                  $lt: { $date: range.end.toISOString() },
-                },
-                ...realDeviationMatchFor(classified),
-              },
-            },
-            {
-              $group: {
-                _id: "$tripId",
-                routeId: { $first: "$routeId" },
-                start: { $min: "$scheduledAt" },
-                stopSet: { $addToSet: "$stopId" },
-              },
-            },
-            { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
-            {
-              $project: {
-                routeId: 1,
-                start: 1,
-                stops: { $size: "$stopSet" },
-                direction: { $ifNull: [{ $first: "$meta.directionId" }, null] },
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: RunRaw[] } };
-      const runs: DayRun[] = res.cursor.firstBatch.map((r) => ({
+      const res = await aggregateRows<RunRaw>("ArrivalEvent", [
+        {
+          $match: {
+            routeId: { $in: routeIds },
+            scheduledAt: dateWindow(range),
+            ...realDeviationMatchFor(classified),
+          },
+        },
+        {
+          $group: {
+            _id: "$tripId",
+            routeId: { $first: "$routeId" },
+            start: { $min: "$scheduledAt" },
+            stopSet: { $addToSet: "$stopId" },
+          },
+        },
+        { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
+        {
+          $project: {
+            routeId: 1,
+            start: 1,
+            stops: { $size: "$stopSet" },
+            direction: { $ifNull: [{ $first: "$meta.directionId" }, null] },
+          },
+        },
+      ]);
+      const runs: DayRun[] = res.map((r) => ({
         tripId: r._id,
         route: routeSlug(r.routeId),
         direction: r.direction,
