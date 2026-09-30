@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.18] - 2026-10-01
+
+### Changed
+
+- The route page's Day and Week tabs and week stepper are the shared range controls, so its week
+  label opens the week picker like every other range page.
+
 ## [2.41.17] - 2026-10-01
 
 ### Changed

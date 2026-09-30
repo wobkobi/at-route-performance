@@ -10,11 +10,9 @@
 // everything below it down as the reader arrived.
 // The week view skips the expensive trips query and the live vehicle fetch.
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/date/DayNav";
-import { StepPending } from "@/components/date/StepPending";
+import { RangeControls } from "@/components/date/RangeControls";
 import { DirectionFilter } from "@/components/filter/DirectionFilter";
 import { TimeOfDayFilter } from "@/components/filter/TimeOfDayFilter";
-import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
 import { RouteMapDiagram } from "@/components/map/RouteMapDiagram";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -60,8 +58,9 @@ import {
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
 import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
-import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import { dayRangeNav, periodRangeNav, type RangeWindow } from "@/lib/page/range";
+import { resolveRange } from "@/lib/page/rankings";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
@@ -71,8 +70,8 @@ import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
-import { requestServiceDay } from "@/lib/time/request-now";
-import { nzLocalHour, nzWeekRange, weekLabel, type DateRange } from "@/lib/time/service-day";
+import { requestNow } from "@/lib/time/request-now";
+import { nzLocalHour, nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import {
   hourRangeParam,
   isHourInRange,
@@ -183,6 +182,9 @@ const STOP_COLUMNS: SortColumn<RouteByStop>[] = [
 /** The Stops table's own names: `tsort` and `trev` belong to the trips board. */
 const STOP_SORT: SortParamNames = { sort: "ssort", rev: "srev" };
 
+/** The route page's windows: it has no month view. */
+const ROUTE_WINDOWS: readonly RangeWindow[] = ["day", "week"];
+
 /** Valid trip-sort values. */
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
 
@@ -202,112 +204,6 @@ function directionLabel(variants: RouteVariant[], dirId: number): string {
   );
   const label = busiest?.headsign?.replace(/ (To|Via) /g, (m) => m.toLowerCase());
   return label || `Direction ${dirId + 1}`;
-}
-
-/**
- * Prev/next week stepper for the route week view. Omits a chevron when the
- * corresponding href is null (at the edge of the data range).
- * @param props - Component props.
- * @param props.label - Human label for the active period.
- * @param props.prevHref - Previous-week link, or null when unavailable.
- * @param props.nextHref - Next-week link, or null when already at the present.
- * @returns The stepper element.
- */
-function RouteWeekNav({
-  label,
-  prevHref,
-  nextHref,
-}: {
-  label: string;
-  prevHref: string | null;
-  nextHref: string | null;
-}): JSX.Element {
-  return (
-    // Week steps prefetch in full for the reason DayNav's do, and an absent one
-    // leaves a `.step-slot` so the present week does not shift the row.
-    <div className="flex items-center gap-1">
-      {prevHref ? (
-        <Link
-          href={prevHref}
-          prefetch
-          aria-label="Previous week"
-          className="chip chip-icon chip-off"
-        >
-          <StepPending>
-            <ChevronLeft className="block h-4 w-4" />
-          </StepPending>
-        </Link>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
-      <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
-      {nextHref ? (
-        <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
-          <StepPending>
-            <ChevronRight className="block h-4 w-4" />
-          </StepPending>
-        </Link>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
-    </div>
-  );
-}
-
-/**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` box classes. Each
- * side keeps the direction and stays on the period being looked at: a past day's
- * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
- *
- * The active side is a `<span>`, not a link, as the nav tabs and the shame
- * header are: its query is built for a fresh view and leaves out the trip
- * board's sort and page, so clicking the chip already highlighted threw away
- * where the reader was on the board and gave nothing back.
- * @param props - Component props.
- * @param props.slug - Route slug (for hrefs).
- * @param props.isWeekView - Whether the week segment is active.
- * @param props.dayQuery - Query for the Day side.
- * @param props.weekQuery - Query for the Week side.
- * @returns The toggle element.
- */
-function ViewToggle({
-  slug,
-  isWeekView,
-  dayQuery,
-  weekQuery,
-}: {
-  slug: string;
-  isWeekView: boolean;
-  dayQuery: Record<string, string | undefined>;
-  weekQuery: Record<string, string | undefined>;
-}): JSX.Element {
-  const base = routeHref(slug);
-  return (
-    <div className="flex items-center gap-1">
-      {isWeekView ? (
-        <Link href={buildHref(base, dayQuery)} scroll={false} className="chip chip-off">
-          Day
-        </Link>
-      ) : (
-        <span aria-current="page" className="chip chip-on">
-          Day
-        </span>
-      )}
-      {isWeekView ? (
-        <span aria-current="page" className="chip chip-on">
-          Week
-        </span>
-      ) : (
-        <Link
-          href={buildHref(base, { window: "week", ...weekQuery })}
-          scroll={false}
-          className="chip chip-off"
-        >
-          Week
-        </Link>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -389,7 +285,8 @@ export default async function RoutePage({
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
-  const today = await requestServiceDay();
+  const now = await requestNow();
+  const today = nzServiceDayString(now);
   const routePath = routeHref(slug);
   if (!isWeekView) {
     clampDayParam(routePath, sp, today);
@@ -438,9 +335,12 @@ export default async function RoutePage({
   // Week view period: an explicit ?period snaps to that week's seven service
   // days; the rolling default (no param) covers the last seven, today included.
   const periodParam = isWeekView ? resolveRequestedDay(sp.period) : null;
-  const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  const weekPeriodLabel = fixedWeekRange ? weekLabel(fixedWeekRange) : "Last 7 days";
-  const weekFigureNote = fixedWeekRange ? weekPeriodLabel : "last 7 days";
+  const { range: weekRange, label: weekPeriodLabel } = resolveRange(
+    "week",
+    periodParam ?? undefined,
+    now,
+  );
+  const weekFigureNote = periodParam ? weekPeriodLabel : "last 7 days";
 
   // Start the live AT calls without blocking the shell. They feed only the alert
   // banner, the diagram's alerted-stop highlights, and the trip board's LIVE
@@ -487,7 +387,7 @@ export default async function RoutePage({
       getEarliestDataDay(1),
       // Rolling default covers the last seven service days, today included;
       // a fixed period uses its week, Monday 4am to Monday 4am.
-      getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
+      getRouteDailyStats(slug, weekRange.start, weekRange.end),
       isWeekView
         ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
         : getCancelledTrips(slug, range),
@@ -497,29 +397,12 @@ export default async function RoutePage({
         : getTripRiderWait(range),
     ]);
 
-  // Week stepper navigation - computed after earliestDay is available.
-  let weekPrevHref: string | null = null;
-  let weekNextHref: string | null = null;
-  if (isWeekView) {
-    /**
-     * Build a week link for this route, preserving the week window and direction.
-     * @param period - The week period, or null for the rolling current week.
-     * @returns The route week href.
-     */
-    const weekHref = (period: string | null): string =>
-      buildHref(routePath, {
-        window: "week",
-        period: period ?? undefined,
-        dir: sp.dir != null && /^\d+$/.test(sp.dir) ? sp.dir : undefined,
-      });
-    ({ prevHref: weekPrevHref, nextHref: weekNextHref } = resolveWeekNav({
-      periodParam,
-      earliestDay,
-      makeHref: weekHref,
-    }));
-  }
-
   const dayNav = dayRangeNav(shown, earliestDay, today);
+  // The window controls: the day stepper, or the week stepper built as every
+  // range page builds it. Their links carry the rest of the query from the URL.
+  const rangeNav = isWeekView
+    ? periodRangeNav(routePath, "week", sp.period, now, earliestDay, today).nav
+    : dayNav;
   const linkDay = dayLinkParam(serviceDate, today);
   // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
   const stopDay = linkDay;
@@ -555,9 +438,6 @@ export default async function RoutePage({
     (p) => buildHref(routePath, { ...viewParams, day: linkDay, ...p }),
     STOP_SORT,
   );
-  // Stepping onto today drops `?day` so the URL stays canonical, but that link
-  // must still carry the filters.
-  const nextDayHref = dayNav.nextIsToday ? buildHref(routePath, viewParams) : undefined;
   // The chosen direction's GTFS ids: its own plus any merged into it, so a
   // shape or vehicle filed under an alias id stays with its direction.
   const activeDirIds =
@@ -757,43 +637,7 @@ export default async function RoutePage({
               </Link>
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <ViewToggle
-              slug={slug}
-              isWeekView={isWeekView}
-              dayQuery={{
-                day: (isWeekView ? periodParam : requestedDay) ?? undefined,
-                dir: activeDir == null ? undefined : String(activeDir),
-                thresholdSec: sp.thresholdSec,
-                hours: hoursParam,
-              }}
-              weekQuery={{
-                period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
-                dir: activeDir == null ? undefined : String(activeDir),
-                thresholdSec: sp.thresholdSec,
-                hours: hoursParam,
-              }}
-            />
-            {isWeekView ? (
-              <RouteWeekNav
-                label={weekPeriodLabel}
-                prevHref={weekPrevHref}
-                nextHref={weekNextHref}
-              />
-            ) : (
-              <DayNav
-                basePath={routePath}
-                serviceDate={serviceDate}
-                preservedParams={viewParams}
-                hasPrev={dayNav.hasPrev}
-                atFloor={dayNav.atFloor}
-                hasNext={dayNav.hasNext}
-                nextHref={nextDayHref}
-                nextPending={dayNav.nextPending}
-                calendar={dayNav.calendar}
-              />
-            )}
-          </div>
+          <RangeControls basePath={routePath} nav={rangeNav} windows={ROUTE_WINDOWS} />
         </div>
         {/* An outage reads as a route with no schedule otherwise: the chips and
             the diagram simply would not be there, with nothing to say why. */}
