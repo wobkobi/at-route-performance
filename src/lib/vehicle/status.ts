@@ -5,12 +5,12 @@
 import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { formatDelay } from "@/lib/format";
 import { distanceToPathM } from "@/lib/off-route";
-import { delayBand, type DelayBand } from "@/lib/on-time";
+import { delayBand, type ReadingBand } from "@/lib/on-time";
 
 /** A vehicle's delay verdict: its band on the mode's on-time window, or unknown. */
 export interface VehicleStatus {
   /** The band the ring is coloured by; unknown when the feed carries no delay. */
-  band: DelayBand | "unknown";
+  band: ReadingBand;
   /** The floating label, shown only outside the on-time window. */
   label: string | null;
   /** The popup's delay line. */
@@ -25,7 +25,7 @@ export interface VehicleStatus {
  */
 export function vehicleStatus(delaySec: number | null, mode: string): VehicleStatus {
   if (delaySec == null || !Number.isFinite(delaySec)) {
-    return { band: "unknown", label: null, detail: "No live delay" };
+    return { band: "none", label: null, detail: "No live delay" };
   }
   const band = delayBand(delaySec, mode);
   // A zero threshold always names the distance, so "3m late" inside the window

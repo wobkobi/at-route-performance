@@ -276,7 +276,7 @@ function syncVehicles(
     // One verdict for the ring, the label and the popup, on the same mode-aware
     // window as every figure on the page.
     const status = vehicleStatus(veh.delaySec, mode);
-    const colour = status.band === "unknown" ? colours.muted : colours[status.band];
+    const colour = status.band === "none" ? colours.muted : colours[status.band];
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
     const cars = veh.cars ? `${veh.cars} cars` : null;

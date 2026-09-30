@@ -79,7 +79,7 @@ describe("offScheduleValue", () => {
 
   it("reads on time only at exactly zero, and a dash with no figures", () => {
     expect(offScheduleValue(0, 0, "BUS")).toEqual({ text: "on time", tone: "ontime" });
-    expect(offScheduleValue(null, null, "BUS")).toEqual({ text: UNKNOWN_VALUE, tone: "unknown" });
+    expect(offScheduleValue(null, null, "BUS")).toEqual({ text: UNKNOWN_VALUE, tone: "none" });
   });
 });
 

@@ -44,6 +44,7 @@ import {
 } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveShownDay } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import { periodRangeNav } from "@/lib/page/range";
 import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/page/shame";
 import { summariseRows, visibleRows } from "@/lib/rankings";
@@ -135,7 +136,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
  * @returns The range, its label and whether it is over.
  */
 async function resolvePeriod(
-  window: "week" | "month",
+  window: PeriodWindow,
   rawPeriod: string | null,
 ): Promise<{ range: DateRange; when: string; complete: boolean }> {
   const today = nzServiceDayString();

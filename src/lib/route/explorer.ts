@@ -6,6 +6,8 @@
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
 import type { Mode } from "@/lib/mode";
+import type { SortDir } from "@/lib/page/table-sort";
+import type { DelayDirection } from "@/lib/rankings";
 import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
 import {
   parseSchoolFilter,
@@ -35,9 +37,6 @@ export interface ExplorerRoute extends RouteRow {
 export type ExplorerSort =
   "route" | "on_time" | "off_by" | "delay" | "late" | "early" | "events" | "cancelled";
 
-/** Sort direction. */
-export type SortDir = "asc" | "desc";
-
 /** Every sort with its label and the direction it opens in (the more telling end first). */
 export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; dir: SortDir }> = [
   { key: "route", label: "Route number", dir: "asc" },
@@ -49,9 +48,6 @@ export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; d
   { key: "events", label: "Arrivals", dir: "desc" },
   { key: "cancelled", label: "Cancellations", dir: "desc" },
 ];
-
-/** Which way a route runs off schedule on average, or null for either. */
-export type ExplorerLean = "late" | "early" | null;
 
 /** The Routes page's filter and sort state. */
 export interface ExplorerFilters {
@@ -66,7 +62,7 @@ export interface ExplorerFilters {
   op: string | null;
   /** Which school services count. */
   school: SchoolFilter;
-  lean: ExplorerLean;
+  lean: DelayDirection;
   /** Only routes with enough arrivals to rank on the boards. */
   enoughData: boolean;
   /** Only routes with at least one cancellation. */

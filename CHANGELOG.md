@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.4] - 2026-10-01
+
+### Changed
+
+- Windows, sort directions, late-or-early filters and delay bands each have one shared type, and a
+  missing reading is called the same thing on every map and figure. Nothing on the site changes.
+
 ## [2.41.3] - 2026-10-01
 
 ### Changed

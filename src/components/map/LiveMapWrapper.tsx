@@ -4,9 +4,9 @@
 // same height, as StopMapWrapper does for the route maps, and holds the toggles
 // above it for which dots and lines the map draws.
 
-import type { DotBand } from "@/components/map/LiveMap";
 import { cn } from "@/lib/cn";
 import type { Mode } from "@/lib/mode";
+import type { ReadingBand } from "@/lib/on-time";
 import dynamic from "next/dynamic";
 import { useState, type JSX } from "react";
 
@@ -25,11 +25,11 @@ const LiveMap = dynamic(() => import("@/components/map/LiveMap"), {
 });
 
 /** The dot toggles, in the order the key reads, each with its dot's colour. */
-const DOT_TOGGLES: ReadonlyArray<{ band: DotBand; label: string; dot: string }> = [
+const DOT_TOGGLES: ReadonlyArray<{ band: ReadingBand; label: string; dot: string }> = [
   { band: "late", label: "Late", dot: "bg-at-late" },
   { band: "ontime", label: "On time", dot: "bg-at-ontime" },
   { band: "early", label: "Early", dot: "bg-at-early-strong" },
-  { band: "unknown", label: "No delay", dot: "bg-at-muted" },
+  { band: "none", label: "No delay", dot: "bg-at-muted" },
 ];
 
 /** A toggle's classes: the site's chip, filled while its layer is on the map. */
@@ -61,7 +61,7 @@ export default function LiveMapWrapper({
   mode: Mode | null;
   className?: string;
 }): JSX.Element {
-  const [bands, setBands] = useState<ReadonlySet<DotBand>>(
+  const [bands, setBands] = useState<ReadonlySet<ReadingBand>>(
     () => new Set(DOT_TOGGLES.map((t) => t.band)),
   );
   const [lines, setLines] = useState(true);
@@ -71,7 +71,7 @@ export default function LiveMapWrapper({
    * Show or hide one band's dots.
    * @param band - The band.
    */
-  const toggle = (band: DotBand): void => {
+  const toggle = (band: ReadingBand): void => {
     setBands((prev) => {
       const next = new Set(prev);
       if (next.has(band)) next.delete(band);

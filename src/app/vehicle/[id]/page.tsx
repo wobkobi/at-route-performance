@@ -85,7 +85,7 @@ const STATUS_CLASS = {
   late: "text-at-late",
   early: "text-at-early-strong",
   ontime: "text-at-ontime",
-  unknown: "text-at-muted",
+  none: "text-at-muted",
 } as const;
 
 /** Query params for a vehicle page. */

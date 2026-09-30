@@ -7,6 +7,7 @@
 // started yet are dropped so AT's predicted-future slots don't show as phantom
 // on-time entries; and the shown-day resolver lazily imports the data layer so
 // these helpers stay pure and unit-testable.
+import type { PeriodWindow } from "@/lib/page/range";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/time/data-start";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -290,7 +291,7 @@ export interface RangeViewNav extends WeekNav {
   /** Whether the month variant is active. */
   isMonth: boolean;
   /** Copy noun for the period ("week" / "month"). */
-  periodNoun: "week" | "month";
+  periodNoun: PeriodWindow;
   /** Validated period param (week-start date or month key), or null for the rolling default. */
   periodParam: string | null;
   /** The half-open window to query. */
@@ -308,7 +309,7 @@ export interface RangeViewNav extends WeekNav {
  * @returns The resolved view state.
  */
 export function resolveRangeView(
-  view: "week" | "month",
+  view: PeriodWindow,
   rawPeriod: string | undefined,
   earliestDay: Date | null,
   makeHref: (period: string | null) => string,

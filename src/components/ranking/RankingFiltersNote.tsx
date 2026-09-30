@@ -3,6 +3,7 @@
 // read with the filter boxes out of sight still says what it covers.
 
 import { AREAS } from "@/lib/geo/areas";
+import type { RangeWindow } from "@/lib/page/range";
 import {
   rankingFiltersPhrase,
   rankingFiltersReach,
@@ -25,7 +26,7 @@ export function RankingFiltersNote({
   live,
 }: {
   filters: RankingFilters;
-  window: "day" | "week" | "month";
+  window: RangeWindow;
   live: boolean;
 }): JSX.Element | null {
   const phrase = rankingFiltersPhrase(

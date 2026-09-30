@@ -5,6 +5,7 @@
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import type { RangeWindow } from "@/lib/page/range";
 import {
   monthPickPeriod,
   monthShort,
@@ -61,7 +62,7 @@ export function DatePicker({
   className,
   children,
 }: {
-  mode: "day" | "week" | "month";
+  mode: RangeWindow;
   calendar: PickerState;
   basePath: string;
   params: Record<string, string>;

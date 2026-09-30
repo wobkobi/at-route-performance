@@ -84,7 +84,7 @@ export function formatHours(sec: number): string {
  * pin would give it, plus the two states a single deviation cannot be in - a
  * mixed average, and no figure at all.
  */
-export type OffScheduleTone = DelayBand | "mixed" | "unknown";
+export type OffScheduleTone = DelayBand | "mixed" | "none";
 
 /** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
 export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
@@ -92,7 +92,7 @@ export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
   early: "text-at-early-strong",
   late: "text-at-late",
   mixed: "text-at-ink",
-  unknown: "text-at-muted",
+  none: "text-at-muted",
 };
 
 /**
@@ -107,7 +107,7 @@ export const OFF_SCHEDULE_BAR_CLASS: Record<OffScheduleTone, string> = {
   early: "bg-at-early",
   late: "bg-at-late",
   mixed: "bg-at-ink",
-  unknown: "bg-at-border",
+  none: "bg-at-border",
 };
 
 /**
@@ -128,7 +128,7 @@ export function offScheduleValue(
   absSec: number | null,
   mode: string,
 ): { text: string; tone: OffScheduleTone } {
-  if (signedSec == null && absSec == null) return { text: UNKNOWN_VALUE, tone: "unknown" };
+  if (signedSec == null && absSec == null) return { text: UNKNOWN_VALUE, tone: "none" };
   const signed = signedSec ?? 0;
   const abs = absSec ?? Math.abs(signed);
   if (!isConsistentlyLateOrEarly(signed, abs)) {

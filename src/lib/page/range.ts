@@ -25,6 +25,9 @@ import { buildHref } from "@/lib/utils";
 /** The window a range page shows. */
 export type RangeWindow = "day" | "week" | "month";
 
+/** A window of more than one day: the week or month views. */
+export type PeriodWindow = Exclude<RangeWindow, "day">;
+
 /**
  * The `?day` / `?period` each window tab carries, so switching windows lands
  * near the date being read instead of resetting to the present. A null means
@@ -63,7 +66,7 @@ export type RangeNav =
       calendar: PickerState;
     }
   | {
-      window: "week" | "month";
+      window: PeriodWindow;
       /** The period label ("Last 7 days", "September 2026"). */
       label: string;
       /** Previous-period link, or null at the earliest data. */
@@ -163,7 +166,7 @@ export function dayRangeNav(
  */
 export function periodRangeNav(
   basePath: string,
-  window: "week" | "month",
+  window: PeriodWindow,
   rawPeriod: string | undefined,
   anchor: Date,
   earliestDay: Date | null,
@@ -213,7 +216,7 @@ export function periodRangeNav(
  * @returns The inclusive first and last day.
  */
 function periodDays(
-  window: "week" | "month",
+  window: PeriodWindow,
   period: string | null,
   anchor: Date,
 ): { from: string; to: string } {
@@ -268,7 +271,7 @@ export function monthPeriodOf(
  * @returns The anchor service date (`YYYY-MM-DD`).
  */
 export function periodAnchorDay(
-  window: "week" | "month",
+  window: PeriodWindow,
   period: string | null,
   today: string = nzServiceDayString(),
 ): string {
@@ -313,7 +316,7 @@ export function rangeTabPeriods(
  * @returns The period to resolve, or undefined for the rolling default.
  */
 export function periodForCarriedDay(
-  window: "week" | "month",
+  window: PeriodWindow,
   rawPeriod: string | undefined,
   rawDay: string | undefined,
   today?: string,
@@ -355,7 +358,7 @@ export function windowPhrase(nav: RangeNav, period: string | null): string {
  * @param period - The shown week or month, or null for the current one.
  * @returns The phrase.
  */
-export function periodInPhrase(window: "week" | "month", period: string | null): string {
+export function periodInPhrase(window: PeriodWindow, period: string | null): string {
   if (period !== null) return `that ${window}`;
   return window === "week" ? "the last 7 days" : "this month";
 }

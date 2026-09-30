@@ -18,6 +18,7 @@ import { shiftPixels } from "@/lib/map/shared-roads";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
 import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
+import type { ReadingBand } from "@/lib/on-time";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
@@ -71,9 +72,6 @@ function lineStyle(mode: Mode, zoom: number, hover = false): { weight: number; o
   const weight = (mode === "BUS" ? 1.5 : 2.5) * (1 + levels / 3);
   return hover ? { weight: weight + 2, opacity: 0.9 } : { weight, opacity: 0.4 + levels * 0.05 };
 }
-
-/** A dot's delay band, which the map's toggles show or hide one at a time. */
-export type DotBand = "late" | "ontime" | "early" | "unknown";
 
 /**
  * Escape HTML special characters in feed strings before they go into popup HTML.
@@ -163,7 +161,7 @@ export default function LiveMap({
   className,
 }: {
   mode: Mode | null;
-  bands: ReadonlySet<DotBand>;
+  bands: ReadonlySet<ReadingBand>;
   showLines: boolean;
   className?: string;
 }): JSX.Element {
@@ -474,7 +472,7 @@ export default function LiveMap({
       // Small dots over a pale basemap, so early takes the darker green.
       early: cssVar("--color-at-early-strong"),
       ontime: cssVar("--color-at-ontime"),
-      unknown: cssVar("--color-at-muted"),
+      none: cssVar("--color-at-muted"),
     };
     const glyph = Object.fromEntries(
       MODES.map((md) => [

@@ -41,6 +41,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
@@ -130,7 +131,7 @@ async function TripRangeBoard({
 }: {
   range: DateRange;
   filter: ShameFilter;
-  periodNoun: "week" | "month";
+  periodNoun: PeriodWindow;
   periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);

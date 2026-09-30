@@ -23,8 +23,9 @@ import {
 } from "@/lib/data";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
+import type { PeriodWindow } from "@/lib/page/range";
 import { routeLinkQuery } from "@/lib/page/range";
-import { resolvePrevRange, type RankWindow } from "@/lib/page/rankings";
+import { resolvePrevRange } from "@/lib/page/rankings";
 import { hasRankingFilters, type RankingFilters } from "@/lib/ranking-filters";
 import {
   computeRankDelta,
@@ -61,7 +62,7 @@ const BOARD_SIZE = 10;
 
 /** The view a period batch is loaded for. */
 export interface PeriodView {
-  window: RankWindow;
+  window: PeriodWindow;
   mode: Mode | null;
   dir: DelayDirection;
   schools: SchoolFilter;

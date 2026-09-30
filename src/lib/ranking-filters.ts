@@ -5,6 +5,7 @@
 // were (lib/page/filter-params.ts); these sit beside them.
 
 import { isAreaKey, type AreaKey } from "@/lib/geo/areas";
+import type { RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import {
   DAYS_PARAM,
@@ -190,10 +191,7 @@ export function rankingFiltersPhrase(
  * @param window - The window shown.
  * @returns The sentence after the phrase.
  */
-export function rankingFiltersReach(
-  filters: RankingFilters,
-  window: "day" | "week" | "month",
-): string {
+export function rankingFiltersReach(filters: RankingFilters, window: RangeWindow): string {
   if (window !== "day") {
     return `The figures, the cancellations and the route rankings follow it; the worst-of cards and the vehicle counts cover the whole ${window}.`;
   }

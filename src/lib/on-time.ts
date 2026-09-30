@@ -87,6 +87,9 @@ export function isOnTime(deviationSec: number, mode: string): boolean {
 /** How a stop/trip/route reads against the on-time window. */
 export type DelayBand = "early" | "ontime" | "late";
 
+/** A delay band, or "none" when nothing was read to band. */
+export type ReadingBand = DelayBand | "none";
+
 /**
  * Classify a signed deviation as early / on time / late for the given mode.
  * @param deviationSec - Signed deviation in seconds.

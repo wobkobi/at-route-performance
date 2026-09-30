@@ -38,6 +38,7 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
@@ -152,7 +153,7 @@ async function StopRangeBoard({
 }: {
   range: DateRange;
   filter: ShameFilter;
-  periodNoun: "week" | "month";
+  periodNoun: PeriodWindow;
   periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);

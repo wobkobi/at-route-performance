@@ -59,6 +59,7 @@ import { MODE_NAME, parseMode, type Mode } from "@/lib/mode";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import {
   dayRangeNav,
   overviewHeading,
@@ -166,7 +167,7 @@ export async function generateMetadata({
  * @param range - The window's range.
  * @returns The label.
  */
-function periodLabel(window: "week" | "month", range: DateRange): string {
+function periodLabel(window: PeriodWindow, range: DateRange): string {
   if (window === "month") return monthRangeLabel(range);
   const days = serviceDatesInRange(range);
   const first = days[0];
@@ -186,7 +187,7 @@ async function PeriodHome({
   window,
   sp,
 }: {
-  window: "week" | "month";
+  window: PeriodWindow;
   sp: HomeSearchParams;
 }): Promise<JSX.Element> {
   const { mode, dir, schools } = parseRankingsParams(sp);

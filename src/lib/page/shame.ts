@@ -7,6 +7,7 @@
 // crown nothing.
 import { type Mode, MODE_NOUN, parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import type { RangeWindow } from "@/lib/page/range";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
 import { SERVICE_START_HOUR } from "@/lib/time/service-day";
@@ -133,16 +134,13 @@ export function shameHoursLabel(hours: HourRange): string {
   return isWholeDay(hours) ? "whole day" : hourRangeLabel(hours);
 }
 
-/** Which board view is active: the hourly day board or a per-day range board. */
-export type ShameView = "day" | "week" | "month";
-
 /** Parsed shame-page params: the active filter plus its derived view state. */
 export interface ParsedShameParams {
   mode: Mode | null;
   schools: SchoolFilter;
   direction: DelayDirection;
   filter: ShameFilter;
-  view: ShameView;
+  view: RangeWindow;
   /**
    * The part of the day the day board ranks, or null for its hourly board;
    * {@link WHOLE_DAY} for a day opened from a week or month row. Always null off
@@ -180,7 +178,7 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const schoolParam = schoolFilterParam(schools);
   if (schoolParam) preserved.school = schoolParam;
   if (direction) preserved.dir = direction;
-  const view: ShameView = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
+  const view: RangeWindow = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
   const hours =
     view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);
   return {

@@ -6,6 +6,7 @@
 // hard-coded RGB triples (not `color-mix`) so the result is a concrete `rgb(...)`
 // valid in both an SVG attribute and a Leaflet marker.
 
+import type { DelayBand } from "@/lib/on-time";
 import { delayBand } from "@/lib/on-time";
 
 /** Deviation in minutes at which a stop's colour reaches full strength. */
@@ -32,9 +33,6 @@ export function delayStrength(delaySec: number): number {
   return Math.min(1, MIN_STRENGTH + (1 - MIN_STRENGTH) * (mins / FULL_AT_MIN));
 }
 
-/** A stop's on-time band token, or null when there is no data. */
-export type DelayBandToken = "late" | "early" | "ontime";
-
 /**
  * The on-time band token for a deviation (`late` / `early` / `ontime`), or null
  * when there is no data - the hue shared by the map markers and diagram nodes.
@@ -42,7 +40,7 @@ export type DelayBandToken = "late" | "early" | "ontime";
  * @param mode - Route mode (drives the asymmetric on-time window).
  * @returns The band token, or null.
  */
-export function delayBandToken(delaySec: number | null, mode: string): DelayBandToken | null {
+export function delayBandToken(delaySec: number | null, mode: string): DelayBand | null {
   if (delaySec == null) return null;
   const band = delayBand(delaySec, mode);
   return band === "late" ? "late" : band === "early" ? "early" : "ontime";
@@ -53,7 +51,7 @@ export function delayBandToken(delaySec: number | null, mode: string): DelayBand
  * theme). Hard-coded so the colour is a concrete `rgb(...)` - valid in both an
  * SVG `stroke`/`fill` attribute and a Leaflet marker, unlike `color-mix(...)`.
  */
-const HUE: Record<DelayBandToken, [number, number, number]> = {
+const HUE: Record<DelayBand, [number, number, number]> = {
   late: [222, 10, 43], // #de0a2b
   early: [149, 193, 31], // #95c11f
   ontime: [0, 115, 189], // #0073bd

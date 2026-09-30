@@ -10,6 +10,7 @@ import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronLeft } from "@/components/icons";
 import type { FilterUsage } from "@/lib/data/filter-usage";
 import type { Mode } from "@/lib/mode";
+import type { ShameBoard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import type { RangeNav } from "@/lib/page/range";
 import type { DelayDirection } from "@/lib/rankings";
@@ -17,10 +18,7 @@ import { type SchoolFilter } from "@/lib/school-bus";
 import Link from "next/link";
 import { Suspense, type JSX } from "react";
 
-/** Which board a header is on. */
-export type ShameTab = "trip" | "route" | "stop";
-
-const TABS: ReadonlyArray<{ key: ShameTab; label: string }> = [
+const TABS: ReadonlyArray<{ key: ShameBoard; label: string }> = [
   { key: "trip", label: "Trips" },
   { key: "route", label: "Routes" },
   { key: "stop", label: "Stops" },
@@ -61,9 +59,9 @@ export interface ShameHeaderProps {
   /** Sub-heading text, already composed and naming the active filter. */
   subtitle: string;
   /** The board this header is on. */
-  activeTab: ShameTab;
+  activeTab: ShameBoard;
   /** Pre-built hrefs for the Trips/Routes/Stops tabs. */
-  tabHrefs: Record<ShameTab, string>;
+  tabHrefs: Record<ShameBoard, string>;
   /** The board's own path, which the window controls and the chips link back to. */
   basePath: string;
   /** The day or period stepper for the shown window. */

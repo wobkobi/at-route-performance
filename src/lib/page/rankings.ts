@@ -6,6 +6,7 @@
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
 import { parseMode, type Mode } from "@/lib/mode";
+import type { PeriodWindow } from "@/lib/page/range";
 import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter } from "@/lib/school-bus";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
@@ -23,8 +24,6 @@ import {
   type DateRange,
 } from "@/lib/time/service-day";
 
-/** Active rankings window. */
-export type RankWindow = "week" | "month";
 /** Query params for the rankings page. */
 export interface RankingsSearchParams {
   window?: string;
@@ -36,7 +35,7 @@ export interface RankingsSearchParams {
 
 /** Parsed rankings params. */
 export interface ParsedRankingsParams {
-  window: RankWindow;
+  window: PeriodWindow;
   mode: Mode | null;
   dir: DelayDirection;
   schools: SchoolFilter;
@@ -48,7 +47,7 @@ export interface ParsedRankingsParams {
  * @returns The validated window, mode, direction and school toggle.
  */
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
-  const window: RankWindow = sp.window === "month" ? "month" : "week";
+  const window: PeriodWindow = sp.window === "month" ? "month" : "week";
   const mode = parseMode(sp.mode);
   const dir = parseDelayDirection(sp.dir);
   const schools = parseSchoolFilter(sp.school);
@@ -69,7 +68,7 @@ export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsPar
  * @returns The range and a human label.
  */
 export function resolveRange(
-  window: RankWindow,
+  window: PeriodWindow,
   period: string | undefined,
   anchor: Date,
 ): { range: DateRange; label: string } {
@@ -95,7 +94,7 @@ export function resolveRange(
  * @returns The previous period's half-open date range, possibly empty.
  */
 export function resolvePrevRange(
-  window: RankWindow,
+  window: PeriodWindow,
   period: string | undefined,
   anchor: Date,
 ): DateRange {
