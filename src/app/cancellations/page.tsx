@@ -30,6 +30,7 @@ import {
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
+import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow } from "@/lib/time/request-now";
@@ -153,10 +154,7 @@ export default async function CancellationsPage({
   }
   const boardRows = [...byRoute.values()].sort(
     (a, b) =>
-      b.cancelled - a.cancelled ||
-      (a.shortName ?? a.slug).localeCompare(b.shortName ?? b.slug, undefined, {
-        numeric: true,
-      }),
+      b.cancelled - a.cancelled || compareRouteNumbers(routeDisplayName(a), routeDisplayName(b)),
   );
   const modes = new Set(trips.map((t) => t.mode));
 

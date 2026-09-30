@@ -16,6 +16,7 @@ import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { UNKNOWN_VALUE, formatCount } from "@/lib/format";
 import { tripHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
+import { routeDisplayName } from "@/lib/route/slug";
 import { nzClockTime } from "@/lib/time/format";
 import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
@@ -228,7 +229,7 @@ export function CancelledTripList({
                     />
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
-                        <span className="font-semibold text-at-ink">{t.shortName ?? t.slug}</span>
+                        <span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>
                         <span className="text-at-muted">
                           {t.headsign
                             ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}`

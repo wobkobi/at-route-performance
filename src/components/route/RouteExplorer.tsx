@@ -41,7 +41,7 @@ import {
   type ExplorerRoute,
   type ExplorerSort,
 } from "@/lib/route/explorer";
-import { lineName } from "@/lib/route/line-name";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
@@ -504,9 +504,8 @@ export function RouteExplorer({
       ) : (
         <ol className="space-y-2">
           {sorted.slice(0, shown).map((r, i) => {
-            const label = r.shortName || r.longName || r.slug;
-            const subtitle =
-              lineName(r.mode, r.shortName) ?? (r.longName !== label ? r.longName : null);
+            const label = routeDisplayName(r);
+            const subtitle = routeSubtitle(r);
             // Always a distance, never the words "on time": this sits beside an
             // on-time percentage, and a delay figure reading "on time" under an
             // "Early or late" label read as the two figures disagreeing.

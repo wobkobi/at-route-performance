@@ -8,7 +8,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";
 import { plural } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
-import { lineName } from "@/lib/route/line-name";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -49,8 +49,8 @@ export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps
       ) : (
         <ol className="striped divide-y divide-at-border">
           {rows.map((r, i) => {
-            const label = r.shortName || r.longName || r.slug;
-            const subtitle = lineName(r.mode, r.shortName);
+            const label = routeDisplayName(r);
+            const subtitle = routeSubtitle(r);
             return (
               <li key={r.slug}>
                 <Link

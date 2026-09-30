@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.10] - 2026-10-01
+
+### Changed
+
+- Every route row names a route the same way (short name, long name, then slug), shows the same
+  subtitle, and sorts route numbers the same way
+
 ## [2.41.9] - 2026-10-01
 
 ### Changed

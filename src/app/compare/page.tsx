@@ -39,7 +39,7 @@ import {
   windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
@@ -163,15 +163,6 @@ function formatFigure(v: number, format: FigureRow["format"]): string {
 }
 
 /**
- * A route's name as riders say it: the short name, or the long one without.
- * @param r - The route row.
- * @returns The name.
- */
-function routeName(r: Pick<RouteRow, "shortName" | "longName" | "routeId">): string {
-  return r.shortName || r.longName || routeSlug(r.routeId);
-}
-
-/**
  * Routes matching a search: an exact short name first, then short names that
  * start with it, then long names containing it, busiest first within each.
  * @param rows - Every route with arrivals in the window.
@@ -198,7 +189,7 @@ function searchRoutes(rows: RouteRow[], q: string, exclude: Set<string>): Compar
     .filter(({ r, score }) => score >= 0 && !exclude.has(routeSlug(r.routeId).toLowerCase()))
     .sort((a, b) => a.score - b.score || b.r.events - a.r.events)
     .slice(0, SEARCH_LIMIT)
-    .map(({ r }) => ({ id: routeSlug(r.routeId), name: routeName(r), detail: r.longName }));
+    .map(({ r }) => ({ id: routeSlug(r.routeId), name: routeDisplayName(r), detail: r.longName }));
 }
 
 /**
@@ -303,7 +294,7 @@ export default async function ComparePage({
       const slug = routeSlug(r.routeId);
       columns.push({
         id,
-        name: routeName(r),
+        name: routeDisplayName(r),
         detail: r.shortName && r.longName !== r.shortName ? r.longName : null,
         href: routeHref(slug, routeParams),
         route: r,
@@ -323,7 +314,7 @@ export default async function ComparePage({
       .filter((s) => !chosen.has(s.toLowerCase()))
       .flatMap((s) => {
         const r = bySlug.get(s.toLowerCase());
-        return r ? [{ id: s, name: routeName(r), detail: r.longName }] : [];
+        return r ? [{ id: s, name: routeDisplayName(r), detail: r.longName }] : [];
       })
       .slice(0, 6);
   } else {

@@ -61,7 +61,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -147,7 +147,7 @@ async function TripRangeBoard({
    */
   const renderWeekRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = t.date === worstKey;
-    const name = t.shortName || t.longName || routeSlug(t.routeId);
+    const name = routeDisplayName(t);
     const dayCount = routeDayCounts.get(t.routeId) ?? 0;
     return (
       <ShameSplitRow
@@ -262,7 +262,7 @@ async function TripDayBoard({
    */
   const renderDayRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = worstKey === `${t.hour}-${t.trip_id}`;
-    const name = t.shortName || t.longName || routeSlug(t.routeId);
+    const name = routeDisplayName(t);
     const hourCount = routeHourCounts.get(t.routeId) ?? 0;
     const streakInfo = routeStreakMap.get(t.routeId);
     const streakDays = streakInfo?.count ?? 1;
@@ -397,7 +397,7 @@ async function TripHoursBoard({
   const renderRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(t) + 1;
     const isWorst = crowned && rank === 1;
-    const name = t.shortName || t.longName || routeSlug(t.routeId);
+    const name = routeDisplayName(t);
     return (
       <Link href={shamedTripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <ShameRankLabel rank={rank} />

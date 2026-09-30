@@ -7,6 +7,7 @@
 // so callers can pick the most recent feed version.
 
 import type { Mode } from "@/lib/mode";
+import { lineName } from "@/lib/route/line-name";
 
 /** How a route is named and drawn: the fields every route row carries. */
 export interface RouteDisplay {
@@ -42,4 +43,46 @@ export function routeSlug(routeId: string): string {
  */
 export function routeVersion(routeId: string): number {
   return Number.parseInt(/-(\d+)$/.exec(routeId)?.[1] ?? "0", 10);
+}
+
+/** The fields a route's name is read from; rows carry either the id or the slug. */
+export type RouteNameFields = {
+  shortName?: string | null;
+  longName?: string | null;
+  mode?: string;
+} & ({ routeId: string } | { slug: string });
+
+/**
+ * The name a route goes by: the number riders know ("NX1"), else AT's long
+ * name, else its slug. `||` rather than `??`, since AT sends empty strings as
+ * well as nulls.
+ * @param r - The route.
+ * @returns The name.
+ */
+export function routeDisplayName(r: RouteNameFields): string {
+  return r.shortName || r.longName || ("slug" in r ? r.slug : routeSlug(r.routeId));
+}
+
+/**
+ * The second line under a route's name: a train's published line name, else
+ * AT's long name, or null when that would repeat the name itself. AT sets every
+ * train route's long name to its bare code ("STH"), which is why the line name
+ * comes first.
+ * @param r - The route.
+ * @returns The subtitle, or null.
+ */
+export function routeSubtitle(r: RouteNameFields): string | null {
+  const sub = (r.mode ? lineName(r.mode, r.shortName) : null) ?? r.longName;
+  return sub && sub !== routeDisplayName(r) ? sub : null;
+}
+
+/**
+ * Order route numbers the way riders read them: "2" before "10", "70" before
+ * "70X". The one comparator every route list sorts with.
+ * @param a - A route's short name or slug.
+ * @param b - Another.
+ * @returns Negative, zero or positive, as for `Array.prototype.sort`.
+ */
+export function compareRouteNumbers(a: string, b: string): number {
+  return a.localeCompare(b, "en-NZ", { numeric: true });
 }

@@ -27,7 +27,7 @@ import { formatCount } from "@/lib/format";
 import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -230,7 +230,7 @@ export default async function TripPage({
     ? { name: nearest.name, href: stopHref(nearest.stopId, { day: pastDay }) }
     : null;
 
-  const title = route?.shortName ?? slug;
+  const title = route ? routeDisplayName({ ...route, slug }) : slug;
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
   const firstDeparture = scheduledStops[0]?.departure_time;
   const departing = firstServed

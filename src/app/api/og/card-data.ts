@@ -49,8 +49,7 @@ import type { PeriodWindow } from "@/lib/page/range";
 import { periodRangeNav } from "@/lib/page/range";
 import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/page/shame";
 import { summariseRows, visibleRows } from "@/lib/rankings";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { aggregateWeek } from "@/lib/route/week";
 import { schoolAllows } from "@/lib/school-bus";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
@@ -191,8 +190,8 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
         colour: route.colour,
       }
     : null;
-  const name = route?.shortName ?? slug;
-  const subname = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const name = route ? routeDisplayName({ ...route, slug }) : slug;
+  const subname = route ? routeSubtitle({ ...route, slug }) : null;
 
   if (card.window === "week") {
     const fixed = card.period ? nzWeekRange(card.period) : null;
@@ -303,7 +302,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
             colour: route.colour,
           }
         : null,
-      name: route?.shortName ?? card.id,
+      name: route ? routeDisplayName({ ...route, slug: card.id }) : card.id,
       subname: destination ? `to ${destination}` : null,
       hero,
       lines,
@@ -359,15 +358,6 @@ function eyebrowOf(...parts: (string | null)[]): string {
  */
 function glyphOf(r: ShameTrip | ShameRouteRow): SubjectBodyProps["route"] {
   return { mode: r.mode, shortName: r.shortName, longName: r.longName, colour: r.colour ?? null };
-}
-
-/**
- * The name a shame row's route goes by on its board.
- * @param r - The row.
- * @returns The short name, the long name, or the slug.
- */
-function routeNameOf(r: ShameTrip | ShameRouteRow): string {
-  return r.shortName || r.longName || routeSlug(r.routeId);
 }
 
 /**
@@ -450,7 +440,7 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
   const time = nzClockTime(t.scheduled_start);
   return {
     route: glyphOf(t),
-    name: routeNameOf(t),
+    name: routeDisplayName(t),
     subname: destinationOf(t),
     hero: offHero(t.avg_delay_sec, t.avg_abs_delay_sec, t.mode),
     lines: [
@@ -484,7 +474,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
       if (r)
         body = {
           route: glyphOf(r),
-          name: routeNameOf(r),
+          name: routeDisplayName(r),
           subname: null,
           hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
           lines: [
@@ -536,7 +526,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     else
       body = {
         route: glyphOf(r),
-        name: routeNameOf(r),
+        name: routeDisplayName(r),
         subname: null,
         hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
         lines: [
@@ -656,7 +646,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
   for (const t of trips) {
     const row = byRoute.get(t.slug);
     if (row) row.n++;
-    else byRoute.set(t.slug, { name: t.shortName ?? t.slug, n: 1 });
+    else byRoute.set(t.slug, { name: routeDisplayName(t), n: 1 });
   }
   const top = [...byRoute.values()].sort((a, b) => b.n - a.n)[0];
   const neverRan = trips.filter((t) => t.stage === "before").length;

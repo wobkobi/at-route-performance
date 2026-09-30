@@ -13,7 +13,7 @@ import {
   offScheduleValue,
 } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -242,7 +242,7 @@ export function RankBoard({
                       colour={r.colour}
                     />
                     <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
-                      {r.shortName || r.longName || r.routeId}
+                      {routeDisplayName(r)}
                       {cancelledCount > 0 && (
                         <span className="ml-2 text-xs font-semibold text-at-late">
                           {cancelledCount} cancelled

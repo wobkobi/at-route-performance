@@ -50,7 +50,7 @@ import {
   type SortColumn,
   type SortParamNames,
 } from "@/lib/page/table-sort";
-import { routeSlug } from "@/lib/route/slug";
+import { compareRouteNumbers, routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
@@ -240,7 +240,7 @@ export default async function OperatorPage({
     const events = r.events + (prev?.events ?? 0);
     routes.set(s, {
       slug: s,
-      name: r.shortName ?? s,
+      name: routeDisplayName(r),
       long: r.longName,
       mode: r.mode,
       colour: r.colour,
@@ -254,7 +254,7 @@ export default async function OperatorPage({
     if (operators[c.slug] !== op.code || routes.has(c.slug)) continue;
     routes.set(c.slug, {
       slug: c.slug,
-      name: c.shortName ?? c.slug,
+      name: routeDisplayName(c),
       long: c.longName ?? "",
       mode: c.mode,
       colour: c.colour,
@@ -289,7 +289,7 @@ export default async function OperatorPage({
     FLEET_SORT,
   );
   const routeList = sortRows(
-    [...routes.values()].sort((a, b) => a.name.localeCompare(b.name, "en-NZ", { numeric: true })),
+    [...routes.values()].sort((a, b) => compareRouteNumbers(a.name, b.name)),
     ROUTE_COLUMNS,
     routeSort.sort,
   );

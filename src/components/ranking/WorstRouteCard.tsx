@@ -5,7 +5,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { plural } from "@/lib/format";
 import { routeHref } from "@/lib/page/hrefs";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName } from "@/lib/route/slug";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
 import {
@@ -98,7 +98,7 @@ export function WorstRouteCard({
       </div>
     );
   }
-  const name = route.shortName || route.longName || routeSlug(route.routeId);
+  const name = routeDisplayName(route);
 
   // Week-view rows carry a service date and no meaningful hour; day rows are the
   // other way round.

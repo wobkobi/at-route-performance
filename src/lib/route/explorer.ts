@@ -9,6 +9,7 @@ import type { Mode } from "@/lib/mode";
 import type { SortDir } from "@/lib/page/table-sort";
 import type { DelayDirection } from "@/lib/rankings";
 import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
+import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
   schoolAllows,
@@ -256,9 +257,7 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
  * @returns The standard sort contract.
  */
 function byName(a: ExplorerRoute, b: ExplorerRoute): number {
-  return (a.shortName ?? a.slug).localeCompare(b.shortName ?? b.slug, undefined, {
-    numeric: true,
-  });
+  return compareRouteNumbers(routeDisplayName(a), routeDisplayName(b));
 }
 
 /**

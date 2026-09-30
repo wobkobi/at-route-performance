@@ -25,8 +25,7 @@ import {
   type SortDir,
   type TableSort,
 } from "@/lib/page/table-sort";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -323,7 +322,7 @@ async function LiveTable({
           <tbody>
             {shown.map((r) => {
               const route = routes.get(r.slug);
-              const name = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+              const name = route ? routeSubtitle({ ...route, slug: r.slug }) : null;
               const avg = offScheduleValue(r.avgDelaySec, null, r.mode);
               return (
                 <tr key={r.slug} className="border-b border-at-border last:border-b-0">

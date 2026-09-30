@@ -6,7 +6,7 @@
 // should be presented.
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { SEC_PER_DAY } from "@/lib/time/service-day";
 import { isObj, sleep } from "@/lib/utils";
 
@@ -295,7 +295,9 @@ async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]
             select: { id: true, shortName: true },
           })
         : [];
-    const shortNames = new Map(routes.map((r) => [r.id, r.shortName ?? routeSlug(r.id)]));
+    const shortNames = new Map(
+      routes.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]),
+    );
     return alerts.map((a) => resolveAlertRoutes(a, tripRoutes, shortNames));
   } catch (err) {
     console.warn("[AT Alerts] Route lookup failed", err instanceof Error ? err.message : err);

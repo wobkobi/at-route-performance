@@ -4,7 +4,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { tripHref } from "@/lib/page/hrefs";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName } from "@/lib/route/slug";
 import { nzClockTime } from "@/lib/time/format";
 import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
@@ -78,7 +78,7 @@ export function ShameOfDay({
     );
   }
 
-  const name = trip.shortName || trip.longName || routeSlug(trip.routeId);
+  const name = routeDisplayName(trip);
   const bound = boundFor(trip.headsign, trip.mode);
   const routeHourCount = hours ? hours.filter((h) => h.routeId === trip.routeId).length : 0;
   // The card names one run, so it opens that run. `?d` is the run's own instant,

@@ -68,7 +68,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
@@ -149,7 +149,7 @@ async function RouteRangeBoard({
    */
   const renderWeekRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const isWorst = r.date === worstKey;
-    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const name = routeDisplayName(r);
     const slug = routeSlug(r.routeId);
     // Open the route's week view either way: a week row keeps the board's week
     // (rolling or fixed), and a month row opens the week holding its day, since
@@ -270,7 +270,7 @@ async function RouteDayBoard({
    */
   const renderDayRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const isWorst = worstKey === `${r.hour}-${r.routeId}`;
-    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const name = routeDisplayName(r);
     const slug = routeSlug(r.routeId);
     // The row is one hour's, so the route page opens on that hour: its whole-day
     // figures are a different number under the same route name.
@@ -418,7 +418,7 @@ async function RouteHoursBoard({
   const renderRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(r) + 1;
     const isWorst = crowned && rank === 1;
-    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const name = routeDisplayName(r);
     const href = routeHref(r.routeId, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(isWholeDay(hours) ? null : hours),

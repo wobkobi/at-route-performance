@@ -6,7 +6,7 @@
 import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { modeOrBus, type Mode } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
-import { routeSlug } from "@/lib/route/slug";
+import { compareRouteNumbers, routeSlug } from "@/lib/route/slug";
 
 /** One route with vehicles on a run now. */
 export interface LiveRouteRow {
@@ -112,7 +112,7 @@ export function liveRoutes(
    * @returns The comparison.
    */
   const byNumber = (a: LiveRouteRow, b: LiveRouteRow): number =>
-    a.slug.localeCompare(b.slug, "en", { numeric: true });
+    compareRouteNumbers(a.slug, b.slug);
   return rows.sort((a, b) =>
     sort === "late"
       ? b.late - a.late || b.vehicles - a.vehicles || byNumber(a, b)

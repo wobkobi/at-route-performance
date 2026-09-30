@@ -65,8 +65,7 @@ import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page
 import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { withTripPenalty } from "@/lib/rider-wait";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildRouteView, type RouteView } from "@/lib/route/view";
 import { aggregateWeek } from "@/lib/route/week";
 import { stripMarks } from "@/lib/strip/marks";
@@ -336,8 +335,8 @@ export async function generateMetadata({
   // route, and reading it this way keeps the head clear of both the aggregation
   // and the clock a default window would need.
   const route = await getRouteLabel(slug).catch(readFallback("route-label", null));
-  const name = route ? lineName(route.mode, route.shortName) : null;
-  const label = route?.shortName ?? slug;
+  const name = route ? routeSubtitle({ ...route, slug }) : null;
+  const label = route ? routeDisplayName({ ...route, slug }) : slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
   const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
   return {
@@ -704,10 +703,8 @@ export default async function RoutePage({
   };
   for (const [k, v] of Object.entries(viewParams)) if (k !== "tsort") tripPreserved[k] = v;
 
-  const title = route?.shortName ?? slug;
-  // AT sets every train route's long name to its bare code ("STH", "S-C"), so
-  // the published line name is the only readable label the header can show.
-  const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const title = route ? routeDisplayName({ ...route, slug }) : slug;
+  const subtitle = route ? routeSubtitle({ ...route, slug }) : null;
   const [operators, directory] = await operatorsP;
   const operator = operatorOf(operators[slug], directory);
 

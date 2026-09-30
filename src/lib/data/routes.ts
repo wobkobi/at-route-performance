@@ -9,7 +9,7 @@ import {
   predecessorSlugs,
   successorSlug,
 } from "@/lib/route/lineage";
-import { routeSlug, routeVersion, type RouteDisplay } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeVersion, type RouteDisplay } from "@/lib/route/slug";
 import { MS_PER_DAY } from "@/lib/time/service-day";
 
 /**
@@ -213,7 +213,7 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
  */
 export async function getRouteLabel(
   slug: string,
-): Promise<{ shortName: string | null; mode: string } | null> {
+): Promise<{ shortName: string | null; longName: string; mode: string } | null> {
   // Never empty (it falls back to the slug), but read with one so the newest id
   // is a plain string for the cache key.
   const newest = (await routeIdsForSlug(slug))[0] ?? slug;
@@ -221,7 +221,7 @@ export async function getRouteLabel(
     async () =>
       prisma.route.findUnique({
         where: { id: newest },
-        select: { shortName: true, mode: true },
+        select: { shortName: true, longName: true, mode: true },
       }),
     ["route-label", newest],
     { revalidate: 3600 },
@@ -307,7 +307,7 @@ async function allRouteNames(): Promise<Record<string, string>> {
   return unstable_cache(
     async () => {
       const rows = await prisma.route.findMany({ select: { id: true, shortName: true } });
-      return Object.fromEntries(rows.map((r) => [r.id, r.shortName ?? r.id]));
+      return Object.fromEntries(rows.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]));
     },
     ["route-names-all"],
     { revalidate: 86400 },
