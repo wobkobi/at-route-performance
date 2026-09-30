@@ -6,6 +6,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";
+import { plural } from "@/lib/format";
 import { lineName } from "@/lib/route/line-name";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -36,9 +37,7 @@ export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps)
     <section className="border border-at-border bg-at-surface">
       <header className="flex items-baseline justify-between gap-3 border-b border-at-border px-4 py-3">
         <h2 className="font-ultra tracking-zero text-at-ink">Most cancelled</h2>
-        <p className="text-sm text-at-muted tabular-nums">
-          {total.toLocaleString()} {total === 1 ? "trip" : "trips"}
-        </p>
+        <p className="text-sm text-at-muted tabular-nums">{plural(total, "trip")}</p>
       </header>
 
       {rows.length === 0 ? (

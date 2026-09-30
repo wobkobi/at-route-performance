@@ -2,6 +2,7 @@
 // Render a card for the window's worst-performing stop.
 
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { plural } from "@/lib/format";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
 import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
@@ -115,7 +116,7 @@ export function WorstStopCard({
         mode={stop.mode}
       />
       <p className="text-xs text-at-muted tabular-nums">
-        {stop.events} arrivals {bucket}
+        {plural(stop.events, "arrival")} {bucket}
       </p>
     </Link>
   );

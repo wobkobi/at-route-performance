@@ -13,7 +13,9 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { cn } from "@/lib/cn";
 import {
+  formatCount,
   formatDuration,
+  formatPct,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
   UNKNOWN_VALUE,
@@ -558,9 +560,7 @@ export function RouteExplorer({
                   </div>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
-                  <Figure label="On time">
-                    {r.on_time_pct === null ? UNKNOWN_VALUE : `${r.on_time_pct.toFixed(1)}%`}
-                  </Figure>
+                  <Figure label="On time">{formatPct(r.on_time_pct)}</Figure>
                   <Figure
                     label="Early or late"
                     className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}
@@ -576,7 +576,7 @@ export function RouteExplorer({
                     label="Cancelled"
                     className={r.cancelled > 0 ? "text-at-late" : undefined}
                   >
-                    {r.cancelled.toLocaleString()}
+                    {formatCount(r.cancelled)}
                   </Figure>
                 </dl>
                 <Link

@@ -1,4 +1,5 @@
 // tests/lib/strip/view.test.ts
+import { UNKNOWN_VALUE } from "@/lib/format";
 import { stripMarks, type DayClosure } from "@/lib/strip/marks";
 import { buildStrip, type RouteStrip } from "@/lib/strip/route-strip";
 import type { StopSplit } from "@/lib/strip/stop-split";
@@ -72,7 +73,7 @@ describe("stripView: route 65, three versions into Glen Innes", () => {
     const v = stripView({ strip: s, split: null, version: null, mode: "BUS" });
     const potters = v.rows[rowOf(s, "Potters Park")]!;
     expect(potters.down.tone).toBe("none");
-    expect(potters.up).toEqual({ tone: "unserved", text: "-", mark: null });
+    expect(potters.up).toEqual({ tone: "unserved", text: UNKNOWN_VALUE, mark: null });
     expect(potters.bothWays).toBe(false);
     expect(potters.sentence).toBe(
       "Potters Park: To Glen Innes Station, stops here; To the start, doesn't stop.",

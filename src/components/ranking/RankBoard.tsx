@@ -5,10 +5,12 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import {
+  barPct,
+  formatCount,
+  formatPct,
   OFF_SCHEDULE_BAR_CLASS,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
-  UNKNOWN_VALUE,
 } from "@/lib/format";
 import { routeSlug } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
@@ -41,15 +43,6 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
       {Math.abs(delta)}
     </span>
   );
-}
-
-/**
- * CSS width for a row's magnitude bar, clamped to the track.
- * @param pct - The row's share of the column's scale, as a percentage.
- * @returns A CSS width string.
- */
-function barWidth(pct: number): string {
-  return `${Math.min(100, Math.max(0, pct))}%`;
 }
 
 /**
@@ -178,7 +171,7 @@ export function RankBoard({
             <span>{title}</span>
             <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
             <span className="ml-auto text-sm font-normal text-at-muted">
-              See all{total !== undefined ? ` ${total}` : ""}
+              See all{total !== undefined ? ` ${formatCount(total)}` : ""}
             </span>
           </Link>
         ) : (
@@ -206,12 +199,7 @@ export function RankBoard({
             const off = offScheduleValue(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode);
             // An unknown share is the placeholder alone: a percent sign welded to
             // it read "—%", which looks like a measured figure that failed to print.
-            const value =
-              metric === "delay"
-                ? off.text
-                : r.on_time_pct === null
-                  ? UNKNOWN_VALUE
-                  : `${r.on_time_pct.toFixed(1)}%`;
+            const value = metric === "delay" ? off.text : formatPct(r.on_time_pct);
             const cancelledCount = cancelled?.get(routeSlug(r.routeId)) ?? 0;
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
@@ -268,7 +256,7 @@ export function RankBoard({
                   {/* Decorative: the figure the bar is drawn from is printed on the
                       row beside it, in the colour the board's key names. */}
                   <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden bg-at-bg">
-                    <span className={barClass} style={{ width: barWidth(share) }} />
+                    <span className={barClass} style={{ width: `${barPct(share)}%` }} />
                   </span>
                 </Link>
               </li>

@@ -31,6 +31,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
+import { formatCount, plural } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -195,7 +196,9 @@ async function RouteRangeBoard({
               />
             )}
           </span>
-          <span className="block text-xs text-at-muted tabular-nums">{r.events} arrivals</span>
+          <span className="block text-xs text-at-muted tabular-nums">
+            {plural(r.events, "arrival")}
+          </span>
         </span>
         <ShameRowDelay
           avgDelaySec={r.avg_delay_sec}
@@ -331,7 +334,9 @@ async function RouteDayBoard({
               />
             ) : null}
           </span>
-          <span className="block text-xs text-at-muted tabular-nums">{r.events} arrivals</span>
+          <span className="block text-xs text-at-muted tabular-nums">
+            {plural(r.events, "arrival")}
+          </span>
         </span>
         <ShameRowDelay
           avgDelaySec={r.avg_delay_sec}
@@ -433,7 +438,9 @@ async function RouteHoursBoard({
             <span className="font-semibold text-at-ink">{name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted tabular-nums">{r.events} arrivals</span>
+          <span className="block text-xs text-at-muted tabular-nums">
+            {plural(r.events, "arrival")}
+          </span>
         </span>
         <ShameRowDelay
           avgDelaySec={r.avg_delay_sec}
@@ -454,7 +461,7 @@ async function RouteHoursBoard({
           ? notStartedMessage(hours)
           : `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting ${hoursNoun(hours)}.`
       }
-      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${total.toLocaleString("en-NZ")} routes.`}
+      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} routes.`}
       showFooter={total > rows.length}
       renderRow={renderRow}
     />

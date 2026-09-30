@@ -23,7 +23,7 @@ import {
   type GhostRunRow,
   type ScheduledStop,
 } from "@/lib/data";
-import { formatGtfsTime } from "@/lib/format";
+import { formatCount, formatGtfsTime } from "@/lib/format";
 import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeSlug } from "@/lib/route/slug";
@@ -377,7 +377,7 @@ export default async function TripPage({
               offRoute={detour?.sightings.map((s) => ({
                 lat: s.lat,
                 lon: s.lon,
-                label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
+                label: `${nzClockTime(s.at)}, ${formatCount(s.distanceM)} metres off route`,
               }))}
               mode={route ? modeOrBus(route.mode) : undefined}
               stopQuery={dayQuery}

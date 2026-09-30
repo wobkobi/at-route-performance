@@ -5,7 +5,7 @@
 
 import { brandColour, modeGlyph } from "@/components/ModeIcon";
 import { SITE_NAME } from "@/lib/copy";
-import { formatDuration } from "@/lib/format";
+import { formatCount, formatDuration, formatPct } from "@/lib/format";
 import type { RouteDisplay } from "@/lib/route/slug";
 import {
   dayVerdict,
@@ -208,7 +208,7 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
       {/* Listed, not welded with "of": arrivals include readings the ghost pass
           hid and the rate divides by the real ones, as on the page itself. */}
       <div style={{ ...ONE_LINE, fontSize: 48, marginTop: 28 }}>
-        {`${summary.events.toLocaleString("en-NZ")} arrivals, ${summary.on_time_pct.toFixed(1)}% of those measured on time`}
+        {`${formatCount(summary.events)} arrivals, ${formatPct(summary.on_time_pct)} of those measured on time`}
       </div>
       <div style={{ ...ONE_LINE, fontSize: 44, marginTop: 4, color: MUTED }}>
         {[

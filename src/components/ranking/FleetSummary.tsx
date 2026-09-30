@@ -14,7 +14,7 @@ import {
 import { SchoolAdded } from "@/components/SchoolAdded";
 import { SplitBar } from "@/components/SplitBar";
 import { cn } from "@/lib/cn";
-import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import type { SchoolDelta } from "@/lib/school-bus";
 import { dayVerdict, LEAN_PHRASE, VERDICT_BANDS, verdictLean } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
@@ -154,7 +154,7 @@ function VerdictPanel({
               data.events === 0
               ? "No arrivals were recorded, so there is no verdict to give."
               : "Too few measured arrivals for a verdict."
-            : `${data.events.toLocaleString()} arrivals` +
+            : `${formatCount(data.events)} arrivals` +
               (data.avg_abs_delay_sec === null
                 ? ""
                 : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
@@ -214,7 +214,7 @@ export function FleetSummary({
         <div className={cell}>
           <div className={LABEL_CLASS}>Arrivals</div>
           <div className={valueClass}>
-            {data.events.toLocaleString()}
+            {formatCount(data.events)}
             <SchoolAdded n={schoolAdded?.events} />
           </div>
         </div>
@@ -224,7 +224,7 @@ export function FleetSummary({
             size="sm"
             variant="split"
             label="On time"
-            value={data.on_time_pct === null ? UNKNOWN_VALUE : `${data.on_time_pct.toFixed(1)}%`}
+            value={formatPct(data.on_time_pct)}
             breakdown={breakdown}
           />
         )}
@@ -244,7 +244,7 @@ export function FleetSummary({
               note is part of the figure rather than a footnote to it. */}
           <div className={LABEL_CLASS}>Flagged cancelled</div>
           <div className={cn(valueClass, data.cancelled ? "text-at-late" : undefined)}>
-            {data.cancelled === null ? UNKNOWN_VALUE : data.cancelled.toLocaleString()}
+            {data.cancelled === null ? UNKNOWN_VALUE : formatCount(data.cancelled)}
             <SchoolAdded n={schoolAdded?.cancelled} />
           </div>
           <div className="text-xs text-at-muted">Reinstated trips included</div>
@@ -252,7 +252,7 @@ export function FleetSummary({
         <div className={cell}>
           <div className={LABEL_CLASS}>Routes</div>
           <div className={valueClass}>
-            {data.route_count.toLocaleString()}
+            {formatCount(data.route_count)}
             <SchoolAdded n={schoolAdded?.route_count} />
           </div>
         </div>

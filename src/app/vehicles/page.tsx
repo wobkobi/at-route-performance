@@ -23,7 +23,7 @@ import {
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap } from "@/lib/feed/vehicles";
-import { formatDuration, formatHours } from "@/lib/format";
+import { formatCount, formatDuration, formatHours } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
@@ -340,9 +340,9 @@ export default async function VehiclesPage({
                   <td className="p-3 text-right whitespace-nowrap tabular-nums">
                     {formatHours(v.serviceSec)}
                   </td>
-                  <td className="p-3 text-right tabular-nums">{v.runs.toLocaleString("en-NZ")}</td>
+                  <td className="p-3 text-right tabular-nums">{formatCount(v.runs)}</td>
                   <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                    {v.arrivals.toLocaleString("en-NZ")}
+                    {formatCount(v.arrivals)}
                   </td>
                   {multiDay && (
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">{v.days}</td>
@@ -364,7 +364,7 @@ export default async function VehiclesPage({
         <p className="text-sm text-at-muted tabular-nums">
           {ranked.length === 0
             ? null
-            : `Showing ${rows.length.toLocaleString("en-NZ")} of ${ranked.length.toLocaleString("en-NZ")} vehicles`}
+            : `Showing ${formatCount(rows.length)} of ${formatCount(ranked.length)} vehicles`}
         </p>
         {rows.length < ranked.length && (
           <Link

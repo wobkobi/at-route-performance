@@ -31,6 +31,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
+import { formatCount, plural } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -187,7 +188,7 @@ async function TripRangeBoard({
           <span className="block text-xs text-at-muted tabular-nums">
             {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
             <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
+            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
           </span>
         </span>
         <ShameRowDelay
@@ -317,7 +318,7 @@ async function TripDayBoard({
           <span className="block text-xs text-at-muted tabular-nums">
             {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
             <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
+            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
           </span>
         </span>
         <ShameRowDelay
@@ -415,7 +416,7 @@ async function TripHoursBoard({
           <span className="block text-xs text-at-muted tabular-nums">
             {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
             <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
+            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
           </span>
         </span>
         <ShameRowDelay
@@ -437,7 +438,7 @@ async function TripHoursBoard({
           ? notStartedMessage(hours)
           : `No run with ${SHAME_MIN_STOPS} stops started ${hoursNoun(hours)}.`
       }
-      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${total.toLocaleString("en-NZ")} runs.`}
+      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} runs.`}
       showFooter={total > rows.length}
       renderRow={renderRow}
     />

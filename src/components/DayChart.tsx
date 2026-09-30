@@ -5,6 +5,7 @@
 // Plain HTML boxes rather than SVG or a chart library, rendered on the server.
 
 import { cn } from "@/lib/cn";
+import { barPct, formatPct } from "@/lib/format";
 import type { DaySlot } from "@/lib/time/day-series";
 import { serviceDayLabel, weekdayShort } from "@/lib/time/service-day";
 import { VERDICT_BANDS } from "@/lib/verdict";
@@ -25,7 +26,7 @@ export const CHART_FLOOR = 40;
  * @returns The height percentage.
  */
 function plotHeight(pct: number): number {
-  return Math.min(100, Math.max(2, ((pct - CHART_FLOOR) / (100 - CHART_FLOOR)) * 100));
+  return barPct(((pct - CHART_FLOOR) / (100 - CHART_FLOOR)) * 100, 2);
 }
 
 /**
@@ -128,7 +129,7 @@ export function DayChart({
                     <Link
                       href={hrefFor(s.date)}
                       tabIndex={-1}
-                      title={`${serviceDayLabel(s.date)}${s.date === today ? " (so far)" : ""}: ${s.verdict?.label ?? ""}, ${s.summary.on_time_pct.toFixed(1)}% on time`}
+                      title={`${serviceDayLabel(s.date)}${s.date === today ? " (so far)" : ""}: ${s.verdict?.label ?? ""}, ${formatPct(s.summary.on_time_pct)} on time`}
                       className={cn(
                         "block w-full hover:opacity-80",
                         s.verdict?.barClass ?? "bg-at-muted",

@@ -51,7 +51,13 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
-import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  formatCount,
+  formatDuration,
+  formatPct,
+  offScheduleValue,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
@@ -882,11 +888,7 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={
-                  weekSummary?.on_time_pct == null
-                    ? UNKNOWN_VALUE
-                    : `${weekSummary.on_time_pct.toFixed(1)}%`
-                }
+                value={formatPct(weekSummary?.on_time_pct)}
                 breakdown={weekPunctuality}
               />
             </div>
@@ -977,11 +979,7 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={
-                  summary?.on_time_pct == null
-                    ? UNKNOWN_VALUE
-                    : `${summary.on_time_pct.toFixed(1)}%`
-                }
+                value={formatPct(summary?.on_time_pct)}
                 breakdown={punctuality}
               />
             </div>
@@ -1105,7 +1103,9 @@ export default async function RoutePage({
                             {s.name}
                           </Link>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {formatCount(s.events)}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {offScheduleValue(s.avg_delay_sec, null, routeMode).text}
                         </td>

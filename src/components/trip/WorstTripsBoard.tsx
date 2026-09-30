@@ -19,7 +19,7 @@ import { ChipLink } from "@/components/Chip";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
 import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
@@ -384,7 +384,7 @@ export function WorstTripsBoard({
                           {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
                           {t.cars ? ` · ${t.cars} cars` : ""}
                           {" · "}
-                          {t.stops} stops
+                          {plural(t.stops, "stop")}
                         </span>
                       </span>
                       {detouredTripIds?.has(t.trip_id) && (

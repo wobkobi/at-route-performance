@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.5] - 2026-10-01
+
+### Fixed
+
+- Every percentage shows one decimal place, every count is grouped (12,345), missing figures show
+  the same placeholder dash everywhere, and distances read in metres so "m" only ever means minutes.
+
 ## [2.41.4] - 2026-10-01
 
 ### Changed

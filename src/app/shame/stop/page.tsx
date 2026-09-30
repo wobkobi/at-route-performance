@@ -28,6 +28,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
+import { formatCount, plural } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -191,7 +192,7 @@ async function StopRangeBoard({
             </ShameSubjectLink>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted">{s.events} arrivals</span>
+          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
           {weekCount > 1 && (
             <span className="block text-xs text-at-muted">
               {s.name} was bad {badTimes(weekCount)} in {periodWhen}
@@ -287,7 +288,7 @@ async function StopDayBoard({
             <ShameSubjectLink href={stopHref(s, linkDay)}>{s.name}</ShameSubjectLink>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted">{s.events} arrivals</span>
+          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
           {hourCount > 1 && (
             <span className="block text-xs text-at-muted">
               {s.name} was bad {badTimes(hourCount)} {dayWhen}
@@ -391,7 +392,7 @@ async function StopHoursBoard({
             <span className="font-semibold text-at-ink">{s.name}</span>
             {isWorst && <ShameWorstBadge />}
           </span>
-          <span className="block text-xs text-at-muted">{s.events} arrivals</span>
+          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
         </span>
         <ShameRowDelay
           avgDelaySec={s.avg_delay_sec}
@@ -414,7 +415,7 @@ async function StopHoursBoard({
             ? `No stop ran ${filter.direction} on average ${hoursNoun(hours)}.`
             : `No stop had enough arrivals ${hoursNoun(hours)}.`
       }
-      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${total.toLocaleString("en-NZ")} stops.`}
+      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} stops.`}
       showFooter={total > rows.length}
       renderRow={renderRow}
     />

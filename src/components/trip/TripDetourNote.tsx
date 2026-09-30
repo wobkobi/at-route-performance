@@ -2,6 +2,7 @@
 // Note on the trip page when the vehicle's GPS left the trip's road path mid-run
 // (see lib/off-route.ts), with AT's own alert when one was active.
 
+import { formatCount } from "@/lib/format";
 import type { Sighting } from "@/lib/off-route";
 import { nzClockTime } from "@/lib/time/service-day";
 import Link from "next/link";
@@ -50,7 +51,7 @@ export function TripDetourNote({
     <section className="border border-l-4 border-at-border border-l-at-commercial bg-at-surface p-4">
       <h2 className="text-lg font-ultra tracking-zero text-at-ink">Went off its route</h2>
       <p className="mt-1 text-sm text-at-muted">
-        GPS put this {noun} up to {furthest.toLocaleString()} m from its planned road path in{" "}
+        GPS put this {noun} up to {formatCount(furthest)} metres from its planned road path in{" "}
         {sightings.length} readings {window}
         {nearestStop && (
           <>

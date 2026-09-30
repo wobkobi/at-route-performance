@@ -4,7 +4,8 @@
 // hover, focus or tap.
 
 import { cn } from "@/lib/cn";
-import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
+import { onTimeWindowMinutes, onTimeWindowPhrase } from "@/lib/copy";
+import { formatPct } from "@/lib/format";
 import { useState, type FocusEvent, type JSX, type PointerEvent } from "react";
 
 /** The three bands a measured arrival can fall in, in the order they are drawn. */
@@ -35,14 +36,13 @@ function oneIn(pct: number): string | null {
  * @returns One line per band.
  */
 function bandMeaning(mode: string | undefined): Record<BandKey, string> {
-  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
-  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
-  const ferry =
-    mode === undefined ? ` (ferries ${Math.round(earlyToleranceFor("FERRY") / 60)})` : "";
+  const { early, late } = onTimeWindowMinutes(mode);
+  const ferry = mode === undefined ? ` (ferries ${onTimeWindowMinutes("FERRY").early})` : "";
+  const ferries = mode === undefined ? ` (ferries: ${onTimeWindowPhrase("FERRY")})` : "";
   return {
-    onTime: `Between ${earlyMin} min early${ferry} and ${lateMin} min late.`,
-    late: `More than ${lateMin} min late, so riders waited longer than the timetable said.`,
-    early: `More than ${earlyMin} min early${ferry}, so a rider who arrived on time could have missed it.`,
+    onTime: `Within ${onTimeWindowPhrase(mode)}${ferries}.`,
+    late: `More than ${late} min late, so riders waited longer than the timetable said.`,
+    early: `More than ${early} min early${ferry}, so a rider who arrived on time could have missed it.`,
   };
 }
 
@@ -144,7 +144,7 @@ export function SplitBar({
           <button
             key={b.key}
             type="button"
-            aria-label={`${b.label} ${shares[b.key].toFixed(1)}%`}
+            aria-label={`${b.label} ${formatPct(shares[b.key])}`}
             className={cn(
               "h-full cursor-pointer transition-opacity",
               b.barClass,
@@ -170,7 +170,7 @@ export function SplitBar({
           >
             <span className="at-eyebrow text-at-muted">{b.label}</span>
             <span className={cn("text-base font-semibold tabular-nums", b.toneClass)}>
-              {shares[b.key].toFixed(1)}%
+              {formatPct(shares[b.key])}
             </span>
           </button>
         ))}
@@ -181,7 +181,7 @@ export function SplitBar({
           className="absolute top-5 left-0 z-30 max-w-xs rounded-md border border-at-border bg-at-surface p-3 text-sm shadow-lg"
         >
           <p className={cn("font-semibold", active.toneClass)}>
-            {active.label} {shares[active.key].toFixed(1)}%
+            {active.label} {formatPct(shares[active.key])}
             {oneIn(shares[active.key]) && (
               <span className="font-normal text-at-muted">
                 {" "}

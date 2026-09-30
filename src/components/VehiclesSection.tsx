@@ -5,6 +5,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { SectionLink } from "@/components/SectionLink";
 import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/lib/data";
+import { formatCount } from "@/lib/format";
 import { MODES, modeWord, type Mode } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
@@ -59,7 +60,7 @@ function VehicleCard({
               {modeWord(m, counts[m] !== 1)}
             </dt>
             <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums sm:text-3xl">
-              {counts[m].toLocaleString("en-NZ")}
+              {formatCount(counts[m])}
             </dd>
           </div>
         ))}

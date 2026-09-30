@@ -5,7 +5,7 @@
 
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { formatDelay, formatGtfsTime } from "@/lib/format";
+import { formatDelay, formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
 import { nzClockTime } from "@/lib/time/service-day";
@@ -365,7 +365,7 @@ function LineSvg({
                 </>
               ) : (
                 <>
-                  Sched <tspan className="fill-at-ink">{sched ?? "-"}</tspan>
+                  Sched <tspan className="fill-at-ink">{sched ?? UNKNOWN_VALUE}</tspan>
                 </>
               )}
             </text>

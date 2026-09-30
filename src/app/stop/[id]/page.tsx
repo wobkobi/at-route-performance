@@ -38,7 +38,9 @@ import {
 } from "@/lib/feed/at-alerts";
 import { getStopDepartures } from "@/lib/feed/at-stop-trips";
 import {
+  formatCount,
   formatDuration,
+  formatPct,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
   UNKNOWN_VALUE,
@@ -299,7 +301,9 @@ export default async function StopPage({
           </div>
           <div className="p-4">
             <p className="text-xs tracking-zero text-at-muted uppercase">Routes</p>
-            <p className="text-2xl font-ultra tracking-zero tabular-nums">{routes_count}</p>
+            <p className="text-2xl font-ultra tracking-zero tabular-nums">
+              {formatCount(routes_count)}
+            </p>
           </div>
           <PunctualityStat
             bare
@@ -316,9 +320,7 @@ export default async function StopPage({
             bare
             variant="split"
             label="On time"
-            value={
-              summary?.on_time_pct == null ? UNKNOWN_VALUE : `${summary.on_time_pct.toFixed(1)}%`
-            }
+            value={formatPct(summary?.on_time_pct)}
             breakdown={punctuality}
           />
         </div>
@@ -470,10 +472,8 @@ function PlatformTable({
                       {p.label}
                     </Link>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{p.events}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {p.on_time_pct == null ? UNKNOWN_VALUE : `${p.on_time_pct.toFixed(1)}%`}
-                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatCount(p.events)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatPct(p.on_time_pct)}</td>
                   <td
                     className={cn(
                       "px-3 py-2 text-right font-semibold tabular-nums",

@@ -17,7 +17,7 @@ import {
   getRankings,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode, type Mode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
@@ -410,9 +410,7 @@ async function DaysBody({
                       {s.verdict?.label ?? UNKNOWN_VALUE}
                     </td>
                     <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
-                      {s.summary.on_time_pct === null
-                        ? UNKNOWN_VALUE
-                        : `${s.summary.on_time_pct.toFixed(1)}%`}
+                      {formatPct(s.summary.on_time_pct)}
                     </td>
                     <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
                       {s.summary.avg_abs_delay_sec === null
@@ -420,10 +418,10 @@ async function DaysBody({
                         : formatDuration(s.summary.avg_abs_delay_sec)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {s.summary.events.toLocaleString()}
+                      {formatCount(s.summary.events)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {(s.summary.cancelled ?? 0).toLocaleString()}
+                      {formatCount(s.summary.cancelled ?? 0)}
                     </td>
                   </>
                 ) : (
@@ -433,8 +431,7 @@ async function DaysBody({
                         worst possible day - every trip cancelled, so nothing
                         arrived - from an ingest outage. Named here rather than
                         in the column beside it, which a phone does not render. */}
-                    {s.cancelled > 0 &&
-                      `, and ${s.cancelled.toLocaleString()} trip${s.cancelled === 1 ? "" : "s"} flagged cancelled`}
+                    {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
                   </td>
                 )}
               </tr>

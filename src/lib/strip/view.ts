@@ -3,7 +3,7 @@
 // figure in each column, how its name reads, and the sentence a screen reader hears in place of
 // the drawing, with the day's closures and detours worked in. Pure and client-safe, so the version
 // chips can swap it without a server trip.
-import { formatDelay } from "@/lib/format";
+import { formatDelay, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import type { MarkKind, MarkNote, SideMark, StripMarks } from "@/lib/strip/marks";
 import { rowFigure, type RouteStrip, type StripRow, type StripSide } from "@/lib/strip/route-strip";
@@ -145,7 +145,7 @@ function side(
   mode: string,
   mark: SideMark | null,
 ): SideView {
-  if (!stops) return { tone: "unserved", text: "-", mark: null };
+  if (!stops) return { tone: "unserved", text: UNKNOWN_VALUE, mark: null };
   const f = figures ? rowFigure(figures, row, dirIds) : null;
   const kind = mark?.kind ?? null;
   if (f) {
@@ -158,7 +158,7 @@ function side(
     };
   }
   if (kind) return { tone: "closed", text: kind === "closed" ? "closed" : "detour", mark: kind };
-  return { tone: "none", text: "-", mark: null };
+  return { tone: "none", text: UNKNOWN_VALUE, mark: null };
 }
 
 /**
@@ -213,7 +213,7 @@ function noteText(n: MarkNote, strip: RouteStrip, down: string, up: string): str
       : `${first} to ${last}`;
   const way = n.side === "both" ? "" : `, ${midSentence(n.side === "down" ? down : up)}`;
   // A detour's row keeps only its newest runs, so only a suspected one's count is whole.
-  const runs = n.runs === 1 ? "1 run" : `${n.runs} runs`;
+  const runs = plural(n.runs, "run");
   const what: Record<MarkNote["kind"], string> = {
     closed: `closed ${when(n)}`,
     detour: `runs went round it, ${when(n)}`,

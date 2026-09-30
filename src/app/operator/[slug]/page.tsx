@@ -23,7 +23,14 @@ import {
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap } from "@/lib/feed/vehicles";
-import { formatDuration, formatHours } from "@/lib/format";
+import {
+  formatCount,
+  formatDuration,
+  formatHours,
+  formatPct,
+  plural,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorCodeOf, operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, type Operator } from "@/lib/operators";
@@ -322,8 +329,7 @@ export default async function OperatorPage({
             {op.name}
           </h1>
           <p className="mt-0.5 text-sm text-at-muted">
-            Runs {routeList.length === 1 ? "1 route" : `${routeList.length} routes`} for AT in this
-            period.
+            Runs {plural(routeList.length, "route")} for AT in this period.
           </p>
         </div>
         <RangeControls basePath={basePath} nav={nav} />
@@ -334,22 +340,22 @@ export default async function OperatorPage({
 
       {mine ? (
         <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-3 lg:grid-cols-6">
-          <Figure label="On time">
-            {mine.on_time_pct === null ? "-" : `${mine.on_time_pct.toFixed(1)}%`}
-          </Figure>
+          <Figure label="On time">{formatPct(mine.on_time_pct)}</Figure>
           <Figure label="Avg off">
-            {mine.avg_abs_delay_sec === null ? "-" : formatDuration(mine.avg_abs_delay_sec)}
+            {mine.avg_abs_delay_sec === null
+              ? UNKNOWN_VALUE
+              : formatDuration(mine.avg_abs_delay_sec)}
           </Figure>
           <Figure label="Arrivals">
-            {mine.events.toLocaleString("en-NZ")}
+            {formatCount(mine.events)}
             <SchoolAdded n={added("events")} />
           </Figure>
           <Figure label="Cancelled">
-            {mine.cancelled.toLocaleString("en-NZ")}
+            {formatCount(mine.cancelled)}
             <SchoolAdded n={added("cancelled")} />
           </Figure>
           <Figure label="Vehicles">
-            {(mine.vehicles ?? 0).toLocaleString("en-NZ")}
+            {formatCount(mine.vehicles ?? 0)}
             <SchoolAdded n={added("vehicles")} />
           </Figure>
           <Figure label="Operators">
@@ -421,17 +427,15 @@ export default async function OperatorPage({
                         </span>
                       </span>
                     </th>
-                    <td className="p-3 text-right tabular-nums">
-                      {r.onTime === null ? "-" : `${r.onTime.toFixed(1)}%`}
-                    </td>
+                    <td className="p-3 text-right tabular-nums">{formatPct(r.onTime)}</td>
                     <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                      {r.off === null ? "-" : formatDuration(r.off)}
+                      {r.off === null ? UNKNOWN_VALUE : formatDuration(r.off)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {r.events.toLocaleString("en-NZ")}
+                      {formatCount(r.events)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {r.cancelled.toLocaleString("en-NZ")}
+                      {formatCount(r.cancelled)}
                     </td>
                   </tr>
                 ))}
@@ -449,7 +453,7 @@ export default async function OperatorPage({
               href={buildHref("/vehicles", { ...view, school, op: op.slug })}
               className="text-sm text-at-shore hover:underline"
             >
-              All {fleetAll.length.toLocaleString("en-NZ")} on the vehicles board
+              All {formatCount(fleetAll.length)} on the vehicles board
             </Link>
           </div>
           <div className="overflow-x-auto border border-at-border bg-at-surface">
@@ -486,9 +490,7 @@ export default async function OperatorPage({
                     <td className="p-3 text-right whitespace-nowrap tabular-nums">
                       {formatHours(v.serviceSec)}
                     </td>
-                    <td className="p-3 text-right tabular-nums">
-                      {v.runs.toLocaleString("en-NZ")}
-                    </td>
+                    <td className="p-3 text-right tabular-nums">{formatCount(v.runs)}</td>
                     <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
                       {formatDuration(v.avgOffSec)}
                     </td>

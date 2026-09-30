@@ -13,7 +13,7 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
-import { UNKNOWN_VALUE } from "@/lib/format";
+import { UNKNOWN_VALUE, formatCount } from "@/lib/format";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
@@ -175,7 +175,7 @@ export function CancelledTripList({
                 scroll={false}
                 className="underline"
               >
-                Show all {trips.length.toLocaleString()}
+                Show all {formatCount(trips.length)}
               </Link>
               .
             </>

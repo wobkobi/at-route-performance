@@ -3,6 +3,7 @@
 // flag played out (see lib/trip/cancellation.ts), and how many routes had one.
 
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format";
 import type { JSX } from "react";
 
 /** Props for {@link CancellationSummary}. */
@@ -52,7 +53,7 @@ export function CancellationSummary({
           <div key={c.label} className="p-3">
             <div className="text-xs tracking-zero text-at-muted uppercase">{c.label}</div>
             <div className={cn("text-xl font-ultra tracking-zero tabular-nums", c.className)}>
-              {c.value.toLocaleString()}
+              {formatCount(c.value)}
             </div>
             {c.note && <div className="text-xs text-at-muted">{c.note}</div>}
           </div>

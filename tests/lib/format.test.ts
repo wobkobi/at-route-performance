@@ -1,11 +1,15 @@
 // tests/lib/format.test.ts
-// Unit tests for the delay and duration formatting helpers in format.ts.
+// Unit tests for the count, percentage, delay and duration helpers in format.ts.
 
 import {
+  barPct,
+  formatCount,
   formatDelay,
   formatDuration,
   formatGtfsTime,
+  formatPct,
   offScheduleValue,
+  plural,
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { describe, expect, it } from "vitest";
@@ -96,5 +100,47 @@ describe("formatGtfsTime", () => {
   it("returns null for a missing or malformed time", () => {
     expect(formatGtfsTime(null)).toBeNull();
     expect(formatGtfsTime("nope")).toBeNull();
+  });
+});
+
+describe("formatCount", () => {
+  it("groups thousands the NZ way", () => {
+    expect(formatCount(12345)).toBe("12,345");
+    expect(formatCount(7)).toBe("7");
+  });
+});
+
+describe("plural", () => {
+  it("keeps the singular only for exactly one", () => {
+    expect(plural(1, "trip")).toBe("1 trip");
+    expect(plural(0, "trip")).toBe("0 trips");
+    expect(plural(1234, "arrival")).toBe("1,234 arrivals");
+  });
+  it("takes an irregular plural", () => {
+    expect(plural(2, "entry", "entries")).toBe("2 entries");
+  });
+});
+
+describe("formatPct", () => {
+  it("prints one decimal place", () => {
+    expect(formatPct(85)).toBe("85.0%");
+    expect(formatPct(12.345)).toBe("12.3%");
+  });
+  it("gives the unknown dash for a missing or non-finite share", () => {
+    expect(formatPct(null)).toBe(UNKNOWN_VALUE);
+    expect(formatPct(undefined)).toBe(UNKNOWN_VALUE);
+    expect(formatPct(Number.NaN)).toBe(UNKNOWN_VALUE);
+  });
+});
+
+describe("barPct", () => {
+  it("clamps to the track", () => {
+    expect(barPct(140)).toBe(100);
+    expect(barPct(-5)).toBe(0);
+    expect(barPct(null)).toBe(0);
+  });
+  it("keeps a floor so a sliver stays visible", () => {
+    expect(barPct(0.5, 2)).toBe(2);
+    expect(barPct(50, 2)).toBe(50);
   });
 });

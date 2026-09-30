@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { plural } from "@/lib/format";
 import { routeSlug } from "@/lib/route/slug";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
@@ -139,7 +140,7 @@ export function WorstRouteCard({
         mode={route.mode}
       />
       <p className="text-xs text-at-muted tabular-nums">
-        {route.events} arrivals {bucket}
+        {plural(route.events, "arrival")} {bucket}
       </p>
     </Link>
   );

@@ -14,7 +14,7 @@ import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data/routes";
 import { logReadFailure, readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
-import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { formatCount, formatPct, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
 import { parseMode, type Mode } from "@/lib/mode";
 import {
@@ -173,13 +173,13 @@ async function loadRows(mode: Mode | null, sort: TableSort | null): Promise<Live
 }
 
 /**
- * The share of a count in a total, as a whole percentage.
+ * The share of a count in a total, as a percentage.
  * @param n - The count.
  * @param total - The total.
- * @returns "12%", or null for an empty total.
+ * @returns "12.5%", or null for an empty total.
  */
 function pct(n: number, total: number): string | null {
-  return total > 0 ? `${Math.round((n / total) * 100)}%` : null;
+  return total > 0 ? formatPct((n / total) * 100) : null;
 }
 
 /**
@@ -207,23 +207,23 @@ async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element
   const t = liveTotals(rows);
   const timed = t.late + t.onTime + t.early;
   const figures: Array<{ label: string; value: string; note?: string | null; tone?: string }> = [
-    { label: "On a run", value: t.vehicles.toLocaleString("en-NZ") },
-    { label: "Routes running", value: t.routes.toLocaleString("en-NZ") },
+    { label: "On a run", value: formatCount(t.vehicles) },
+    { label: "Routes running", value: formatCount(t.routes) },
     {
       label: "Late",
-      value: t.late.toLocaleString("en-NZ"),
+      value: formatCount(t.late),
       note: pct(t.late, timed),
       tone: "text-at-late",
     },
     {
       label: "On time",
-      value: t.onTime.toLocaleString("en-NZ"),
+      value: formatCount(t.onTime),
       note: pct(t.onTime, timed),
       tone: "text-at-ontime",
     },
     {
       label: "Early",
-      value: t.early.toLocaleString("en-NZ"),
+      value: formatCount(t.early),
       note: pct(t.early, timed),
       tone: "text-at-early-strong",
     },

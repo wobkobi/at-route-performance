@@ -28,6 +28,7 @@ import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap, type LiveVehicle } from "@/lib/feed/vehicles";
 import {
+  formatCount,
   formatDuration,
   formatHours,
   OFF_SCHEDULE_TONE_CLASS,
@@ -372,8 +373,8 @@ export default async function VehiclePage({
         {total ? (
           <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-3 lg:grid-cols-5">
             <Figure label="In service">{formatHours(total.serviceSec)}</Figure>
-            <Figure label="Runs">{total.runs.toLocaleString("en-NZ")}</Figure>
-            <Figure label="Arrivals">{total.arrivals.toLocaleString("en-NZ")}</Figure>
+            <Figure label="Runs">{formatCount(total.runs)}</Figure>
+            <Figure label="Arrivals">{formatCount(total.arrivals)}</Figure>
             <Figure label="Avg off">{formatDuration(total.avgOffSec)}</Figure>
             {rank && (
               <Figure label="Hardest worked">
@@ -381,10 +382,10 @@ export default async function VehiclePage({
                   href={buildHref("/vehicles", { ...view, school: "1" })}
                   className="text-at-shore hover:underline"
                 >
-                  #{rank.rank.toLocaleString("en-NZ")}
+                  #{formatCount(rank.rank)}
                 </Link>
                 <span className="ml-1 text-sm font-normal text-at-muted">
-                  of {rank.of.toLocaleString("en-NZ")}
+                  of {formatCount(rank.of)}
                 </span>
               </Figure>
             )}
@@ -539,8 +540,7 @@ function LiveCard({
   if (occupancy) facts.push(["Occupancy", occupancy]);
   if (now.speedKmh != null) facts.push(["Speed", `${now.speedKmh} km/h`]);
   if (now.cars != null) facts.push(["Carriages", String(now.cars)]);
-  if (now.odometerKm != null)
-    facts.push(["Odometer", `${now.odometerKm.toLocaleString("en-NZ")} km`]);
+  if (now.odometerKm != null) facts.push(["Odometer", `${formatCount(now.odometerKm)} km`]);
   if (now.seenAt)
     facts.push(["Position at", nzClockTime(new Date(now.seenAt * 1000).toISOString())]);
   return (
@@ -796,9 +796,11 @@ function DaysTable({
                       <td className="p-3 text-right whitespace-nowrap tabular-nums">
                         {formatHours(serviceSec ?? 0)}
                       </td>
-                      <td className="p-3 text-right tabular-nums">{runs}</td>
+                      <td className="p-3 text-right tabular-nums">
+                        {runs == null ? UNKNOWN_VALUE : formatCount(runs)}
+                      </td>
                       <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                        {arrivals}
+                        {arrivals == null ? UNKNOWN_VALUE : formatCount(arrivals)}
                       </td>
                       <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
                         {formatDuration(offSec ?? 0)}

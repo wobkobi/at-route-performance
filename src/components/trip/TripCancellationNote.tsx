@@ -3,6 +3,7 @@
 // ran, was cut short, or ran anyway after AT reversed the flag.
 
 import { cn } from "@/lib/cn";
+import { plural } from "@/lib/format";
 import { nzClockTime } from "@/lib/time/service-day";
 import type { CancellationStage } from "@/lib/trip/cancellation";
 import Link from "next/link";
@@ -69,7 +70,7 @@ export function TripCancellationNote({
     const rest =
       notServed === null
         ? "nothing was recorded after that"
-        : `the ${notServed} ${notServed === 1 ? "stop" : "stops"} after that ${notServed === 1 ? "was" : "were"} not served`;
+        : `the ${plural(notServed, "stop")} after that ${notServed === 1 ? "was" : "were"} not served`;
     body = (
       <>
         Its last recorded stop was {stop} at {nzClockTime(lastStop.at)}. AT flagged it cancelled at{" "}

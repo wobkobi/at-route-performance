@@ -8,6 +8,49 @@ import { NZ_TZ } from "@/lib/time/nz-tz";
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";
 
+/** Built once: an `Intl` formatter costs far more to make than to call. */
+const COUNT_FORMAT = new Intl.NumberFormat("en-NZ", { maximumFractionDigits: 0 });
+
+/**
+ * A count as the site prints it, grouped the NZ way ("12,345").
+ * @param n - The count.
+ * @returns The grouped figure.
+ */
+export function formatCount(n: number): string {
+  return COUNT_FORMAT.format(n);
+}
+
+/**
+ * A count with its noun, singular only for exactly one ("1 trip", "12,345 arrivals").
+ * @param n - The count.
+ * @param one - The singular noun.
+ * @param many - The plural, when it is not the singular plus "s".
+ * @returns The count and noun.
+ */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${formatCount(n)} ${n === 1 ? one : many}`;
+}
+
+/**
+ * A percentage to one decimal place ("85.0%"), the one precision every share on
+ * the site is shown at so two figures side by side always compare.
+ * @param pct - The percentage (0-100), or null when it cannot be told.
+ * @returns The text, or {@link UNKNOWN_VALUE}.
+ */
+export function formatPct(pct: number | null | undefined): string {
+  return pct == null || !Number.isFinite(pct) ? UNKNOWN_VALUE : `${pct.toFixed(1)}%`;
+}
+
+/**
+ * A percentage clamped to a bar's track, for a CSS width or height.
+ * @param pct - The percentage, or null (drawn empty).
+ * @param floor - The least it draws at, so a sliver stays visible.
+ * @returns A number from `floor` to 100.
+ */
+export function barPct(pct: number | null | undefined, floor = 0): number {
+  return Math.min(100, Math.max(floor, pct ?? 0));
+}
+
 /** Options for {@link formatDelay}. */
 export interface FormatDelayOptions {
   /** Deviations with magnitude <= this many seconds render as "on time". */

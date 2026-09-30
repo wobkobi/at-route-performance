@@ -27,7 +27,7 @@ import {
   searchStops,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { formatDuration } from "@/lib/format";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -156,9 +156,9 @@ function figureOf(c: CompareColumn, key: FigureKey): number | null {
  * @returns The printed value.
  */
 function formatFigure(v: number, format: FigureRow["format"]): string {
-  if (format === "pct") return `${v.toFixed(1)}%`;
+  if (format === "pct") return formatPct(v);
   if (format === "duration") return formatDuration(v);
-  return v.toLocaleString("en-NZ");
+  return formatCount(v);
 }
 
 /**
@@ -455,7 +455,7 @@ export default async function ComparePage({
                           best.has(i) && "font-semibold text-at-ontime",
                         )}
                       >
-                        {v === null ? "-" : formatFigure(v, row.format)}
+                        {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
                         {best.has(i) && <span className="sr-only"> (best)</span>}
                       </td>
                     ))}

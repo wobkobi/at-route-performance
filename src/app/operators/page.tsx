@@ -22,7 +22,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
-import { formatDuration } from "@/lib/format";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
@@ -265,11 +265,11 @@ export default async function OperatorsPage({
                         </Link>
                       </span>
                     </th>
-                    <td className="p-3 text-right tabular-nums">
-                      {o.on_time_pct === null ? "-" : `${o.on_time_pct.toFixed(1)}%`}
-                    </td>
+                    <td className="p-3 text-right tabular-nums">{formatPct(o.on_time_pct)}</td>
                     <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                      {o.avg_abs_delay_sec === null ? "-" : formatDuration(o.avg_abs_delay_sec)}
+                      {o.avg_abs_delay_sec === null
+                        ? UNKNOWN_VALUE
+                        : formatDuration(o.avg_abs_delay_sec)}
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                       <Link
@@ -282,7 +282,7 @@ export default async function OperatorsPage({
                     </td>
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                       {o.vehicles === null ? (
-                        "-"
+                        UNKNOWN_VALUE
                       ) : (
                         <Link
                           href={buildHref("/vehicles", {
@@ -292,17 +292,17 @@ export default async function OperatorsPage({
                           })}
                           className="text-at-shore hover:underline"
                         >
-                          {o.vehicles.toLocaleString("en-NZ")}
+                          {formatCount(o.vehicles)}
                         </Link>
                       )}
                       <SchoolAdded n={added(o, "vehicles")} />
                     </td>
                     <td className="hidden p-3 text-right tabular-nums md:table-cell">
-                      {o.events.toLocaleString("en-NZ")}
+                      {formatCount(o.events)}
                       <SchoolAdded n={added(o, "events")} />
                     </td>
                     <td className="hidden p-3 text-right tabular-nums md:table-cell">
-                      {o.cancelled.toLocaleString("en-NZ")}
+                      {formatCount(o.cancelled)}
                       <SchoolAdded n={added(o, "cancelled")} />
                     </td>
                   </tr>

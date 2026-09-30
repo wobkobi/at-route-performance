@@ -27,10 +27,13 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import {
+  formatCount,
   formatDuration,
   formatGtfsTime,
+  formatPct,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
+  plural,
 } from "@/lib/format";
 import {
   cardFilterLabel,
@@ -88,15 +91,6 @@ export interface SubjectCardData {
   body: SubjectBodyProps;
   /** Whether everything the card describes is in the past. */
   complete: boolean;
-}
-
-/**
- * Format an arrivals count the way the pages do.
- * @param n - The count.
- * @returns "1,234 arrivals" (or "1 arrival").
- */
-function arrivals(n: number): string {
-  return `${n.toLocaleString("en-NZ")} arrival${n === 1 ? "" : "s"}`;
 }
 
 /**
@@ -166,7 +160,7 @@ async function resolvePeriod(
  */
 function onTimeHero(pct: number | null | undefined): SubjectBodyProps["hero"] {
   if (pct == null) return null;
-  return { text: `${pct.toFixed(1)}%`, toneClass: dayVerdict(pct)?.toneClass ?? "text-at-ink" };
+  return { text: formatPct(pct), toneClass: dayVerdict(pct)?.toneClass ?? "text-at-ink" };
 }
 
 /**
@@ -215,7 +209,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
         hero: onTimeHero(week?.on_time_pct),
         lines: week
           ? [
-              `of ${arrivals(week.events)} on time`,
+              `of ${plural(week.events, "arrival")} on time`,
               `${formatDuration(week.avg_abs_delay_sec)} off schedule on average`,
             ]
           : [],
@@ -235,7 +229,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
       lines:
         summary && summary.on_time_pct != null
           ? [
-              `of ${arrivals(summary.events)} on time`,
+              `of ${plural(summary.events, "arrival")} on time`,
               summary.avg_abs_delay_sec == null
                 ? ""
                 : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`,
@@ -293,7 +287,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
     const abs = stops.reduce((s, x) => s + Math.abs(x.deviation_sec), 0) / stops.length;
     const value = offScheduleValue(signed, abs, mode);
     hero = { text: value.text, toneClass: OFF_SCHEDULE_TONE_CLASS[value.tone] };
-    lines = [`on average across ${stops.length} stop${stops.length === 1 ? "" : "s"}`];
+    lines = [`on average across ${plural(stops.length, "stop")}`];
     if (stage === "ran") lines.push(CANCELLATION_BADGE_MEANING.ran);
   }
 
@@ -335,13 +329,13 @@ export async function stopCardData(card: StopCard): Promise<SubjectCardData | nu
     body: {
       route: null,
       name: stats.stop.name,
-      subname: `${stats.routes_count} route${stats.routes_count === 1 ? "" : "s"} called here`,
+      subname: `${plural(stats.routes_count, "route")} called here`,
       hero: abs == null ? null : { text: formatDuration(abs), toneClass: "text-at-ink" },
       lines:
         summary && abs != null
           ? [
-              `off schedule on average, across ${arrivals(summary.events)}`,
-              summary.on_time_pct == null ? "" : `${summary.on_time_pct.toFixed(1)}% on time`,
+              `off schedule on average, across ${plural(summary.events, "arrival")}`,
+              summary.on_time_pct == null ? "" : `${formatPct(summary.on_time_pct)} on time`,
             ].filter(Boolean)
           : [],
     },
@@ -460,7 +454,7 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
     subname: destinationOf(t),
     hero: offHero(t.avg_delay_sec, t.avg_abs_delay_sec, t.mode),
     lines: [
-      `on average across ${t.stops} stops`,
+      `on average across ${plural(t.stops, "stop")}`,
       dated && t.date ? `The ${time} run on ${serviceDayLabel(t.date)}` : `The ${time} run`,
     ],
   };
@@ -495,7 +489,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
           hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
           lines: [
             r.date ? `on average on ${serviceDayLabel(r.date)}` : "on average",
-            `${arrivals(r.events)} that day`,
+            `${plural(r.events, "arrival")} that day`,
           ],
         };
     } else {
@@ -508,7 +502,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
           hero: { text: formatDuration(s.avg_abs_delay_sec), toneClass: "text-at-ink" },
           lines: [
             `off schedule on average on ${serviceDayLabel(s.date)}`,
-            `${arrivals(s.events)} that day`,
+            `${plural(s.events, "arrival")} that day`,
           ],
         };
     }
@@ -547,7 +541,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
         hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
         lines: [
           `on average in the ${nzHourLabel(r.hour)} hour`,
-          `${arrivals(r.events)} in that hour`,
+          `${plural(r.events, "arrival")} in that hour`,
         ],
       };
   } else {
@@ -566,7 +560,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
         hero: { text: formatDuration(s.avg_abs_delay_sec), toneClass: "text-at-ink" },
         lines: [
           `off schedule on average in the ${nzHourLabel(s.hour)} hour`,
-          `${arrivals(s.events)} in that hour`,
+          `${plural(s.events, "arrival")} in that hour`,
         ],
       };
   }
@@ -641,12 +635,12 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
         subname: null,
         hero:
           data.count > 0
-            ? { text: `${data.count.toLocaleString("en-NZ")} routes`, toneClass: "text-at-ink" }
+            ? { text: `${formatCount(data.count)} routes`, toneClass: "text-at-ink" }
             : null,
         lines:
           s && s.on_time_pct != null
             ? [
-                `ran ${arrivals(s.events)}, ${s.on_time_pct.toFixed(1)}% on time`,
+                `ran ${plural(s.events, "arrival")}, ${formatPct(s.on_time_pct)} on time`,
                 s.avg_abs_delay_sec == null
                   ? ""
                   : `${formatDuration(s.avg_abs_delay_sec)} off schedule on average`,
@@ -675,7 +669,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
       subname: null,
       hero:
         trips.length > 0
-          ? { text: trips.length.toLocaleString("en-NZ"), toneClass: "text-at-late" }
+          ? { text: formatCount(trips.length), toneClass: "text-at-late" }
           : { text: "None", toneClass: "text-at-ontime" },
       lines:
         trips.length > 0

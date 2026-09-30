@@ -26,6 +26,18 @@ export const SITE_NAME = "AT Route Performance";
 export const ON_TIME_WINDOW_NOTE = "That window is this site's choice, not AT's.";
 
 /**
+ * The on-time window's edges in whole minutes.
+ * @param mode - The mode whose window applies; omitted, the bus and train window.
+ * @returns How early and how late a run can be and still count as on time.
+ */
+export function onTimeWindowMinutes(mode?: string): { early: number; late: number } {
+  return {
+    early: Math.round(earlyToleranceFor(mode ?? "") / 60),
+    late: Math.round(ON_TIME_LATE_SEC / 60),
+  };
+}
+
+/**
  * The on-time window as words.
  * @param mode - The mode whose window applies. Omit it on a surface that mixes
  *   modes: it then takes the bus and train window, which is the tighter one.
@@ -33,11 +45,8 @@ export const ON_TIME_WINDOW_NOTE = "That window is this site's choice, not AT's.
  *   window is symmetric.
  */
 export function onTimeWindowPhrase(mode?: string): string {
-  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
-  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
-  return earlyMin === lateMin
-    ? `${lateMin} min either way`
-    : `${earlyMin} min early to ${lateMin} min late`;
+  const { early, late } = onTimeWindowMinutes(mode);
+  return early === late ? `${late} min either way` : `${early} min early to ${late} min late`;
 }
 
 /**

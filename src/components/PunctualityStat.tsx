@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/cn";
 import { onTimeWindowSentence } from "@/lib/copy";
-import { formatDelay, formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import { barPct, formatDelay, formatDuration, formatPct } from "@/lib/format";
 import {
   CANCELLED_EXCLUDED_COPY,
   CANCELLED_SPLIT_COPY,
@@ -19,24 +19,6 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-
-/**
- * CSS width for a share-bar segment from a percentage (clamped at 0).
- * @param pct - The band percentage, or null.
- * @returns A CSS width string.
- */
-function barWidth(pct: number | null): string {
-  return `${Math.max(0, pct ?? 0)}%`;
-}
-
-/**
- * Percentage text for a band row, or the placeholder when it is unknown.
- * @param pct - The band percentage, or null.
- * @returns The text for the row's value.
- */
-function pctText(pct: number | null): string {
-  return pct == null ? UNKNOWN_VALUE : `${pct}%`;
-}
 
 /** The average "off by" magnitude split into the two sides it is built from. */
 interface OffBySplit {
@@ -223,8 +205,8 @@ function AverageDetail({
               bar would read as no data rather than as running to the minute. */}
           {split.magnitude > 0 && (
             <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
-              <span className="bg-at-late" style={{ width: barWidth(split.latePct) }} />
-              <span className="bg-at-early" style={{ width: barWidth(split.earlyPct) }} />
+              <span className="bg-at-late" style={{ width: `${barPct(split.latePct)}%` }} />
+              <span className="bg-at-early" style={{ width: `${barPct(split.earlyPct)}%` }} />
             </div>
           )}
           <div className="mt-2 space-y-1 text-sm">
@@ -419,14 +401,18 @@ export function PunctualityInfo({
                   <>
                     {/* Stacked share bar: on time / late / early. */}
                     <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
-                      <span className="bg-at-ontime" style={{ width: barWidth(on_time_pct) }} />
-                      <span className="bg-at-late" style={{ width: barWidth(late_pct) }} />
-                      <span className="bg-at-early" style={{ width: barWidth(early_pct) }} />
+                      <span className="bg-at-ontime" style={{ width: `${barPct(on_time_pct)}%` }} />
+                      <span className="bg-at-late" style={{ width: `${barPct(late_pct)}%` }} />
+                      <span className="bg-at-early" style={{ width: `${barPct(early_pct)}%` }} />
                     </div>
                     <div className="mt-2 space-y-1 text-sm">
-                      <BandRow colour="bg-at-ontime" label="On time" value={pctText(on_time_pct)} />
-                      <BandRow colour="bg-at-late" label="Late" value={pctText(late_pct)} />
-                      <BandRow colour="bg-at-early" label="Early" value={pctText(early_pct)} />
+                      <BandRow
+                        colour="bg-at-ontime"
+                        label="On time"
+                        value={formatPct(on_time_pct)}
+                      />
+                      <BandRow colour="bg-at-late" label="Late" value={formatPct(late_pct)} />
+                      <BandRow colour="bg-at-early" label="Early" value={formatPct(early_pct)} />
                     </div>
                   </>
                 )}
