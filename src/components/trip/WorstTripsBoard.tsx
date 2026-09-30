@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
+import { tripHref } from "@/lib/page/hrefs";
 import { nzClockTime } from "@/lib/time/format";
 import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
@@ -152,13 +153,11 @@ function pageHref(
 ): string {
   // `preserved` already contains trev when set; spread it first so tsort/tpage
   // can override without losing other preserved params.
-  const params = new URLSearchParams({
+  return buildHref(basePath, {
     ...preserved,
-    ...(sort === "off" ? {} : { tsort: sort }),
-    ...(page > 1 ? { tpage: String(page) } : {}),
+    tsort: sort === "off" ? undefined : sort,
+    tpage: page > 1 ? String(page) : undefined,
   });
-  const qs = params.toString();
-  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 /**
@@ -269,11 +268,7 @@ export function WorstTripsBoard({
    * @param at - The run's instant, or its service day when it has none.
    * @returns The href.
    */
-  const tripHref = (tripId: string, at: string): string =>
-    buildHref(`/route/${encodeURIComponent(routeId)}/trip/${encodeURIComponent(tripId)}`, {
-      d: at,
-      ...view,
-    });
+  const runHref = (tripId: string, at: string): string => tripHref(routeId, tripId, at, view);
   return (
     <section className="min-w-0 border border-at-border bg-at-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -283,17 +278,12 @@ export function WorstTripsBoard({
             const isActive = s.key === sort;
             // Clicking the active chip toggles direction; clicking an inactive
             // chip switches to it at its default direction (no trev).
-            const params = new URLSearchParams({
+            const href = buildHref(basePath, {
               ...preservedParams,
-              ...(s.key === "off" ? {} : { tsort: s.key }),
+              tsort: s.key === "off" ? undefined : s.key,
+              trev: isActive && !isReversed ? "1" : undefined,
+              tpage: undefined,
             });
-            if (isActive && !isReversed) {
-              params.set("trev", "1");
-            } else {
-              params.delete("trev");
-            }
-            params.delete("tpage");
-            const href = params.toString() ? `${basePath}?${params.toString()}` : basePath;
             return (
               <ChipLink key={s.key} href={href} active={isActive} className="text-xs">
                 {s.label}
@@ -319,7 +309,7 @@ export function WorstTripsBoard({
                       start, so the board's own day stands in; without it the trip page falls
                       back to the run's latest day and opens a different day's run. */}
                     <Link
-                      href={tripHref(c.trip_id, c.scheduled_start ?? serviceDate)}
+                      href={runHref(c.trip_id, c.scheduled_start ?? serviceDate)}
                       className={TRIP_ROW_LINK_CLASS}
                     >
                       <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
@@ -366,7 +356,7 @@ export function WorstTripsBoard({
               return (
                 <li key={t.trip_id} className={TRIP_ROW_CLASS}>
                   <Link
-                    href={tripHref(t.trip_id, t.scheduled_start)}
+                    href={runHref(t.trip_id, t.scheduled_start)}
                     className={TRIP_ROW_LINK_CLASS}
                   >
                     <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">

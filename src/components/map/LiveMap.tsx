@@ -20,6 +20,7 @@ import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { routeHref, vehicleHref } from "@/lib/page/hrefs";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
 import type { NetworkLine } from "@/types/api";
@@ -111,10 +112,10 @@ function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operat
   const op = operatorOf(v.op, operators);
   const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
   return (
-    `<a href="/route/${encodeURIComponent(v.slug)}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
+    `<a href="${esc(routeHref(v.slug))}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
     `${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
     `<a href="${esc(run)}">Open this run</a> &middot; ` +
-    `<a href="/vehicle/${encodeURIComponent(v.id)}">This vehicle</a>`
+    `<a href="${esc(vehicleHref(v.id))}">This vehicle</a>`
   );
 }
 
@@ -136,7 +137,7 @@ function linePopupHtml(
     // A square of the line's own colour, so a reader can match the row to the road.
     const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${esc(colour)}"></span>`;
     return (
-      `${swatch}<a href="/route/${encodeURIComponent(line.slug)}"><strong>Route ${esc(line.slug)}</strong></a>` +
+      `${swatch}<a href="${esc(routeHref(line.slug))}"><strong>Route ${esc(line.slug)}</strong></a>` +
       (line.name ? ` ${esc(line.name)}` : "") +
       count
     );

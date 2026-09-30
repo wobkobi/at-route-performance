@@ -27,7 +27,7 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
@@ -205,7 +205,7 @@ export default async function CancellationsPage({
           <CancelledBoard
             rows={boardRows.slice(0, BOARD_ROUTES)}
             total={visible.length}
-            routeQuery={routeLinkQuery(window, linkDay, period)}
+            routeParams={routeLinkParams(window, linkDay, period)}
           />
           {boardRows.length > BOARD_ROUTES && (
             <Link

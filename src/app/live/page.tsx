@@ -17,6 +17,7 @@ import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { formatCount, formatPct, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
 import { parseMode, type Mode } from "@/lib/mode";
+import { routeHref } from "@/lib/page/hrefs";
 import {
   sortRows,
   tableSort,
@@ -328,7 +329,7 @@ async function LiveTable({
                 <tr key={r.slug} className="border-b border-at-border last:border-b-0">
                   <th scope="row" className="p-3 text-left font-normal">
                     <Link
-                      href={`/route/${encodeURIComponent(r.slug)}`}
+                      href={routeHref(r.slug)}
                       className="flex min-w-0 items-center gap-2 hover:underline"
                     >
                       <ModeIcon

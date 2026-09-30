@@ -49,8 +49,9 @@ import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
-import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/page/range";
+import { dayRangeNav, routeLinkParams, windowPhrase } from "@/lib/page/range";
 import { serviceClockNow } from "@/lib/stop/departure-board";
 import { dominantStopMode, stopGrain } from "@/lib/stop/grain";
 import {
@@ -64,7 +65,7 @@ import { requestServiceDay } from "@/lib/time/request-now";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Fragment, Suspense, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -153,16 +154,14 @@ export default async function StopPage({
   // are keyed by AT's parent_station now so a rename can't fork them. Send the
   // old form to the current one rather than 404ing a shared link.
   const currentStationId = await findCurrentStationId(id);
-  if (currentStationId) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
-  }
+  if (currentStationId) redirectKeepingQuery(stopHref(currentStationId), sp);
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
-  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
-  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
+  const stopPath = stopHref(id);
+  clampDayParam(stopPath, sp, today);
+  dropTodayParam(stopPath, sp, today);
 
   // Start the alerts fetch early so it overlaps the stats query. The banner is
   // awaited rather than streamed: it sits above the page's content, and letting
@@ -256,7 +255,7 @@ export default async function StopPage({
                 <Fragment key={s.id}>
                   {i > 0 && ", "}
                   <Link
-                    href={buildHref(`/stop/${encodeURIComponent(s.id)}`, { day: linkDay })}
+                    href={stopHref(s.id, { day: linkDay })}
                     className="text-at-shore hover:underline"
                   >
                     {s.name}
@@ -275,13 +274,13 @@ export default async function StopPage({
           </p>
         </div>
         <DayNav
-          basePath={`/stop/${encodeURIComponent(id)}`}
+          basePath={stopPath}
           serviceDate={serviceDate}
           preservedParams={{}}
           hasPrev={nav.hasPrev}
           atFloor={nav.atFloor}
           hasNext={nav.hasNext}
-          nextHref={nav.nextIsToday ? `/stop/${encodeURIComponent(id)}` : undefined}
+          nextHref={nav.nextIsToday ? stopPath : undefined}
           nextPending={nav.nextPending}
           calendar={nav.calendar}
         />
@@ -380,7 +379,7 @@ export default async function StopPage({
           rows={routes}
           metric="delay"
           caption={ON_TIME_CAPTION}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
+          routeParams={routeLinkParams("day", linkDay, null)}
         />
       </div>
 
@@ -389,9 +388,9 @@ export default async function StopPage({
           scheduleStopId={stats.schedule_stop_id}
           serviceDate={serviceDate}
           showAll={sp.sched === "all"}
-          nowHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: undefined })}
-          allHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: "all" })}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
+          nowHref={buildHref(stopPath, { ...sp, sched: undefined })}
+          allHref={buildHref(stopPath, { ...sp, sched: "all" })}
+          routeParams={routeLinkParams("day", linkDay, null)}
         />
       </Suspense>
     </main>
@@ -417,7 +416,7 @@ function PlatformTable({
   rows: PlatformRow[];
   linkDay: string | undefined;
 }): JSX.Element {
-  const routeQuery = routeLinkQuery("day", linkDay, null);
+  const routeParams = routeLinkParams("day", linkDay, null);
   const noun = platformNoun(rows);
   // Two different facts get a station here, so the sentence names the one that
   // applies: platforms that ran differently, or platforms that agree and differ
@@ -466,7 +465,7 @@ function PlatformTable({
                 <tr key={p.stop_id} className="border-t border-at-border">
                   <td className="px-3 py-2 font-semibold tabular-nums">
                     <Link
-                      href={buildHref(`/stop/${encodeURIComponent(p.stop_id)}`, { day: linkDay })}
+                      href={stopHref(p.stop_id, { day: linkDay })}
                       className="text-at-shore hover:underline"
                     >
                       {p.label}
@@ -493,7 +492,7 @@ function PlatformTable({
                           {i > 0 && ", "}
                           {slug ? (
                             <Link
-                              href={`/route/${encodeURIComponent(slug)}${routeQuery}`}
+                              href={routeHref(slug, routeParams)}
                               className="text-at-shore hover:underline"
                             >
                               {name}
@@ -542,7 +541,7 @@ function PlatformTable({
  * @param root0.showAll - Whether the reader asked for the whole day.
  * @param root0.nowHref - This page without the whole-day param.
  * @param root0.allHref - This page with it.
- * @param root0.routeQuery - Query each route link carries, so a route opens on the same day.
+ * @param root0.routeParams - Params each route link carries.
  * @returns The departures board.
  */
 async function StopScheduleSection({
@@ -551,14 +550,14 @@ async function StopScheduleSection({
   showAll,
   nowHref,
   allHref,
-  routeQuery,
+  routeParams,
 }: {
   scheduleStopId: string;
   serviceDate: string;
   showAll: boolean;
   nowHref: string;
   allHref: string;
-  routeQuery: string;
+  routeParams: LinkQuery;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
@@ -576,7 +575,7 @@ async function StopScheduleSection({
       showAll={showAll}
       nowHref={nowHref}
       allHref={allHref}
-      routeQuery={routeQuery}
+      routeParams={routeParams}
     />
   );
 }

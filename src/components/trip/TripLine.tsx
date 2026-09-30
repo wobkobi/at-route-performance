@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
+import { stopHref } from "@/lib/page/hrefs";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
@@ -109,8 +110,8 @@ export interface TripLineProps {
   mode: string;
   /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
   colour: string | null;
-  /** Query each stop's link carries, so it opens on the run's day ("" for today). */
-  stopQuery: string;
+  /** The day each stop's link opens on (the run's day), or undefined for today. */
+  stopDay?: string;
 }
 
 /**
@@ -122,10 +123,10 @@ export interface TripLineProps {
  * @param props.line - The line.
  * @param props.mode - The route's mode.
  * @param props.colour - The route's colour.
- * @param props.stopQuery - Query each stop's link carries.
+ * @param props.stopDay - The day each stop's link opens on.
  * @returns The timeline and its key.
  */
-export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.Element {
+export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.Element {
   const present = {
     unrecorded: line.stops.some((s) => s.state === "unrecorded"),
     skipped: line.stops.some((s) => s.state === "skipped"),
@@ -142,7 +143,7 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
           colour={colour}
           width={PHONE_W}
           compact
-          stopQuery={stopQuery}
+          stopDay={stopDay}
         />
       </div>
       <div className="hidden sm:block">
@@ -152,7 +153,7 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
           colour={colour}
           width={WIDE_W}
           compact={false}
-          stopQuery={stopQuery}
+          stopDay={stopDay}
         />
       </div>
       {/* The drawing's name links are out of the tab order; these are the ones a keyboard or
@@ -160,9 +161,7 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
       <ol className="sr-only">
         {line.stops.map((s, i) => (
           <li key={`${s.stop_id}-${i}`}>
-            <Link href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}>
-              {stopSentence(s, mode)}
-            </Link>
+            <Link href={stopHref(s.stop_id, { day: stopDay })}>{stopSentence(s, mode)}</Link>
           </li>
         ))}
       </ol>
@@ -193,7 +192,7 @@ function jumpsSkipped(stops: readonly LineStop[], leg: LineLeg): boolean {
  * @param props.colour - The route's colour.
  * @param props.width - The narrowest this layout is drawn (px).
  * @param props.compact - Shorter wording for the phone.
- * @param props.stopQuery - Query each stop's name link carries.
+ * @param props.stopDay - The day each stop's link opens on.
  * @returns The svg.
  */
 function LineSvg({
@@ -202,14 +201,14 @@ function LineSvg({
   colour,
   width,
   compact,
-  stopQuery,
+  stopDay,
 }: {
   line: TripLineData;
   mode: string;
   colour: string | null;
   width: number;
   compact: boolean;
-  stopQuery: string;
+  stopDay?: string;
 }): JSX.Element {
   const { stops, legs, bypasses } = line;
   const bowed = legs.map((g) => jumpsSkipped(stops, g));
@@ -329,7 +328,7 @@ function LineSvg({
               strokeDasharray={s.state === "skipped" ? "2 2.7" : undefined}
               className={cn("fill-at-surface", ring)}
             />
-            <a href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`} tabIndex={-1}>
+            <a href={stopHref(s.stop_id, { day: stopDay })} tabIndex={-1}>
               <text
                 x={textX}
                 y={y0 + DOT_Y + 5}

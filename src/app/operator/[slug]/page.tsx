@@ -34,12 +34,13 @@ import {
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorCodeOf, operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, type Operator } from "@/lib/operators";
+import { operatorHref, routeHref, vehicleHref } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import {
@@ -156,7 +157,7 @@ export default async function OperatorPage({
   const { slug } = await params;
   const op = await resolveOperator(slug);
   if (!op) notFound();
-  const basePath = `/operator/${op.slug}`;
+  const basePath = operatorHref(op);
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   // One request-time clock read for the whole render, taken before the day-param redirects below
@@ -307,7 +308,7 @@ export default async function OperatorPage({
     readFallback("fleet", new Map<string, FleetVehicle>()),
   );
 
-  const routeQuery = routeLinkQuery(window, dayParam, period);
+  const routeParams = routeLinkParams(window, dayParam, period);
   const schoolPreserved = stripUnset({ ...view, ...routeKeep, ...fleetKeep });
 
   return (
@@ -416,7 +417,7 @@ export default async function OperatorPage({
                         />
                         <span className="min-w-0">
                           <Link
-                            href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                            href={routeHref(r.slug, routeParams)}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {r.name}
@@ -477,7 +478,7 @@ export default async function OperatorPage({
                       <span className="flex items-center gap-2">
                         <ModeIcon mode={v.mode} className="h-4 w-4" />
                         <Link
-                          href={buildHref(`/vehicle/${v.vehicleId}`, { ...view, op: op.slug })}
+                          href={vehicleHref(v.vehicleId, { ...view, op: op.slug })}
                           className="text-at-shore hover:underline"
                         >
                           {fleet.get(v.vehicleId)?.label ?? (

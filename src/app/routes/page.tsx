@@ -30,7 +30,7 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route/explorer";
@@ -189,7 +189,7 @@ export default async function RoutesPage({
         operators={directory.map(({ slug, name }) => ({ slug, name }))}
         initialFilters={parseExplorerFilters(sp)}
         initialShown={parseShown(sp.show)}
-        routeQuery={routeLinkQuery(window, serviceDate, period)}
+        routeParams={routeLinkParams(window, serviceDate, period)}
         running={getLiveVehicles()
           .then(liveRouteSlugs)
           .catch(() => null)}

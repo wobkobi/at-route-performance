@@ -9,6 +9,7 @@
 import { ChipToggle } from "@/components/Chip";
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
+import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import type { StripMarks } from "@/lib/strip/marks";
 import {
@@ -143,8 +144,8 @@ export interface RouteStripProps {
   alertRows: string[];
   /** The day's closures and detours placed on the strip, or null where none are read (the week). */
   marks: StripMarks | null;
-  /** Query a stop's link carries, so it opens on the day shown ("" for today or the week). */
-  stopQuery: string;
+  /** The day a stop's link opens on, or undefined for today or the week. */
+  stopDay?: string;
 }
 
 /**
@@ -163,7 +164,7 @@ export interface RouteStripProps {
  * @param props.side - The direction picked.
  * @param props.alertRows - Rows named in a live alert.
  * @param props.marks - The day's closures and detours, or null.
- * @param props.stopQuery - Query each stop's link carries.
+ * @param props.stopDay - The day a stop's link opens on.
  * @returns The diagram section.
  */
 export function RouteStrip({
@@ -174,7 +175,7 @@ export function RouteStrip({
   side,
   alertRows,
   marks,
-  stopQuery,
+  stopDay,
 }: RouteStripProps): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -244,7 +245,7 @@ export function RouteStrip({
    */
   const hrefOf = (i: number): string | null => {
     const id = strip.rows[i]?.stopIds[0];
-    return id ? `/stop/${encodeURIComponent(id)}${stopQuery}` : null;
+    return id ? stopHref(id, { day: stopDay }) : null;
   };
 
   /**

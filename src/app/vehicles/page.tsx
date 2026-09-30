@@ -28,12 +28,13 @@ import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { routeHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
@@ -200,7 +201,7 @@ export default async function VehiclesPage({
     ),
   ]);
   const multiDay = window !== "day";
-  const routeQuery = routeLinkQuery(window, dayParam, period);
+  const routeParams = routeLinkParams(window, dayParam, period);
 
   // How the list is being read, for a vehicle's link to hand back on its way out.
   const listState = stripUnset({
@@ -327,7 +328,7 @@ export default async function VehiclesPage({
                     <span className="flex items-center gap-2">
                       <ModeIcon mode={v.mode} className="h-4 w-4" />
                       <Link
-                        href={buildHref(`/vehicle/${v.vehicleId}`, { ...view, ...listState })}
+                        href={vehicleHref(v.vehicleId, { ...view, ...listState })}
                         className="text-at-shore hover:underline"
                       >
                         {fleet.get(v.vehicleId)?.label ?? (
@@ -351,7 +352,7 @@ export default async function VehiclesPage({
                     {formatDuration(v.avgOffSec)}
                   </td>
                   <td className="hidden p-3 md:table-cell">
-                    <RouteLinks ids={v.routes} names={names} query={routeQuery} />
+                    <RouteLinks ids={v.routes} names={names} params={routeParams} />
                   </td>
                 </tr>
               ))}
@@ -398,17 +399,17 @@ export default async function VehiclesPage({
  * @param root0 - Props.
  * @param root0.ids - Route ids it ran.
  * @param root0.names - Route id > short name.
- * @param root0.query - The route-page query for the window shown, with its `?`.
+ * @param root0.params - The route-page params for the window shown.
  * @returns The links.
  */
 function RouteLinks({
   ids,
   names,
-  query,
+  params,
 }: {
   ids: string[];
   names: Record<string, string>;
-  query: string;
+  params: LinkQuery;
 }): JSX.Element {
   // One link per name, pointed at the route's slug: a short name is not a
   // route id, so linking by it costs every click the canonical redirect.
@@ -422,7 +423,7 @@ function RouteLinks({
       {[...slugByName].map(([name, slug]) => (
         <Link
           key={name}
-          href={`/route/${encodeURIComponent(slug)}${query}`}
+          href={routeHref(slug, params)}
           className="font-semibold text-at-shore hover:underline"
         >
           {name}

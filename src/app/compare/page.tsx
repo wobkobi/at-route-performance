@@ -29,12 +29,13 @@ import {
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { routeHref, stopHref } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
@@ -292,7 +293,7 @@ export default async function ComparePage({
       ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
     const bySlug = new Map(rows.map((r) => [routeSlug(r.routeId).toLowerCase(), r]));
-    const routeQuery = routeLinkQuery(window, serviceDate, period, today);
+    const routeParams = routeLinkParams(window, serviceDate, period, today);
     for (const id of ids) {
       const r = bySlug.get(id.toLowerCase());
       if (!r) {
@@ -304,7 +305,7 @@ export default async function ComparePage({
         id,
         name: routeName(r),
         detail: r.shortName && r.longName !== r.shortName ? r.longName : null,
-        href: `/route/${encodeURIComponent(slug)}${routeQuery}`,
+        href: routeHref(slug, routeParams),
         route: r,
         figures: {
           events: r.events,
@@ -331,7 +332,7 @@ export default async function ComparePage({
       q ? searchStops(q, SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
     ]);
     // The stop page has a day view only, so a week or month links to today.
-    const stopQuery = window === "day" && view.day ? `?day=${view.day}` : "";
+    const stopDay = window === "day" ? view.day : undefined;
     stats.forEach((s, i) => {
       const id = ids[i]!;
       if (!s) {
@@ -342,7 +343,7 @@ export default async function ComparePage({
         id,
         name: s.stop.name,
         detail: null,
-        href: `/stop/${encodeURIComponent(id)}${stopQuery}`,
+        href: stopHref(id, { day: stopDay }),
         route: null,
         figures: s.summary,
         extra: s.routes_count,

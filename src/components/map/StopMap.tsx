@@ -11,6 +11,7 @@ import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
 import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { operatorHref, type Operator } from "@/lib/operators";
+import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
 import { liveRunHref } from "@/lib/vehicle/detail";
@@ -285,11 +286,11 @@ function syncVehicles(
     // three may point back at the page it is on; that costs a line, not a wrong turn.
     const slug = routeSlug(veh.routeId);
     const links = [
-      `<a href="/route/${encodeURIComponent(slug)}">Route ${esc(slug)}</a>`,
+      `<a href="${esc(routeHref(slug))}">Route ${esc(slug)}</a>`,
       veh.tripId
         ? `<a href="${esc(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
         : null,
-      `<a href="/vehicle/${encodeURIComponent(veh.vehicleId)}">This vehicle</a>`,
+      `<a href="${esc(vehicleHref(veh.vehicleId))}">This vehicle</a>`,
     ].filter(Boolean);
     const popup =
       `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
@@ -446,13 +447,15 @@ function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
  * @param state - Live map state.
  * @param stops - Stops to render.
  * @param mode - Route mode, for the delay colour band.
- * @param stopQuery - Query a stop's name links with, or undefined to leave names unlinked.
+ * @param stopLinks - Whether stop names link to their pages.
+ * @param stopDay - The day those links open on, or undefined for today.
  */
 function drawStopLayer(
   state: MapState,
   stops: MapStop[],
   mode: Mode,
-  stopQuery: string | undefined,
+  stopLinks: boolean,
+  stopDay: string | undefined,
 ): void {
   const { L, stopLayer, colours, markerById } = state;
   stopLayer.clearLayers();
@@ -484,10 +487,9 @@ function drawStopLayer(
     // which would contradict the "Off by" figure beside it.
     const net =
       s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { thresholdSec: 0 });
-    const name =
-      stopQuery === undefined
-        ? `<strong>${esc(s.name)}</strong>`
-        : `<a href="/stop/${encodeURIComponent(s.stop_id)}${esc(stopQuery)}"><strong>${esc(s.name)}</strong></a>`;
+    const name = stopLinks
+      ? `<a href="${esc(stopHref(s.stop_id, { day: stopDay }))}"><strong>${esc(s.name)}</strong></a>`
+      : `<strong>${esc(s.name)}</strong>`;
     const popup =
       s.avg_abs_delay_sec != null
         ? `${name}<br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
@@ -536,7 +538,8 @@ function setInitialViewport(state: MapState, stops: MapStop[], routeLines: Route
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
  * @param root0.offRoute - Readings of the vehicle off its road path, in time order (trip map).
- * @param root0.stopQuery - Query a stop's popup name links with ("" or "?day=..."); unset leaves names unlinked.
+ * @param root0.stopLinks - Link each stop's popup name to its page.
+ * @param root0.stopDay - The day those links open on, or undefined for today.
  * @param root0.className - Optional extra classes for the container div.
  * @returns Map container element.
  */
@@ -550,7 +553,8 @@ export default function StopMap({
   filterTripId,
   filterDirectionIds,
   offRoute = NO_OFF_ROUTE,
-  stopQuery,
+  stopLinks = false,
+  stopDay,
   className,
 }: {
   stops: MapStop[];
@@ -562,7 +566,8 @@ export default function StopMap({
   filterTripId?: string;
   filterDirectionIds?: number[];
   offRoute?: OffRoutePoint[];
-  stopQuery?: string;
+  stopLinks?: boolean;
+  stopDay?: string;
   className?: string;
 }): JSX.Element {
   const router = useRouter();
@@ -588,7 +593,8 @@ export default function StopMap({
     filterTripId,
     filterDirectionIds,
     offRoute,
-    stopQuery,
+    stopLinks,
+    stopDay,
   });
   useLayoutEffect(() => {
     latestRef.current = {
@@ -601,7 +607,8 @@ export default function StopMap({
       filterTripId,
       filterDirectionIds,
       offRoute,
-      stopQuery,
+      stopLinks,
+      stopDay,
     };
   });
 
@@ -665,7 +672,7 @@ export default function StopMap({
       const { stops: s0, routeLines: rl0, mode: m0 } = latestRef.current;
       drawRouteLayer(state, rl0, s0);
       drawOffRouteLayer(state, latestRef.current.offRoute);
-      drawStopLayer(state, s0, m0, latestRef.current.stopQuery);
+      drawStopLayer(state, s0, m0, latestRef.current.stopLinks, latestRef.current.stopDay);
 
       // No saved view: every visit frames the route afresh, so a zoom left on one
       // visit never carries into the next.
@@ -712,8 +719,8 @@ export default function StopMap({
     if (!state) return;
     drawRouteLayer(state, routeLines, stops);
     drawOffRouteLayer(state, offRoute);
-    drawStopLayer(state, stops, mode, stopQuery);
-  }, [stops, routeLines, mode, offRoute, stopQuery]);
+    drawStopLayer(state, stops, mode, stopLinks, stopDay);
+  }, [stops, routeLines, mode, offRoute, stopLinks, stopDay]);
 
   // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
   // page afresh. A plain click on a same-site link goes through the router instead; one with a

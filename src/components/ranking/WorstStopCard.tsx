@@ -3,6 +3,7 @@
 
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { plural } from "@/lib/format";
+import { stopHref } from "@/lib/page/hrefs";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
 import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
@@ -100,9 +101,7 @@ export function WorstStopCard({
         ? `from ${hourRangeClock(hours, live)}`
         : `in the ${nzHourLabel(stop.hour)} hour`;
   // Today's `?day` is dropped, as on the route card: the stop page redirects it.
-  const dayParam = dayLinkParam(day);
-  const href =
-    hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${dayParam ? `?day=${dayParam}` : ""}`;
+  const href = hrefProp ?? stopHref(stop.stop_id, { day: dayLinkParam(day) });
   return (
     <Link
       href={href}

@@ -4,7 +4,7 @@
 // this one's number. Written for a rider, who knows a run by when it departs and
 // has never heard of a trip id.
 
-import { buildHref } from "@/lib/utils";
+import { tripHref } from "@/lib/page/hrefs";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -67,10 +67,7 @@ export function TripGhostRunNote({
           <>
             {" "}
             <Link
-              href={buildHref(
-                `/route/${encodeURIComponent(routeSlug)}/trip/${encodeURIComponent(other.trip_id)}`,
-                { d: day ?? undefined },
-              )}
+              href={tripHref(routeSlug, other.trip_id, day)}
               className="text-at-shore hover:underline"
             >
               See that run

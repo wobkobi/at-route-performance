@@ -33,6 +33,7 @@ import {
 import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
+import { tripHref } from "@/lib/page/hrefs";
 import {
   fillServiceHours,
   filterLiveHours,
@@ -108,10 +109,8 @@ const BASE = "/shame/trip";
  * @param t - The shamed run.
  * @returns The trip-page URL.
  */
-function tripHref(t: ShameTrip): string {
-  return `/route/${encodeURIComponent(routeSlug(t.routeId))}/trip/${encodeURIComponent(
-    t.trip_id,
-  )}?d=${encodeURIComponent(t.scheduled_start)}`;
+function shamedTripHref(t: ShameTrip): string {
+  return tripHref(t.routeId, t.trip_id, t.scheduled_start);
 }
 
 /**
@@ -175,7 +174,7 @@ async function TripRangeBoard({
         />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={tripHref(t)}>{name}</ShameSubjectLink>
+            <ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>
             {isWorst && <ShameWorstBadge />}
             {dayCount > 1 && (
               <FlameCount
@@ -291,7 +290,7 @@ async function TripDayBoard({
         />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={tripHref(t)}>{name}</ShameSubjectLink>
+            <ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>
             {isWorst && <ShameWorstBadge />}
             {worstOfDayStreak >= 2 ? (
               <FlameCount
@@ -400,7 +399,7 @@ async function TripHoursBoard({
     const isWorst = crowned && rank === 1;
     const name = t.shortName || t.longName || routeSlug(t.routeId);
     return (
-      <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={shamedTripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <ShameRankLabel rank={rank} />
         <ModeIcon
           mode={t.mode}

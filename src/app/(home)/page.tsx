@@ -65,7 +65,7 @@ import {
   overviewHeading,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/page/range";
@@ -75,7 +75,7 @@ import {
   hasRankingFilters,
   parseRankingFilters,
   rankingFilterParams,
-  routeQueryWithHours,
+  routeParamsWithHours,
 } from "@/lib/ranking-filters";
 import {
   deriveBoards,
@@ -422,7 +422,7 @@ export default async function Home({
     school: schoolFilterParam(schools),
     dir: dir ?? undefined,
   });
-  const routeQuery = routeQueryWithHours(routeLinkQuery("day", linkDay, null), filters.hours);
+  const routeParams = routeParamsWithHours(routeLinkParams("day", linkDay, null), filters.hours);
   // The hour under way today, so the time box can grey the hours still to come.
   const nowHour = linkDay === undefined ? nzLocalHour(await requestNow()) : null;
 
@@ -543,7 +543,7 @@ export default async function Home({
             metric="delay"
             caption={ON_TIME_CAPTION}
             cancelled={cancelledByRoute}
-            routeQuery={routeQuery}
+            routeParams={routeParams}
             total={offSchedule.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
@@ -557,7 +557,7 @@ export default async function Home({
             rows={boards.reliable.slice(0, BOARD_SIZE)}
             metric="onTime"
             caption={ON_TIME_SHARE_CAPTION}
-            routeQuery={routeQuery}
+            routeParams={routeParams}
             total={boards.reliable.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {

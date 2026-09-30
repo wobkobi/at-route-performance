@@ -13,6 +13,7 @@ import {
   hasSevereAlert,
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
+import { routeHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { NZ_DATE, nzClockWithDate } from "@/lib/time/format";
 import Link from "next/link";
@@ -222,7 +223,7 @@ export function AlertBanner({
                   {routeIds.map((id) => (
                     <Link
                       key={id}
-                      href={`/route/${encodeURIComponent(routeSlug(id))}`}
+                      href={routeHref(id)}
                       className="bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
                     >
                       {routeNames?.[id] ?? routeSlug(id)}

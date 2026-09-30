@@ -4,6 +4,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { plural } from "@/lib/format";
+import { routeHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
@@ -14,7 +15,6 @@ import {
   singleHourRange,
   type HourRange,
 } from "@/lib/time/time-of-day";
-import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -114,7 +114,7 @@ export function WorstRouteCard({
   // A week row names a day instead, and its `hour` is a placeholder 0.
   const href =
     hrefProp ??
-    buildHref(`/route/${encodeURIComponent(routeSlug(route.routeId))}`, {
+    routeHref(route.routeId, {
       day: dayLinkParam(day),
       [HOURS_PARAM]: route.date ? undefined : hourRangeParam(hours ?? singleHourRange(route.hour)),
     });

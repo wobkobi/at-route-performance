@@ -14,6 +14,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { UNKNOWN_VALUE, formatCount } from "@/lib/format";
+import { tripHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import { nzClockTime } from "@/lib/time/format";
 import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
@@ -205,7 +206,7 @@ export function CancelledTripList({
                 )}
                 <li className={TRIP_ROW_CLASS}>
                   <Link
-                    href={`/route/${encodeURIComponent(t.slug)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
+                    href={tripHref(t.slug, t.trip_id, at)}
                     prefetch={false}
                     className={TRIP_ROW_LINK_CLASS}
                   >

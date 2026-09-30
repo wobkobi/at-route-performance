@@ -5,6 +5,7 @@
 // were (lib/page/filter-params.ts); these sit beside them.
 
 import { isAreaKey, type AreaKey } from "@/lib/geo/areas";
+import type { LinkQuery } from "@/lib/page/hrefs";
 import type { RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import {
@@ -149,16 +150,14 @@ export function cancellationMatches(
 }
 
 /**
- * A route link's query with the part of the day added, so a route opened from a
- * narrowed board opens on the same hours (the route page reads `hours` too).
- * @param query - The query from routeLinkQuery, with its `?`, or empty.
+ * A route link's params with the part of the day added, so a route opened from
+ * a narrowed board opens on the same hours (the route page reads `hours` too).
+ * @param params - The params from `routeLinkParams`.
  * @param hours - The part of the day, or null for all of it.
- * @returns The query with `hours` added when set.
+ * @returns The params with `hours` added when set.
  */
-export function routeQueryWithHours(query: string, hours: HourRange | null): string {
-  const param = hourRangeParam(hours);
-  if (!param) return query;
-  return `${query}${query ? "&" : "?"}${HOURS_PARAM}=${param}`;
+export function routeParamsWithHours(params: LinkQuery, hours: HourRange | null): LinkQuery {
+  return { ...params, [HOURS_PARAM]: hourRangeParam(hours) };
 }
 
 /**

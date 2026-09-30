@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { StopDepartures } from "@/lib/feed/at-stop-trips";
 import { UNKNOWN_VALUE } from "@/lib/format";
 import type { Mode } from "@/lib/mode";
+import { type LinkQuery, routeHref, tripHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { departuresFromNow } from "@/lib/stop/departure-board";
 import { formatGtfsTime } from "@/lib/time/format";
@@ -42,8 +43,8 @@ export interface StopScheduleProps {
   nowHref: string;
   /** This page with it. */
   allHref: string;
-  /** Query each route link carries, from `routeLinkQuery`, so a route opens on the same day. */
-  routeQuery?: string;
+  /** Params each route link carries, from `routeLinkParams`, so a route opens on the same day. */
+  routeParams?: LinkQuery;
 }
 
 /**
@@ -86,7 +87,7 @@ function noticeFor(result: StopDepartures, serviceDate: string, shown: number): 
  * @param props.showAll - Whether the whole day was asked for.
  * @param props.nowHref - This page without the whole-day param.
  * @param props.allHref - This page with it.
- * @param props.routeQuery - Query each route link carries (optional).
+ * @param props.routeParams - Params each route link carries.
  * @returns The schedule table, or a notice in place of it.
  */
 export function StopSchedule({
@@ -98,7 +99,7 @@ export function StopSchedule({
   showAll,
   nowHref,
   allHref,
-  routeQuery,
+  routeParams,
 }: StopScheduleProps): JSX.Element {
   const isToday = nowSeconds !== null;
   const heading = isToday ? "Today's schedule" : `Schedule for ${serviceDayLabel(serviceDate)}`;
@@ -190,7 +191,7 @@ export function StopSchedule({
                     >
                       <td className="py-1.5 pr-4 font-semibold">
                         <Link
-                          href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}${routeQuery ?? ""}`}
+                          href={routeHref(dep.routeId, routeParams)}
                           className="text-at-shore hover:underline"
                         >
                           {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
@@ -199,7 +200,7 @@ export function StopSchedule({
                       <td className="py-1.5 pr-4 text-at-ink">
                         {dep.tripId ? (
                           <Link
-                            href={`/route/${encodeURIComponent(routeSlug(dep.routeId))}/trip/${encodeURIComponent(dep.tripId)}?d=${serviceDate}`}
+                            href={tripHref(dep.routeId, dep.tripId, serviceDate)}
                             className="hover:text-at-shore hover:underline"
                           >
                             {bound.destination ?? UNKNOWN_VALUE}

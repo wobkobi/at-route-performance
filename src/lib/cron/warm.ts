@@ -2,6 +2,7 @@
 // What the nightly warm renders, and the small worker pool it renders them with.
 import { isBeforeDataStart } from "@/lib/time/data-start";
 import { shiftDays } from "@/lib/time/service-day";
+import { buildHref } from "@/lib/utils";
 
 /**
  * Pages with a day stepper. Each is warmed on its default filters, the variant
@@ -32,7 +33,7 @@ export function pageWarmPaths(yesterday: string): string[] {
   const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftDays(yesterday, -i)).filter(
     (day) => !isBeforeDataStart(day),
   );
-  return days.flatMap((day) => DAY_PAGES.map((page) => `${page}?day=${day}`));
+  return days.flatMap((day) => DAY_PAGES.map((page) => buildHref(page, { day })));
 }
 
 /**

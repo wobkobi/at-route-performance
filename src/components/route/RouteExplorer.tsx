@@ -23,6 +23,7 @@ import {
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
+import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -55,8 +56,8 @@ export interface RouteExplorerProps {
   initialFilters: ExplorerFilters;
   /** How many rows to show, parsed from the page's query string. */
   initialShown: number;
-  /** Query (with its `?`) each route link carries, so the route opens on the same window. */
-  routeQuery: string;
+  /** Params each route link carries, so the route opens on the same window. */
+  routeParams: LinkQuery;
   /**
    * Slugs of the routes with a vehicle on a run now, or null when AT's feed
    * could not be read. Unresolved, so the list never waits on the feed.
@@ -142,7 +143,7 @@ function Figure({
  * @param props.operators - The stored operators' slugs and names.
  * @param props.initialFilters - The filters parsed from the query string.
  * @param props.initialShown - How many rows to show, parsed from the query string.
- * @param props.routeQuery - Query each route link carries.
+ * @param props.routeParams - Params each route link carries.
  * @param props.running - Slugs of the routes running now, unresolved.
  * @returns The explorer.
  */
@@ -151,7 +152,7 @@ export function RouteExplorer({
   operators,
   initialFilters,
   initialShown,
-  routeQuery,
+  routeParams,
   running,
 }: RouteExplorerProps): JSX.Element {
   const [filters, setFilters] = useState<ExplorerFilters>(initialFilters);
@@ -531,7 +532,7 @@ export function RouteExplorer({
                   <div className="min-w-0">
                     <p className="text-lg leading-tight font-ultra tracking-zero">
                       <Link
-                        href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                        href={routeHref(r.slug, routeParams)}
                         prefetch={false}
                         className="text-at-ink hover:text-at-shore hover:underline"
                       >
@@ -580,7 +581,7 @@ export function RouteExplorer({
                   </Figure>
                 </dl>
                 <Link
-                  href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                  href={routeHref(r.slug, routeParams)}
                   prefetch={false}
                   className="at-btn shrink-0 border border-at-shore text-at-shore hover:bg-at-shore-pale"
                 >

@@ -46,8 +46,10 @@ interface StopMapWrapperProps {
   filterDirectionIds?: number[];
   /** Readings of the vehicle off its road path, in time order (trip map). */
   offRoute?: OffRoutePoint[];
-  /** Query a stop's popup name links with ("" or "?day=..."); unset leaves names unlinked. */
-  stopQuery?: string;
+  /** Link each stop's popup name to its page; off leaves names unlinked. */
+  stopLinks?: boolean;
+  /** The day those links open on, or undefined for today. */
+  stopDay?: string;
   className?: string;
 }
 

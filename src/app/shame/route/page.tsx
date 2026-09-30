@@ -33,6 +33,7 @@ import {
 import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
+import { routeHref } from "@/lib/page/hrefs";
 import {
   fillServiceHours,
   filterLiveHours,
@@ -46,7 +47,7 @@ import {
   dayRangeNav,
   periodInPhrase,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/page/range";
@@ -78,7 +79,6 @@ import {
   singleHourRange,
   type HourRange,
 } from "@/lib/time/time-of-day";
-import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -155,7 +155,7 @@ async function RouteRangeBoard({
     // (rolling or fixed), and a month row opens the week holding its day, since
     // the route page has no month window.
     const weekPeriod = isMonth && r.date ? weekPeriodOf(r.date) : periodParam;
-    const href = `/route/${encodeURIComponent(slug)}${routeLinkQuery("week", null, weekPeriod)}`;
+    const href = routeHref(slug, routeLinkParams("week", null, weekPeriod));
     const dayCount = routeDayCounts.get(r.routeId) ?? 0;
     return (
       <ShameSplitRow
@@ -274,7 +274,7 @@ async function RouteDayBoard({
     const slug = routeSlug(r.routeId);
     // The row is one hour's, so the route page opens on that hour: its whole-day
     // figures are a different number under the same route name.
-    const href = buildHref(`/route/${encodeURIComponent(slug)}`, {
+    const href = routeHref(slug, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(singleHourRange(r.hour)),
     });
@@ -419,7 +419,7 @@ async function RouteHoursBoard({
     const rank = rows.indexOf(r) + 1;
     const isWorst = crowned && rank === 1;
     const name = r.shortName || r.longName || routeSlug(r.routeId);
-    const href = buildHref(`/route/${encodeURIComponent(routeSlug(r.routeId))}`, {
+    const href = routeHref(r.routeId, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(isWholeDay(hours) ? null : hours),
     });

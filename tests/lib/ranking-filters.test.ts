@@ -6,7 +6,7 @@ import {
   rankingFilterParams,
   rankingFiltersPhrase,
   rankingFiltersReach,
-  routeQueryWithHours,
+  routeParamsWithHours,
   rowsInAreas,
   type FilterableCancellation,
   type RankingFilters,
@@ -83,13 +83,17 @@ describe("cancellationMatches", () => {
   });
 });
 
-describe("routeQueryWithHours", () => {
-  it("adds the hours to an empty or existing query", () => {
-    expect(routeQueryWithHours("", { from: 7, to: 9 })).toBe("?hours=7-9");
-    expect(routeQueryWithHours("?day=2026-09-27", { from: 7, to: 9 })).toBe(
-      "?day=2026-09-27&hours=7-9",
-    );
-    expect(routeQueryWithHours("?day=2026-09-27", null)).toBe("?day=2026-09-27");
+describe("routeParamsWithHours", () => {
+  it("adds the hours after the other params, or leaves them unset", () => {
+    expect(routeParamsWithHours({}, { from: 7, to: 9 })).toEqual({ hours: "7-9" });
+    expect(routeParamsWithHours({ day: "2026-09-27" }, { from: 7, to: 9 })).toEqual({
+      day: "2026-09-27",
+      hours: "7-9",
+    });
+    expect(routeParamsWithHours({ day: "2026-09-27" }, null)).toEqual({
+      day: "2026-09-27",
+      hours: undefined,
+    });
   });
 });
 

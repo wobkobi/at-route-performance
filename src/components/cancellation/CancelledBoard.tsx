@@ -7,6 +7,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import type { CancelledRouteRow } from "@/lib/data";
 import { plural } from "@/lib/format";
+import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
 import { lineName } from "@/lib/route/line-name";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -18,10 +19,10 @@ export interface CancelledBoardProps {
   /** Total cancellations in the window, including routes below the cut. */
   total: number;
   /**
-   * Query each route link carries so the route opens on the window being
-   * viewed, built by `routeLinkQuery`. Omit for the route's default view.
+   * Params each route link carries so the route opens on the window being
+   * viewed, built by `routeLinkParams`. Omit for the route's default view.
    */
-  routeQuery?: string;
+  routeParams?: LinkQuery;
 }
 
 /**
@@ -29,10 +30,10 @@ export interface CancelledBoardProps {
  * @param props - Component props.
  * @param props.rows - Routes with cancellations, most first.
  * @param props.total - Total cancellations in the window.
- * @param props.routeQuery - Query each route link carries (optional).
+ * @param props.routeParams - Params each route link carries (optional).
  * @returns The board element.
  */
-export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps): JSX.Element {
+export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps): JSX.Element {
   return (
     <section className="border border-at-border bg-at-surface">
       <header className="flex items-baseline justify-between gap-3 border-b border-at-border px-4 py-3">
@@ -53,7 +54,7 @@ export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps)
             return (
               <li key={r.slug}>
                 <Link
-                  href={`/route/${encodeURIComponent(r.slug)}${routeQuery ?? ""}`}
+                  href={routeHref(r.slug, routeParams)}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
                   <span className="w-5 shrink-0 text-sm text-at-muted tabular-nums">{i + 1}</span>

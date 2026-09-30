@@ -12,6 +12,7 @@ import {
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
 } from "@/lib/format";
+import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
 import Link from "next/link";
@@ -100,10 +101,10 @@ export interface RankBoardProps {
    */
   caption?: string;
   /**
-   * Query each route link carries so the route opens on the window being
-   * viewed, built by `routeLinkQuery`. Omit for the route's default view.
+   * Params each route link carries so the route opens on the window being
+   * viewed, built by `routeLinkParams`. Omit for the route's default view.
    */
-  routeQuery?: string;
+  routeParams?: LinkQuery;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
   /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
@@ -135,7 +136,7 @@ export interface RankBoardProps {
  * @param props.rows - Ranked rows.
  * @param props.metric - Whether the right column is a delay or on-time %.
  * @param props.caption - One line under the heading saying what the column is (optional).
- * @param props.routeQuery - Query each route link carries, from `routeLinkQuery` (optional).
+ * @param props.routeParams - Params each route link carries, from `routeLinkParams` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.seeAllHref - Link to the full ranking (optional).
@@ -149,7 +150,7 @@ export function RankBoard({
   rows,
   metric,
   caption,
-  routeQuery,
+  routeParams,
   deltas,
   cancelled,
   seeAllHref,
@@ -215,7 +216,7 @@ export function RankBoard({
               <li key={r.routeId}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
                 <Link
-                  href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery ?? ""}`}
+                  href={routeHref(r.routeId, routeParams)}
                   className={cn(
                     "-mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",

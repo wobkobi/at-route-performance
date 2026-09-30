@@ -60,6 +60,7 @@ import {
 } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
@@ -87,7 +88,7 @@ import { routeStatsQuery } from "@/lib/validate";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -206,20 +207,6 @@ function directionLabel(variants: RouteVariant[], dirId: number): string {
 }
 
 /**
- * Route URL with an optional `?dir`, preserving the base params (day/threshold).
- * @param slug - The route slug.
- * @param base - Params to keep (day, threshold).
- * @param dir - The direction id, or null for "both".
- * @returns The href.
- */
-function routeDirHref(slug: string, base: URLSearchParams, dir: number | null): string {
-  const p = new URLSearchParams(base);
-  if (dir != null) p.set("dir", String(dir));
-  const qs = p.toString();
-  return `/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`;
-}
-
-/**
  * Prev/next week stepper for the route week view. Omits a chevron when the
  * corresponding href is null (at the edge of the data range).
  * @param props - Component props.
@@ -296,7 +283,7 @@ function ViewToggle({
   dayQuery: Record<string, string | undefined>;
   weekQuery: Record<string, string | undefined>;
 }): JSX.Element {
-  const base = `/route/${encodeURIComponent(slug)}`;
+  const base = routeHref(slug);
   return (
     <div className="flex items-center gap-1">
       {isWeekView ? (
@@ -379,7 +366,7 @@ export default async function RoutePage({
   const { id } = await params;
   const sp = (await searchParams) ?? {};
   // Any window but the day means the week view: this page has no month, so a
-  // `window=month` link kept from before routeLinkQuery mapped it - or typed by
+  // `window=month` link kept from before routeLinkParams mapped it - or typed by
   // hand - lands on a period view that names its own range rather than silently
   // showing today. Its `?period` is a month key, which the week parse rejects,
   // so it falls back to the rolling last 7 days.
@@ -388,34 +375,26 @@ export default async function RoutePage({
   // URLs use the version-stripped slug ("501", not "501-217"). next.config.ts
   // answers old links with a real 308 before this renders; this stays as the backstop.
   const slug = routeSlug(id);
-  if (id !== slug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`);
-  }
+  if (id !== slug) redirectKeepingQuery(routeHref(slug), sp);
 
   // Case-insensitive lookup: /route/nx1 > /route/NX1; unknown slug > 404.
   const canonSlug = await findCanonicalRouteSlug(slug);
   if (canonSlug === null) notFound();
-  if (canonSlug !== slug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(canonSlug)}${qs ? `?${qs}` : ""}`);
-  }
+  if (canonSlug !== slug) redirectKeepingQuery(routeHref(canonSlug), sp);
 
   // A train line retired by the CRL rename keeps its Route row, so /route/STH
   // resolves rather than 404s; send it to the line that replaced it, which reads
   // both lines' history. Only redirects once the successor has carried traffic.
   // next.config.ts sends the exact retired slugs first; this catches other cases (/route/sth).
   const successorSlug = await findSuccessorRouteSlug(slug);
-  if (successorSlug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
-  }
+  if (successorSlug) redirectKeepingQuery(routeHref(successorSlug), sp);
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
-  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
-  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
+  const routePath = routeHref(slug);
+  clampDayParam(routePath, sp, today);
+  dropTodayParam(routePath, sp, today);
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
@@ -531,7 +510,7 @@ export default async function RoutePage({
      * @returns The route week href.
      */
     const weekHref = (period: string | null): string =>
-      buildHref(`/route/${encodeURIComponent(slug)}`, {
+      buildHref(routePath, {
         window: "week",
         period: period ?? undefined,
         dir: sp.dir != null && /^\d+$/.test(sp.dir) ? sp.dir : undefined,
@@ -546,7 +525,7 @@ export default async function RoutePage({
   const dayNav = dayRangeNav(shown, earliestDay, today);
   const linkDay = dayNav.isToday ? undefined : serviceDate;
   // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
-  const stopQuery = linkDay ? `?day=${linkDay}` : "";
+  const stopDay = linkDay;
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -576,14 +555,12 @@ export default async function RoutePage({
     sp,
     STOP_COLUMNS,
     "arrivals",
-    (p) => buildHref(`/route/${encodeURIComponent(slug)}`, { ...viewParams, day: linkDay, ...p }),
+    (p) => buildHref(routePath, { ...viewParams, day: linkDay, ...p }),
     STOP_SORT,
   );
   // Stepping onto today drops `?day` so the URL stays canonical, but that link
   // must still carry the filters.
-  const nextDayHref = dayNav.nextIsToday
-    ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
-    : undefined;
+  const nextDayHref = dayNav.nextIsToday ? buildHref(routePath, viewParams) : undefined;
   // The chosen direction's GTFS ids: its own plus any merged into it, so a
   // shape or vehicle filed under an alias id stays with its direction.
   const activeDirIds =
@@ -633,31 +610,26 @@ export default async function RoutePage({
     cancellations: "counted",
   };
 
-  // The chips set `dir` themselves, so everything else about the view carries.
-  const dirBase = new URLSearchParams();
-  if (isWeekView) {
-    dirBase.set("window", "week");
-    if (periodParam) dirBase.set("period", periodParam);
-  } else if (requestedDay) dirBase.set("day", requestedDay);
-  for (const [k, v] of Object.entries(viewParams)) if (k !== "dir") dirBase.set(k, v);
-
-  // The time chips set `hours` themselves, so everything else about the view
-  // carries - the same trick the direction chips use with `dir`.
-  const hoursBase = new URLSearchParams(dirBase);
-  hoursBase.delete("hours");
-  if (activeDir != null) hoursBase.set("dir", String(activeDir));
+  // The direction and time chips each set their own param over the rest of the
+  // view, so a chip changes one thing and carries everything else.
+  const viewBase: LinkQuery = {
+    ...(isWeekView ? { window: "week", period: periodParam } : { day: requestedDay }),
+    ...viewParams,
+  };
+  /**
+   * Link to this view in a different direction.
+   * @param dir - The direction id, or null for both.
+   * @returns The href.
+   */
+  const dirHref = (dir: number | null): string =>
+    buildHref(routePath, { ...viewBase, dir: dir == null ? undefined : String(dir) });
   /**
    * Link to this view with a different part of the day.
    * @param range - The range, or null for all day.
    * @returns The href.
    */
-  const hoursHref = (range: HourRange | null): string => {
-    const p = new URLSearchParams(hoursBase);
-    const value = hourRangeParam(range);
-    if (value) p.set("hours", value);
-    const qs = p.toString();
-    return `/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`;
-  };
+  const hoursHref = (range: HourRange | null): string =>
+    buildHref(routePath, { ...viewBase, hours: hourRangeParam(range) });
 
   const dirHeadsigns =
     activeVariants == null
@@ -815,7 +787,7 @@ export default async function RoutePage({
               />
             ) : (
               <DayNav
-                basePath={`/route/${encodeURIComponent(slug)}`}
+                basePath={routePath}
                 serviceDate={serviceDate}
                 preservedParams={viewParams}
                 hasPrev={dayNav.hasPrev}
@@ -844,10 +816,8 @@ export default async function RoutePage({
               dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d)]),
             )}
             hrefs={{
-              both: routeDirHref(slug, dirBase, null),
-              ...Object.fromEntries(
-                dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
-              ),
+              both: dirHref(null),
+              ...Object.fromEntries(dirKeys.map((d) => [String(d), dirHref(d)])),
             }}
           />
         )}
@@ -914,7 +884,7 @@ export default async function RoutePage({
             mode={routeMode}
             label={weekPeriodLabel}
             dayHref={(date) =>
-              buildHref(`/route/${encodeURIComponent(slug)}`, {
+              buildHref(routePath, {
                 day: date === today ? undefined : date,
                 dir: activeDir == null ? undefined : String(activeDir),
               })
@@ -929,7 +899,6 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
             filterDirectionIds={activeDirIds ?? undefined}
-            stopQuery=""
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
@@ -945,7 +914,6 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
-                stopQuery=""
               />
             </Suspense>
           )}
@@ -1016,7 +984,7 @@ export default async function RoutePage({
               sort={tripSort}
               isReversed={isReversed}
               mode={routeMode}
-              basePath={`/route/${encodeURIComponent(slug)}`}
+              basePath={routePath}
               preservedParams={tripPreserved}
               page={tripPage}
               totalPages={totalPages}
@@ -1034,7 +1002,7 @@ export default async function RoutePage({
               live={isLiveView}
               mode={routeMode}
               filterDirectionIds={activeDirIds ?? undefined}
-              stopQuery={stopQuery}
+              stopDay={stopDay}
             />
           </div>
 
@@ -1050,7 +1018,7 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
-                stopQuery={stopQuery}
+                stopDay={stopDay}
               />
             </Suspense>
           )}
@@ -1098,7 +1066,7 @@ export default async function RoutePage({
                       >
                         <td className="px-3 py-2">
                           <Link
-                            href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}
+                            href={stopHref(s.stop_id, { day: stopDay })}
                             className="font-semibold text-at-shore hover:underline"
                           >
                             {s.name}
@@ -1195,7 +1163,7 @@ async function RouteAlertBannerSection({
  * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
- * @param root0.stopQuery - Query each stop's link carries.
+ * @param root0.stopDay - The day each stop's link opens on.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
@@ -1207,7 +1175,7 @@ async function RouteDiagramSection({
   colour,
   activeDir,
   live,
-  stopQuery,
+  stopDay,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
@@ -1217,7 +1185,7 @@ async function RouteDiagramSection({
   colour: string | null;
   activeDir: number | null;
   live: boolean;
-  stopQuery: string;
+  stopDay?: string;
 }): Promise<JSX.Element> {
   const strip = buildStrip({
     directions: view.directions,
@@ -1279,7 +1247,7 @@ async function RouteDiagramSection({
       side={side}
       alertRows={alertRows}
       marks={marks}
-      stopQuery={stopQuery}
+      stopDay={stopDay}
     />
   );
 }

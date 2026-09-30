@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.9] - 2026-10-01
+
+### Changed
+
+- Every route, stop, vehicle, trip and operator link now comes from one set of builders in
+  lib/page/hrefs.ts, so each slugs the route, encodes its ids and drops unset params the same way;
+  links from the worst-trips board, cancelled trips and the live map now land on the canonical route
+  URL without a redirect
+
 ## [2.41.8] - 2026-10-01
 
 ### Fixed

@@ -3,6 +3,7 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { tripHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { nzClockTime } from "@/lib/time/format";
 import { boundFor } from "@/lib/trip/departure-label";
@@ -83,9 +84,7 @@ export function ShameOfDay({
   // The card names one run, so it opens that run. `?d` is the run's own instant,
   // which is how the trip page tells this day's run from the same trip id on
   // another day. The board link belongs on the section heading above.
-  const href =
-    hrefProp ??
-    `/route/${encodeURIComponent(routeSlug(trip.routeId))}/trip/${encodeURIComponent(trip.trip_id)}?d=${encodeURIComponent(trip.scheduled_start)}`;
+  const href = hrefProp ?? tripHref(trip.routeId, trip.trip_id, trip.scheduled_start);
   return (
     <Link
       href={href}

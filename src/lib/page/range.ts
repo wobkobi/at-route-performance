@@ -3,6 +3,7 @@
 // pages: parse `?window`, resolve the range and its stepper, and the query a route
 // link carries so the route opens on the same window. Week and month anchor to the
 // latest day with data (see rankings.ts).
+import type { LinkQuery } from "@/lib/page/hrefs";
 import {
   resolveMonthNav,
   resolveRequestedDay,
@@ -383,28 +384,29 @@ export function overviewHeading(nav: RangeNav, period: string | null): string {
 }
 
 /**
- * The query a route link carries so the route page opens on the window being
+ * The params a route link carries so the route page opens on the window being
  * viewed. The route page has only a day view and a week view, so a month hands
  * off to the week holding its last day - the same week {@link rangeTabPeriods}
  * gives the Month > Week tab, so every surface answers a month the same way.
  * This is the single definition of the shape: the Routes explorer and the rank
- * boards both take their route query from here.
+ * boards both take their route params from here.
  * @param window - The window being shown.
  * @param serviceDate - The shown service date, for the day view.
  * @param period - The shown week's or month's period, or null for the rolling default.
  * @param today - Today's service date (injectable for tests).
- * @returns The query string with its `?`, or an empty string.
+ * @returns The params, for the route link builder.
  */
-export function routeLinkQuery(
+export function routeLinkParams(
   window: RangeWindow,
   serviceDate: string | null | undefined,
   period: string | null | undefined,
   today: string = nzServiceDayString(),
-): string {
-  if (window === "day") return serviceDate && serviceDate !== today ? `?day=${serviceDate}` : "";
+): LinkQuery {
+  if (window === "day")
+    return { day: serviceDate && serviceDate !== today ? serviceDate : undefined };
   const weekPeriod =
     window === "week"
       ? period
       : weekPeriodOf(periodAnchorDay("month", period ?? null, today), today);
-  return `?window=week${weekPeriod ? `&period=${weekPeriod}` : ""}`;
+  return { window: "week", period: weekPeriod };
 }

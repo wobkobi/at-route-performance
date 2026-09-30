@@ -26,6 +26,7 @@ import {
 import { formatCount } from "@/lib/format";
 import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
+import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
@@ -43,7 +44,6 @@ import {
 import { tripBoardView } from "@/lib/trip/board";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/trip/cancellation";
 import { buildTripLine } from "@/lib/trip/line";
-import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -225,15 +225,10 @@ export default async function TripPage({
     : null;
 
   // A stop or the vehicle opens on the run's day; today's is left off, as those pages default to it.
-  const pastDay = serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : null;
-  const dayQuery = pastDay ? `?day=${pastDay}` : "";
-  /**
-   * A stop's page on the run's day.
-   * @param stopId - The stop.
-   * @returns The link.
-   */
-  const stopHref = (stopId: string): string => `/stop/${encodeURIComponent(stopId)}${dayQuery}`;
-  const nearestStop = nearest ? { name: nearest.name, href: stopHref(nearest.stopId) } : null;
+  const pastDay = serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : undefined;
+  const nearestStop = nearest
+    ? { name: nearest.name, href: stopHref(nearest.stopId, { day: pastDay }) }
+    : null;
 
   const title = route?.shortName ?? slug;
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
@@ -256,7 +251,7 @@ export default async function TripPage({
   return (
     <main className={cn("space-y-6")}>
       <Link
-        href={buildHref(`/route/${encodeURIComponent(slug)}`, {
+        href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
           day: pastDay,
           // The board's sort, page and filters, as the run's link brought them.
@@ -294,7 +289,7 @@ export default async function TripPage({
             <>
               {" · "}
               <Link
-                href={`/vehicle/${encodeURIComponent(vehicle_id)}${dayQuery}`}
+                href={vehicleHref(vehicle_id, { day: pastDay })}
                 className="text-at-shore hover:underline"
               >
                 {vehicle_id}
@@ -322,7 +317,7 @@ export default async function TripPage({
               ? {
                   name: lastServed.name,
                   at: actualAt(lastServed),
-                  href: stopHref(lastServed.stop_id),
+                  href: stopHref(lastServed.stop_id, { day: pastDay }),
                 }
               : null
           }
@@ -381,7 +376,8 @@ export default async function TripPage({
                 label: `${nzClockTime(s.at)}, ${formatCount(s.distanceM)} metres off route`,
               }))}
               mode={route ? modeOrBus(route.mode) : undefined}
-              stopQuery={dayQuery}
+              stopLinks
+              stopDay={pastDay}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
             <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
@@ -405,7 +401,7 @@ export default async function TripPage({
               line={line}
               mode={routeMode}
               colour={route?.colour ?? null}
-              stopQuery={dayQuery}
+              stopDay={pastDay}
             />
           </section>
         )}

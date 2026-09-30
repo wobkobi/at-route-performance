@@ -38,12 +38,13 @@ import {
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { routeHref, tripHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
@@ -189,7 +190,7 @@ export default async function VehiclePage({
 }): Promise<JSX.Element> {
   const { id } = await params;
   if (!VEHICLE_ID.test(id)) notFound();
-  const basePath = `/vehicle/${id}`;
+  const basePath = vehicleHref(id);
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   // One request-time clock read for the whole render, taken before the day-param redirects below
@@ -262,7 +263,7 @@ export default async function VehiclePage({
       : Promise.resolve(null),
   ]);
   const map = dayRunMap(dayMap, liveMap);
-  const routeQuery = routeLinkQuery(window, dayParam, period);
+  const routeParams = routeLinkParams(window, dayParam, period);
   const view = {
     window: window === "day" ? undefined : window,
     day: dayParam,
@@ -356,7 +357,8 @@ export default async function VehiclePage({
             live={liveOnMap !== null}
             filterTripId={liveOnMap?.tripId ?? undefined}
             mode={mode ?? undefined}
-            stopQuery={dayParam ? `?day=${dayParam}` : ""}
+            stopLinks
+            stopDay={dayParam}
             className="h-[min(25rem,60svh)]"
           />
           <p className="mt-2 text-xs text-at-muted">
@@ -409,7 +411,7 @@ export default async function VehiclePage({
               runs={runs}
               mode={mode ?? "BUS"}
               names={names}
-              routeQuery={routeQuery}
+              routeParams={routeParams}
               sp={sp}
               hrefFor={tableHref}
             />
@@ -555,10 +557,7 @@ function LiveCard({
           </p>
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
-            <Link
-              href={`/route/${encodeURIComponent(routeSlug(now.routeId))}`}
-              className="text-at-shore hover:underline"
-            >
+            <Link href={routeHref(now.routeId)} className="text-at-shore hover:underline">
               {route}
             </Link>
           </p>
@@ -603,7 +602,7 @@ function lastSeenLabel(at: Date): string {
  * @param root0.runs - The runs.
  * @param root0.mode - The vehicle's mode, for the on-time window.
  * @param root0.names - Route id > short name.
- * @param root0.routeQuery - The route-page query for the window shown, with its `?`.
+ * @param root0.routeParams - The route-page params for the window shown.
  * @param root0.sp - The page's search params, for the table's sort.
  * @param root0.hrefFor - This page with the table's sort params set.
  * @returns The table.
@@ -612,14 +611,14 @@ function RunsTable({
   runs,
   mode,
   names,
-  routeQuery,
+  routeParams,
   sp,
   hrefFor,
 }: {
   runs: VehicleRunRow[];
   mode: Mode;
   names: Record<string, string>;
-  routeQuery: string;
+  routeParams: LinkQuery;
   sp: VehicleSearchParams;
   hrefFor: (p: Record<string, string | undefined>) => string;
 }): JSX.Element {
@@ -663,7 +662,7 @@ function RunsTable({
                 <tr key={r.tripId} className="border-b border-at-border last:border-b-0">
                   <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
                     <Link
-                      href={`/route/${encodeURIComponent(routeSlug(r.routeId))}/trip/${encodeURIComponent(r.tripId)}?d=${encodeURIComponent(start)}`}
+                      href={tripHref(r.routeId, r.tripId, start)}
                       className="text-at-shore tabular-nums hover:underline"
                     >
                       {nzClockTime(start)}
@@ -671,7 +670,7 @@ function RunsTable({
                   </th>
                   <td className="p-3">
                     <Link
-                      href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery}`}
+                      href={routeHref(r.routeId, routeParams)}
                       className="font-semibold text-at-shore hover:underline"
                     >
                       {r.route}

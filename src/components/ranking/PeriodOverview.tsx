@@ -24,7 +24,7 @@ import {
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
 import type { PeriodWindow } from "@/lib/page/range";
-import { routeLinkQuery } from "@/lib/page/range";
+import { routeLinkParams } from "@/lib/page/range";
 import { resolvePrevRange } from "@/lib/page/rankings";
 import { hasRankingFilters, type RankingFilters } from "@/lib/ranking-filters";
 import {
@@ -343,7 +343,7 @@ export async function PeriodBoards({
   const b = await batch.core;
   // No hours on the route links: the route page's week view has no part-of-day
   // figures to open on.
-  const routeQuery = routeLinkQuery(window, null, period);
+  const routeParams = routeLinkParams(window, null, period);
   // The same bar loadPeriodCore ranked by, so an empty board can name it.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   return (
@@ -364,7 +364,7 @@ export async function PeriodBoards({
           caption={ON_TIME_CAPTION}
           cancelled={b.cancelledByRoute}
           deltas={b.offScheduleDeltas}
-          routeQuery={routeQuery}
+          routeParams={routeParams}
           total={b.offSchedule.length}
           minEvents={boardMin}
           seeAllHref={buildHref("/routes", {
@@ -380,7 +380,7 @@ export async function PeriodBoards({
           metric="onTime"
           caption={ON_TIME_SHARE_CAPTION}
           deltas={b.reliableDeltas}
-          routeQuery={routeQuery}
+          routeParams={routeParams}
           total={b.reliable.length}
           minEvents={boardMin}
           seeAllHref={buildHref("/routes", {

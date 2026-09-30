@@ -6,6 +6,7 @@
 import { getDirectoryRoutes, getOperators } from "@/lib/data";
 import { logReadFailure } from "@/lib/db";
 import { operatorHref } from "@/lib/operators";
+import { routeHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
@@ -79,7 +80,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...sections,
     ...slugs.map((slug) => ({
-      url: `${origin}/route/${encodeURIComponent(slug)}`,
+      url: `${origin}${routeHref(slug)}`,
       changeFrequency: "daily" as const,
       priority: 0.5,
     })),
