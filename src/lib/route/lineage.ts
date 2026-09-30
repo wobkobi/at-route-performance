@@ -8,6 +8,7 @@
 // retired line's rows into its successor's, and a retired slug's URL redirects
 // once the successor is running.
 import { routeSlug, routeVersion } from "@/lib/route/slug";
+import { byEvents, weightedMean } from "@/lib/stats";
 import type { RouteRow } from "@/types/api";
 
 /** One line's succession across the CRL cutover. */
@@ -97,24 +98,12 @@ const WEIGHTED_FIELDS = [
  * @param field - The averaged field to combine.
  * @returns The combined value.
  */
-function weightedMean(
+function mergedMean(
   rows: readonly RouteRow[],
   field: (typeof WEIGHTED_FIELDS)[number],
 ): number | null | undefined {
-  let present = false;
-  let weight = 0;
-  let sum = 0;
-  for (const row of rows) {
-    const value = row[field];
-    if (value === undefined) continue;
-    present = true;
-    if (value === null) continue;
-    weight += row.events;
-    sum += value * row.events;
-  }
-  if (!present) return undefined;
-  if (weight === 0) return null;
-  return Math.round((sum / weight) * 10) / 10;
+  if (rows.every((row) => row[field] === undefined)) return undefined;
+  return weightedMean(rows, (row) => row[field], byEvents);
 }
 
 /**
@@ -159,7 +148,7 @@ export function foldLineageRows(rows: readonly RouteRow[]): RouteRow[] {
       events: group.reduce((n, row) => n + row.events, 0),
     };
     for (const field of WEIGHTED_FIELDS) {
-      const value = weightedMean(group, field);
+      const value = mergedMean(group, field);
       if (value !== undefined) merged[field] = value;
     }
     return merged;

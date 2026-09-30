@@ -4,6 +4,7 @@
 // on a track beside it. Pure and client-safe, with plain JSON out (no Map or Set), since the diagram
 // is partly a client component. The line's geometry is built here too, once: every piece is drawn
 // exactly once, carries the versions that run along it, and meets its neighbours exactly.
+import { roundTenth } from "@/lib/stats";
 import type { StripBypass, StripMarks, StripSpan } from "@/lib/strip/marks";
 import type { StopFigure, StopFigures, VersionVariant } from "@/lib/strip/stop-split";
 import type { RouteVariant } from "@/types/api";
@@ -1738,7 +1739,7 @@ export function rowFigure(
   if (events === 0) return null;
   return {
     events,
-    avg_delay_sec: Math.round((dev / events) * 10) / 10,
-    on_time_pct: Math.round((onTime / events) * 10) / 10,
+    avg_delay_sec: roundTenth(dev / events),
+    on_time_pct: roundTenth(onTime / events),
   };
 }

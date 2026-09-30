@@ -7,6 +7,7 @@ import { MODES } from "@/lib/mode";
 import { type Operator, operatorOf } from "@/lib/operators";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route/slug";
+import { roundTenth } from "@/lib/stats";
 import type { VehicleTotal } from "@/lib/vehicle/rank";
 import type { RouteRow } from "@/types/api";
 
@@ -140,7 +141,7 @@ export function operatorRows(
      * @returns Its arrival-weighted mean, or null when no route carried it.
      */
     const avg = (k: (typeof WEIGHTED)[number]): number | null =>
-      a.weights[k] > 0 ? Math.round((a.sums[k] / a.weights[k]) * 10) / 10 : null;
+      a.weights[k] > 0 ? roundTenth(a.sums[k] / a.weights[k]) : null;
     out.push({
       operator: op,
       routes: a.slugs.size,

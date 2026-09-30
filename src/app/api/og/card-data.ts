@@ -210,7 +210,9 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
         lines: week
           ? [
               `of ${plural(week.events, "arrival")} on time`,
-              `${formatDuration(week.avg_abs_delay_sec)} off schedule on average`,
+              week.avg_abs_delay_sec == null
+                ? ""
+                : `${formatDuration(week.avg_abs_delay_sec)} off schedule on average`,
             ]
           : [],
       },

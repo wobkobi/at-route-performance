@@ -1,4 +1,5 @@
 import type { Mode } from "@/lib/mode";
+import { roundTenth } from "@/lib/stats";
 // src/lib/vehicle/rank.ts
 // Rank individual vehicles by how hard they were worked: time in service, runs
 // and arrivals, merged from per-day rows.
@@ -97,7 +98,7 @@ export function mergeVehicleDays(days: VehicleDayRow[][]): VehicleTotal[] {
     runs: t.r,
     serviceSec: t.s,
     arrivals: t.e,
-    avgOffSec: t.e > 0 ? Math.round((t.a / t.e) * 10) / 10 : 0,
+    avgOffSec: t.e > 0 ? roundTenth(t.a / t.e) : 0,
     routes: [...t.routes].sort((x, y) => x.localeCompare(y, "en-NZ", { numeric: true })),
     days: t.d,
   }));

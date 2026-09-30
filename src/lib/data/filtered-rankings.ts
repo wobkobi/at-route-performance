@@ -44,7 +44,7 @@ const LIVE_DAY_REVALIDATE = 300;
  * @param expr - The value's expression.
  * @returns The rounding expression.
  */
-function round1(expr: unknown): object {
+function round1Expr(expr: unknown): object {
   return { $round: [expr, 1] };
 }
 
@@ -53,8 +53,8 @@ function round1(expr: unknown): object {
  * @param field - The count's field path.
  * @returns The percentage expression, its divisor guarded against zero.
  */
-function pctOf(field: string): object {
-  return round1({ $multiply: [{ $divide: [field, { $max: [1, "$plausible"] }] }, 100] });
+function pctOfExpr(field: string): object {
+  return round1Expr({ $multiply: [{ $divide: [field, { $max: [1, "$plausible"] }] }, 100] });
 }
 
 /**
@@ -81,11 +81,11 @@ const ROW_PROJECT = {
     mode: "$route.mode",
     colour: "$route.colour",
     events: 1,
-    avg_delay_sec: round1({ $divide: ["$sum_delay", { $max: [1, "$plausible"] }] }),
-    avg_abs_delay_sec: round1({ $divide: ["$sum_abs", { $max: [1, "$plausible"] }] }),
-    on_time_pct: pctOf("$on_time"),
-    early_pct: pctOf("$early"),
-    late_pct: pctOf("$late"),
+    avg_delay_sec: round1Expr({ $divide: ["$sum_delay", { $max: [1, "$plausible"] }] }),
+    avg_abs_delay_sec: round1Expr({ $divide: ["$sum_abs", { $max: [1, "$plausible"] }] }),
+    on_time_pct: pctOfExpr("$on_time"),
+    early_pct: pctOfExpr("$early"),
+    late_pct: pctOfExpr("$late"),
   },
 };
 

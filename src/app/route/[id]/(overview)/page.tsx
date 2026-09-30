@@ -869,7 +869,7 @@ export default async function RoutePage({
               <div className="p-4">
                 <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
-                  {weekSummary?.events ?? 0}
+                  {formatCount(weekSummary?.events ?? 0)}
                 </p>
                 <p className="mt-0.5 text-xs text-at-muted">{weekPeriodLabel.toLowerCase()}</p>
               </div>

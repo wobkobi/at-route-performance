@@ -1,7 +1,7 @@
 // tests/lib/rankings.test.ts
 // Unit tests for the ranking-board derivation and fleet-totals helpers in rankings.ts.
 
-import { deriveBoards } from "@/lib/rankings";
+import { deriveBoards, summariseRows } from "@/lib/rankings";
 import type { RouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
@@ -50,5 +50,25 @@ describe("deriveBoards", () => {
     );
     const { latest } = deriveBoards(many, { minEvents: 10, size: 10 });
     expect(latest).toHaveLength(10);
+  });
+});
+
+describe("summariseRows", () => {
+  it("weights each figure by arrivals", () => {
+    const s = summariseRows([
+      row({ routeId: "A", events: 300, on_time_pct: 60 }),
+      row({ routeId: "B", events: 100, on_time_pct: 100 }),
+    ]);
+    expect(s.events).toBe(400);
+    expect(s.on_time_pct).toBe(70);
+  });
+
+  it("leaves a row with no figure out of that figure's mean", () => {
+    const s = summariseRows([
+      row({ routeId: "A", events: 100, on_time_pct: 80 }),
+      row({ routeId: "B", events: 100, on_time_pct: null }),
+    ]);
+    expect(s.events).toBe(200);
+    expect(s.on_time_pct).toBe(80);
   });
 });

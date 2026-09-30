@@ -11,6 +11,7 @@
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { successorSlug } from "@/lib/route/lineage";
 import { routeSlug } from "@/lib/route/slug";
+import { roundTenth } from "@/lib/stats";
 import { nzLocalHour } from "@/lib/time/service-day";
 import { isHourInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { CancellationStage } from "@/lib/trip/cancellation";
@@ -206,24 +207,18 @@ export function applyPenalty<T extends PunctualityFields>(row: T, p: Penalty | u
   const e = row.events;
   const total = e + p.events;
   /**
-   * Round to one decimal.
-   * @param n - The value.
-   * @returns The rounded value.
-   */
-  const round1 = (n: number): number => Math.round(n * 10) / 10;
-  /**
    * A share of the combined visits, from a measured share plus penalty visits.
    * @param pct - The measured share, in percent.
    * @param extra - Penalty visits in the share.
    * @returns The combined share, in percent.
    */
   const share = (pct: number | null | undefined, extra: number): number =>
-    round1(((((pct ?? 0) / 100) * e + extra) / total) * 100);
+    roundTenth(((((pct ?? 0) / 100) * e + extra) / total) * 100);
   return {
     ...row,
     events: total,
-    avg_delay_sec: round1(((row.avg_delay_sec ?? 0) * e + p.delaySec) / total),
-    avg_abs_delay_sec: round1(((row.avg_abs_delay_sec ?? 0) * e + p.delaySec) / total),
+    avg_delay_sec: roundTenth(((row.avg_delay_sec ?? 0) * e + p.delaySec) / total),
+    avg_abs_delay_sec: roundTenth(((row.avg_abs_delay_sec ?? 0) * e + p.delaySec) / total),
     on_time_pct: share(row.on_time_pct, p.events - p.lateEvents),
     early_pct: share(row.early_pct, 0),
     late_pct: share(row.late_pct, p.lateEvents),
@@ -285,9 +280,8 @@ export function withTripPenalty<
   const extra = p.waitSec * p.events;
   return {
     ...run,
-    avg_delay_sec: Math.round((((run.avg_delay_sec ?? 0) * run.stops + extra) / total) * 10) / 10,
-    avg_abs_delay_sec:
-      Math.round((((run.avg_abs_delay_sec ?? 0) * run.stops + extra) / total) * 10) / 10,
+    avg_delay_sec: roundTenth(((run.avg_delay_sec ?? 0) * run.stops + extra) / total),
+    avg_abs_delay_sec: roundTenth(((run.avg_abs_delay_sec ?? 0) * run.stops + extra) / total),
     worst_delay_sec: Math.max(run.worst_delay_sec ?? 0, p.waitSec),
   };
 }

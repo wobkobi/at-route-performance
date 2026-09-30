@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.6] - 2026-10-01
+
+### Fixed
+
+- Averages across routes, days and station platforms leave out a row with no figure instead of
+  counting it as zero, so a gap in the data no longer pulls a figure towards on time.
+
 ## [2.41.5] - 2026-10-01
 
 ### Fixed

@@ -9,6 +9,7 @@ import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
 import type { RouteDisplay } from "@/lib/route/slug";
+import { byEvents, weightedMean } from "@/lib/stats";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/stop/station";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
@@ -49,16 +50,13 @@ export interface RouteStats {
  * @returns Rows with train platforms merged by station, re-sorted busiest first.
  */
 function collapseStations(rows: RouteByStop[]): RouteByStop[] {
-  const acc = new Map<string, { row: RouteByStop; delaySum: number; otCount: number }>();
+  const acc = new Map<string, { row: RouteByStop; platforms: RouteByStop[] }>();
   for (const r of rows) {
     const id = stationId(r.stop_id, r.name, stationPartsOf(r));
-    const delaySum = (r.avg_delay_sec ?? 0) * r.events;
-    const otCount = ((r.on_time_pct ?? 0) / 100) * r.events;
     const cur = acc.get(id);
     if (cur) {
       cur.row.events += r.events;
-      cur.delaySum += delaySum;
-      cur.otCount += otCount;
+      cur.platforms.push(r);
     } else {
       // The merged row is the station, so it carries no single platform's grouping.
       acc.set(id, {
@@ -69,16 +67,15 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
           parent_station: undefined,
           platform_code: undefined,
         },
-        delaySum,
-        otCount,
+        platforms: [r],
       });
     }
   }
   return [...acc.values()]
-    .map(({ row, delaySum, otCount }) => ({
+    .map(({ row, platforms }) => ({
       ...row,
-      avg_delay_sec: row.events ? Math.round((delaySum / row.events) * 10) / 10 : null,
-      on_time_pct: row.events ? Math.round((otCount / row.events) * 1000) / 10 : null,
+      avg_delay_sec: weightedMean(platforms, (p) => p.avg_delay_sec, byEvents),
+      on_time_pct: weightedMean(platforms, (p) => p.on_time_pct, byEvents),
     }))
     .sort((a, b) => b.events - a.events);
 }
@@ -331,11 +328,7 @@ function weightedDayField(
   group: readonly RouteDay[],
   pick: (row: RouteDay) => number | null,
 ): number | null {
-  const valued = group.filter((r) => pick(r) !== null && r.events > 0);
-  const weight = valued.reduce((n, r) => n + r.events, 0);
-  if (weight === 0) return null;
-  const sum = valued.reduce((n, r) => n + (pick(r) ?? 0) * r.events, 0);
-  return Math.round((sum / weight) * 10) / 10;
+  return weightedMean(group, pick, byEvents);
 }
 
 /**
