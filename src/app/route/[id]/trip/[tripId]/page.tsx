@@ -30,6 +30,7 @@ import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
+import { dayLinkParam } from "@/lib/time/day-url";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
@@ -223,9 +224,9 @@ export default async function TripPage({
     : null;
 
   // A stop or the vehicle opens on the run's day; today's is left off, as those pages default to it.
-  const pastDay = serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : undefined;
+  const linkDay = isLiveRun ? undefined : dayLinkParam(serviceDate, today);
   const nearestStop = nearest
-    ? { name: nearest.name, href: stopHref(nearest.stopId, { day: pastDay }) }
+    ? { name: nearest.name, href: stopHref(nearest.stopId, { day: linkDay }) }
     : null;
 
   const title = route ? routeDisplayName({ ...route, slug }) : slug;
@@ -251,7 +252,7 @@ export default async function TripPage({
       <Link
         href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
-          day: pastDay,
+          day: linkDay,
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}
@@ -287,7 +288,7 @@ export default async function TripPage({
             <>
               {" · "}
               <Link
-                href={vehicleHref(vehicle_id, { day: pastDay })}
+                href={vehicleHref(vehicle_id, { day: linkDay })}
                 className="text-at-shore hover:underline"
               >
                 {vehicle_id}
@@ -315,7 +316,7 @@ export default async function TripPage({
               ? {
                   name: lastServed.name,
                   at: actualAt(lastServed),
-                  href: stopHref(lastServed.stop_id, { day: pastDay }),
+                  href: stopHref(lastServed.stop_id, { day: linkDay }),
                 }
               : null
           }
@@ -375,7 +376,7 @@ export default async function TripPage({
               }))}
               mode={route ? modeOrBus(route.mode) : undefined}
               stopLinks
-              stopDay={pastDay}
+              stopDay={linkDay}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
             <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
@@ -399,7 +400,7 @@ export default async function TripPage({
               line={line}
               mode={routeMode}
               colour={route?.colour ?? null}
-              stopDay={pastDay}
+              stopDay={linkDay}
             />
           </section>
         )}

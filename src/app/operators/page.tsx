@@ -26,7 +26,13 @@ import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
 import { operatorHref } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
-import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/page/range";
+import {
+  dayRangeNav,
+  parseRangeWindow,
+  periodRangeNav,
+  rangeViewParams,
+  type RangeNav,
+} from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
@@ -35,7 +41,7 @@ import {
   rowAllowedBySchool,
   schoolFilterParam,
 } from "@/lib/school-bus";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
@@ -116,13 +122,13 @@ export default async function OperatorsPage({
 
   let range: DateRange;
   let nav: RangeNav;
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     nav = dayRangeNav(day, earliest, today);
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/operators",
@@ -172,11 +178,7 @@ export default async function OperatorsPage({
   const added = (o: OperatorRow, key: "routes" | "events" | "cancelled" | "vehicles"): number =>
     baseline ? (o[key] ?? 0) - (baseline.get(o.operator.code)?.[key] ?? 0) : 0;
 
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const view = rangeViewParams(window, linkDay, period);
   const filters = { mode: mode ?? undefined, school: schoolFilterParam(schools) };
   const { sort, head, keep } = tableSort(sp, COLUMNS, "ontime", (p) =>
     buildHref("/operators", { ...view, ...filters, ...p }),

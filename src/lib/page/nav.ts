@@ -7,9 +7,8 @@
 // started yet are dropped so AT's predicted-future slots don't show as phantom
 // on-time entries; and the shown-day resolver lazily imports the data layer so
 // these helpers stay pure and unit-testable.
-import type { PeriodWindow } from "@/lib/page/range";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/time/data-start";
+import { DATA_START_DAY } from "@/lib/time/data-start";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
   isRealDate,
@@ -164,24 +163,6 @@ export function fillServiceHours<H extends { hour: number }>(
   }));
 }
 
-/**
- * Resolve the active week window: a fixed calendar week when `?period=` is set,
- * else the rolling last seven service days.
- * @param periodParam - Validated ISO week-start date, or null for the rolling window.
- * @param now - The current instant (injectable for tests).
- * @returns The fixed week range (null when rolling) and the active range to query.
- */
-export function resolveActiveWeekRange(
-  periodParam: string | null,
-  now: Date = new Date(),
-): { fixedWeekRange: DateRange | null; activeWeekRange: DateRange } {
-  const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  return {
-    fixedWeekRange,
-    activeWeekRange: clampRangeToDataStart(fixedWeekRange ?? nzLast7DaysRange(now)),
-  };
-}
-
 /** The prev/next week-stepper links and the period label for a week view. */
 export interface WeekNav {
   /** Human label for the active period ("Last 7 days" or "DD/MM to DD/MM"). */
@@ -272,45 +253,6 @@ export function resolveMonthNav({
     nextHref = nextMonth >= currentKey ? makeHref(null) : makeHref(nextMonth);
   }
   return { periodLabel, prevHref, nextHref, partial };
-}
-
-/** Resolved state for a week or month board view: range, label and stepper. */
-export interface RangeViewNav extends WeekNav {
-  /** Whether the month variant is active. */
-  isMonth: boolean;
-  /** Copy noun for the period ("week" / "month"). */
-  periodNoun: PeriodWindow;
-  /** Validated period param (week-start date or month key), or null for the rolling default. */
-  periodParam: string | null;
-  /** The half-open window to query. */
-  activeRange: DateRange;
-}
-
-/**
- * Resolve everything a week/month board needs from its raw `?period=` value:
- * the validated period, the window to query, and the bounded stepper. Shared by
- * the three shame boards so the view plumbing lives in one place.
- * @param view - The active non-day view.
- * @param rawPeriod - The raw `?period=` query value, if any.
- * @param earliestDay - Earliest service day with data, or null when unknown.
- * @param makeHref - Builds a link for a period (null = the rolling default).
- * @returns The resolved view state.
- */
-export function resolveRangeView(
-  view: PeriodWindow,
-  rawPeriod: string | undefined,
-  earliestDay: Date | null,
-  makeHref: (period: string | null) => string,
-): RangeViewNav {
-  const isMonth = view === "month";
-  const periodParam = isMonth ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
-  const activeRange = isMonth
-    ? clampRangeToDataStart(nzMonthRange(periodParam ?? undefined))
-    : resolveActiveWeekRange(periodParam).activeWeekRange;
-  const nav = isMonth
-    ? resolveMonthNav({ periodParam, earliestDay, makeHref })
-    : resolveWeekNav({ periodParam, earliestDay, makeHref });
-  return { isMonth, periodNoun: isMonth ? "month" : "week", periodParam, activeRange, ...nav };
 }
 
 /** The service day a day view shows. */

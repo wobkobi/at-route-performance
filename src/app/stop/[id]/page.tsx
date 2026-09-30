@@ -60,7 +60,7 @@ import {
   platformsDiffer,
   type PlatformRow,
 } from "@/lib/stop/station-platforms";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
@@ -85,6 +85,21 @@ interface StopSearchParams {
 }
 
 /**
+ * A stop id from its URL segment, decoded when it decodes cleanly. A raw "%"
+ * in a hand-typed URL would otherwise throw URIError and 500 the page, so a
+ * segment that does not decode is taken as it is.
+ * @param raw - The segment.
+ * @returns The stop id.
+ */
+function decodeSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/**
  * Per-stop page title, so a tab and a shared link name the stop rather than
  * repeating the site title. The shared link's card and title name the day the
  * link carries, which the card reads from the query rather than from the
@@ -103,13 +118,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StopSearchParams>;
 }): Promise<Metadata> {
-  const raw = (await params).id;
-  let id: string;
-  try {
-    id = decodeURIComponent(raw);
-  } catch {
-    id = raw;
-  }
+  const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
   const name = (await getStopIdentity(id).catch(readFallback("stop-identity", null)))?.name;
   if (!name) return { title: "Stop" };
@@ -139,15 +148,7 @@ export default async function StopPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StopSearchParams>;
 }): Promise<JSX.Element> {
-  // Decode the segment when it decodes cleanly; a raw "%" in a hand-typed URL
-  // would otherwise throw URIError and 500 the page.
-  const rawId = (await params).id;
-  let id: string;
-  try {
-    id = decodeURIComponent(rawId);
-  } catch {
-    id = rawId;
-  }
+  const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
 
   // Stations used to be keyed by name ("station:newmarket train station"); they
@@ -180,7 +181,7 @@ export default async function StopPage({
 
   const nav = dayRangeNav(shown, earliestDay, today);
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
-  const linkDay = nav.isToday ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
 
   const { stop, summary, routes, routes_count } = stats;
   const zones = fareZonesOf(stop.lat, stop.lon);

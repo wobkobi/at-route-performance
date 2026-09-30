@@ -27,12 +27,13 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
+  rangeViewParams,
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
 import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow } from "@/lib/time/request-now";
 import { nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import { CANCELLATION_STAGES } from "@/lib/trip/cancellation";
@@ -122,7 +123,7 @@ export default async function CancellationsPage({
     range = shown.range;
     trips = await getNetworkCancelledTrips(range);
     nav = dayRangeNav(shown, earliest, today);
-    linkDay = nav.isToday ? undefined : shown.serviceDate;
+    linkDay = dayLinkParam(shown.serviceDate, today);
     if (nav.isToday) liveAt = now.getTime();
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -159,10 +160,7 @@ export default async function CancellationsPage({
   const modes = new Set(trips.map((t) => t.mode));
 
   // The window params ride along on the filter chips; the window controls carry the filters.
-  const windowParams: Record<string, string> = {};
-  if (window !== "day") windowParams.window = window;
-  if (window === "day" && linkDay && sp.day) windowParams.day = linkDay;
-  if (period) windowParams.period = period;
+  const windowParams = stripUnset(rangeViewParams(window, sp.day ? linkDay : undefined, period));
   const stageParam: Record<string, string> = stage ? { stage } : {};
   const schoolParam = stripUnset({ school: schoolFilterParam(schools) });
   const modePreserved = { ...windowParams, ...schoolParam, ...stageParam };

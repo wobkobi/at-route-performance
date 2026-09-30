@@ -39,6 +39,7 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
+  rangeViewParams,
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
@@ -57,7 +58,7 @@ import {
   schoolFilterParam,
 } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
@@ -174,13 +175,13 @@ export default async function OperatorPage({
 
   let range: DateRange;
   let nav: RangeNav;
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     nav = dayRangeNav(day, earliest, today);
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       basePath,
@@ -264,11 +265,7 @@ export default async function OperatorPage({
       cancelled: c.cancelled,
     });
   }
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const view = rangeViewParams(window, linkDay, period);
   const school = schoolFilterParam(schools);
   // Each table's heading links carry the other table's sort, so sorting one
   // leaves the other as it was.
@@ -308,7 +305,7 @@ export default async function OperatorPage({
     readFallback("fleet", new Map<string, FleetVehicle>()),
   );
 
-  const routeParams = routeLinkParams(window, dayParam, period);
+  const routeParams = routeLinkParams(window, linkDay, period);
   const schoolPreserved = stripUnset({ ...view, ...routeKeep, ...fleetKeep });
 
   return (

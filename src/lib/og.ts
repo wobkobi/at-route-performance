@@ -181,26 +181,14 @@ export function parseStopCard(id: string, sp: { day?: string }): StopCard {
 }
 
 /**
- * Validate a shame board's query into its card. The boards read `window` as
- * week, month or (anything else) day, as `parseShameParams` does.
+ * Validate a shame board's query into its card. The boards take the home
+ * page's window and filters, so they parse the same way.
  * @param board - Which shame board.
  * @param sp - The page's raw query.
  * @returns The card state.
  */
 export function parseShameCard(board: ShameBoard, sp: HomeCardParams): ShameCard {
-  const window: RangeWindow = sp.window === "week" || sp.window === "month" ? sp.window : "day";
-  let period: string | null = null;
-  if (window === "week") period = resolveRequestedDay(sp.period);
-  if (window === "month") period = resolveRequestedMonth(sp.period);
-  return {
-    kind: "shame",
-    board,
-    window,
-    day: window === "day" ? resolveRequestedDay(sp.day) : null,
-    period,
-    mode: parseMode(sp.mode),
-    schools: parseSchoolFilter(sp.school),
-  };
+  return { kind: "shame", board, ...parseHomeCard(sp) };
 }
 
 /**

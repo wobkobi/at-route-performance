@@ -44,6 +44,7 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
+  rangeViewParams,
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
@@ -51,7 +52,7 @@ import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib
 import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
@@ -215,14 +216,14 @@ export default async function VehiclePage({
   let range: DateRange;
   let nav: RangeNav;
   let days: { date: string; rows: VehicleDayRow[] }[];
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     days = await getVehicleWorkByDay(range, filter, TODAY_REVALIDATE);
     nav = dayRangeNav(day, earliest, today);
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       basePath,
@@ -256,18 +257,16 @@ export default async function VehiclePage({
   const liveOnMap = window === "day" && serviceDate === today && now?.tripId ? now : null;
   const [names, liveMap, dayMap] = await Promise.all([
     getRouteNames(routeIds),
-    liveOnMap?.tripId ? liveRunMap(liveOnMap.routeId, liveOnMap.tripId) : Promise.resolve(null),
+    liveOnMap?.tripId
+      ? liveRunMap(liveOnMap.routeId, liveOnMap.tripId, today)
+      : Promise.resolve(null),
     window === "day" && total
       ? getVehicleDayMap(id, serviceDate, TODAY_REVALIDATE)
       : Promise.resolve(null),
   ]);
   const map = dayRunMap(dayMap, liveMap);
-  const routeParams = routeLinkParams(window, dayParam, period);
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const routeParams = routeLinkParams(window, linkDay, period);
+  const view = rangeViewParams(window, linkDay, period);
   // How the vehicles list was left. Every link that stays on this vehicle
   // carries it, so the back link still returns to the list the reader came from
   // rather than to the default board.
@@ -330,7 +329,7 @@ export default async function VehiclePage({
         <RangeControls basePath={basePath} nav={nav} />
       </header>
 
-      <LiveCard now={now} register={register} mode={mode} names={names} />
+      <LiveCard now={now} register={register} mode={mode} names={names} today={today} />
 
       {map && (
         <section className="border border-at-border bg-at-surface p-4">
@@ -350,7 +349,7 @@ export default async function VehiclePage({
             filterTripId={liveOnMap?.tripId ?? undefined}
             mode={mode ?? undefined}
             stopLinks
-            stopDay={dayParam}
+            stopDay={linkDay}
             className="h-[min(25rem,60svh)]"
           />
           <p className="mt-2 text-xs text-at-muted">
@@ -406,6 +405,7 @@ export default async function VehiclePage({
               routeParams={routeParams}
               sp={sp}
               hrefFor={tableHref}
+              today={today}
             />
           )
         : total && (
@@ -416,6 +416,7 @@ export default async function VehiclePage({
               listState={listState}
               sp={sp}
               hrefFor={tableHref}
+              today={today}
             />
           )}
     </main>
@@ -428,14 +429,16 @@ export default async function VehiclePage({
  * as the trip page builds its map, so the two show one run the same way.
  * @param routeId - The run's route id.
  * @param tripId - The run's trip id.
+ * @param today - Today's service date, the day the live run is on.
  * @returns The stops and path, or null when AT gave neither.
  */
 async function liveRunMap(
   routeId: string,
   tripId: string,
+  today: string,
 ): Promise<{ stops: MapStop[]; path: Array<[number, number]> } | null> {
   const [timeline, scheduled, shape] = await Promise.allSettled([
-    getTripTimeline(tripId, routeSlug(routeId), nzServiceDayRange(new Date())),
+    getTripTimeline(tripId, routeSlug(routeId), nzServiceDayRange(today)),
     getTripScheduledStops(tripId),
     getTripShape(tripId),
   ]);
@@ -505,6 +508,7 @@ function Figure({ label, children }: { label: string; children: ReactNode }): JS
  * @param root0.register - Its fleet register row, if any.
  * @param root0.mode - Its mode, for the on-time window.
  * @param root0.names - Route id > short name.
+ * @param root0.today - Today's service date, for the last-seen label.
  * @returns The card.
  */
 function LiveCard({
@@ -512,18 +516,20 @@ function LiveCard({
   register,
   mode,
   names,
+  today,
 }: {
   now: LiveVehicle | undefined;
   register: FleetVehicle | undefined;
   mode: Mode | null;
   names: Record<string, string>;
+  today: string;
 }): JSX.Element {
   if (!now?.tripId) {
     const last = now?.seenAt ? new Date(now.seenAt * 1000) : register?.lastSeenAt;
     return (
       <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
         Not on a run right now.
-        {last && ` Last seen ${lastSeenLabel(last)}.`}
+        {last && ` Last seen ${lastSeenLabel(last, today)}.`}
       </div>
     );
   }
@@ -579,12 +585,13 @@ function LiveCard({
 /**
  * When a vehicle was last seen: a clock time today, else the day and time.
  * @param at - The sighting.
+ * @param today - Today's service date.
  * @returns The label.
  */
-function lastSeenLabel(at: Date): string {
+function lastSeenLabel(at: Date, today: string): string {
   const time = nzClockTime(at.toISOString());
   const day = nzServiceDayString(at);
-  return day === nzServiceDayString() ? `at ${time}` : `${serviceDayLabel(day)}, ${time}`;
+  return day === today ? `at ${time}` : `${serviceDayLabel(day)}, ${time}`;
 }
 
 /**
@@ -597,6 +604,7 @@ function lastSeenLabel(at: Date): string {
  * @param root0.routeParams - The route-page params for the window shown.
  * @param root0.sp - The page's search params, for the table's sort.
  * @param root0.hrefFor - This page with the table's sort params set.
+ * @param root0.today - Today's service date, which each day's link leaves unnamed.
  * @returns The table.
  */
 function RunsTable({
@@ -613,6 +621,7 @@ function RunsTable({
   routeParams: LinkQuery;
   sp: VehicleSearchParams;
   hrefFor: (p: Record<string, string | undefined>) => string;
+  today: string;
 }): JSX.Element {
   const showCars = runs.some((r) => r.cars != null);
   const { sort, head } = tableSort(sp, RUN_COLUMNS, "start", hrefFor, TABLE_SORT);
@@ -710,6 +719,7 @@ function RunsTable({
  * @param root0.listState - How the vehicles list was left, carried by each day's link.
  * @param root0.sp - The page's search params, for the table's sort.
  * @param root0.hrefFor - This page with the table's sort params set.
+ * @param root0.today - Today's service date, which each day's link leaves unnamed.
  * @returns The table.
  */
 function DaysTable({
@@ -719,6 +729,7 @@ function DaysTable({
   listState,
   sp,
   hrefFor,
+  today,
 }: {
   days: { date: string; rows: VehicleDayRow[] }[];
   id: string;
@@ -726,6 +737,7 @@ function DaysTable({
   listState: Readonly<Record<string, string>>;
   sp: VehicleSearchParams;
   hrefFor: (p: Record<string, string | undefined>) => string;
+  today: string;
 }): JSX.Element {
   const { sort, head } = tableSort(sp, DAY_COLUMNS, "day", hrefFor, TABLE_SORT);
   const lines = sortRows(
@@ -771,7 +783,7 @@ function DaysTable({
                     {ran ? (
                       <Link
                         href={buildHref(basePath, {
-                          day: date === nzServiceDayString() ? undefined : date,
+                          day: dayLinkParam(date, today),
                           ...listState,
                         })}
                         className="text-at-shore hover:underline"

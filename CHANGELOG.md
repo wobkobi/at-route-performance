@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.17] - 2026-10-01
+
+### Changed
+
+- Range pages build their view params, today-less day links and window parsing through shared
+  helpers, read the clock once per render, and only run the day redirects on the day view.
+
 ## [2.41.16] - 2026-10-01
 
 ### Changed

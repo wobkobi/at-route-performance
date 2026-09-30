@@ -36,9 +36,10 @@ import {
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { daySlot, type DaySlot } from "@/lib/time/day-series";
+import { dayLinkParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time/service-day";
-import { buildHref } from "@/lib/utils";
+import { buildHref, stripUnset } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -213,17 +214,6 @@ export default async function DaysPage({
 }
 
 /**
- * Drop the unset entries from a param set, for a control's preserved params.
- * @param params - The params, some unset.
- * @returns The set ones.
- */
-function stripUnset(params: Record<string, string | undefined>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined),
-  );
-}
-
-/**
  * The Mode and School buses boxes, once the days' routes say what ran: a mode
  * with no route in the window is left out, and the school box only shows when a
  * school service ran under the mode chosen.
@@ -318,7 +308,7 @@ async function DaysBody({
    */
   const hrefFor = (date: string): string =>
     buildHref("/", {
-      day: date === today ? undefined : date,
+      day: dayLinkParam(date, today),
       mode: mode ?? undefined,
       school: schoolFilterParam(schools),
     });

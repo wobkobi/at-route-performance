@@ -484,9 +484,11 @@ export default async function RoutesShamePage({
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
-  clampDayParam(BASE, sp, today);
-  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle, hours } = parseShameParams(sp);
+  if (view === "day") {
+    clampDayParam(BASE, sp, today);
+    dropTodayParam(BASE, sp, today);
+  }
 
   if (view !== "day") {
     // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
@@ -498,7 +500,7 @@ export default async function RoutesShamePage({
       range: activeRange,
       period: periodParam,
       nav: rangeControls,
-    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay, today);
     const isMonth = view === "month";
     const periodNoun = view;
     const rangeNav = { window: view, period: periodParam ?? undefined };
@@ -542,7 +544,7 @@ export default async function RoutesShamePage({
   ]);
   const { range, serviceDate } = shown;
   const dayNav = dayRangeNav(shown, earliestDay, today);
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
 
   return (
     <main className="space-y-6">

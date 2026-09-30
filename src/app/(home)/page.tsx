@@ -82,8 +82,8 @@ import {
   deriveOffSchedule,
   MIN_BOARD_EVENTS,
   MIN_MODE_EVENTS,
+  parseDelayDirection,
   summariseRows,
-  type DelayDirection,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
 import {
@@ -346,7 +346,7 @@ export default async function Home({
   clampDayParam("/", sp, today);
   dropTodayParam("/", sp, today);
   const mode = parseMode(sp.mode);
-  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
+  const dir = parseDelayDirection(sp.dir);
 
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).

@@ -42,12 +42,21 @@ export interface ParsedRankingsParams {
 }
 
 /**
+ * Parse `?window` for a view with no day window, defaulting to the week.
+ * @param raw - The raw query value.
+ * @returns The window.
+ */
+export function parsePeriodWindow(raw: string | undefined): PeriodWindow {
+  return raw === "month" ? "month" : "week";
+}
+
+/**
  * Parse and validate the rankings query params.
  * @param sp - The raw search params.
  * @returns The validated window, mode, direction and school toggle.
  */
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
-  const window: PeriodWindow = sp.window === "month" ? "month" : "week";
+  const window = parsePeriodWindow(sp.window);
   const mode = parseMode(sp.mode);
   const dir = parseDelayDirection(sp.dir);
   const schools = parseSchoolFilter(sp.school);

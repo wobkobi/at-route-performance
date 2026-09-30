@@ -7,9 +7,7 @@ import {
   fillServiceHours,
   filterLiveHours,
   noHourStarted,
-  resolveActiveWeekRange,
   resolveMonthNav,
-  resolveRangeView,
   resolveRequestedDay,
   resolveRequestedMonth,
   resolveShownDay,
@@ -17,7 +15,7 @@ import {
   serviceHourSpan,
 } from "@/lib/page/nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/time/data-start";
+import { DATA_START_DAY, dataStartDate } from "@/lib/time/data-start";
 import { nzServiceDayRange } from "@/lib/time/service-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -315,22 +313,6 @@ describe("partial periods at the archive floor", () => {
       now,
     });
     expect(nav).toMatchObject({ prevHref: null, nextHref: null, partial: true });
-  });
-
-  it("raises the first week's query window to the floor", () => {
-    const { activeWeekRange } = resolveActiveWeekRange("2026-09-07", now);
-    expect(activeWeekRange.start.toISOString()).toBe(
-      nzServiceDayRange(DATA_START_DAY).start.toISOString(),
-    );
-    expect(rangeIsEmpty(activeWeekRange)).toBe(false);
-  });
-
-  it("raises a month board's window to the floor too", () => {
-    const view = resolveRangeView("month", "2026-09", dataStartDate(), monthHref);
-    expect(view.activeRange.start.toISOString()).toBe(
-      nzServiceDayRange(DATA_START_DAY).start.toISOString(),
-    );
-    expect(view.partial).toBe(true);
   });
 });
 

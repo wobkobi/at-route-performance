@@ -13,6 +13,7 @@ import {
 import { resolveRange } from "@/lib/page/rankings";
 import { type PickerState } from "@/lib/time/calendar";
 import { DATA_START_DAY } from "@/lib/time/data-start";
+import { dayLinkParam } from "@/lib/time/day-url";
 import {
   type DateRange,
   mondayOf,
@@ -384,6 +385,28 @@ export function overviewHeading(nav: RangeNav, period: string | null): string {
 }
 
 /**
+ * The window params a range page's own links carry, so a sort or filter link
+ * stays on the window being read. A mapped type rather than an interface, so it
+ * passes wherever a plain param record is taken.
+ * @param window - The window being shown.
+ * @param linkDay - The day param (see {@link dayLinkParam}), or undefined for today.
+ * @param period - The shown week's or month's period, or null for the rolling default.
+ * @returns `window` (unset for the day view), `day` (unset for today) and
+ *   `period` (unset for the rolling default).
+ */
+export function rangeViewParams(
+  window: RangeWindow,
+  linkDay: string | undefined,
+  period: string | null,
+): Record<"window" | "day" | "period", string | undefined> {
+  return {
+    window: window === "day" ? undefined : window,
+    day: linkDay,
+    period: period ?? undefined,
+  };
+}
+
+/**
  * The params a route link carries so the route page opens on the window being
  * viewed. The route page has only a day view and a week view, so a month hands
  * off to the week holding its last day - the same week {@link rangeTabPeriods}
@@ -402,8 +425,7 @@ export function routeLinkParams(
   period: string | null | undefined,
   today: string = nzServiceDayString(),
 ): LinkQuery {
-  if (window === "day")
-    return { day: serviceDate && serviceDate !== today ? serviceDate : undefined };
+  if (window === "day") return { day: dayLinkParam(serviceDate, today) };
   const weekPeriod =
     window === "week"
       ? period

@@ -8,7 +8,7 @@
 import { type Mode, MODE_NOUN, parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { SECTION_PARAMS } from "@/lib/page/filter-params";
-import type { RangeWindow } from "@/lib/page/range";
+import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
 import { SERVICE_START_HOUR } from "@/lib/time/service-day";
@@ -167,7 +167,7 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
         : schools === "include"
           ? "All services"
           : "Buses, trains & ferries";
-  const view: RangeWindow = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
+  const view = parseRangeWindow(sp.window);
   const hours =
     view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);
   return {

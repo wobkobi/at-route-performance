@@ -70,7 +70,7 @@ import { aggregateWeek } from "@/lib/route/week";
 import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzLocalHour, nzWeekRange, weekLabel, type DateRange } from "@/lib/time/service-day";
 import {
@@ -391,8 +391,10 @@ export default async function RoutePage({
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   const routePath = routeHref(slug);
-  clampDayParam(routePath, sp, today);
-  dropTodayParam(routePath, sp, today);
+  if (!isWeekView) {
+    clampDayParam(routePath, sp, today);
+    dropTodayParam(routePath, sp, today);
+  }
   const parsed = routeStatsQuery.safeParse(sp);
   const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
@@ -518,7 +520,7 @@ export default async function RoutePage({
   }
 
   const dayNav = dayRangeNav(shown, earliestDay, today);
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
   // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
   const stopDay = linkDay;
 
@@ -878,7 +880,7 @@ export default async function RoutePage({
             label={weekPeriodLabel}
             dayHref={(date) =>
               buildHref(routePath, {
-                day: date === today ? undefined : date,
+                day: dayLinkParam(date, today),
                 dir: activeDir == null ? undefined : String(activeDir),
               })
             }

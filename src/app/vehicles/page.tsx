@@ -34,6 +34,7 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
+  rangeViewParams,
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
@@ -41,7 +42,7 @@ import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
 import { routeSlug } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
@@ -131,14 +132,14 @@ export default async function VehiclesPage({
   let range: DateRange;
   let nav: RangeNav;
   let vehicles: VehicleTotal[];
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     vehicles = await getVehicleWork(range, filter, TODAY_REVALIDATE);
     nav = dayRangeNav(day, earliest, today);
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/vehicles",
@@ -164,11 +165,7 @@ export default async function VehiclesPage({
   const opOptions = [...new Set([...vehicleOps.values()].flat())]
     .map((code) => operatorOf(code, directory)!)
     .sort((a, b) => a.name.localeCompare(b.name, "en-NZ"));
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const view = rangeViewParams(window, linkDay, period);
   const filters = {
     mode: mode ?? undefined,
     school: schoolFilterParam(schools),
@@ -198,7 +195,7 @@ export default async function VehiclesPage({
     ),
   ]);
   const multiDay = window !== "day";
-  const routeParams = routeLinkParams(window, dayParam, period);
+  const routeParams = routeLinkParams(window, linkDay, period);
 
   // How the list is being read, for a vehicle's link to hand back on its way out.
   const listState = pickParams(

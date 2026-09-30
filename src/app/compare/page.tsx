@@ -35,12 +35,13 @@ import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
+  rangeViewParams,
   routeLinkParams,
   windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
@@ -246,14 +247,14 @@ export default async function ComparePage({
   let range: DateRange;
   let nav: RangeNav;
   let serviceDate: string | null = null;
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     nav = dayRangeNav(day, earliest, today);
     serviceDate = day.serviceDate;
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/compare",
@@ -265,11 +266,7 @@ export default async function ComparePage({
     ));
   }
   const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const view = rangeViewParams(window, linkDay, period);
   const phrase = windowPhrase(nav, period);
 
   let columns: CompareColumn[] = [];
