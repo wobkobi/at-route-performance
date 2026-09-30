@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.11] - 2026-10-01
+
+### Fixed
+
+- Switching day, week or month no longer keeps a long list expanded, and every control that carries
+  the page's params now agrees on which ones
+
 ## [2.41.10] - 2026-10-01
 
 ### Changed

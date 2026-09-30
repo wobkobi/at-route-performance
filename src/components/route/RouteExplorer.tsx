@@ -23,6 +23,7 @@ import {
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
+import { SHOWN_PARAM } from "@/lib/page/filter-params";
 import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
 import { summariseRows } from "@/lib/rankings";
 import {
@@ -35,7 +36,6 @@ import {
   explorerQuery,
   filterRoutes,
   PAGE_SIZE,
-  SHOWN_PARAM,
   sortRoutes,
   type ExplorerFilters,
   type ExplorerRoute,

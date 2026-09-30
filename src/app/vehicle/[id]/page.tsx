@@ -38,6 +38,7 @@ import {
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { pickParams, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
 import { routeHref, tripHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -272,14 +273,7 @@ export default async function VehiclePage({
   // How the vehicles list was left. Every link that stays on this vehicle
   // carries it, so the back link still returns to the list the reader came from
   // rather than to the default board.
-  const listState = {
-    mode: sp.mode,
-    school: sp.school,
-    sort: sp.sort,
-    rev: sp.rev,
-    show: sp.show,
-    op: sp.op,
-  };
+  const listState = pickParams(sp, VEHICLE_LIST_PARAMS);
   /**
    * This page with its own table's sort set, for that table's headings.
    * @param p - The sort params.
@@ -731,7 +725,7 @@ function DaysTable({
   days: { date: string; rows: VehicleDayRow[] }[];
   id: string;
   basePath: string;
-  listState: Readonly<Record<string, string | undefined>>;
+  listState: Readonly<Record<string, string>>;
   sp: VehicleSearchParams;
   hrefFor: (p: Record<string, string | undefined>) => string;
 }): JSX.Element {

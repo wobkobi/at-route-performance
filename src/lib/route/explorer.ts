@@ -154,9 +154,6 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
 /** Routes the list opens with, and how many each "Show more" press adds. */
 export const PAGE_SIZE = 40;
 
-/** The query param holding how many rows the list is showing. */
-export const SHOWN_PARAM = "show";
-
 /**
  * Read how many rows the list was showing. Rounded up to a whole number of
  * pages so a hand-edited `show` still lands on a count the pager itself could

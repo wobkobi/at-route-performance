@@ -28,6 +28,7 @@ import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { pickParams, SHOWN_PARAM, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
 import { routeHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -204,11 +205,10 @@ export default async function VehiclesPage({
   const routeParams = routeLinkParams(window, dayParam, period);
 
   // How the list is being read, for a vehicle's link to hand back on its way out.
-  const listState = stripUnset({
-    ...filters,
-    ...keep,
-    show: shown > PAGE_SIZE ? String(shown) : undefined,
-  });
+  const listState = pickParams(
+    { ...filters, ...keep, [SHOWN_PARAM]: shown > PAGE_SIZE ? String(shown) : undefined },
+    VEHICLE_LIST_PARAMS,
+  );
   const modePreserved = stripUnset({
     ...view,
     school: filters.school,

@@ -7,6 +7,7 @@
 // crown nothing.
 import { type Mode, MODE_NOUN, parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { SECTION_PARAMS } from "@/lib/page/filter-params";
 import type { RangeWindow } from "@/lib/page/range";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
@@ -63,14 +64,9 @@ export interface ShameSearchParams {
  * a page that cannot act on it - the same reason `site-nav.ts` leaves `dir`
  * behind between sections.
  */
-export const SHAME_PARAMS = [
-  "day",
-  "mode",
-  "school",
-  "window",
-  "period",
-  "hours",
-] as const satisfies ReadonlyArray<keyof ShameSearchParams>;
+export const SHAME_PARAMS = [...SECTION_PARAMS, "hours"] as const satisfies ReadonlyArray<
+  keyof ShameSearchParams
+>;
 
 /**
  * Human label for an active direction filter, for the subtitle. "Only" is the
@@ -147,8 +143,6 @@ export interface ParsedShameParams {
    * the day view: the week and month boards have no hours.
    */
   hours: HourRange | null;
-  /** Params to preserve on `DayNav` links (mode, school and direction). */
-  preserved: Record<string, string>;
   /** Subtitle describing the active filter ("Buses" / "All services" / …). */
   subtitle: string;
 }
@@ -159,7 +153,7 @@ export interface ParsedShameParams {
  * narrowing, so a reader who arrives on a filtered link can see what is being
  * left out without reading the URL.
  * @param sp - The raw search params.
- * @returns The filter, active view, preserved params, and subtitle.
+ * @returns The filter, active view, and subtitle.
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
   const mode = parseMode(sp.mode);
@@ -173,11 +167,6 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
         : schools === "include"
           ? "All services"
           : "Buses, trains & ferries";
-  const preserved: Record<string, string> = {};
-  if (mode) preserved.mode = mode;
-  const schoolParam = schoolFilterParam(schools);
-  if (schoolParam) preserved.school = schoolParam;
-  if (direction) preserved.dir = direction;
   const view: RangeWindow = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
   const hours =
     view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);
@@ -188,7 +177,6 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
     filter: { mode, schools, direction },
     view,
     hours,
-    preserved,
     subtitle,
   };
 }

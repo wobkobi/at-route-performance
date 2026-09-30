@@ -117,7 +117,7 @@ export function DayNav({
           mode="day"
           calendar={calendar}
           basePath={basePath}
-          params={preservedParams}
+          preservedParams={preservedParams}
           title={`${serviceDayWindowText(serviceDate)}. Choose a date.`}
           className="min-w-24 px-2 py-1 text-center text-sm font-semibold tabular-nums"
         >

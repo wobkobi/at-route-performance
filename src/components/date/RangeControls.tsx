@@ -11,6 +11,7 @@ import { DatePicker } from "@/components/date/DatePicker";
 import { DayNav } from "@/components/date/DayNav";
 import { StepPending } from "@/components/date/StepPending";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { omitParams, SHOWN_PARAM, VIEW_PARAMS } from "@/lib/page/filter-params";
 import type { RangeNav, RangeWindow } from "@/lib/page/range";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import { buildHref } from "@/lib/utils";
@@ -18,8 +19,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { JSX } from "react";
 
-/** Params the controls themselves own; everything else is carried through. */
-const OWN_PARAMS = new Set(["window", "day", "period"]);
+/**
+ * Params a window switch leaves behind: the window's own, which each link sets,
+ * and the list length, since a new window is a new list. Everything else (the
+ * filters, sort and search) carries.
+ */
+const NOT_CARRIED = [...VIEW_PARAMS, SHOWN_PARAM];
 
 /** Props for {@link RangeControls}. */
 export interface RangeControlsProps {
@@ -59,9 +64,7 @@ function withCarried(href: string, carried: Record<string, string>): string {
  */
 export function RangeControls({ basePath, nav, windows }: RangeControlsProps): JSX.Element {
   const searchParams = useSearchParams();
-  const carried = Object.fromEntries(
-    [...searchParams.entries()].filter(([k]) => !OWN_PARAMS.has(k)),
-  );
+  const carried = omitParams(searchParams, NOT_CARRIED);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
@@ -129,7 +132,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             mode={nav.window}
             calendar={nav.calendar}
             basePath={basePath}
-            params={carried}
+            preservedParams={carried}
             title={`Choose a ${nav.window}`}
             className="px-2 py-1 text-sm font-semibold tabular-nums"
           >

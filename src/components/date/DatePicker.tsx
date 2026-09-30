@@ -56,7 +56,7 @@ const STEP =
  * @param props.mode - What a pick chooses: a day, a week or a month.
  * @param props.calendar - The bounds, today, and the shown window's days.
  * @param props.basePath - Page path the picks navigate to.
- * @param props.params - The page's other params, carried on every pick; the
+ * @param props.preservedParams - The page's other params, carried on every pick; the
  *   picker sets `day`, `window` and `period` itself.
  * @param props.title - Hover text for the label.
  * @param props.className - Classes for the label button.
@@ -67,7 +67,7 @@ export function DatePicker({
   mode,
   calendar,
   basePath,
-  params,
+  preservedParams,
   title,
   className,
   children,
@@ -75,7 +75,7 @@ export function DatePicker({
   mode: RangeWindow;
   calendar: PickerState;
   basePath: string;
-  params: Record<string, string>;
+  preservedParams: Record<string, string>;
   title?: string;
   className?: string;
   children: ReactNode;
@@ -136,7 +136,7 @@ export function DatePicker({
    */
   const go = (set: Record<string, string | undefined>): void => {
     setOpen(false);
-    router.push(buildHref(basePath, { ...params, ...set }), { scroll: false });
+    router.push(buildHref(basePath, { ...preservedParams, ...set }), { scroll: false });
   };
 
   const year = shown.slice(0, 4);

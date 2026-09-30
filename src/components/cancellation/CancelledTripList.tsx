@@ -14,6 +14,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { UNKNOWN_VALUE, formatCount } from "@/lib/format";
+import { SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import { routeDisplayName } from "@/lib/route/slug";
@@ -116,8 +117,8 @@ export function CancelledTripList({
   // Seeded from the live URL rather than a server prop: Back restores the page
   // from the router cache, rendered before `show` was written into the URL.
   const searchParams = useSearchParams();
-  const [shown, setShown] = useState(() => parseShown(searchParams.get("show")));
-  useUrlParam("show", shown > PAGE_SIZE ? String(shown) : null);
+  const [shown, setShown] = useState(() => parseShown(searchParams.get(SHOWN_PARAM)));
+  useUrlParam(SHOWN_PARAM, shown > PAGE_SIZE ? String(shown) : null);
   const { visible, notDue } = useMemo(() => {
     const staged = stage ? trips.filter((t) => t.stage === stage) : trips;
     if (multiDay) return { visible: [...staged].reverse(), notDue: 0 };

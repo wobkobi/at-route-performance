@@ -2,6 +2,7 @@
 // Top-bar sections: which one a path belongs to, and the link to each that keeps
 // the reader's day, window and mode filter, which the Overview, Routes, Shame and
 // Cancellations pages (and the route and stop pages under them) read the same way.
+import { SECTION_PARAMS } from "@/lib/page/filter-params";
 import { nzServiceDayString, parseInstantParam } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 
@@ -86,13 +87,6 @@ export const SITE_PAGES = [
 ] as const satisfies readonly SitePage[];
 
 /**
- * Params every section reads with the same meaning. `dir` stays behind: it is
- * late or early on the Overview but a sort direction on Routes and a travel
- * direction on a route page.
- */
-const CARRIED = ["window", "day", "period", "mode", "school"] as const;
-
-/**
  * Whether a path belongs to a section.
  * @param section - The section.
  * @param pathname - The current path.
@@ -115,7 +109,7 @@ export function isNavActive(section: NavSection, pathname: string): boolean {
  */
 export function carriedParams(params: URLSearchParams): Record<string, string | null> {
   const carried: Record<string, string | null> = Object.fromEntries(
-    CARRIED.map((k) => [k, params.get(k)]),
+    SECTION_PARAMS.map((k) => [k, params.get(k)]),
   );
   if (carried.day == null) {
     const dAt = parseInstantParam(params.get("d"));
