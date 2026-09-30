@@ -1,26 +1,26 @@
 // src/components/trip/WorstTripsBoard.tsx
-// Paginated, sortable table of a route's worst trips with delay
-// bands. Sort chips reset to page 1 and clicking the active chip toggles its
-// direction, while the prev/next page links preserve the active sort so paging
-// doesn't drop it. Both are client navigations that keep the scroll position,
-// so a sort or page change swaps the board in place instead of reloading the
+// Sortable show-more list of a route's worst trips with delay bands. Sort
+// chips reset the list to its first rows and clicking the active chip toggles
+// its direction, while the show-more link keeps the active sort. Both are
+// client navigations that keep the scroll position, so a sort change or a
+// longer list swaps the board in place instead of reloading the
 // document behind the route skeleton. Rows arrive already laid out (see
 // lib/trip/board.ts): cancelled trips carry a CANCELLED badge, and on the delay
 // sorts a rank and the wait a rider had for the next trip when that is known; a
 // run AT also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT
 // SHORT on a phone, or REINSTATED), a run whose vehicle left its route an OFF
 // ROUTE badge, running trips get a LIVE badge, streamed in per row so AT's
-// realtime call never holds up the chips or the pager, and ranks stay
-// continuous across pages. The section is `min-w-0` because it sits in a grid,
+// realtime call never holds up the chips or the show-more link. The section is `min-w-0` because it sits in a grid,
 // where it would otherwise grow to its truncating rows' full width on a phone.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChipLink } from "@/components/Chip";
-import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
+import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
 import { nzClockTime } from "@/lib/time/format";
 import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
@@ -48,8 +48,8 @@ import { type JSX, Suspense } from "react";
  *
  * The set is passed in unresolved and awaited here, one small boundary per row,
  * so the board itself renders from rows that are already in hand. Awaited a
- * level up it would put the sort chips and the pager behind AT's realtime call:
- * every sort or page click is a server navigation, so the controls that
+ * level up it would put the sort chips and the show-more link behind AT's
+ * realtime call: every sort or show-more click is a server navigation, so the controls that
  * triggered it would vanish into a skeleton until AT answered.
  * @param props - Component props.
  * @param props.tripId - The row's trip id.
@@ -78,22 +78,20 @@ export interface WorstTripsBoardProps {
   routeId: string;
   /** Service day the rows are from, as `YYYY-MM-DD`. Opens the run on that day. */
   serviceDate: string;
-  /** The current page of rows (running and cancelled trips), in display order. */
+  /** The rows shown so far (running and cancelled trips), in display order. */
   rows: TripBoardRow[];
+  /** How many rows the whole board has. */
+  total: number;
   /** Active ordering. */
   sort: TripSort;
   /** Whether the active sort direction is reversed from its default. */
   isReversed?: boolean;
   /** Route mode: heading noun + the mode's early/late colour banding. */
   mode?: string;
-  /** Page path the sort + page links point at (the route page). */
+  /** Page path the sort and show-more links point at (the route page). */
   basePath: string;
-  /** Query params to preserve on the links (`tsort`/`tpage` are set here). */
+  /** Query params to preserve on the links (`tsort` and `show` are set here). */
   preservedParams: Record<string, string>;
-  /** 1-based current page. */
-  page: number;
-  /** Total number of pages. */
-  totalPages: number;
   /**
    * Trip ids currently running live; those rows get a LIVE badge. Passed
    * unresolved so the board does not wait on AT's realtime call - see
@@ -116,55 +114,10 @@ function lateNightTitle(iso: string, serviceDate: string): string | undefined {
 }
 
 /**
- * Compact page list around the current page: always the first and last page,
- * the current page and its neighbours, with `"…"` gaps for the runs in between
- * (e.g. `1 … 5 6 7 … 50`).
- * @param current - The active 1-based page.
- * @param total - Total number of pages.
- * @returns Page numbers interleaved with `"…"` gap markers.
- */
-function pageWindow(current: number, total: number): (number | "…")[] {
-  const wanted = [1, total, current, current - 1, current + 1];
-  const nums = [...new Set(wanted)].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
-  const out: (number | "…")[] = [];
-  let prev = 0;
-  for (const n of nums) {
-    if (n - prev > 1) out.push("…");
-    out.push(n);
-    prev = n;
-  }
-  return out;
-}
-
-/**
- * Build a board page-link href, preserving the other params and the active sort
- * so paging does not reset the sort (unlike the sort links, which reset to 1).
- * @param basePath - Page path the link points at.
- * @param preserved - Params to keep (day/threshold).
- * @param sort - The active ordering (added unless it is the default `"off"`).
- * @param page - The 1-based page to link to.
- * @returns The href.
- */
-function pageHref(
-  basePath: string,
-  preserved: Record<string, string>,
-  sort: TripSort,
-  page: number,
-): string {
-  // `preserved` already contains trev when set; spread it first so tsort/tpage
-  // can override without losing other preserved params.
-  return buildHref(basePath, {
-    ...preserved,
-    tsort: sort === "off" ? undefined : sort,
-    tpage: page > 1 ? String(page) : undefined,
-  });
-}
-
-/**
- * The badges this page of rows actually carries, for the key under the board.
+ * The badges the shown rows actually carry, for the key under the board.
  * Built from the rows rather than from the props, so the key never names a badge
  * that is not on the page in front of the reader.
- * @param rows - The current page of rows.
+ * @param rows - The rows shown.
  * @param detouredTripIds - Trip ids whose vehicle left its route.
  * @returns The key entries, in the order the rows put them.
  */
@@ -229,14 +182,13 @@ const SORT_NOTE: Record<TripSort, string> = {
  * @param props - Board props.
  * @param props.routeId - Route the trips belong to.
  * @param props.serviceDate - Service day the rows are from, as `YYYY-MM-DD`.
- * @param props.rows - The current page of rows, in display order.
+ * @param props.rows - The rows shown so far, in display order.
+ * @param props.total - How many rows the whole board has.
  * @param props.sort - The active ordering.
  * @param props.isReversed - Whether the active sort direction is reversed from its default.
  * @param props.mode - Route mode, for the heading noun + colour banding.
- * @param props.basePath - Page path the sort + page links point at.
- * @param props.preservedParams - Query params to keep when changing sort/page.
- * @param props.page - The 1-based current page.
- * @param props.totalPages - Total number of pages.
+ * @param props.basePath - Page path the sort and show-more links point at.
+ * @param props.preservedParams - Query params to keep when changing the sort or length.
  * @param props.liveTripIds - Unresolved set of trip ids currently broadcasting a position.
  * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
  * @returns The board element.
@@ -245,22 +197,22 @@ export function WorstTripsBoard({
   routeId,
   serviceDate,
   rows,
+  total,
   sort,
   isReversed = false,
   mode,
   basePath,
   preservedParams,
-  page,
-  totalPages,
   liveTripIds,
   detouredTripIds,
 }: WorstTripsBoardProps): JSX.Element {
   const noun = isMode(mode) ? MODE_NOUN[mode] : "Services";
   // The board as it stands, for a run's link to hand back to this page.
+  const tsort = sort === "off" ? undefined : sort;
   const view = tripBoardView({
     ...preservedParams,
-    tsort: sort === "off" ? undefined : sort,
-    tpage: page > 1 ? String(page) : undefined,
+    tsort,
+    [SHOWN_PARAM]: rows.length > LIST_PAGE_SIZE ? String(rows.length) : undefined,
   });
   /**
    * A run's trip page, carrying the board's view for the way back.
@@ -282,7 +234,6 @@ export function WorstTripsBoard({
               ...preservedParams,
               tsort: s.key === "off" ? undefined : s.key,
               trev: isActive && !isReversed ? "1" : undefined,
-              tpage: undefined,
             });
             return (
               <ChipLink key={s.key} href={href} active={isActive} className="text-xs">
@@ -425,49 +376,20 @@ export function WorstTripsBoard({
         </>
       )}
       <BadgeKey items={badgeKey(rows, detouredTripIds)} />
-      {totalPages > 1 && (
-        <nav
-          className="mt-3 flex flex-wrap items-center justify-center gap-1"
-          aria-label="Trip pages"
-        >
-          {page > 1 && (
-            <ChipLink
-              href={pageHref(basePath, preservedParams, sort, page - 1)}
-              className="chip-icon"
-              ariaLabel="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </ChipLink>
-          )}
-          {pageWindow(page, totalPages).map((p, i) =>
-            p === "…" ? (
-              <span key={`gap-${i}`} className="px-1 text-at-muted">
-                …
-              </span>
-            ) : (
-              // `aria-current="page"` rather than "true": these are pages of a
-              // list, which is the token's own case.
-              <ChipLink
-                key={p}
-                href={pageHref(basePath, preservedParams, sort, p)}
-                active={p === page}
-                current="page"
-                className="tabular-nums"
-              >
-                {p}
-              </ChipLink>
-            ),
-          )}
-          {page < totalPages && (
-            <ChipLink
-              href={pageHref(basePath, preservedParams, sort, page + 1)}
-              className="chip-icon"
-              ariaLabel="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </ChipLink>
-          )}
-        </nav>
+      {rows.length < total && (
+        <div className="mt-3 flex justify-center">
+          <Link
+            href={buildHref(basePath, {
+              ...preservedParams,
+              tsort,
+              [SHOWN_PARAM]: String(rows.length + LIST_PAGE_SIZE),
+            })}
+            scroll={false}
+            className="chip chip-off"
+          >
+            Show {Math.min(LIST_PAGE_SIZE, total - rows.length)} more of {total - rows.length}
+          </Link>
+        </div>
       )}
     </section>
   );

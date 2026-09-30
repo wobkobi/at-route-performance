@@ -34,7 +34,7 @@ type RunRow = Extract<TripBoardRow, { kind: "run" }>;
 /**
  * The route page params that say how its trip board is being read: the travel
  * direction, the part of the day, the on-time threshold, and the board's sort,
- * sort direction and page. A run's link carries them and the trip page's back
+ * sort direction and length. A run's link carries them and the trip page's back
  * link hands them back, so returning from a run lands on the board as it was
  * left. Every param the route page narrows the board with belongs here; `hours`
  * narrows which runs are listed, so leaving it out returned the reader to an
@@ -46,7 +46,7 @@ export const TRIP_BOARD_VIEW_PARAMS = [
   "thresholdSec",
   "tsort",
   "trev",
-  "tpage",
+  "show",
 ] as const;
 
 /**

@@ -57,6 +57,7 @@ import {
 } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
+import { parseShown } from "@/lib/page/filter-params";
 import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import { dayRangeNav, periodRangeNav, type RangeWindow } from "@/lib/page/range";
@@ -147,9 +148,6 @@ export async function generateStaticParams(): Promise<{ id: string }[]> {
   return (slugs.length > 0 ? slugs : FALLBACK_ROUTES).map((id) => ({ id }));
 }
 
-/** Trips shown per page on the "of the day" board. */
-const PAGE_SIZE = 10;
-
 /** Upper bound on the day's runs fetched for the paginated board. */
 const TRIPS_FETCH_CAP = 500;
 
@@ -158,7 +156,8 @@ interface StatsSearchParams {
   thresholdSec?: string;
   day?: string;
   tsort?: string;
-  tpage?: string;
+  /** Trips the board is showing, in whole steps of the list length. */
+  show?: string;
   /** Reverse the active sort direction when "1". */
   trev?: string;
   /** Travel direction id to narrow the page to; unset for both. */
@@ -359,7 +358,7 @@ export default async function RoutePage({
       ? Promise.resolve<LiveVehicle[]>([])
       : getLiveVehicles().catch(() => []);
   // Narrowed to this route and handed to the board unresolved: the rows, the
-  // sort chips and the pager are all already in hand, so only the LIVE badges
+  // sort chips and the show-more link are all already in hand, so only the LIVE badges
   // wait on AT. `vehiclesPromise` already swallows its own failure, so this
   // cannot reject.
   const liveTripIdsPromise = vehiclesPromise.then(
@@ -568,13 +567,7 @@ export default async function RoutePage({
 
   const totalTrips = dirTrips.length;
   const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
-  const totalPages = Math.max(1, Math.ceil(boardRows.length / PAGE_SIZE));
-  const requestedPage = Number.parseInt(sp.tpage ?? "1", 10);
-  const tripPage = Math.min(
-    Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1),
-    totalPages,
-  );
-  const pageRows = boardRows.slice((tripPage - 1) * PAGE_SIZE, tripPage * PAGE_SIZE);
+  const shownRows = boardRows.slice(0, parseShown(sp.show));
 
   // The board sets `tsort` itself, so everything else about the view carries.
   const tripPreserved: Record<string, string> = {
@@ -820,14 +813,13 @@ export default async function RoutePage({
               liveTripIds={liveTripIdsPromise}
               routeId={slug}
               serviceDate={serviceDate}
-              rows={pageRows}
+              rows={shownRows}
+              total={boardRows.length}
               sort={tripSort}
               isReversed={isReversed}
               mode={routeMode}
               basePath={routePath}
               preservedParams={tripPreserved}
-              page={tripPage}
-              totalPages={totalPages}
               detouredTripIds={new Set(detouredTripIds)}
             />
             {tripsCapped && (

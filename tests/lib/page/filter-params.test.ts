@@ -50,14 +50,14 @@ describe("the carried lists", () => {
 
 describe("parseShown", () => {
   it("reads the row count back as a whole number of steps", () => {
-    expect(parseShown(undefined, 30)).toBe(30);
-    expect(parseShown(null, 30)).toBe(30);
-    expect(parseShown("", 30)).toBe(30);
-    expect(parseShown("nope", 30)).toBe(30);
-    expect(parseShown("-30", 30)).toBe(30);
-    expect(parseShown("30", 30)).toBe(30);
-    expect(parseShown("90", 30)).toBe(90);
+    expect(parseShown(undefined)).toBe(30);
+    expect(parseShown(null)).toBe(30);
+    expect(parseShown("")).toBe(30);
+    expect(parseShown("nope")).toBe(30);
+    expect(parseShown("-30")).toBe(30);
+    expect(parseShown("30")).toBe(30);
+    expect(parseShown("90")).toBe(90);
     // A hand-edited count lands on one the button itself could have reached.
-    expect(parseShown("31", 30)).toBe(60);
+    expect(parseShown("31")).toBe(60);
   });
 });

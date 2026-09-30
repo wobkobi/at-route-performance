@@ -1,5 +1,5 @@
 // src/components/Chip.tsx
-// The two chip contracts every filter, sort and pager row on the site is built
+// The two chip contracts every filter and sort row on the site is built
 // from: a link that narrows or reorders what is on screen, and a button that
 // toggles client state. Both existed as a dozen hand-rolled copies, and each copy
 // was a chance to leave out one of the three things a chip needs - the `chip`
@@ -7,17 +7,16 @@
 // all three at various times.
 //
 // A tab for a view the reader is *on* is a third contract and deliberately not
-// here: SiteNav, ShameHeader, RangeControls and the route page's Day/Week toggle
-// render the active one as a plain `<span aria-current="page">` rather than a
-// link, so clicking where you already are cannot rebuild the page and drop the
-// board sort with it.
+// here: SiteNav, ShameHeader and RangeControls render the active one as a plain
+// `<span aria-current="page">` rather than a link, so clicking where you already
+// are cannot rebuild the page and drop the board sort with it.
 
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 
 /**
- * A chip that links: one option of a filter, sort or pager row.
+ * A chip that links: one option of a filter or sort row.
  *
  * `scroll={false}` is the default because every one of these narrows or reorders
  * something the reader is already looking at, and jumping to the top of the page
@@ -25,8 +24,6 @@ import type { JSX, ReactNode } from "react";
  * @param root0 - Props.
  * @param root0.href - Where the chip goes.
  * @param root0.active - Whether this is the chosen option.
- * @param root0.current - The `aria-current` token when active: `"true"` for one
- *   option of a set, `"page"` for a page number in a pager.
  * @param root0.activeClass - Classes for the active state, for a row that colours
  *   its options (late red, early amber) rather than using the chip's own fill.
  * @param root0.className - Extra classes, usually a text size or `tabular-nums`.
@@ -39,7 +36,6 @@ import type { JSX, ReactNode } from "react";
 export function ChipLink({
   href,
   active = false,
-  current = "true",
   activeClass = "chip-on",
   className,
   prefetch,
@@ -49,7 +45,6 @@ export function ChipLink({
 }: {
   href: string;
   active?: boolean;
-  current?: "true" | "page";
   activeClass?: string;
   className?: string;
   prefetch?: boolean;
@@ -62,7 +57,7 @@ export function ChipLink({
       href={href}
       prefetch={prefetch}
       scroll={scroll}
-      aria-current={active ? current : undefined}
+      aria-current={active ? "true" : undefined}
       aria-label={ariaLabel}
       className={cn("chip", active ? activeClass : "chip-off", className)}
     >

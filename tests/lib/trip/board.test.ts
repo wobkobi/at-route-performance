@@ -217,10 +217,10 @@ describe("tripBoardView", () => {
         thresholdSec: "",
         tsort: "late",
         trev: undefined,
-        tpage: "2",
+        show: "60",
         mode: "BUS",
       }),
-    ).toEqual({ heading: "1", tsort: "late", tpage: "2" });
+    ).toEqual({ heading: "1", tsort: "late", show: "60" });
   });
 
   it("skips a repeated param rather than guessing which value", () => {

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.20] - 2026-10-01
+
+### Changed
+
+- Every list shows 30 rows and adds 30 per press, and the route page's trips board uses the same
+  show-more link instead of numbered pages.
+
 ## [2.41.19] - 2026-10-01
 
 ### Changed

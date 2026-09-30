@@ -19,19 +19,21 @@ export const SECTION_PARAMS = [...VIEW_PARAMS, "mode", "school"] as const;
 /** The query param holding how many rows a show-more list is showing. */
 export const SHOWN_PARAM = "show";
 
+/** Rows every show-more list opens with, and how many each press adds. */
+export const LIST_PAGE_SIZE = 30;
+
 /**
  * Read how many rows a show-more list was showing. Rounded up to a whole number
  * of steps so a hand-edited `show` still lands on a count the button itself
  * could reach, and floored at one step. Nothing caps it: the count is only ever
  * used to slice, so a number past the end of the list simply shows all of it.
  * @param raw - The `show` param, if present.
- * @param step - Rows the list opens with and each press adds.
- * @returns The row count.
+ * @returns The row count, a whole number of {@link LIST_PAGE_SIZE} steps.
  */
-export function parseShown(raw: string | null | undefined, step: number): number {
+export function parseShown(raw: string | null | undefined): number {
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= step) return step;
-  return Math.ceil(n / step) * step;
+  if (!Number.isFinite(n) || n <= LIST_PAGE_SIZE) return LIST_PAGE_SIZE;
+  return Math.ceil(n / LIST_PAGE_SIZE) * LIST_PAGE_SIZE;
 }
 
 /**

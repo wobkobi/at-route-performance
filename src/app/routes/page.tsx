@@ -33,7 +33,7 @@ import {
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
-import { PAGE_SIZE, parseExplorerFilters, type ExplorerRoute } from "@/lib/route/explorer";
+import { parseExplorerFilters, type ExplorerRoute } from "@/lib/route/explorer";
 import { successorSlug } from "@/lib/route/lineage";
 import { routeSlug } from "@/lib/route/slug";
 import { isSchoolBus } from "@/lib/school-bus";
@@ -187,7 +187,7 @@ export default async function RoutesPage({
         rows={explorerRows}
         operators={directory.map(({ slug, name }) => ({ slug, name }))}
         initialFilters={parseExplorerFilters(sp)}
-        initialShown={parseShown(sp.show, PAGE_SIZE)}
+        initialShown={parseShown(sp.show)}
         routeParams={routeLinkParams(window, serviceDate, period)}
         running={getLiveVehicles()
           .then(liveRouteSlugs)

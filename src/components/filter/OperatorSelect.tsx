@@ -31,7 +31,7 @@ export function OperatorSelect({
   const router = useRouter();
 
   /**
-   * Navigate to the chosen operator, back to the first page of rows.
+   * Navigate to the chosen operator, back to the list's first rows.
    * @param e - The change event.
    */
   function choose(e: ChangeEvent<HTMLSelectElement>): void {

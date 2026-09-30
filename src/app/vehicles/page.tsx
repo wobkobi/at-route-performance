@@ -27,7 +27,13 @@ import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
-import { parseShown, pickParams, SHOWN_PARAM, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
+import {
+  LIST_PAGE_SIZE,
+  parseShown,
+  pickParams,
+  SHOWN_PARAM,
+  VEHICLE_LIST_PARAMS,
+} from "@/lib/page/filter-params";
 import { routeHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -61,9 +67,6 @@ export const metadata: Metadata = {
   description:
     "Auckland's buses, trains and ferries ranked by how hard they were worked: hours in service, runs and stops.",
 };
-
-/** Rows per page; "Show more" adds another page. */
-const PAGE_SIZE = 50;
 
 /** The table's sortable columns; the chips above offer the four figures too. */
 const COLUMNS: SortColumn<VehicleTotal>[] = [
@@ -120,7 +123,7 @@ export default async function VehiclesPage({
   }
   const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
-  const shown = parseShown(sp.show, PAGE_SIZE);
+  const shown = parseShown(sp.show);
   const filter = { mode, schools };
   const [latest, earliest, [operators, directory]] = await Promise.all([
     getLatestEventDate(),
@@ -199,7 +202,7 @@ export default async function VehiclesPage({
 
   // How the list is being read, for a vehicle's link to hand back on its way out.
   const listState = pickParams(
-    { ...filters, ...keep, [SHOWN_PARAM]: shown > PAGE_SIZE ? String(shown) : undefined },
+    { ...filters, ...keep, [SHOWN_PARAM]: shown > LIST_PAGE_SIZE ? String(shown) : undefined },
     VEHICLE_LIST_PARAMS,
   );
   const modePreserved = stripUnset({
@@ -366,12 +369,13 @@ export default async function VehiclesPage({
               ...view,
               ...filters,
               ...keep,
-              show: String(shown + PAGE_SIZE),
+              show: String(shown + LIST_PAGE_SIZE),
             })}
             scroll={false}
             className="chip chip-off"
           >
-            Show more
+            Show {Math.min(LIST_PAGE_SIZE, ranked.length - rows.length)} more of{" "}
+            {ranked.length - rows.length}
           </Link>
         )}
       </div>

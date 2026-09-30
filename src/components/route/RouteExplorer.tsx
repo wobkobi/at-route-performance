@@ -25,7 +25,7 @@ import {
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
-import { SHOWN_PARAM } from "@/lib/page/filter-params";
+import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
 import { useUrlParams } from "@/lib/page/use-url-param";
 import { summariseRows } from "@/lib/rankings";
@@ -38,7 +38,6 @@ import {
   EXPLORER_VIEWS,
   explorerQuery,
   filterRoutes,
-  PAGE_SIZE,
   sortRoutes,
   type ExplorerFilters,
   type ExplorerRoute,
@@ -202,7 +201,7 @@ export function RouteExplorer({
   // in state comes back as the first page after opening a route and stepping back.
   useUrlParams(OWNED_PARAMS, {
     ...explorerQuery(filters),
-    ...(shown > PAGE_SIZE ? { [SHOWN_PARAM]: String(shown) } : {}),
+    ...(shown > LIST_PAGE_SIZE ? { [SHOWN_PARAM]: String(shown) } : {}),
   });
 
   /**
@@ -211,7 +210,7 @@ export function RouteExplorer({
    */
   const update = (patch: Partial<ExplorerFilters>): void => {
     setFilters((f) => ({ ...f, ...patch }));
-    setShown(PAGE_SIZE);
+    setShown(LIST_PAGE_SIZE);
   };
 
   /**
@@ -592,10 +591,10 @@ export function RouteExplorer({
         <div className="flex justify-center">
           <button
             type="button"
-            onClick={() => setShown((n) => n + PAGE_SIZE)}
+            onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
             className="chip chip-off"
           >
-            Show {Math.min(PAGE_SIZE, sorted.length - shown)} more of {sorted.length - shown}
+            Show {Math.min(LIST_PAGE_SIZE, sorted.length - shown)} more of {sorted.length - shown}
           </button>
         </div>
       )}

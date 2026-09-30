@@ -156,9 +156,6 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   return out;
 }
 
-/** Routes the list opens with, and how many each "Show more" press adds. */
-export const PAGE_SIZE = 40;
-
 /** The query param names {@link explorerQuery} can write. */
 export const EXPLORER_PARAMS = [
   "q",

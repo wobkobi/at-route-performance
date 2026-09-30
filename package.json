@@ -1,6 +1,6 @@
 {
   "name": "at-route-performance",
-  "version": "2.41.19",
+  "version": "2.41.20",
   "private": true,
   "type": "module",
   "scripts": {

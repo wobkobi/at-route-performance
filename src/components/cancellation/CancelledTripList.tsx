@@ -14,7 +14,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
-import { parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
+import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import { routeDisplayName } from "@/lib/route/slug";
@@ -39,9 +39,6 @@ import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Fragment, useMemo, useState, type JSX } from "react";
-
-/** Trips shown before "Show more", and how many each press adds. */
-const PAGE_SIZE = 30;
 
 /** Props for {@link CancelledTripList}. */
 export interface CancelledTripListProps {
@@ -106,8 +103,8 @@ export function CancelledTripList({
   // Seeded from the live URL rather than a server prop: Back restores the page
   // from the router cache, rendered before `show` was written into the URL.
   const searchParams = useSearchParams();
-  const [shown, setShown] = useState(() => parseShown(searchParams.get(SHOWN_PARAM), PAGE_SIZE));
-  useUrlParam(SHOWN_PARAM, shown > PAGE_SIZE ? String(shown) : null);
+  const [shown, setShown] = useState(() => parseShown(searchParams.get(SHOWN_PARAM)));
+  useUrlParam(SHOWN_PARAM, shown > LIST_PAGE_SIZE ? String(shown) : null);
   const { visible, notDue } = useMemo(() => {
     const staged = stage ? trips.filter((t) => t.stage === stage) : trips;
     if (multiDay) return { visible: [...staged].reverse(), notDue: 0 };
@@ -250,10 +247,10 @@ export function CancelledTripList({
         <div className="mt-3 flex justify-center">
           <button
             type="button"
-            onClick={() => setShown((n) => n + PAGE_SIZE)}
+            onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
             className="chip chip-off"
           >
-            Show {Math.min(PAGE_SIZE, visible.length - shown)} more of {visible.length - shown}
+            Show {Math.min(LIST_PAGE_SIZE, visible.length - shown)} more of {visible.length - shown}
           </button>
         </div>
       )}
