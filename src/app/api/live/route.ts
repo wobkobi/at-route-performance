@@ -5,9 +5,9 @@ import { getRecordedLiveTrips } from "@/lib/data/live-stored";
 import { getOperators } from "@/lib/data/operators";
 import { getRouteModeMap, getRouteOperators } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
+import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { mapVehicles } from "@/lib/live-routes";
 import type { Operator } from "@/lib/operators";
-import { getLiveVehicles } from "@/lib/vehicles";
 import { NextResponse } from "next/server";
 
 /**

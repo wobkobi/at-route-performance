@@ -3,9 +3,9 @@
 // route's vehicles on a run and how they sit against the on-time window. Pure,
 // so the live page, the Routes "running now" filter and the tests share one fold.
 
+import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { delayBand } from "@/lib/on-time";
-import { routeSlug } from "@/lib/route-slug";
-import type { LiveVehicle } from "@/lib/vehicles";
+import { routeSlug } from "@/lib/route/slug";
 
 /** A transport mode as the route table stores it. */
 export type LiveMode = "BUS" | "TRAIN" | "FERRY";

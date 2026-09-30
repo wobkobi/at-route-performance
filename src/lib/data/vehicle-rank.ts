@@ -11,8 +11,8 @@ import {
   nzServiceDayString,
   serviceDatesInRange,
 } from "@/lib/time/service-day";
-import type { VehicleRunRow } from "@/lib/vehicle-detail";
-import { type VehicleDayRow, type VehicleTotal, mergeVehicleDays } from "@/lib/vehicle-rank";
+import type { VehicleRunRow } from "@/lib/vehicle/detail";
+import { type VehicleDayRow, type VehicleTotal, mergeVehicleDays } from "@/lib/vehicle/rank";
 
 /** A vehicle's row straight from the pipeline, before its mode is looked up. */
 type RawVehicleDay = Omit<VehicleDayRow, "m">;

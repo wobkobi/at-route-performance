@@ -7,7 +7,7 @@
 
 import { ChipLink } from "@/components/Chip";
 import { ModeIcon } from "@/components/ModeIcon";
-import { RangeControls } from "@/components/RangeControls";
+import { RangeControls } from "@/components/date/RangeControls";
 import { cn } from "@/lib/cn";
 import {
   bestColumns,
@@ -29,7 +29,7 @@ import {
 } from "@/lib/data";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
@@ -37,8 +37,8 @@ import {
   routeLinkQuery,
   windowPhrase,
   type RangeNav,
-} from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/range";
+import { routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";

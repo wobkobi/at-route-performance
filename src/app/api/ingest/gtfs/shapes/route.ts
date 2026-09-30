@@ -7,7 +7,7 @@
 // far past the external scheduler's 30s request timeout); the outcome is
 // recorded in IngestRun and the function logs.
 
-import { requireCronAuth } from "@/lib/auth";
+import { requireCronAuth } from "@/lib/cron/auth";
 import { syncShapes, syncTripMeta } from "@/lib/feed/ingest";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { after, NextResponse } from "next/server";

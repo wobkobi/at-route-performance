@@ -8,11 +8,11 @@
 // runs this, so pointing cron-job.org at production warms the production cache.
 // Not an ingest: it writes no data and records no IngestRun.
 
-import { requireCronAuth } from "@/lib/auth";
+import { requireCronAuth } from "@/lib/cron/auth";
+import { forEachLimited, pageWarmPaths } from "@/lib/cron/warm";
 import { cachedWorstRoutesOfDay, cachedWorstStopsOfDay, cachedWorstTripsOfDay } from "@/lib/data";
-import { WEEK_REVALIDATE } from "@/lib/shame-page";
+import { WEEK_REVALIDATE } from "@/lib/page/shame";
 import { nzServiceDayString } from "@/lib/time/service-day";
-import { forEachLimited, pageWarmPaths } from "@/lib/warm";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any

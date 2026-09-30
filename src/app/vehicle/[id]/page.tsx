@@ -2,12 +2,12 @@
 // One vehicle: what it is, where it is now, and how hard it was worked over a
 // day, week or month - its runs on a day, or its days across a week or month.
 
+import { RangeControls } from "@/components/date/RangeControls";
 import { ChevronLeft } from "@/components/icons";
-import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
+import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
+import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
-import { RangeControls } from "@/components/RangeControls";
 import { SortHeader } from "@/components/SortHeader";
-import StopMapWrapper from "@/components/StopMapWrapper";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import { cn } from "@/lib/cn";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
+import { getLiveVehicleMap, type LiveVehicle } from "@/lib/feed/vehicles";
 import {
   formatDuration,
   formatHours,
@@ -35,17 +36,17 @@ import {
 } from "@/lib/format";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
   routeLinkQuery,
   type RangeNav,
-} from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/range";
+import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
+import { routeSlug } from "@/lib/route/slug";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
@@ -56,7 +57,7 @@ import {
   type DateRange,
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { VehicleMode } from "@/lib/vehicle-counts";
+import type { VehicleMode } from "@/lib/vehicle/counts";
 import {
   liveRunHref,
   occupancyLabel,
@@ -65,10 +66,9 @@ import {
   vehicleName,
   vehicleRank,
   type VehicleRunRow,
-} from "@/lib/vehicle-detail";
-import { mergeVehicleDays, sortVehicles, type VehicleDayRow } from "@/lib/vehicle-rank";
-import { vehicleStatus } from "@/lib/vehicle-status";
-import { getLiveVehicleMap, type LiveVehicle } from "@/lib/vehicles";
+} from "@/lib/vehicle/detail";
+import { mergeVehicleDays, sortVehicles, type VehicleDayRow } from "@/lib/vehicle/rank";
+import { vehicleStatus } from "@/lib/vehicle/status";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";

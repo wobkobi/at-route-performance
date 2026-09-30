@@ -37,9 +37,8 @@ import {
   resolveShownDay,
   serviceHourSpan,
   type HourSlot,
-} from "@/lib/page-nav";
-import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
-import type { DelayDirection } from "@/lib/rankings";
+} from "@/lib/page/nav";
+import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
   countById,
@@ -56,7 +55,8 @@ import {
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
-} from "@/lib/shame-page";
+} from "@/lib/page/shame";
+import type { DelayDirection } from "@/lib/rankings";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";

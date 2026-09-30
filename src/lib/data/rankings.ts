@@ -19,7 +19,7 @@ import {
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
 import { applyRoutePenalties } from "@/lib/rider-wait";
-import { foldLineageRows } from "@/lib/route-lineage";
+import { foldLineageRows } from "@/lib/route/lineage";
 import {
   type DateRange,
   nzServiceDayRange,

@@ -11,7 +11,7 @@ import {
   SERVICE_START_HOUR,
   shiftWeek,
 } from "@/lib/time/service-day";
-import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-id";
+import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip/id";
 
 /** AT's GTFS `start_date`, `YYYYMMDD`. */
 const START_DATE_RE = /^(\d{4})(\d{2})(\d{2})$/;

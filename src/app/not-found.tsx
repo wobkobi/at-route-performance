@@ -1,8 +1,8 @@
 // src/app/not-found.tsx
 // Global 404 page: a directory of every page, and a way on to the route list.
 
-import { viewQuery } from "@/lib/route-explorer";
-import { SITE_PAGES } from "@/lib/site-nav";
+import { SITE_PAGES } from "@/lib/page/site-nav";
+import { viewQuery } from "@/lib/route/explorer";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";

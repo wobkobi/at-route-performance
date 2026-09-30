@@ -13,11 +13,11 @@
 import { routeColour } from "@/components/ModeIcon";
 import { getDirectoryRoutes } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
-import { lineName } from "@/lib/line-name";
 import { type RouteShape, routePaths } from "@/lib/map/route-branches";
 import { laneRuns } from "@/lib/map/shared-roads";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route-slug";
+import { lineName } from "@/lib/route/line-name";
+import { routeSlug } from "@/lib/route/slug";
 import type { NetworkLine } from "@/types/api";
 
 /** How far from the line a bend may sit before the overlay drops it, in metres. */

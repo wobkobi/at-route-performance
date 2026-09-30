@@ -6,14 +6,13 @@
 // so the mode and school-bus filters flow through all three alike. The day view
 // opens on the same day as every other day page (see resolveShownDay).
 
-import { CancellationSummary } from "@/components/CancellationSummary";
-import { CancelledBoard } from "@/components/CancelledBoard";
-import { CancelledTripList } from "@/components/CancelledTripList";
+import { CancellationSummary } from "@/components/cancellation/CancellationSummary";
+import { CancelledBoard } from "@/components/cancellation/CancelledBoard";
+import { CancelledTripList } from "@/components/cancellation/CancelledTripList";
+import { RangeControls } from "@/components/date/RangeControls";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronRight } from "@/components/icons";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
-import { RangeControls } from "@/components/RangeControls";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
-import { CANCELLATION_STAGES } from "@/lib/cancellation";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -22,18 +21,19 @@ import {
   type NetworkCancelledTrip,
 } from "@/lib/data";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
   routeLinkQuery,
   type RangeNav,
-} from "@/lib/range-page";
+} from "@/lib/page/range";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow } from "@/lib/time/request-now";
 import { nzServiceDayString, type DateRange } from "@/lib/time/service-day";
+import { CANCELLATION_STAGES } from "@/lib/trip/cancellation";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";

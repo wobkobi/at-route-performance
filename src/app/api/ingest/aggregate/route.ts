@@ -1,6 +1,6 @@
 // src/app/api/ingest/aggregate/route.ts
 // Cron-only POST that rolls completed NZ service days into per-route
-// DailyRouteSummary rows (see lib/aggregate.ts). Without `?date=` it covers
+// DailyRouteSummary rows (see lib/cron/aggregate.ts). Without `?date=` it covers
 // yesterday plus up to two earlier days that have events but no summary, so a
 // night the cron missed, or a day whose ghost pass failed, is caught up by the
 // next run rather than lost. Each day is its own unit: it succeeds or fails on
@@ -12,10 +12,10 @@ import {
   catchUpDates,
   dayHasEvents,
   daySummarised,
-} from "@/lib/aggregate";
-import { requireCronAuth } from "@/lib/auth";
+} from "@/lib/cron/aggregate";
+import { requireCronAuth } from "@/lib/cron/auth";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
-import { resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay } from "@/lib/page/nav";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 import { after, NextResponse } from "next/server";
 

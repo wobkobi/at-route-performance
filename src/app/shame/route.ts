@@ -3,7 +3,7 @@
 // the whole of it, so a reader arriving here is sent to the trips board with the
 // params those boards read.
 
-import { SHAME_PARAMS } from "@/lib/shame-page";
+import { SHAME_PARAMS } from "@/lib/page/shame";
 import { buildHref } from "@/lib/utils";
 import { NextResponse, type NextRequest } from "next/server";
 

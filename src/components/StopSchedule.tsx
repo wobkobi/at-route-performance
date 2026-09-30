@@ -7,10 +7,9 @@
 
 import { ChipLink } from "@/components/Chip";
 import { cn } from "@/lib/cn";
-import { departureLabel } from "@/lib/departure-label";
 import type { StopDepartures } from "@/lib/feed/at-stop-trips";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { departuresFromNow } from "@/lib/stop/departure-board";
 import {
   afterMidnightNote,
@@ -18,6 +17,7 @@ import {
   serviceDateLabel,
   serviceDayLabel,
 } from "@/lib/time/service-day";
+import { departureLabel } from "@/lib/trip/departure-label";
 import Link from "next/link";
 import { Fragment, type JSX } from "react";
 

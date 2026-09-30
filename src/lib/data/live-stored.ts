@@ -5,9 +5,9 @@
 // trip page empty, so the map does not draw it.
 
 import { prisma, runCommand } from "@/lib/db";
+import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { onARun } from "@/lib/live-routes";
 import { unstable_cache } from "@/lib/mem-cache";
-import { getLiveVehicles } from "@/lib/vehicles";
 
 /**
  * The trip ids of live runs with at least one arrival on record, on any day.

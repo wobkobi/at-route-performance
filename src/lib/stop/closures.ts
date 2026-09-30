@@ -22,7 +22,7 @@ import {
 import { MIN_ARRIVALS_AFTER, MIN_SIGHTINGS } from "@/lib/off-route";
 import { parseStartDate } from "@/lib/time/run-day";
 import { nzServiceDayRange, SERVICE_START_HOUR } from "@/lib/time/service-day";
-import { gtfsTimeSeconds } from "@/lib/trip-id";
+import { gtfsTimeSeconds } from "@/lib/trip/id";
 
 /**
  * Separate runs one way that turn a suspected skip or detour into a trend. A

@@ -3,9 +3,9 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { boundFor } from "@/lib/departure-label";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { nzClockTime } from "@/lib/time/service-day";
+import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";

@@ -6,7 +6,7 @@
 // should be presented.
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { isObj, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {

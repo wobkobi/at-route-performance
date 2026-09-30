@@ -1,6 +1,6 @@
 // tests/lib/operator-stats.test.ts
 import { operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
-import type { VehicleTotal } from "@/lib/vehicle-rank";
+import type { VehicleTotal } from "@/lib/vehicle/rank";
 import type { TopRouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
 

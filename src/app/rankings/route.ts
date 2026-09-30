@@ -2,7 +2,7 @@
 // The week and month rankings live on the home page's Week and Month views; old
 // links land there with their filters.
 
-import { parseRangeWindow } from "@/lib/range-page";
+import { parseRangeWindow } from "@/lib/page/range";
 import { buildHref } from "@/lib/utils";
 import { NextResponse, type NextRequest } from "next/server";
 

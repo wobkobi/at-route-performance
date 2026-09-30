@@ -8,12 +8,12 @@
 // nothing. The penalty joins the measured arrivals in every punctuality figure
 // that reads route rows (see applyPenalty).
 
-import type { CancellationStage } from "@/lib/cancellation";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { successorSlug } from "@/lib/route-lineage";
-import { routeSlug } from "@/lib/route-slug";
+import { successorSlug } from "@/lib/route/lineage";
+import { routeSlug } from "@/lib/route/slug";
 import { nzLocalHour } from "@/lib/time/service-day";
 import { isHourInRange, type HourRange } from "@/lib/time/time-of-day";
+import type { CancellationStage } from "@/lib/trip/cancellation";
 import type { PerTripStat } from "@/types/api";
 
 /**

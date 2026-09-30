@@ -9,7 +9,7 @@ import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
 import type { DelayDirection } from "@/lib/rankings";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { type SchoolFilter } from "@/lib/school-bus";
 import {
   STATION_PREFIX,

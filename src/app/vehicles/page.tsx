@@ -3,11 +3,11 @@
 // over a day, week or month - time in service, runs and arrivals.
 
 import { ChipLink } from "@/components/Chip";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
+import { RangeControls } from "@/components/date/RangeControls";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { OperatorSelect } from "@/components/filter/OperatorSelect";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
-import { OperatorSelect } from "@/components/OperatorSelect";
-import { RangeControls } from "@/components/RangeControls";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SortHeader } from "@/components/SortHeader";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
@@ -22,28 +22,28 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
+import { getLiveVehicleMap } from "@/lib/feed/vehicles";
 import { formatDuration, formatHours } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
   routeLinkQuery,
   type RangeNav,
-} from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/range";
+import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
+import { routeSlug } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { sortRows, tableSort, type SortColumn } from "@/lib/table-sort";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
-import { sortVehicles, type VehicleSort, type VehicleTotal } from "@/lib/vehicle-rank";
-import { getLiveVehicleMap } from "@/lib/vehicles";
+import { sortVehicles, type VehicleSort, type VehicleTotal } from "@/lib/vehicle/rank";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { JSX } from "react";

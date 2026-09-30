@@ -7,7 +7,7 @@
 // Usage:
 //   npx tsx --env-file=.env.local scripts/rebuild-daily-summaries.ts 2026-06-19 2026-06-20 ...
 //   (no args = last 7 completed NZ service days)
-import { dailySummaryPipeline, summaryUpsertOps, type DailyStats } from "@/lib/aggregate";
+import { dailySummaryPipeline, summaryUpsertOps, type DailyStats } from "@/lib/cron/aggregate";
 import { throwOnWriteErrors } from "@/lib/db";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";

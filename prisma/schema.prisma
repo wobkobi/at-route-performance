@@ -94,8 +94,8 @@ model ArrivalEvent {
   deviationSec Int
   vehicleId    String?
   /// Carriages (3, 6 or 9) of the train making the visit, read at ingest from
-  /// the coupled units in the vehicle feed (see lib/train-consist.ts). Absent for
-  /// buses and ferries, and for rows written before it was recorded.
+  /// the coupled units in the vehicle feed (see lib/vehicle/train-consist.ts).
+  /// Absent for buses and ferries, and for rows written before it was recorded.
   cars         Int?
   source       String?
   /// The run's own NZ service date (`YYYY-MM-DD`), set at ingest from the trip
@@ -287,8 +287,8 @@ model DailyRouteSummary {
 // part of the day without scanning ArrivalEvent. Counts and sums rather than
 // rates, so any set of hours adds up exactly; the on-time and early counts are
 // already picked by the route's mode. Read and written through raw commands, and
-// the writer creates these indexes itself (lib/aggregate.ts), so the collection
-// works before a schema push.
+// the writer creates these indexes itself (lib/cron/aggregate.ts), so the
+// collection works before a schema push.
 model HourlyRouteSummary {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   routeId        String

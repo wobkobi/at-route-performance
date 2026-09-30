@@ -162,7 +162,7 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
-      // The City Rail Link's retired train lines (src/lib/route-lineage.ts keeps the same pairs,
+      // The City Rail Link's retired train lines (src/lib/route/lineage.ts keeps the same pairs,
       // and a test holds the two together). Every successor has run since 13 September 2026.
       { source: "/route/STH", destination: "/route/S-C", permanent: true },
       { source: "/route/EAST", destination: "/route/E-W", permanent: true },

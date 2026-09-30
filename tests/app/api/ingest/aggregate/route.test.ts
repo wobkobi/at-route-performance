@@ -2,12 +2,12 @@
 // Handler tests for POST /api/ingest/aggregate: auth, date validation, the
 // explicit-date and catch-up forms, and one IngestRun row per day.
 import { POST } from "@/app/api/ingest/aggregate/route";
-import { aggregateDay, dayHasEvents, daySummarised } from "@/lib/aggregate";
+import { aggregateDay, dayHasEvents, daySummarised } from "@/lib/cron/aggregate";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/aggregate", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/aggregate")>()),
+vi.mock("@/lib/cron/aggregate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/cron/aggregate")>()),
   aggregateDay: vi.fn(),
   daySummarised: vi.fn(),
   dayHasEvents: vi.fn(),

@@ -28,7 +28,7 @@ import {
   type RankingFilters,
 } from "@/lib/ranking-filters";
 import { applyRoutePenalties } from "@/lib/rider-wait";
-import { foldLineageRows } from "@/lib/route-lineage";
+import { foldLineageRows } from "@/lib/route/lineage";
 import { schoolAllows, type SchoolFilter } from "@/lib/school-bus";
 import { datesOfType, type DayType } from "@/lib/time/day-type";
 import { NZ_TZ } from "@/lib/time/nz-tz";

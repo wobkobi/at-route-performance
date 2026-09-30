@@ -11,7 +11,7 @@
 //   npx tsx --env-file=.env.local scripts/backfill-hourly-summaries.ts --all
 //   (--all = every completed day from the first day on record; add --dry-run to
 //   list the days without writing)
-import { daySummarised, writeHourlySummary } from "@/lib/aggregate";
+import { daySummarised, writeHourlySummary } from "@/lib/cron/aggregate";
 import { prisma } from "@/lib/db";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";

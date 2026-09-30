@@ -6,7 +6,7 @@
  * Run: npx tsx --env-file=.env.local scripts/check-routes.ts
  * Dev server must be running at http://localhost:3000.
  */
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync } from "fs";

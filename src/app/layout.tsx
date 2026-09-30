@@ -1,10 +1,10 @@
 // src/app/layout.tsx
 // Root layout - AT-branded masthead, page container, and footer wrapping every route.
 
-import { DevHostRedirect } from "@/components/DevHostRedirect";
-import { FooterFreshness } from "@/components/FooterFreshness";
-import { FooterNav } from "@/components/FooterNav";
-import { SiteNav } from "@/components/SiteNav";
+import { DevHostRedirect } from "@/components/layout/DevHostRedirect";
+import { FooterFreshness } from "@/components/layout/FooterFreshness";
+import { FooterNav } from "@/components/layout/FooterNav";
+import { SiteNav } from "@/components/layout/SiteNav";
 import { cn } from "@/lib/cn";
 import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
 import { productionOrigin } from "@/lib/site-url";

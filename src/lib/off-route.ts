@@ -174,7 +174,7 @@ export function findOffRoute(
 /**
  * Arrivals a trip needs after an off-route reading for the reading to count.
  * The feed leaves one predicted next-stop arrival behind a trip that stops
- * reporting (see lib/cancellation.ts), so a second one shows it carried on.
+ * reporting (see lib/trip/cancellation.ts), so a second one shows it carried on.
  */
 export const MIN_ARRIVALS_AFTER = 2;
 

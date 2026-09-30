@@ -12,9 +12,9 @@
 // as well, because the saturation this endpoint exists to catch degrades
 // latency long before it fails outright.
 
-import { recentCleanupRuns } from "@/lib/cleanup";
+import { recentCleanupRuns } from "@/lib/cron/cleanup";
+import { projectCleanupHealth } from "@/lib/cron/health";
 import { prisma } from "@/lib/db";
-import { projectCleanupHealth } from "@/lib/health";
 import { NextResponse } from "next/server";
 import pkg from "../../../../package.json";
 
