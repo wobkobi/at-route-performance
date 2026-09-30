@@ -7,7 +7,7 @@
 // subscription key is read once at module load into the shared header.
 
 import type { Mode } from "@/lib/mode";
-import { sleep } from "@/lib/utils";
+import { retryDelay, sleep } from "@/lib/utils";
 
 // Base URL for AT GTFS v3 JSON:API.
 const AT_V3 = "https://api.at.govt.nz/gtfs/v3";
@@ -95,7 +95,7 @@ async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
 
       if (res.status === 429 || res.status >= 500) {
         if (attempt < MAX_ATTEMPTS - 1) {
-          await sleep(Math.min(60_000, 1000 * 2 ** attempt));
+          await sleep(retryDelay(attempt));
           continue;
         }
         throw new AtHttpError(res.status, url);
@@ -106,7 +106,7 @@ async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
       lastError = err instanceof Error ? err : new Error(String(err));
       const retryable = lastError.name === "TimeoutError" || lastError.message.includes("fetch");
       if (retryable && attempt < MAX_ATTEMPTS - 1) {
-        await sleep(1000 * 2 ** attempt);
+        await sleep(retryDelay(attempt));
         continue;
       }
       throw lastError;

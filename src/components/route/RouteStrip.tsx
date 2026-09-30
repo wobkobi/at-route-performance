@@ -25,7 +25,7 @@ import {
   type StripSide,
 } from "@/lib/strip/route-strip";
 import type { StopSplit } from "@/lib/strip/stop-split";
-import { stripView, type HalfTone, type StripView } from "@/lib/strip/view";
+import { midSentence, stripView, type HalfTone, type StripView } from "@/lib/strip/view";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
@@ -116,16 +116,6 @@ const DIM_TEXT = {
  */
 function breakable(name: string): ReactNode {
   return name.split("/").flatMap((part, i) => (i === 0 ? [part] : ["/", <wbr key={i} />, part]));
-}
-
-/**
- * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
- * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
- * @param heading - The heading.
- * @returns It with a lower-case first letter.
- */
-function midSentence(heading: string): string {
-  return heading.charAt(0).toLowerCase() + heading.slice(1);
 }
 
 /** Props for {@link RouteStrip}. */

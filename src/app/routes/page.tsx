@@ -24,6 +24,7 @@ import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorOf } from "@/lib/operators";
+import { parseShown } from "@/lib/page/filter-params";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
@@ -32,7 +33,7 @@ import {
   routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
-import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route/explorer";
+import { PAGE_SIZE, parseExplorerFilters, type ExplorerRoute } from "@/lib/route/explorer";
 import { successorSlug } from "@/lib/route/lineage";
 import { routeSlug } from "@/lib/route/slug";
 import { isSchoolBus } from "@/lib/school-bus";
@@ -186,7 +187,7 @@ export default async function RoutesPage({
         rows={explorerRows}
         operators={directory.map(({ slug, name }) => ({ slug, name }))}
         initialFilters={parseExplorerFilters(sp)}
-        initialShown={parseShown(sp.show)}
+        initialShown={parseShown(sp.show, PAGE_SIZE)}
         routeParams={routeLinkParams(window, serviceDate, period)}
         running={getLiveVehicles()
           .then(liveRouteSlugs)

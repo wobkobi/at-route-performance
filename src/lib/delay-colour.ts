@@ -56,13 +56,13 @@ const HUE: Record<DelayBand, [number, number, number]> = {
   early: [149, 193, 31], // #95c11f
   ontime: [0, 115, 189], // #0073bd
 };
-/** Page surface the hue fades toward (#ffffff). */
+/** Page surface the hue fades towards (#ffffff). */
 const SURFACE: [number, number, number] = [255, 255, 255];
 /** Neutral colour for a stop with no data (#d1d6da). */
 const NO_DATA = "rgb(209, 214, 218)";
 
 /**
- * A faded colour for a stop: its band hue mixed toward the page surface by how
+ * A faded colour for a stop: its band hue mixed towards the page surface by how
  * far off schedule it ran (more off = stronger), as a concrete `rgb(...)`. No
  * data reads as the neutral border. Shared by the diagram node ring and the map
  * markers so the two always agree.

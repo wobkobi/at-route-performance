@@ -744,7 +744,7 @@ export default function StopMap({
   }, [router]);
 
   // --- Effect 3: smooth-pan to the selected stop (no map rebuild) ---------------
-  // A flyTo with a short duration keeps the context visible while centering.
+  // A flyTo with a short duration keeps the context visible while centring.
   useEffect(() => {
     const state = stateRef.current;
     if (!state || !selectedStopId) return;

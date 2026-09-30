@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.16] - 2026-10-01
+
+### Changed
+
+- One retry delay for the AT fetchers, one set of option-label helpers for the filter lists, one
+  show-more count reader, and a multi-param URL state hook the routes explorer uses.
+
 ## [2.41.15] - 2026-10-01
 
 ### Changed

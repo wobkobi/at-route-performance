@@ -3,6 +3,8 @@
 // stop's zone. Kept apart from the polygons (lib/geo/fare-zone-geo.ts) so the
 // client-side filter can name the zones without shipping the boundaries.
 
+import { isKeyOf, labelsByKey, type KeyedLabel } from "@/lib/collections";
+
 /** A fare zone key. */
 export type FareZoneKey =
   | "city"
@@ -17,7 +19,7 @@ export type FareZoneKey =
   | "aotea";
 
 /** Every zone in display order (fare-zones.json keeps the same order), with AT's name for it. */
-export const FARE_ZONES: ReadonlyArray<{ key: FareZoneKey; label: string }> = [
+export const FARE_ZONES: readonly KeyedLabel<FareZoneKey>[] = [
   { key: "city", label: "City" },
   { key: "isthmus", label: "Isthmus" },
   { key: "lower-north-shore", label: "Lower North Shore" },
@@ -31,9 +33,7 @@ export const FARE_ZONES: ReadonlyArray<{ key: FareZoneKey; label: string }> = [
 ];
 
 /** Zone key to its label. */
-export const FARE_ZONE_LABEL: Record<FareZoneKey, string> = Object.fromEntries(
-  FARE_ZONES.map((z) => [z.key, z.label]),
-) as Record<FareZoneKey, string>;
+export const FARE_ZONE_LABEL = labelsByKey(FARE_ZONES);
 
 /**
  * Whether a string is a zone key.
@@ -41,5 +41,5 @@ export const FARE_ZONE_LABEL: Record<FareZoneKey, string> = Object.fromEntries(
  * @returns True when it names a zone.
  */
 export function isFareZoneKey(value: string): value is FareZoneKey {
-  return FARE_ZONES.some((z) => z.key === value);
+  return isKeyOf(FARE_ZONES, value);
 }

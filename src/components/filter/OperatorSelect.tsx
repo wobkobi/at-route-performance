@@ -1,8 +1,8 @@
 "use client";
 // src/components/filter/OperatorSelect.tsx
 // A drop-down of operators for a server-rendered board: choosing one navigates
-// to the same page with `?op=<slug>`. Seventeen operators make too long a chip
-// row, which is why this is a select where the mode and school filters are chips.
+// to the same page with `?op=<slug>`. Seventeen operators make too long a list
+// for a filter menu of radio options, so this is a native select.
 
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";

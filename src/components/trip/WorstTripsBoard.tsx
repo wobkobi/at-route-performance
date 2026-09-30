@@ -106,7 +106,7 @@ export interface WorstTripsBoardProps {
 
 /**
  * Tooltip for a run's start time when it falls after midnight, naming the
- * service day the run counts toward.
+ * service day the run counts towards.
  * @param iso - The run's scheduled start.
  * @param serviceDate - The board's service day.
  * @returns The tooltip, or undefined before midnight.

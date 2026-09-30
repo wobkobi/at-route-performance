@@ -236,7 +236,7 @@ export default async function TripPage({
     : firstDeparture
       ? formatGtfsTime(firstDeparture)
       : null;
-  // A 12:30am run counts toward the day before, which the date beside it names.
+  // A 12:30am run counts towards the day before, which the date beside it names.
   const departsAfterMidnight = firstServed
     ? isAfterMidnight(new Date(firstServed.scheduled_at))
     : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= SEC_PER_DAY;

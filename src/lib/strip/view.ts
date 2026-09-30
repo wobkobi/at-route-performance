@@ -117,12 +117,12 @@ function headings(down: SideEnds, up: SideEnds): [string, string] {
 }
 
 /**
- * A heading as it reads mid-sentence: "To the start" > "to the start". Only the first letter
- * changes, so a stop's name keeps its capitals.
+ * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
+ * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
  * @param heading - The heading.
  * @returns It with a lower-case first letter.
  */
-function midSentence(heading: string): string {
+export function midSentence(heading: string): string {
   return heading.charAt(0).toLowerCase() + heading.slice(1);
 }
 

@@ -1,4 +1,5 @@
-// Grouping, tallying and median helpers shared across the data and view code.
+// Grouping, tallying and median helpers shared across the data and view code,
+// plus lookups over the fixed key-and-label option lists the filters show.
 
 /**
  * Append a value to a key's list, starting the list on first use. Mutates the
@@ -81,4 +82,61 @@ export function median(values: readonly number[], even: "mean" | "upper" = "mean
   const upper = sorted[mid]!;
   if (sorted.length % 2 === 1 || even === "upper") return upper;
   return (sorted[mid - 1]! + upper) / 2;
+}
+
+/** One choice in a fixed option list: its query key and the label it shows as. */
+export interface KeyedLabel<K extends string> {
+  /** The key, as it appears in a query param. */
+  key: K;
+  /** The label shown for it. */
+  label: string;
+}
+
+/**
+ * An option list as a key-to-label record.
+ * @param list - The options.
+ * @returns Each key's label.
+ */
+export function labelsByKey<K extends string>(list: readonly KeyedLabel<K>[]): Record<K, string> {
+  return Object.fromEntries(list.map((o) => [o.key, o.label])) as Record<K, string>;
+}
+
+/**
+ * Whether a string is one of a list's keys.
+ * @param list - The options.
+ * @param value - The candidate, e.g. from a query param.
+ * @returns True when it names an option.
+ */
+export function isKeyOf<K extends string>(
+  list: readonly KeyedLabel<K>[],
+  value: string | null | undefined,
+): value is K {
+  return list.some((o) => o.key === value);
+}
+
+/**
+ * The label of one key.
+ * @param list - The options.
+ * @param key - The key, or null for none.
+ * @returns Its label, or undefined when the key is not in the list.
+ */
+export function labelOf<K extends string>(
+  list: readonly KeyedLabel<K>[],
+  key: K | null | undefined,
+): string | undefined {
+  return list.find((o) => o.key === key)?.label;
+}
+
+/**
+ * The labels of the chosen keys, in the list's order rather than the order
+ * they were chosen, so a summary reads the same however the reader got there.
+ * @param list - The options.
+ * @param keys - The chosen keys.
+ * @returns Their labels.
+ */
+export function labelsOf<K extends string>(
+  list: readonly KeyedLabel<K>[],
+  keys: readonly K[],
+): string[] {
+  return list.filter((o) => keys.includes(o.key)).map((o) => o.label);
 }

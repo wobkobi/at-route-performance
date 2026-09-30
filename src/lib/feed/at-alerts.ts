@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { SEC_PER_DAY } from "@/lib/time/service-day";
-import { isObj, sleep } from "@/lib/utils";
+import { isObj, retryDelay, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {
   text: string;
@@ -333,7 +333,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
 
       // Retry rate limiting (429) and transient server errors (5xx) with backoff
       if (res.status === 429 || res.status >= 500) {
-        const backoffMs = Math.min(60_000, 1000 * Math.pow(2, attempt)); // 1s, 2s, 4s, max 60s
+        const backoffMs = retryDelay(attempt);
         console.warn(
           `[AT Alerts] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );

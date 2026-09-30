@@ -6,6 +6,7 @@
 // reads live in the route handler.
 import { SITE_NAME } from "@/lib/copy";
 import { MODE_NOUN, parseMode, type Mode } from "@/lib/mode";
+import { pickParams, SECTION_PARAMS, VIEW_PARAMS } from "@/lib/page/filter-params";
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page/nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
@@ -271,13 +272,7 @@ export function homeCardPath(sp: HomeCardParams): string {
  * @returns The card state.
  */
 export function parseHomeCardQuery(query: URLSearchParams): HomeCard {
-  return parseHomeCard({
-    window: query.get("window") ?? undefined,
-    day: query.get("day") ?? undefined,
-    period: query.get("period") ?? undefined,
-    mode: query.get("mode") ?? undefined,
-    school: query.get("school") ?? undefined,
-  });
+  return parseHomeCard(pickParams(query, SECTION_PARAMS));
 }
 
 /** Shame pages a card URL may name. */
@@ -300,20 +295,14 @@ export function parseCardQuery(query: URLSearchParams): Card {
    */
   const get = (k: string): string | undefined => query.get(k) ?? undefined;
   if (kind === "route" && id) {
-    return parseRouteCard(id, { window: get("window"), day: get("day"), period: get("period") });
+    return parseRouteCard(id, pickParams(query, VIEW_PARAMS));
   }
   if (kind === "trip" && id) {
     const tripId = cleanId(query.get("trip"));
     if (tripId) return { kind: "trip", id, tripId, day: resolveRequestedDay(get("day")) };
   }
   if (kind === "stop" && id) return parseStopCard(id, { day: get("day") });
-  const windowed: HomeCardParams = {
-    window: get("window"),
-    day: get("day"),
-    period: get("period"),
-    mode: get("mode"),
-    school: get("school"),
-  };
+  const windowed: HomeCardParams = pickParams(query, SECTION_PARAMS);
   const board = SHAME_BOARDS.find((b) => b === get("board"));
   if (kind === "shame" && board) return parseShameCard(board, windowed);
   const page = get("page");

@@ -20,6 +20,21 @@ export const SECTION_PARAMS = [...VIEW_PARAMS, "mode", "school"] as const;
 export const SHOWN_PARAM = "show";
 
 /**
+ * Read how many rows a show-more list was showing. Rounded up to a whole number
+ * of steps so a hand-edited `show` still lands on a count the button itself
+ * could reach, and floored at one step. Nothing caps it: the count is only ever
+ * used to slice, so a number past the end of the list simply shows all of it.
+ * @param raw - The `show` param, if present.
+ * @param step - Rows the list opens with and each press adds.
+ * @returns The row count.
+ */
+export function parseShown(raw: string | null | undefined, step: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= step) return step;
+  return Math.ceil(n / step) * step;
+}
+
+/**
  * How the vehicles list was left: its filters, sort and length. A vehicle page
  * carries these on every link that stays on it, so its back link returns to the
  * same list rather than the default board.

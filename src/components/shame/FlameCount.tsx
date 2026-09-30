@@ -12,7 +12,7 @@ export type FlameTier = "day" | "week" | "streak";
  *   day    fills 0.00-0.40  (practical max ~8 hourly slots)
  *   week   fills 0.40-0.70  (hard max 7 days)
  *   streak fills 0.70-1.00  (unbounded; count-2 so streak-2 = tier floor)
- * Within each tier the count scales the severity toward that tier's ceiling.
+ * Within each tier the count scales the severity towards that tier's ceiling.
  * @param tier - Severity tier.
  * @param count - Repeat count or streak length.
  * @returns Normalised 0-1 severity value.
@@ -99,7 +99,7 @@ export function FlameCount({
       {label && (
         /*
           Hidden with `display: none`, not with `opacity-0`: an opacity-0 box is
-          still laid out and still counts toward the page's scrollable width, so
+          still laid out and still counts towards the page's scrollable width, so
           a label wider than the badge's room gave the whole board a horizontal
           scrollbar while the tooltip was invisible. Bounded and wrapping for the
           same reason - these labels grow with the route name, the day count and

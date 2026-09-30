@@ -40,7 +40,7 @@ export interface ShameRowContext {
 /**
  * A day-board row's hour, such as "9am". The hours after midnight close the
  * board rather than open it, so each carries a tooltip naming the service day
- * it counts toward. Given an href, the hour is the row's main link (see
+ * it counts towards. Given an href, the hour is the row's main link (see
  * {@link ShameSplitRow}), opening the hour's ranked list from anywhere on the row.
  * @param props - Component props.
  * @param props.hour - Hour of day, 0-23.

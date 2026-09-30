@@ -8,7 +8,7 @@
 // timeout/network blip, since AT's realtime endpoint rate-limits and stalls
 // under load.
 
-import { isObj, sleep } from "@/lib/utils";
+import { isObj, retryDelay, sleep } from "@/lib/utils";
 
 export interface DelayTime {
   time?: number;
@@ -103,7 +103,7 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
 
       // Retry rate limiting (429) and transient server errors (5xx) with backoff
       if (res.status === 429 || res.status >= 500) {
-        const backoffMs = Math.min(60_000, 1000 * Math.pow(2, attempt)); // 1s, 2s, 4s, max 60s
+        const backoffMs = retryDelay(attempt);
         console.warn(
           `[AT API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );

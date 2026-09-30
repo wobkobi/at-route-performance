@@ -27,7 +27,7 @@ import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
-import { pickParams, SHOWN_PARAM, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
+import { parseShown, pickParams, SHOWN_PARAM, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
 import { routeHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -119,7 +119,7 @@ export default async function VehiclesPage({
   }
   const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
-  const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
+  const shown = parseShown(sp.show, PAGE_SIZE);
   const filter = { mode, schools };
   const [latest, earliest, [operators, directory]] = await Promise.all([
     getLatestEventDate(),

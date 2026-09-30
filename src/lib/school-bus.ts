@@ -1,6 +1,8 @@
 // src/lib/school-bus.ts
 // Recognise AT school-service routes by their `S###` code in a route name.
 
+import type { KeyedLabel } from "@/lib/collections";
+
 /**
  * AT school services carry an `S` + three-digit code, optionally with a trailing
  * variant letter, e.g. `S046`, `S046D`, `S001N`. In the feed this code lives in
@@ -55,7 +57,7 @@ export function schoolDelta(
 export type SchoolFilter = "exclude" | "include" | "only";
 
 /** The filter's choices in menu order, with their labels. */
-export const SCHOOL_FILTERS: ReadonlyArray<{ key: SchoolFilter; label: string }> = [
+export const SCHOOL_FILTERS: readonly KeyedLabel<SchoolFilter>[] = [
   { key: "exclude", label: "Leave out" },
   { key: "include", label: "Include" },
   { key: "only", label: "Only school buses" },

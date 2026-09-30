@@ -6,6 +6,7 @@
 
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
 import { cn } from "@/lib/cn";
+import { labelOf, labelsOf } from "@/lib/collections";
 import { AREAS, type AreaKey } from "@/lib/geo/areas";
 import { AREA_PARAM } from "@/lib/ranking-filters";
 import { DAY_TYPES, DAYS_PARAM, type DayType } from "@/lib/time/day-type";
@@ -204,7 +205,7 @@ export function RankingFilterMenus({
       {showDays && (
         <FilterMenu
           label="Days"
-          summary={DAY_TYPES.find((d) => d.key === days)?.label ?? null}
+          summary={labelOf(DAY_TYPES, days) ?? null}
           onReset={() => go({ [DAYS_PARAM]: undefined })}
         >
           <FilterOption
@@ -231,7 +232,7 @@ export function RankingFilterMenus({
 
       <FilterMenu
         label="Area"
-        summary={choiceSummary(AREAS.filter((a) => areas.includes(a.key)).map((a) => a.label))}
+        summary={choiceSummary(labelsOf(AREAS, areas))}
         onReset={() => go({ [AREA_PARAM]: undefined })}
       >
         {AREAS.map((a) => (

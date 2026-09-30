@@ -3,15 +3,17 @@
 // The Routes page body: filter and sort controls (with presets for the home
 // page's Most off-schedule and Most reliable boards in full), the KPI strip for
 // exactly the routes that pass the filters, and the route list with a "More
-// details" link per route, ranked when sorted by a measure. Filtering runs on the client (a few hundred rows), so a change is
-// instant; the state is written back to the query string with replaceState, so
-// the view survives a reload and can be shared without a navigation.
+// details" link per route, ranked when sorted by a measure. Filtering runs on
+// the client (a few hundred rows), so a change is instant; the state is written
+// back to the query string with useUrlParams, so the view survives a reload and
+// can be shared without a navigation.
 
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { cn } from "@/lib/cn";
+import { labelsOf } from "@/lib/collections";
 import {
   formatCount,
   formatDuration,
@@ -25,6 +27,7 @@ import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
 import { SHOWN_PARAM } from "@/lib/page/filter-params";
 import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
+import { useUrlParams } from "@/lib/page/use-url-param";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -45,6 +48,9 @@ import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
+
+/** The params the explorer's client state writes: its filters and the row count. */
+const OWNED_PARAMS = [...EXPLORER_PARAMS, SHOWN_PARAM];
 
 /** Props for {@link RouteExplorer}. */
 export interface RouteExplorerProps {
@@ -191,22 +197,13 @@ export function RouteExplorer({
   );
 
   // Mirror the filters and the row count into the query string, keeping the
-  // window params the server owns. replaceState updates the URL without a
-  // navigation or refetch - which is also why the count belongs here: the entry
-  // it overwrites is the one Back returns to, so a count held only in state
-  // comes back as the first page after opening a route and stepping back.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    for (const key of EXPLORER_PARAMS) params.delete(key);
-    params.delete(SHOWN_PARAM);
-    for (const [k, v] of Object.entries(explorerQuery(filters))) params.set(k, v);
-    if (shown > PAGE_SIZE) params.set(SHOWN_PARAM, String(shown));
-    const qs = params.toString();
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
-    if (next !== `${window.location.pathname}${window.location.search}`) {
-      window.history.replaceState(null, "", next);
-    }
-  }, [filters, shown]);
+  // window params the server owns. The count belongs here because the history
+  // entry the write overwrites is the one Back returns to, so a count held only
+  // in state comes back as the first page after opening a route and stepping back.
+  useUrlParams(OWNED_PARAMS, {
+    ...explorerQuery(filters),
+    ...(shown > PAGE_SIZE ? { [SHOWN_PARAM]: String(shown) } : {}),
+  });
 
   /**
    * Apply a filter change and return to the top of the list.
@@ -320,9 +317,7 @@ export function RouteExplorer({
           </FilterMenu>
           <FilterMenu
             label="Area"
-            summary={choiceSummary(
-              AREAS.filter((a) => filters.areas.includes(a.key)).map((a) => a.label),
-            )}
+            summary={choiceSummary(labelsOf(AREAS, filters.areas))}
             onReset={() => update({ areas: [] })}
           >
             {AREAS.map((a) => (
@@ -338,9 +333,7 @@ export function RouteExplorer({
           </FilterMenu>
           <FilterMenu
             label="Fare zone"
-            summary={choiceSummary(
-              FARE_ZONES.filter((z) => filters.zones.includes(z.key)).map((z) => z.label),
-            )}
+            summary={choiceSummary(labelsOf(FARE_ZONES, filters.zones))}
             onReset={() => update({ zones: [] })}
           >
             {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (

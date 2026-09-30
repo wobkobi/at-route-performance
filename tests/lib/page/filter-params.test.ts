@@ -3,6 +3,7 @@
 // repeat, and a window switch that keeps filters but resets the list length.
 import {
   omitParams,
+  parseShown,
   pickParams,
   SECTION_PARAMS,
   SHOWN_PARAM,
@@ -44,5 +45,19 @@ describe("the carried lists", () => {
       expect(list).toEqual(expect.arrayContaining([...VIEW_PARAMS]));
       expect(list).not.toContain("dir");
     }
+  });
+});
+
+describe("parseShown", () => {
+  it("reads the row count back as a whole number of steps", () => {
+    expect(parseShown(undefined, 30)).toBe(30);
+    expect(parseShown(null, 30)).toBe(30);
+    expect(parseShown("", 30)).toBe(30);
+    expect(parseShown("nope", 30)).toBe(30);
+    expect(parseShown("-30", 30)).toBe(30);
+    expect(parseShown("30", 30)).toBe(30);
+    expect(parseShown("90", 30)).toBe(90);
+    // A hand-edited count lands on one the button itself could have reached.
+    expect(parseShown("31", 30)).toBe(60);
   });
 });

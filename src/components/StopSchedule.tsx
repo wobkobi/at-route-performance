@@ -77,7 +77,7 @@ function noticeFor(result: StopDepartures, serviceDate: string, shown: number): 
 /**
  * A named day's scheduled departures at a stop, as a compact table matching the
  * other stop-page sections. The departures run 4am to 4am, so the ones after
- * midnight close the list under a line naming the day they still count toward.
+ * midnight close the list under a line naming the day they still count towards.
  * @param props - Component props.
  * @param props.result - The departures, or the state that stopped them loading.
  * @param props.routeNames - Route ID to short name map.

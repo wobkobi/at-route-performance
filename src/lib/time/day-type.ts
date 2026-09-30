@@ -3,6 +3,7 @@
 // Saturdays or its Sundays, since the three run different timetables and a
 // month's figure mixes them in whatever proportion the calendar gives.
 
+import { isKeyOf, labelOf, type KeyedLabel } from "@/lib/collections";
 import { weekdayOf } from "@/lib/time/service-day";
 
 /** The query param holding the day type. */
@@ -12,7 +13,7 @@ export const DAYS_PARAM = "days";
 export type DayType = "weekday" | "sat" | "sun";
 
 /** Every day type in display order, with its label. */
-export const DAY_TYPES: ReadonlyArray<{ key: DayType; label: string }> = [
+export const DAY_TYPES: readonly KeyedLabel<DayType>[] = [
   { key: "weekday", label: "Weekdays" },
   { key: "sat", label: "Saturdays" },
   { key: "sun", label: "Sundays" },
@@ -24,7 +25,7 @@ export const DAY_TYPES: ReadonlyArray<{ key: DayType; label: string }> = [
  * @returns The day type, or null for every day (absent or unreadable).
  */
 export function parseDayType(raw: string | undefined): DayType | null {
-  return DAY_TYPES.find((d) => d.key === raw)?.key ?? null;
+  return isKeyOf(DAY_TYPES, raw) ? raw : null;
 }
 
 /**
@@ -55,5 +56,5 @@ export function datesOfType(dates: readonly string[], type: DayType | null): str
  * @returns The label, e.g. "Saturdays" or "Every day".
  */
 export function dayTypeLabel(type: DayType | null): string {
-  return DAY_TYPES.find((d) => d.key === type)?.label ?? "Every day";
+  return labelOf(DAY_TYPES, type) ?? "Every day";
 }

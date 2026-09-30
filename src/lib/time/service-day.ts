@@ -465,7 +465,7 @@ export function nzLocalHour(at: Date): number {
 
 /**
  * Whether an instant falls between midnight and the {@link SERVICE_START_HOUR}
- * start, so it counts toward the service day before its calendar date.
+ * start, so it counts towards the service day before its calendar date.
  * @param at - The instant.
  * @returns True for a post-midnight instant.
  */
@@ -501,7 +501,7 @@ export function serviceDayWindowText(ymd: string): string {
 
 /**
  * The note an after-midnight time carries, naming the service day it counts
- * toward: "After midnight, still counted in Tue 22 Sep".
+ * towards: "After midnight, still counted in Tue 22 Sep".
  * @param ymd - The service date the time belongs to.
  * @returns The note.
  */

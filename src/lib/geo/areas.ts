@@ -9,14 +9,14 @@
 // across a line can land in the neighbouring area), which is why a route needs
 // more than one stop in an area to count as serving it.
 
-import { countBy } from "@/lib/collections";
+import { countBy, isKeyOf, labelsByKey, type KeyedLabel } from "@/lib/collections";
 
 /** An area key. */
 export type AreaKey =
   "central" | "north" | "west" | "east" | "south" | "hibiscus-rodney" | "waiheke";
 
 /** Every area in display order, with its label. */
-export const AREAS: ReadonlyArray<{ key: AreaKey; label: string }> = [
+export const AREAS: readonly KeyedLabel<AreaKey>[] = [
   { key: "central", label: "Central" },
   { key: "north", label: "North Shore" },
   { key: "west", label: "West" },
@@ -27,9 +27,7 @@ export const AREAS: ReadonlyArray<{ key: AreaKey; label: string }> = [
 ];
 
 /** Area key to its label. */
-export const AREA_LABEL: Record<AreaKey, string> = Object.fromEntries(
-  AREAS.map((a) => [a.key, a.label]),
-) as Record<AreaKey, string>;
+export const AREA_LABEL = labelsByKey(AREAS);
 
 /**
  * Whether a string is an area key.
@@ -37,7 +35,7 @@ export const AREA_LABEL: Record<AreaKey, string> = Object.fromEntries(
  * @returns True when it names an area.
  */
 export function isAreaKey(value: string): value is AreaKey {
-  return AREAS.some((a) => a.key === value);
+  return isKeyOf(AREAS, value);
 }
 
 /**

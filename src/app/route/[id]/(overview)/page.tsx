@@ -591,7 +591,7 @@ export default async function RoutePage({
     Object.entries(tripWaits).map(([tripId, p]) => [tripId, p.waitSec]),
   );
 
-  // Week view: use neutral stop coloring (no day-specific delay data on the map).
+  // Week view: use neutral stop colouring (no day-specific delay data on the map).
   const weekMapStops = mapStops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
   const weekSummary = aggregateWeek(weekDays);
   const weekPunctuality: PunctualityBreakdown = {
@@ -884,7 +884,7 @@ export default async function RoutePage({
             }
           />
 
-          {/* Map and diagram with neutral stop coloring in week mode */}
+          {/* Map and diagram with neutral stop colouring in week mode */}
           <RouteMapDiagram
             stops={weekMapStops}
             routeLines={mapLines}
