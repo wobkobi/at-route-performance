@@ -5,6 +5,7 @@ import {
   parseRankingFilters,
   rankingFilterParams,
   rankingFiltersPhrase,
+  rankingFiltersReach,
   routeQueryWithHours,
   rowsInAreas,
   type FilterableCancellation,
@@ -108,5 +109,25 @@ describe("rankingFiltersPhrase", () => {
     const f = { ...NO_RANKING_FILTERS, hours: { from: 9, to: 4 } };
     expect(rankingFiltersPhrase(f, [], true)).toBe("9am to now");
     expect(rankingFiltersPhrase(f, [], false)).toBe("9am to end of day");
+  });
+});
+
+describe("rankingFiltersReach", () => {
+  const morning = { ...NO_RANKING_FILTERS, hours: { from: 7, to: 10 } };
+
+  it("says the whole day view follows a time of day", () => {
+    expect(rankingFiltersReach(morning, "day")).toBe("Everything on the page follows it.");
+  });
+
+  it("says the day's cards and vehicles keep every area", () => {
+    const text = rankingFiltersReach({ ...morning, areas: ["north"] }, "day");
+    expect(text).toContain("follow the time of day but cover every area");
+    const areaOnly = rankingFiltersReach({ ...NO_RANKING_FILTERS, areas: ["north"] }, "day");
+    expect(areaOnly).toContain("vehicle counts cover every area.");
+  });
+
+  it("says a week or month leaves the cards and vehicles whole", () => {
+    expect(rankingFiltersReach(morning, "week")).toContain("cover the whole week.");
+    expect(rankingFiltersReach(morning, "month")).toContain("cover the whole month.");
   });
 });

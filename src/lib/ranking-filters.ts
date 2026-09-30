@@ -180,3 +180,24 @@ export function rankingFiltersPhrase(
   ].filter((p): p is string => p !== null);
   return parts.length > 0 ? parts.join(", ") : null;
 }
+
+/**
+ * Which parts of the page the filters leave whole, if any. On the day view
+ * the worst-of cards and the vehicle counts follow the time of day but not the
+ * area, which their boards have no filter for; on a week or month they follow
+ * neither.
+ * @param filters - The active filters.
+ * @param window - The window shown.
+ * @returns The sentence after the phrase.
+ */
+export function rankingFiltersReach(
+  filters: RankingFilters,
+  window: "day" | "week" | "month",
+): string {
+  if (window !== "day") {
+    return `The figures, the cancellations and the route rankings follow it; the worst-of cards and the vehicle counts cover the whole ${window}.`;
+  }
+  if (filters.areas.length === 0) return "Everything on the page follows it.";
+  const cover = filters.hours ? "follow the time of day but cover every area" : "cover every area";
+  return `The figures, the cancellations and the route rankings follow it; the worst-of cards and the vehicle counts ${cover}.`;
+}

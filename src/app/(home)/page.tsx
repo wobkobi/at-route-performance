@@ -47,7 +47,10 @@ import {
   getLatestEventDate,
   getShameOfDay,
   getShameRouteOfDay,
+  getShameRoutesInHours,
   getShameRouteStreak,
+  getShameStopsInHours,
+  getShameTripsInHours,
   getWorstStopsOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -88,7 +91,7 @@ import {
   schoolFilterParam,
   type SchoolFilter,
 } from "@/lib/school-bus";
-import { buildShameHref, crownedRow } from "@/lib/shame-page";
+import { buildShameHref, crownedRow, crownedTop } from "@/lib/shame-page";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/time/data-start";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow, requestServiceDay } from "@/lib/time/request-now";
@@ -99,6 +102,7 @@ import {
   serviceDayLabel,
   type DateRange,
 } from "@/lib/time/service-day";
+import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -487,9 +491,15 @@ export default async function Home({
       </section>
 
       <section className="space-y-4">
+        {/* The boards rank a part of the day as the cards below do, so the link
+            opens the list whose top row each card names. */}
         <SectionLink
           title="Worst of the day"
-          href={buildShameHref("/shame/trip", { day: linkDay }, { mode, schools, direction: null })}
+          href={buildShameHref(
+            "/shame/trip",
+            { day: linkDay, hours: filters.hours },
+            { mode, schools, direction: null },
+          )}
         />
         <Suspense fallback={<LoadingBlock label="Loading the worst of the day" />}>
           <HomeShameCards
@@ -499,6 +509,7 @@ export default async function Home({
             schools={schools}
             linkDay={linkDay}
             when={windowPhrase(nav, null)}
+            hours={filters.hours}
           />
         </Suspense>
       </section>
@@ -575,6 +586,8 @@ export default async function Home({
             label={linkDay ? serviceDayLabel(serviceDate) : "Today"}
             mode={mode}
             schools={schools}
+            hours={filters.hours}
+            live={linkDay === undefined}
           />
         </Suspense>
       </section>
@@ -586,9 +599,11 @@ export default async function Home({
  * Streamed "of the day" cards: the worst run, route and stop. Each runs its own
  * board's day query and crowns it the way that board does ({@link crownedRow}
  * over the hours the board shows), so a card never names something the board it
- * sits above would not crown. The three aggregations (and the streak, which
- * needs the crowned run's route) are awaited off the critical path, so the
- * dashboard shell renders immediately.
+ * sits above would not crown. With a part of the day set, each reads instead the
+ * ranked list its board shows for those hours and crowns that list's top row
+ * ({@link crownedTop}); the day's hour-by-hour counts and the streak describe
+ * the whole day, so they are left off. The aggregations are awaited off the
+ * critical path, so the dashboard shell renders immediately.
  * @param root0 - Props.
  * @param root0.range - The resolved service-day window.
  * @param root0.serviceDate - The shown service date, for dropping hours still under way.
@@ -596,6 +611,7 @@ export default async function Home({
  * @param root0.schools - Which school services count (default leave them out).
  * @param root0.linkDay - `?day=` value for past-day links, or undefined for today.
  * @param root0.when - The shown day as words ("today" or "that day").
+ * @param root0.hours - The part of the day the page is narrowed to, or null for all of it.
  * @returns The three-card grid.
  */
 async function HomeShameCards({
@@ -605,6 +621,7 @@ async function HomeShameCards({
   schools,
   linkDay,
   when,
+  hours,
 }: {
   range: DateRange;
   serviceDate: string;
@@ -612,8 +629,43 @@ async function HomeShameCards({
   schools: SchoolFilter;
   linkDay: string | undefined;
   when: string;
+  hours: HourRange | null;
 }): Promise<JSX.Element> {
   const filter = { mode, schools };
+  if (hours) {
+    const live = linkDay === undefined;
+    const [trips, routes, stops] = await Promise.all([
+      getShameTripsInHours(range, filter, hours, TODAY_REVALIDATE),
+      getShameRoutesInHours(range, filter, hours, TODAY_REVALIDATE),
+      getShameStopsInHours(range, filter, hours, TODAY_REVALIDATE),
+    ]);
+    const trip = crownedTop(trips.rows);
+    const route = crownedTop(routes.rows);
+    const stop = crownedTop(stops.rows);
+    // "No shame from 7am to 10am today".
+    const span = `from ${hourRangeClock(hours, live)} ${when}`;
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ShameOfDay trip={trip.row} ranked={trip.ranked} routeStreakDays={0} when={span} />
+        <WorstRouteCard
+          route={route.row}
+          ranked={route.ranked}
+          when={span}
+          day={linkDay}
+          hours={hours}
+          live={live}
+        />
+        <WorstStopCard
+          stop={stop.row}
+          ranked={stop.ranked}
+          when={span}
+          day={linkDay}
+          hours={hours}
+          live={live}
+        />
+      </div>
+    );
+  }
   const [shameTrips, shameRoutes, shameStops] = await Promise.all([
     getShameOfDay(range, filter, TODAY_REVALIDATE),
     getShameRouteOfDay(range, filter, TODAY_REVALIDATE),

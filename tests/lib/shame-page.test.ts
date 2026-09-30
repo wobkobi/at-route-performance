@@ -3,6 +3,7 @@
 // on, what it says it filtered on, and what its links keep.
 import {
   buildShameHref,
+  crownedTop,
   hoursNoun,
   parseShameParams,
   SHAME_PARAMS,
@@ -146,5 +147,23 @@ describe("shameHoursLabel", () => {
   it("names an hour, a stretch and the whole day", () => {
     expect(shameHoursLabel({ from: 8, to: 9 })).toBe("8am hour");
     expect(shameHoursLabel(WHOLE_DAY)).toBe("whole day");
+  });
+});
+
+describe("crownedTop", () => {
+  it("crowns the first row when it clears the late bound", () => {
+    const rows = [
+      { id: "a", avg_abs_delay_sec: 600 },
+      { id: "b", avg_abs_delay_sec: 900 },
+    ];
+    expect(crownedTop(rows)).toEqual({ row: rows[0], ranked: true });
+  });
+
+  it("crowns nothing when the top row is on time", () => {
+    expect(crownedTop([{ avg_abs_delay_sec: 30 }])).toEqual({ row: null, ranked: true });
+  });
+
+  it("reports an empty board as unranked", () => {
+    expect(crownedTop([])).toEqual({ row: null, ranked: false });
   });
 });

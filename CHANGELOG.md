@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.0] - 2026-09-30
+
+### Added
+
+- The home day view's time-of-day filter now narrows everything on the page: the worst trip, route
+  and stop cards rank those hours, their link opens the matching board, and the vehicle counts cover
+  only runs due in them.
+
 ## [2.40.7] - 2026-09-30
 
 ### Changed

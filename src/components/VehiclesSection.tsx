@@ -8,6 +8,7 @@ import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/l
 import { type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
+import { type HourRange, hourRangeClock } from "@/lib/time/time-of-day";
 import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle-counts";
 import type { JSX } from "react";
 
@@ -74,12 +75,17 @@ function VehicleCard({
 
 /**
  * The two vehicle cards, one for the page's window and one since the archive
- * began, under the page's mode and school filters, then the train note.
+ * began, under the page's mode, school and time-of-day filters, then the train
+ * note. With a part of the day set, both count only vehicles on runs due in
+ * those hours, and both eyebrows name them.
  * @param props - Component props.
  * @param props.range - The window the page shows.
  * @param props.label - How the window is named on its card ("Today", a date, a week).
  * @param props.mode - Mode filter, or null for every mode.
  * @param props.schools - Which school services count (default leave them out).
+ * @param props.hours - Part of the day to count, or null/undefined for all of it.
+ * @param props.live - Whether the window is the day still under way, so a range
+ *   running to the day's end reads "to now".
  * @returns The cards.
  */
 export async function VehicleCards({
@@ -87,24 +93,36 @@ export async function VehicleCards({
   label,
   mode,
   schools,
+  hours = null,
+  live = false,
 }: {
   range: DateRange;
   label: string;
   mode: VehicleMode | null;
   schools: SchoolFilter;
+  hours?: HourRange | null;
+  live?: boolean;
 }): Promise<JSX.Element> {
   const filter = { mode, schools };
   const [inWindow, allTime] = await Promise.all([
-    getVehicleCounts(range, filter, TODAY_REVALIDATE),
-    getVehicleCountsAllTime(filter, TODAY_REVALIDATE),
+    getVehicleCounts(range, filter, TODAY_REVALIDATE, hours),
+    getVehicleCountsAllTime(filter, TODAY_REVALIDATE, hours),
   ]);
   const modes = vehicleModesShown(mode);
+  /**
+   * The eyebrow's suffix naming the part of the day, or nothing with none set.
+   * All time passes false: every earlier day ran to its end, never "to now".
+   * @param runsLive - Whether the span runs into the day still under way.
+   * @returns E.g. ", 7am to 10am".
+   */
+  const within = (runsLive: boolean): string =>
+    hours ? `, ${hourRangeClock(hours, runsLive)}` : "";
   return (
     <>
       <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
-        <VehicleCard eyebrow={label} counts={inWindow} modes={modes} />
+        <VehicleCard eyebrow={`${label}${within(live)}`} counts={inWindow} modes={modes} />
         <VehicleCard
-          eyebrow={`All time, since ${DATA_START_SHORT}`}
+          eyebrow={`All time, since ${DATA_START_SHORT}${within(false)}`}
           counts={allTime}
           modes={modes}
         />

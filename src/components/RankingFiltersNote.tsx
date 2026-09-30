@@ -3,7 +3,11 @@
 // read with the filter boxes out of sight still says what it covers.
 
 import { AREAS } from "@/lib/areas";
-import { rankingFiltersPhrase, type RankingFilters } from "@/lib/ranking-filters";
+import {
+  rankingFiltersPhrase,
+  rankingFiltersReach,
+  type RankingFilters,
+} from "@/lib/ranking-filters";
 import type { JSX } from "react";
 
 /**
@@ -32,9 +36,8 @@ export function RankingFiltersNote({
   if (!phrase) return null;
   return (
     <p className="text-sm text-at-muted">
-      <span className="font-semibold text-at-ink">Narrowed to {phrase}.</span> The figures, the
-      cancellations and the route rankings follow it; the worst-of cards and the vehicle counts
-      cover the whole {window}.
+      <span className="font-semibold text-at-ink">Narrowed to {phrase}.</span>{" "}
+      {rankingFiltersReach(filters, window)}
     </p>
   );
 }

@@ -4,6 +4,7 @@
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
+import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -26,6 +27,13 @@ export interface WorstStopCardProps {
   day?: string;
   /** Override the card's link target; defaults to the stop's own page. */
   href?: string;
+  /**
+   * The part of the day the card's board ranked, when the page is narrowed to
+   * one: the row's figures then pool those hours rather than one hour's.
+   */
+  hours?: HourRange | null;
+  /** Whether the day is still under way, so a range running to its end reads "to now". */
+  live?: boolean;
 }
 
 /**
@@ -38,13 +46,17 @@ export interface WorstStopCardProps {
  * stop's whole-period average is a click away and the two would otherwise look
  * like they disagreed. The average is worded by {@link OffScheduleLine} rather
  * than drawn red, because the sort key is a magnitude with no direction - a
- * board of stops whose services all ran *early* was being painted as late.
+ * board of stops whose services all ran *early* was being painted as late. On a
+ * page narrowed to part of the day the row pools those hours, and the line
+ * names the range.
  * @param props - Component props.
  * @param props.stop - The crowned stop row (or null).
  * @param props.ranked - Whether the board ranked any stop.
  * @param props.when - The shown window as words for the clean-window copy ("today" by default).
  * @param props.day - Service day to pin on the link (optional).
  * @param props.href - Override link target (optional).
+ * @param props.hours - The part of the day the board ranked, or null/undefined for hour by hour.
+ * @param props.live - Whether the day is still under way.
  * @returns The card.
  */
 export function WorstStopCard({
@@ -53,6 +65,8 @@ export function WorstStopCard({
   when = "today",
   day,
   href: hrefProp,
+  hours = null,
+  live = false,
 }: WorstStopCardProps): JSX.Element {
   // Nothing ranked at all, which is not the green all-clear below.
   if (!ranked) {
@@ -79,7 +93,11 @@ export function WorstStopCard({
   // Week and month rows carry a service date and no hour; day rows are the
   // other way round.
   const bucket =
-    "date" in stop ? `on ${weekdayShort(stop.date)}` : `in the ${nzHourLabel(stop.hour)} hour`;
+    "date" in stop
+      ? `on ${weekdayShort(stop.date)}`
+      : hours
+        ? `from ${hourRangeClock(hours, live)}`
+        : `in the ${nzHourLabel(stop.hour)} hour`;
   // Today's `?day` is dropped, as on the route card: the stop page redirects it.
   const dayParam = dayLinkParam(day);
   const href =

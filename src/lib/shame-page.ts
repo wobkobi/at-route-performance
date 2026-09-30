@@ -342,6 +342,19 @@ export function crownedRow<T extends { avg_abs_delay_sec: number }>(rows: T[]): 
 }
 
 /**
+ * The row a part-of-day board crowns, from its ranked list: the first row, which
+ * the query sorted worst first, and only when it clears the late bound. The
+ * boards test `rows[0]` rather than re-picking, so a tie on the rounded figure
+ * crowns the same row here as there.
+ * @param rows - The board's ranked rows, worst first.
+ * @returns The crowned row and whether anything ranked.
+ */
+export function crownedTop<T extends { avg_abs_delay_sec: number }>(rows: T[]): CrownedRow<T> {
+  const top = rows[0] ?? null;
+  return { row: isCrownable(top) ? top : null, ranked: rows.length > 0 };
+}
+
+/**
  * Count rows by a derived key (e.g. how many hourly slots a route appears in).
  * @param rows - The rows to tally.
  * @param keyOf - Derives the grouping key for a row.
