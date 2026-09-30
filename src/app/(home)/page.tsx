@@ -87,9 +87,8 @@ import {
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
 import {
-  isSchoolBus,
   parseSchoolFilter,
-  schoolAllows,
+  rowAllowedBySchool,
   schoolDelta,
   schoolFilterParam,
   type SchoolFilter,
@@ -371,9 +370,7 @@ export default async function Home({
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
   const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const visible = modeFiltered.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
-  );
+  const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need

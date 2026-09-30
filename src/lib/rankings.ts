@@ -8,7 +8,7 @@
 // applies for single-mode views so low-frequency services like ferries still
 // populate their boards.
 
-import { isSchoolBus, schoolAllows, type SchoolFilter } from "@/lib/school-bus";
+import { rowAllowedBySchool, type SchoolFilter } from "@/lib/school-bus";
 import { byEvents, weightedMean } from "@/lib/stats";
 import type { RouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
@@ -28,9 +28,7 @@ export function visibleRows(
   filter: { mode: string | null; schools: SchoolFilter },
 ): RouteRow[] {
   return rows.filter(
-    (r) =>
-      (!filter.mode || r.mode === filter.mode) &&
-      schoolAllows(filter.schools, isSchoolBus(r.shortName, r.longName)),
+    (r) => (!filter.mode || r.mode === filter.mode) && rowAllowedBySchool(r, filter.schools),
   );
 }
 

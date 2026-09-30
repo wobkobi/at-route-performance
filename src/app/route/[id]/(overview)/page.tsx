@@ -31,12 +31,11 @@ import {
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
-  getOperators,
+  getOperatorDirectory,
   getRouteClosures,
   getRouteDailyStats,
   getRouteLabel,
   getRouteNames,
-  getRouteOperators,
   getRouteStats,
   getRouteStopSplit,
   getTripRiderWait,
@@ -59,7 +58,7 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
-import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
@@ -420,10 +419,7 @@ export default async function RoutePage({
   });
   const { route, summary, byStop } = stats;
   // Started here and awaited at the header, so it never holds up the stats.
-  const operatorsP = Promise.all([
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
-  ]);
+  const operatorsP = getOperatorDirectory();
   const routeMode = route?.mode ?? "BUS";
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,

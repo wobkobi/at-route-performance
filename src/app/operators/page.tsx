@@ -15,23 +15,26 @@ import {
   getCancelledByRoute,
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
-  getRouteOperators,
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { readFallback } from "@/lib/db";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
-import { operatorHref, type Operator } from "@/lib/operators";
+import { operatorHref } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
+import {
+  isSchoolBus,
+  parseSchoolFilter,
+  rowAllowedBySchool,
+  schoolFilterParam,
+} from "@/lib/school-bus";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
@@ -135,18 +138,17 @@ export default async function OperatorsPage({
   // With school services included, the same reads without them too, so each
   // count can show the "+N" they add.
   const withoutSchool = { mode, schools: "exclude" as const };
-  const [allRows, operators, directory, cancelled, vehicles, cancelledBase, vehiclesBase] =
+  const [allRows, [operators, directory], cancelled, vehicles, cancelledBase, vehiclesBase] =
     await Promise.all([
       getRankings(range, ON_TIME_LATE_SEC, revalidate),
-      getRouteOperators(),
-      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getOperatorDirectory(),
       getCancelledByRoute(range, filter, revalidate),
       getVehicleWork(range, filter, TODAY_REVALIDATE),
       schools === "include" ? getCancelledByRoute(range, withoutSchool, revalidate) : null,
       schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
     ]);
   const modeRows = allRows.filter((r) => mode === null || r.mode === mode);
-  const rows = modeRows.filter((r) => schoolAllows(schools, isSchoolBus(r.shortName, r.longName)));
+  const rows = modeRows.filter((r) => rowAllowedBySchool(r, schools));
   const ranked = operatorRows(rows, operators, cancelled, vehicles, directory);
   const baseline =
     cancelledBase && vehiclesBase

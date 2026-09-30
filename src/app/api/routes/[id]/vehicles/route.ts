@@ -1,11 +1,9 @@
 // src/app/api/routes/[id]/vehicles/route.ts
 // GET handler returning live vehicle positions JSON for a route, each with its current delay.
 
-import { getOperators } from "@/lib/data/operators";
-import { getRouteOperators } from "@/lib/data/routes";
-import { readFallback } from "@/lib/db";
+import { getOperatorDirectory } from "@/lib/data/operators";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
-import { type Operator, operatorOf } from "@/lib/operators";
+import { operatorOf } from "@/lib/operators";
 import { routeSlug } from "@/lib/route/slug";
 import { NextResponse } from "next/server";
 
@@ -26,10 +24,9 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
   try {
-    const [all, operators, directory] = await Promise.all([
+    const [all, [operators, directory]] = await Promise.all([
       getLiveVehicles(),
-      getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getOperatorDirectory(),
     ]);
     // AT's real-time feed includes versioned route ids (e.g. "NX1-202409"); strip
     // the version suffix before comparing so they match the URL slug "NX1".

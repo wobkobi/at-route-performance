@@ -4,6 +4,7 @@
 import {
   isSchoolBus,
   parseSchoolFilter,
+  rowAllowedBySchool,
   schoolAllows,
   schoolDelta,
   schoolFilterParam,
@@ -74,5 +75,20 @@ describe("schoolAllows", () => {
     expect([schoolAllows("exclude", false), schoolAllows("exclude", true)]).toEqual([true, false]);
     expect([schoolAllows("include", false), schoolAllows("include", true)]).toEqual([true, true]);
     expect([schoolAllows("only", false), schoolAllows("only", true)]).toEqual([false, true]);
+  });
+});
+
+describe("rowAllowedBySchool", () => {
+  it("judges a row by the school code in either of its names", () => {
+    const school = { shortName: "046", longName: "S046D" };
+    const ordinary = { shortName: "70", longName: null };
+    expect([
+      rowAllowedBySchool(school, "exclude"),
+      rowAllowedBySchool(ordinary, "exclude"),
+    ]).toEqual([false, true]);
+    expect([rowAllowedBySchool(school, "only"), rowAllowedBySchool(ordinary, "only")]).toEqual([
+      true,
+      false,
+    ]);
   });
 });

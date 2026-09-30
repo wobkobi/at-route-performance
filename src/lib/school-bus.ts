@@ -97,6 +97,21 @@ export function schoolAllows(filter: SchoolFilter, school: boolean): boolean {
 }
 
 /**
+ * Whether a route row passes the school-services filter, judged from its names.
+ * @param row - The route's names.
+ * @param row.shortName - Its short name.
+ * @param row.longName - Its long name.
+ * @param filter - The active school filter.
+ * @returns True when the row is shown.
+ */
+export function rowAllowedBySchool(
+  row: { shortName?: string | null; longName?: string | null },
+  filter: SchoolFilter,
+): boolean {
+  return schoolAllows(filter, isSchoolBus(row.shortName, row.longName));
+}
+
+/**
  * What a filter box shows for the choice, or null for the default, which shows
  * the plain label.
  * @param filter - The filter.

@@ -14,18 +14,16 @@ import {
   getCancelledRoutes,
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
   getRouteGeography,
-  getRouteOperators,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { operatorOf, type Operator } from "@/lib/operators";
+import { operatorOf } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
@@ -126,11 +124,10 @@ export default async function RoutesPage({
   }
 
   // Every mode and school services too: the explorer filters those itself.
-  const [cancelledRoutes, geo, operators, directory] = await Promise.all([
+  const [cancelledRoutes, geo, [operators, directory]] = await Promise.all([
     getCancelledRoutes(range, { mode: null, schools: "include" }, ALL_ROUTES, revalidate),
     getRouteGeography(),
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
+    getOperatorDirectory(),
   ]);
   const rowSlugs = new Set(rows.map((r) => routeSlug(r.routeId)));
   // The rows fold a retired train line into its successor (see foldLineageRows),

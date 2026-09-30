@@ -14,10 +14,9 @@ import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import {
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
   getRouteNames,
-  getRouteOperators,
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -27,7 +26,7 @@ import { formatCount, formatDuration, formatHours } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
-import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
 import { pickParams, SHOWN_PARAM, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
 import { routeHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -122,15 +121,12 @@ export default async function VehiclesPage({
   const schools = parseSchoolFilter(sp.school);
   const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
   const filter = { mode, schools };
-  const [latest, earliest, operators, directory] = await Promise.all([
+  const [latest, earliest, [operators, directory]] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
+    getOperatorDirectory(),
   ]);
-  const operator = sp.op
-    ? operatorBySlug(sp.op, directory, new Set(Object.values(operators)))
-    : null;
+  const operator = sp.op ? operatorBySlug(sp.op, directory, Object.values(operators)) : null;
 
   let range: DateRange;
   let nav: RangeNav;

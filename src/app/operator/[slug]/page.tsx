@@ -15,9 +15,8 @@ import {
   getCancelledRoutes,
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
-  getRouteOperators,
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -51,7 +50,12 @@ import {
   type SortParamNames,
 } from "@/lib/page/table-sort";
 import { compareRouteNumbers, routeDisplayName, routeSlug } from "@/lib/route/slug";
-import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
+import {
+  isSchoolBus,
+  parseSchoolFilter,
+  rowAllowedBySchool,
+  schoolFilterParam,
+} from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -114,11 +118,8 @@ const FLEET_SORT: SortParamNames = { sort: "vsort", rev: "vrev" };
  * @returns The operator, or null.
  */
 async function resolveOperator(slug: string): Promise<Operator | null> {
-  const [operators, directory] = await Promise.all([
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
-  ]);
-  return operatorBySlug(slug, directory, new Set(Object.values(operators)));
+  const [[operators, directory]] = await Promise.all([getOperatorDirectory()]);
+  return operatorBySlug(slug, directory, Object.values(operators));
 }
 
 /**
@@ -195,17 +196,16 @@ export default async function OperatorPage({
   // With school services included, the same reads without them too, so each
   // figure can show the "+N" they add.
   const withoutSchool = { mode: null, schools: "exclude" as const };
-  const [allRows, operators, directory, cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
+  const [allRows, [operators, directory], cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
     await Promise.all([
       getRankings(range, ON_TIME_LATE_SEC, revalidate),
-      getRouteOperators(),
-      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getOperatorDirectory(),
       getCancelledRoutes(range, filter, 10_000, revalidate),
       getVehicleWork(range, filter, TODAY_REVALIDATE),
       schools === "include" ? getCancelledRoutes(range, withoutSchool, 10_000, revalidate) : null,
       schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
     ]);
-  const rows = allRows.filter((r) => schoolAllows(schools, isSchoolBus(r.shortName, r.longName)));
+  const rows = allRows.filter((r) => rowAllowedBySchool(r, schools));
   const cancelled = new Map(cancelledRoutes.map((c) => [c.slug, c.cancelled]));
   const table = operatorRows(rows, operators, cancelled, vehicles, directory);
   const rank = table.findIndex((o) => o.operator.code === op.code);

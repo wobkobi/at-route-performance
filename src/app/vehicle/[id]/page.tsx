@@ -13,9 +13,8 @@ import { cn } from "@/lib/cn";
 import {
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRouteNames,
-  getRouteOperators,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -37,7 +36,7 @@ import {
 } from "@/lib/format";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
-import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
+import { operatorHref, operatorOf } from "@/lib/operators";
 import { pickParams, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
 import { routeHref, tripHref, vehicleHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -204,14 +203,13 @@ export default async function VehiclePage({
   // Every mode and school runs too, so a school bus's own page is not empty; the
   // rank is then against that board, which the rank links to.
   const filter = { mode: null, schools: "include" as const };
-  const [latest, earliest, fleet, live, modeOf, operators, directory] = await Promise.all([
+  const [latest, earliest, fleet, live, modeOf, [operators, directory]] = await Promise.all([
     getLatestEventDate(),
     getEarliestDataDay(1),
     getFleet([id]).catch(readFallback("fleet", new Map<string, FleetVehicle>())),
     getLiveVehicleMap(),
     getRouteModeMap(),
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
+    getOperatorDirectory(),
   ]);
 
   let range: DateRange;

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.15] - 2026-10-01
+
+### Changed
+
+- Pages and API routes read the operator map and list through one guarded getOperatorDirectory, and
+  route rows pass the school filter through one rowAllowedBySchool.
+
 ## [2.41.14] - 2026-10-01
 
 ### Changed

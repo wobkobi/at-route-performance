@@ -38,8 +38,7 @@ import {
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
 import {
-  isSchoolBus,
-  schoolAllows,
+  rowAllowedBySchool,
   schoolDelta,
   type SchoolDelta,
   type SchoolFilter,
@@ -167,9 +166,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     ],
   );
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const visible = modeFiltered.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
-  );
+  const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   // Full ranked lists: the boards show the top 10 and link to the rest on the
@@ -181,7 +178,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     size: Infinity,
   });
   const prevFiltered = (mode ? prevRows.filter((r) => r.mode === mode) : prevRows).filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
+    rowAllowedBySchool(r, schools),
   );
   const hasPrev = prevFiltered.length > 0;
   return {
