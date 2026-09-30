@@ -105,7 +105,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   } else {
     // The most recently completed service day (24 h ago is always done), then
     // the catch-up rule over the two days before it.
-    const yesterday = nzServiceDayString(new Date(Date.now() - 86_400_000));
+    const yesterday = shiftDays(nzServiceDayString(), -1);
     const candidates = Array.from({ length: CATCH_UP_EXTRA_DAYS }, (_, i) =>
       shiftDays(yesterday, -(i + 1)),
     );

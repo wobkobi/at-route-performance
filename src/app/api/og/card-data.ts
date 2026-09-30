@@ -55,6 +55,7 @@ import { aggregateWeek } from "@/lib/route/week";
 import { schoolAllows } from "@/lib/school-bus";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import {
+  dayRangeLabel,
   monthLabel,
   nzHourLabel,
   nzMonthKey,
@@ -63,7 +64,7 @@ import {
   nzWeekRange,
   serviceDatesInRange,
   serviceDayLabel,
-  weekRangeLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
 import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/trip/cancellation";
@@ -144,9 +145,7 @@ async function resolvePeriod(
   return {
     range,
     when:
-      window === "month"
-        ? monthLabel(rawPeriod ?? nzMonthKey(anchor))
-        : `${serviceDayLabel(first)} to ${serviceDayLabel(last)}`,
+      window === "month" ? monthLabel(rawPeriod ?? nzMonthKey(anchor)) : dayRangeLabel(first, last),
     complete: (dates.at(-1) ?? today) < today,
   };
 }
@@ -200,7 +199,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
     const week = aggregateWeek(await getRouteDailyStats(slug, fixed?.start, fixed?.end));
     const lastDay = fixed ? serviceDatesInRange(fixed).at(-1) : undefined;
     return {
-      eyebrow: `Route - ${fixed ? weekRangeLabel(fixed) : "Last 7 days"}`,
+      eyebrow: `Route - ${fixed ? weekLabel(fixed) : "Last 7 days"}`,
       body: {
         route: glyph,
         name,

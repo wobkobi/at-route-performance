@@ -4,8 +4,8 @@
 // and the trigger that re-renders a live page once a newer ingest run lands.
 
 import { viewIncludesToday } from "@/lib/live-view";
-import { formatRelative } from "@/lib/time/format";
-import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
+import { formatRelative, nzClockTime } from "@/lib/time/format";
+import { nzServiceDayString } from "@/lib/time/service-day";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 
@@ -67,20 +67,6 @@ function getClockSnapshot(): number | null {
  */
 function getServerClockSnapshot(): number | null {
   return null;
-}
-
-/**
- * Format an instant as Auckland-local HH:MM (24h), stable across server/client.
- * @param iso - ISO instant string.
- * @returns The Auckland-local clock time, e.g. `08:24`.
- */
-function nzClock(iso: string): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
 }
 
 /**
@@ -208,7 +194,7 @@ export function DataFreshness({
     <p className="text-xs leading-relaxed text-white/70">
       Last updated{" "}
       <time dateTime={shown.lastUpdatedIso} className="font-semibold text-white">
-        {nzClock(shown.lastUpdatedIso)}
+        {nzClockTime(shown.lastUpdatedIso)}
       </time>
       {relative ? ` (${relative})` : null}
       <span className="px-1.5 text-white/40">&middot;</span>
@@ -224,7 +210,7 @@ export function DataFreshness({
         <>
           next update by{" "}
           <time dateTime={shown.nextUpdateIso} className="font-semibold text-white">
-            {nzClock(shown.nextUpdateIso)}
+            {nzClockTime(shown.nextUpdateIso)}
           </time>
         </>
       )}

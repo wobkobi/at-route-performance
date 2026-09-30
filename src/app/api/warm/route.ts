@@ -12,7 +12,7 @@ import { requireCronAuth } from "@/lib/cron/auth";
 import { forEachLimited, pageWarmPaths } from "@/lib/cron/warm";
 import { cachedWorstRoutesOfDay, cachedWorstStopsOfDay, cachedWorstTripsOfDay } from "@/lib/data";
 import { WEEK_REVALIDATE } from "@/lib/page/shame";
-import { nzServiceDayString } from "@/lib/time/service-day";
+import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any
@@ -73,7 +73,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const startTime = Date.now();
 
   try {
-    const yesterday = nzServiceDayString(new Date(Date.now() - 86_400_000));
+    const yesterday = shiftDays(nzServiceDayString(), -1);
     const [trips, routes, stops] = await Promise.all([
       cachedWorstTripsOfDay(yesterday, null, "exclude", WEEK_REVALIDATE),
       cachedWorstRoutesOfDay(yesterday, null, "exclude", WEEK_REVALIDATE),

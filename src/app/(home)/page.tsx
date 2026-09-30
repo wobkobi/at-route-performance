@@ -100,8 +100,8 @@ import { requestNow, requestServiceDay } from "@/lib/time/request-now";
 import {
   monthRangeLabel,
   nzLocalHour,
-  serviceDatesInRange,
   serviceDayLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
 import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
@@ -168,11 +168,7 @@ export async function generateMetadata({
  * @returns The label.
  */
 function periodLabel(window: PeriodWindow, range: DateRange): string {
-  if (window === "month") return monthRangeLabel(range);
-  const days = serviceDatesInRange(range);
-  const first = days[0];
-  const last = days.at(-1);
-  return first && last ? `${serviceDayLabel(first)} to ${serviceDayLabel(last)}` : "This week";
+  return window === "month" ? monthRangeLabel(range) : weekLabel(range);
 }
 
 /**

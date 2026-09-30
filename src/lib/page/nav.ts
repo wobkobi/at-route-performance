@@ -25,7 +25,7 @@ import {
   SERVICE_START_HOUR,
   shiftDays,
   shiftMonth,
-  weekRangeLabel,
+  weekLabel,
   YM_RE,
   type DateRange,
 } from "@/lib/time/service-day";
@@ -220,7 +220,7 @@ export function resolveWeekNav({
   now?: Date;
 }): WeekNav {
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  const periodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
+  const periodLabel = fixedWeekRange ? weekLabel(fixedWeekRange) : "Last 7 days";
   // Partial is about coverage, not reachability: the bounds below still come
   // from earliestDay, so a caller with an earliest day of its own keeps it.
   const partial =

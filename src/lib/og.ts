@@ -11,10 +11,12 @@ import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import {
+  dayRangeLabel,
   monthLabel,
   nzServiceDayString,
   parseInstantParam,
   serviceDayLabel,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
@@ -336,6 +338,15 @@ export function cardFilterLabel(mode: Mode | null, schools: SchoolFilter): strin
 }
 
 /**
+ * A week's days from its Monday, as `14 to 20 Sep`.
+ * @param monday - The week's Monday as `YYYY-MM-DD`.
+ * @returns The label.
+ */
+function weekOf(monday: string): string {
+  return dayRangeLabel(monday, shiftDays(monday, 6));
+}
+
+/**
  * The page title a home card's link unfurls with, worded like the page's own
  * heading. The card image carries the figures. A day of null is today; the
  * page resolves a bare link that opens on another day into that day first.
@@ -350,7 +361,7 @@ export function homeCardTitle(c: HomeCard): string {
     when = c.day ? `on ${serviceDayLabel(c.day)}` : "today";
     verb = c.day ? "was it" : "is it";
   } else if (c.window === "week") {
-    when = c.period ? `the week of ${serviceDayLabel(c.period)}` : "over the last 7 days";
+    when = c.period ? `over ${weekOf(c.period)}` : "over the last 7 days";
     verb = c.period ? "was it" : "has it been";
   } else {
     when = c.period ? `in ${monthLabel(c.period)}` : "this month";
@@ -362,7 +373,7 @@ export function homeCardTitle(c: HomeCard): string {
 /**
  * The period a card names, as a title suffix: empty for the page's own
  * default (today, a run's latest day, the current week or month), otherwise
- * ", Sun 20 Sep", ", week of Mon 14 Sep" or ", September 2026". A route's week
+ * ", Sun 20 Sep", ", 14 to 20 Sep" or ", September 2026". A route's week
  * with no period is the rolling ", last 7 days".
  * @param card - The card state.
  * @returns The suffix.
@@ -370,7 +381,7 @@ export function homeCardTitle(c: HomeCard): string {
 export function cardWhenSuffix(card: SubjectCard | ShameCard | ListCard): string {
   if (card.kind === "route" && card.window === "week" && !card.period) return ", last 7 days";
   if ("window" in card && card.window === "week") {
-    return card.period ? `, week of ${serviceDayLabel(card.period)}` : "";
+    return card.period ? `, ${weekOf(card.period)}` : "";
   }
   if ("window" in card && card.window === "month") {
     return card.period ? `, ${monthLabel(card.period)}` : "";

@@ -3,7 +3,6 @@
 
 // From the leaf rather than time/service-day.ts, which imports this module.
 import { delayBand, type DelayBand, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
-import { NZ_TZ } from "@/lib/time/nz-tz";
 
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";
@@ -184,27 +183,4 @@ export function offScheduleValue(
   // A zero threshold names the distance even inside the window; only a run
   // that rounds to exactly 0s still reads "on time".
   return { text: formatDelay(signed, { thresholdSec: 0 }), tone };
-}
-
-/**
- * Auckland-local day/month and year parts of a UTC instant.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
- */
-export function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  const { day, month, year } = o;
-  // Every requested part is always emitted; fail loudly rather than render "undefined".
-  if (day === undefined || month === undefined || year === undefined) {
-    throw new Error("Intl.DateTimeFormat omitted a requested day/month/year part");
-  }
-  return { dm: `${day}/${month}`, y: year };
 }

@@ -1,19 +1,10 @@
 // src/components/route/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
 import { formatCount, formatPct, offScheduleValue } from "@/lib/format";
+import { serviceDayLabel } from "@/lib/time/service-day";
 import type { RouteDay } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
-
-/**
- * Format a `YYYY-MM-DD` service date as `DD/MM`.
- * @param iso - The service date.
- * @returns Short date like "24/06".
- */
-function shortDate(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
-}
 
 /**
  * Compact per-day history table for a single route: each service day's event
@@ -79,7 +70,7 @@ export function RouteWeekSummary({
               <tr key={day.date} className="border-t border-at-border">
                 <td className="px-4 py-2 tabular-nums">
                   <Link href={dayHref(day.date)} className="text-at-shore hover:underline">
-                    {shortDate(day.date)}
+                    {serviceDayLabel(day.date)}
                   </Link>
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">{formatCount(day.events)}</td>

@@ -55,7 +55,7 @@ describe("homeCardTitle", () => {
       "How bad was it on Sun 20 Sep?",
     );
     expect(homeCardTitle(parseHomeCard({ window: "week", period: "2026-09-14" }))).toBe(
-      "How bad was it the week of Mon 14 Sep?",
+      "How bad was it over 14 to 20 Sep?",
     );
     expect(homeCardTitle(parseHomeCard({ window: "month", period: "2026-09" }))).toBe(
       "How bad was it in September 2026?",
@@ -112,7 +112,7 @@ describe("route cards", () => {
     expect(card).toMatchObject({ window: "week", day: null, period: null });
     expect(cardWhenSuffix(card)).toBe(", last 7 days");
     expect(cardWhenSuffix(parseRouteCard("20", { window: "week", period: "2026-09-14" }))).toBe(
-      ", week of Mon 14 Sep",
+      ", 14 to 20 Sep",
     );
   });
 
@@ -161,7 +161,7 @@ describe("shame cards", () => {
 
   it("reads a board's week and month, and titles them", () => {
     const week = parseShameCard("route", { window: "week", period: "2026-09-14" });
-    expect(listCardTitle(week)).toBe("Worst routes of the week, week of Mon 14 Sep");
+    expect(listCardTitle(week)).toBe("Worst routes of the week, 14 to 20 Sep");
     const month = parseShameCard("stop", { window: "month", period: "2026-09", school: "1" });
     expect(listCardTitle(month)).toBe(
       "Worst stops of the month, September 2026 (Incl. school services)",

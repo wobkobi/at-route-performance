@@ -73,7 +73,7 @@ import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
-import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time/service-day";
+import { nzLocalHour, nzWeekRange, weekLabel, type DateRange } from "@/lib/time/service-day";
 import {
   hourRangeParam,
   isHourInRange,
@@ -463,7 +463,8 @@ export default async function RoutePage({
   // days; the rolling default (no param) covers the last seven, today included.
   const periodParam = isWeekView ? resolveRequestedDay(sp.period) : null;
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  const weekPeriodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
+  const weekPeriodLabel = fixedWeekRange ? weekLabel(fixedWeekRange) : "Last 7 days";
+  const weekFigureNote = fixedWeekRange ? weekPeriodLabel : "last 7 days";
 
   // Start the live AT calls without blocking the shell. They feed only the alert
   // banner, the diagram's alerted-stop highlights, and the trip board's LIVE
@@ -871,7 +872,7 @@ export default async function RoutePage({
                 <p className="text-2xl font-ultra tracking-zero tabular-nums">
                   {formatCount(weekSummary?.events ?? 0)}
                 </p>
-                <p className="mt-0.5 text-xs text-at-muted">{weekPeriodLabel.toLowerCase()}</p>
+                <p className="mt-0.5 text-xs text-at-muted">{weekFigureNote}</p>
               </div>
               <PunctualityStat
                 bare

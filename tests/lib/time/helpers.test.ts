@@ -1,17 +1,20 @@
 // tests/lib/time/helpers.test.ts
-// Unit tests for the shared date-key, month and ?d= helpers in service-day.ts.
+// Unit tests for the shared date-key, month, week-label and ?d= helpers in service-day.ts.
 
 import {
   dashedDate,
+  dayRangeLabel,
   isRealDate,
   mondayOf,
   monthLabel,
   monthLastDay,
   nzServiceDayRange,
   nzServiceDayString,
+  nzWeekRange,
   parseInstantParam,
   serviceDayClockInstant,
   weekdayOf,
+  weekLabel,
   YM_RE,
   ymKey,
 } from "@/lib/time/service-day";
@@ -85,5 +88,22 @@ describe("serviceDayClockInstant boundary hour", () => {
     // 04:30 is before a 5am boundary, so it is the post-midnight run of this day.
     const at = serviceDayClockInstant(start, 4.5 * 3600, 5);
     expect(at.getTime() - start.getTime()).toBe(23.5 * 3600 * 1000);
+  });
+});
+
+describe("dayRangeLabel", () => {
+  it("names the month once, twice across a month, and the year across New Year", () => {
+    expect(dayRangeLabel("2026-09-21", "2026-09-27")).toBe("21 to 27 Sep");
+    expect(dayRangeLabel("2026-09-28", "2026-10-04")).toBe("28 Sep to 4 Oct");
+    expect(dayRangeLabel("2025-12-29", "2026-01-04")).toBe("29 Dec 2025 to 4 Jan 2026");
+    expect(dayRangeLabel("2026-09-21", "2026-09-21")).toBe("21 Sep");
+  });
+});
+
+describe("weekLabel", () => {
+  it("labels a week by its Monday and Sunday", () => {
+    expect(weekLabel(nzWeekRange("2026-09-21"))).toBe("21 to 27 Sep");
+    // The week DST ends in (5 Apr 2026) still ends on its Sunday.
+    expect(weekLabel(nzWeekRange("2026-03-30"))).toBe("30 Mar to 5 Apr");
   });
 });

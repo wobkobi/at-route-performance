@@ -20,7 +20,7 @@ import {
   nzWeekRange,
   shiftDays,
   shiftMonth,
-  weekRangeLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
 
@@ -78,7 +78,7 @@ export function resolveRange(
   }
   if (period) {
     const range = nzWeekRange(period);
-    return { range: clampRangeToDataStart(range), label: weekRangeLabel(range) };
+    return { range: clampRangeToDataStart(range), label: weekLabel(range) };
   }
   return { range: clampRangeToDataStart(nzLast7DaysRange(anchor)), label: "Last 7 days" };
 }

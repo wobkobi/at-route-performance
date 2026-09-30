@@ -14,6 +14,7 @@ import {
   type PickerState,
 } from "@/lib/time/calendar";
 import {
+  dayRangeLabel,
   monthLabel,
   monthOf,
   serviceDayLabel,
@@ -375,7 +376,7 @@ function WeekRow({
       type="button"
       disabled={disabled}
       aria-pressed={on}
-      aria-label={`Week of ${serviceDayLabel(first)}`}
+      aria-label={dayRangeLabel(first, last)}
       onClick={onPick}
       className={cn(
         "mb-0.5 grid w-full grid-cols-7 gap-0.5 border text-sm tabular-nums transition-colors",

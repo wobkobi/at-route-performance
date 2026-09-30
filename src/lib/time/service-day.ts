@@ -7,7 +7,6 @@
 // is treated as a service date directly (for `?day=`). Weeks and months are
 // runs of whole service days, and rolling windows quantise to service-day
 // boundaries so they cache by day rather than by the instant.
-import { dmY } from "@/lib/format";
 import {
   NZ_DATE,
   NZ_DATE_HOUR_PARTS,
@@ -620,15 +619,30 @@ export function serviceDateLabel(ymd: string): string {
 }
 
 /**
- * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
- * week straddles New Year.
- * @param range - Half-open week range (`end` is the exclusive next Monday).
- * @returns The range label.
+ * A run of service dates as `21 to 27 Sep`, naming the month on both ends only
+ * when it changes (`28 Sep to 4 Oct`) and the year on both ends only when the
+ * run straddles New Year (`29 Dec 2025 to 4 Jan 2026`). One date reads `21 Sep`.
+ * @param first - First date as `YYYY-MM-DD`.
+ * @param last - Last date as `YYYY-MM-DD`, inclusive.
+ * @returns The label.
  */
-export function weekRangeLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  const last = dmY(new Date(range.end.getTime() - MS_PER_DAY));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
+export function dayRangeLabel(first: string, last: string): string {
+  const a = parseYmd(first);
+  const b = parseYmd(last);
+  if (first === last) return `${a.d} ${monthShortName(a.mo)}`;
+  if (a.y !== b.y) return `${serviceDateLabel(first)} to ${serviceDateLabel(last)}`;
+  if (a.mo !== b.mo) return `${a.d} ${monthShortName(a.mo)} to ${b.d} ${monthShortName(b.mo)}`;
+  return `${a.d} to ${b.d} ${monthShortName(b.mo)}`;
+}
+
+/**
+ * Label a week, or any run of whole service days, by its first and last day
+ * (see {@link dayRangeLabel}).
+ * @param range - Half-open range (`end` is exclusive).
+ * @returns The label.
+ */
+export function weekLabel(range: DateRange): string {
+  const days = serviceDatesInRange(range);
+  const first = days[0] ?? nzServiceDayString(range.start);
+  return dayRangeLabel(first, days.at(-1) ?? first);
 }

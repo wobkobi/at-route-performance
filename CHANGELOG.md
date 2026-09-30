@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.8] - 2026-10-01
+
+### Fixed
+
+- Weeks read 21 to 27 Sep everywhere (28 Sep to 4 Oct across a month), the route week table names
+  its days, the footer clock reads 7:24 am, and the nightly warm and aggregate jobs find yesterday
+  by calendar day so a DST change cannot skip or repeat one
+
 ## [2.41.6] - 2026-10-01
 
 ### Fixed
