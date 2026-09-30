@@ -22,9 +22,20 @@ import {
   stationIdExpr,
   stationNameOf,
   stationProjection,
-} from "@/lib/station";
-import { type PlatformStats, platformBreakdown } from "@/lib/station-platforms";
-import { type StationPlace, type StationSiblings, siblingsByStation } from "@/lib/station-siblings";
+} from "@/lib/stop/station";
+import { type PlatformStats, platformBreakdown } from "@/lib/stop/station-platforms";
+import {
+  type StationPlace,
+  type StationSiblings,
+  siblingsByStation,
+} from "@/lib/stop/station-siblings";
+import {
+  MIN_STOP_EVENTS,
+  type RankedStopRow,
+  matchesDelayDirection,
+  mergeStationPlatforms,
+  worstStopOfDay,
+} from "@/lib/stop/worst-stop";
 import {
   type DateRange,
   NZ_TZ,
@@ -32,15 +43,8 @@ import {
   nzServiceDayRange,
   padScanRange,
   serviceDatesInRange,
-} from "@/lib/time";
-import { type HourRange, hoursInRange } from "@/lib/time-of-day";
-import {
-  MIN_STOP_EVENTS,
-  type RankedStopRow,
-  matchesDelayDirection,
-  mergeStationPlatforms,
-  worstStopOfDay,
-} from "@/lib/worst-stop";
+} from "@/lib/time/service-day";
+import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
 import type {
   ShameDayStop,
@@ -540,9 +544,9 @@ async function worstStopsForRange(
   )) as unknown as { cursor: { firstBatch: (RankedStopRow & { date: string })[] } };
 
   // Ranked here rather than in the pipeline: merging platforms needs the station
-  // rule in station.ts, and sorting a few thousand rows costs nothing here while
-  // a blocking $sort on this collection exceeds the cluster's 32MB in-memory
-  // limit (the tier forbids disk spill).
+  // rule in stop/station.ts, and sorting a few thousand rows costs nothing here
+  // while a blocking $sort on this collection exceeds the cluster's 32MB
+  // in-memory limit (the tier forbids disk spill).
   const byDate = new Map<string, RankedStopRow[]>();
   for (const row of res.cursor.firstBatch) {
     const rows = byDate.get(row.date);

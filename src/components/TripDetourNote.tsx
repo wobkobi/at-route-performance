@@ -3,7 +3,7 @@
 // (see lib/off-route.ts), with AT's own alert when one was active.
 
 import type { Sighting } from "@/lib/off-route";
-import { nzClockTime } from "@/lib/time";
+import { nzClockTime } from "@/lib/time/service-day";
 import Link from "next/link";
 import type { JSX } from "react";
 

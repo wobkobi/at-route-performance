@@ -27,7 +27,6 @@ import {
   searchStops,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -39,9 +38,10 @@ import {
   windowPhrase,
   type RangeNav,
 } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
-import type { DateRange } from "@/lib/time";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
+import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";

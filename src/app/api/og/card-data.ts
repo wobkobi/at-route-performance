@@ -64,7 +64,7 @@ import {
   serviceDayLabel,
   weekRangeLabel,
   type DateRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import { dayVerdict } from "@/lib/verdict";
 import type { FleetSummary, ShameRouteRow, ShameTrip } from "@/types/dashboard";
 import type { SubjectBodyProps } from "./card-layout";

@@ -19,7 +19,6 @@ import {
   getRouteOperators,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
@@ -33,12 +32,13 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route-explorer";
 import { successorSlug } from "@/lib/route-lineage";
 import { routeSlug } from "@/lib/route-slug";
 import { isSchoolBus } from "@/lib/school-bus";
-import type { DateRange } from "@/lib/time";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
+import type { DateRange } from "@/lib/time/service-day";
 import { getLiveVehicles } from "@/lib/vehicles";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
@@ -92,8 +92,8 @@ export default async function RoutesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   if (window === "day") {
     clampDayParam("/routes", sp, today);

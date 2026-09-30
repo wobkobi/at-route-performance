@@ -1,6 +1,6 @@
 // src/types/api.ts
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
-import type { PlatformRow } from "@/lib/station-platforms";
+import type { PlatformRow } from "@/lib/stop/station-platforms";
 
 // One route's road path, returned by /api/network-lines for the live map's underlay
 export interface NetworkLine {
@@ -14,8 +14,8 @@ export interface NetworkLine {
   colour: string;
   /**
    * The path in stretches, each at the lane its colour takes on that road (see
-   * src/lib/shared-roads.ts). `slot` counts line widths to the left of travel;
-   * `path` is flat `[lat, lon, lat, lon, ...]`, since a few hundred routes pay
+   * src/lib/map/shared-roads.ts). `slot` counts line widths to the left of
+   * travel; `path` is flat `[lat, lon, lat, lon, ...]`, since a few hundred routes pay
    * for every bracket twice over.
    */
   runs: { slot: number; path: number[] }[];

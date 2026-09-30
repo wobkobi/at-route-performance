@@ -1,12 +1,12 @@
 // A route's recorded stop closures and detours for one day, read back from StopClosure for the
-// route diagram (lib/strip-marks.ts places them) and for rule 26's filter, which keeps arrivals
+// route diagram (lib/strip/marks.ts places them) and for rule 26's filter, which keeps arrivals
 // timed at a stop while it was closed out of its figures. The rows are only ever read here; a
 // closure recorded by mistake costs nothing once it is corrected.
 import { cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
-import { closesStops, type DayClosure } from "@/lib/strip-marks";
-import type { DateRange } from "@/lib/time";
+import { closesStops, type DayClosure } from "@/lib/strip/marks";
+import type { DateRange } from "@/lib/time/service-day";
 import type { Prisma, StopClosure } from "@prisma/client";
 
 /**

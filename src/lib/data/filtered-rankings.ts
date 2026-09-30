@@ -11,10 +11,8 @@ import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { getRankings } from "@/lib/data/rankings";
 import { getRiderWaitOfDates } from "@/lib/data/rider-wait";
 import { getRouteGeography } from "@/lib/data/route-areas";
-import { datesOfType, type DayType } from "@/lib/day-type";
 import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
-import { NZ_TZ } from "@/lib/nz-tz";
 import {
   earlyTwoCounts,
   lateSum,
@@ -32,8 +30,10 @@ import {
 import { applyRoutePenalties } from "@/lib/rider-wait";
 import { foldLineageRows } from "@/lib/route-lineage";
 import { schoolAllows, type SchoolFilter } from "@/lib/school-bus";
-import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time";
-import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time-of-day";
+import { datesOfType, type DayType } from "@/lib/time/day-type";
+import { NZ_TZ } from "@/lib/time/nz-tz";
+import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
+import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { TopRouteRow } from "@/types/api";
 
 /** How long a live day's filtered rows are served before a fresh read, in seconds. */

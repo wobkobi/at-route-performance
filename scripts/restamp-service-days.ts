@@ -32,10 +32,10 @@
  * Usage:
  *   npx tsx --env-file=.env.local scripts/restamp-service-days.ts [--dry-run] [--from=5] [--to=4]
  */
-import { DATA_START_DAY } from "@/lib/data-start";
-import { restampedSummaryDate } from "@/lib/restamp";
-import { cancelledServiceDate } from "@/lib/run-day";
-import { NZ_TZ, nzServiceDayString } from "@/lib/time";
+import { DATA_START_DAY } from "@/lib/time/data-start";
+import { restampedSummaryDate } from "@/lib/time/restamp";
+import { cancelledServiceDate } from "@/lib/time/run-day";
+import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
 import { PrismaClient } from "@prisma/client";
 import fs from "node:fs";
 

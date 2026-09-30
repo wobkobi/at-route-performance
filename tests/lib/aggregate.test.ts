@@ -13,7 +13,7 @@ import {
   type DailyStats,
 } from "@/lib/aggregate";
 import { NO_DELAY_SOURCE, realDeviationExprFor, UNCLASSIFIED_LIMIT_SEC } from "@/lib/deviation";
-import { NZ_TZ, nzServiceDayRange } from "@/lib/time";
+import { NZ_TZ, nzServiceDayRange } from "@/lib/time/service-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));

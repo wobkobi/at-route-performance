@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDelay, formatGtfsTime } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
-import { nzClockTime } from "@/lib/time";
+import { nzClockTime } from "@/lib/time/service-day";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip-line";
 import Link from "next/link";
 import type { JSX } from "react";

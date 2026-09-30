@@ -33,11 +33,10 @@ import { RankingFiltersNote } from "@/components/RankingFiltersNote";
 import { RankingsHeader } from "@/components/RankingsHeader";
 import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SectionLink } from "@/components/SectionLink";
-import { ShameOfDay } from "@/components/ShameOfDay";
+import { ShameOfDay } from "@/components/shame/ShameOfDay";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
-import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/at-alerts";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
@@ -52,8 +51,7 @@ import {
   getWorstStopsOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/data-start";
-import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
+import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
 import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
@@ -81,7 +79,6 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { parseRankingsParams } from "@/lib/rankings-page";
-import { requestNow, requestServiceDay } from "@/lib/request-now";
 import { viewQuery } from "@/lib/route-explorer";
 import {
   isSchoolBus,
@@ -92,13 +89,16 @@ import {
   type SchoolFilter,
 } from "@/lib/school-bus";
 import { buildShameHref, crownedRow } from "@/lib/shame-page";
+import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/time/data-start";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestNow, requestServiceDay } from "@/lib/time/request-now";
 import {
   monthRangeLabel,
   nzLocalHour,
   serviceDatesInRange,
   serviceDayLabel,
   type DateRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -187,7 +187,7 @@ async function PeriodHome({
   const { mode, dir, schools } = parseRankingsParams(sp);
   // Anchor every window to the latest day with data so a quiet "today" still
   // shows a populated period. Today itself is one request-time clock read for
-  // the whole render (see lib/request-now.ts).
+  // the whole render (see lib/time/request-now.ts).
   const [today, latest, earliest] = await Promise.all([
     requestServiceDay(),
     getLatestEventDate(),
@@ -339,8 +339,8 @@ export default async function Home({
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   if (window !== "day") return <PeriodHome window={window} sp={sp} />;
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   clampDayParam("/", sp, today);
   dropTodayParam("/", sp, today);

@@ -31,7 +31,6 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
-import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/day-url";
 import { boundFor } from "@/lib/departure-label";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
@@ -44,7 +43,6 @@ import {
   type HourSlot,
 } from "@/lib/page-nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import {
   buildShameHref,
@@ -62,8 +60,10 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/shame-page";
-import { nzClockTime, nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time";
-import { hoursInRange, type HourRange } from "@/lib/time-of-day";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
+import { nzClockTime, nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
+import { hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { ShameTrip } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -456,8 +456,8 @@ export default async function TripShamePage({
   searchParams?: Promise<ShameSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   clampDayParam(BASE, sp, today);
   dropTodayParam(BASE, sp, today);

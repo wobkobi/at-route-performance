@@ -6,18 +6,18 @@
 // would read it as a quiet stop.
 
 import { ChipLink } from "@/components/Chip";
-import type { StopDepartures } from "@/lib/at-stop-trips";
 import { cn } from "@/lib/cn";
-import { departuresFromNow } from "@/lib/departure-board";
 import { departureLabel } from "@/lib/departure-label";
+import type { StopDepartures } from "@/lib/feed/at-stop-trips";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
 import { routeSlug } from "@/lib/route-slug";
+import { departuresFromNow } from "@/lib/stop/departure-board";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
   serviceDateLabel,
   serviceDayLabel,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import Link from "next/link";
 import { Fragment, type JSX } from "react";
 

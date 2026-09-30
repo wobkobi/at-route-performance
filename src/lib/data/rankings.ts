@@ -26,7 +26,7 @@ import {
   nzServiceDayString,
   nzWeekRange,
   serviceDatesInRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import type { TopRouteRow } from "@/types/api";
 
 /** Parameters for {@link getTopRoutes}. */

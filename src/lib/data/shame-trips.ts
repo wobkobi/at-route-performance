@@ -12,8 +12,8 @@ import {
   padScanRange,
   SERVICE_START_HOUR,
   serviceDatesInRange,
-} from "@/lib/time";
-import { type HourRange, hoursInRange } from "@/lib/time-of-day";
+} from "@/lib/time/service-day";
+import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type { ShameOfDay, ShameOfWeek, ShameRanked, ShameTrip } from "@/types/dashboard";
 
 /**

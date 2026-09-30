@@ -5,9 +5,9 @@
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
-import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/line-arrows";
-import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map-tiles";
-import { wheelZoomOnHover } from "@/lib/map-wheel";
+import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/map/line-arrows";
+import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
+import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { operatorHref, type Operator } from "@/lib/operators";
 import { routeSlug } from "@/lib/route-slug";
 import { liveRunHref } from "@/lib/vehicle-detail";

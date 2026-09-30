@@ -3,7 +3,7 @@
 // behind POST /api/ingest/cleanup. The run takes its storage as a small port so
 // a test can drive it with an in-memory fake; the route passes the Prisma one.
 import { prisma, runCommand } from "@/lib/db";
-import { nzServiceDayRange } from "@/lib/time";
+import { nzServiceDayRange } from "@/lib/time/service-day";
 
 /**
  * Retention floor in days. A request under this is refused outright, and

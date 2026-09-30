@@ -1,7 +1,7 @@
 // src/lib/warm.ts
 // What the nightly warm renders, and the small worker pool it renders them with.
-import { isBeforeDataStart } from "@/lib/data-start";
-import { shiftWeek } from "@/lib/time";
+import { isBeforeDataStart } from "@/lib/time/data-start";
+import { shiftWeek } from "@/lib/time/service-day";
 
 /**
  * Pages with a day stepper. Each is warmed on its default filters, the variant

@@ -9,7 +9,7 @@ import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page-nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/range-page";
 import { routeSlug } from "@/lib/route-slug";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
-import { nzServiceDayString, serviceDayLabel } from "@/lib/time";
+import { nzServiceDayString, serviceDayLabel } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 

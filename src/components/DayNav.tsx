@@ -3,8 +3,8 @@
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { StepPending } from "@/components/StepPending";
-import type { PickerState } from "@/lib/calendar";
-import { serviceDayLabel, serviceDayWindowText, shiftWeek } from "@/lib/time";
+import type { PickerState } from "@/lib/time/calendar";
+import { serviceDayLabel, serviceDayWindowText, shiftWeek } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";

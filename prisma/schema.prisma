@@ -216,7 +216,7 @@ type RunMark {
 }
 
 // A stop closed, or a stretch detoured, on one route, recorded by the realtime
-// ingest as it happens (see lib/stop-closures.ts). Alerts and the feed's SKIPPED
+// ingest as it happens (see lib/stop/closures.ts). Alerts and the feed's SKIPPED
 // stop times are never stored anywhere else, so this is the only record a past
 // day's route diagram can draw its closures from. One row is one episode: one
 // active stint of an alert on a route, one stop AT skipped one way, or one

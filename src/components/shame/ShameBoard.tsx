@@ -2,7 +2,12 @@
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
 import { cn } from "@/lib/cn";
-import { afterMidnightNote, nzHourLabel, SERVICE_START_HOUR, weekdayShort } from "@/lib/time";
+import {
+  afterMidnightNote,
+  nzHourLabel,
+  SERVICE_START_HOUR,
+  weekdayShort,
+} from "@/lib/time/service-day";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 

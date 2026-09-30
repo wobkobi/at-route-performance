@@ -2,7 +2,7 @@
 // How a stored closure reads for one day, and rule 26's filter over the arrivals timed at a stop
 // while it was closed.
 import { closedArrivalsMatch, toDayClosure } from "@/lib/data/route-closures";
-import type { DayClosure } from "@/lib/strip-marks";
+import type { DayClosure } from "@/lib/strip/marks";
 import type { StopClosure } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 

@@ -5,9 +5,9 @@
 // days; an explicit `period` is a calendar week reached by stepping back. A
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
-import { clampRangeToDataStart } from "@/lib/data-start";
 import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter } from "@/lib/school-bus";
+import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -20,7 +20,7 @@ import {
   shiftWeek,
   weekRangeLabel,
   type DateRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 
 /** Active rankings window. */
 export type RankWindow = "week" | "month";

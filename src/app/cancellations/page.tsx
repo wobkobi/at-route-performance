@@ -21,7 +21,6 @@ import {
   type CancelledRouteRow,
   type NetworkCancelledTrip,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import {
@@ -31,9 +30,10 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { requestNow } from "@/lib/request-now";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
-import { nzServiceDayString, type DateRange } from "@/lib/time";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestNow } from "@/lib/time/request-now";
+import { nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -95,8 +95,8 @@ export default async function CancellationsPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const now = await requestNow();
   const today = nzServiceDayString(now);
   if (window === "day") {

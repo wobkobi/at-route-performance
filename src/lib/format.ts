@@ -1,9 +1,9 @@
 // src/lib/format.ts
 // Formatting helpers for delays, dates and other display values.
 
-// From the leaf rather than time.ts, which imports this module.
-import { NZ_TZ } from "@/lib/nz-tz";
+// From the leaf rather than time/service-day.ts, which imports this module.
 import { delayBand, type DelayBand, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
+import { NZ_TZ } from "@/lib/time/nz-tz";
 
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";

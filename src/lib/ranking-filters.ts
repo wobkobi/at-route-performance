@@ -5,9 +5,15 @@
 // were (lib/filter-params.ts); these sit beside them.
 
 import { isAreaKey, type AreaKey } from "@/lib/areas";
-import { DAYS_PARAM, dayTypeLabel, dayTypeOf, parseDayType, type DayType } from "@/lib/day-type";
 import { routeSlug } from "@/lib/route-slug";
-import { nzLocalHour } from "@/lib/time";
+import {
+  DAYS_PARAM,
+  dayTypeLabel,
+  dayTypeOf,
+  parseDayType,
+  type DayType,
+} from "@/lib/time/day-type";
+import { nzLocalHour } from "@/lib/time/service-day";
 import {
   HOURS_PARAM,
   hourRangeClock,
@@ -15,7 +21,7 @@ import {
   isHourInRange,
   parseHourRange,
   type HourRange,
-} from "@/lib/time-of-day";
+} from "@/lib/time/time-of-day";
 
 /** The query param holding the areas, a comma list as the Routes page reads it. */
 export const AREA_PARAM = "area";

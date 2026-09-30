@@ -7,17 +7,17 @@
 // road, and drawn together they only thicken it. A single route's map offsets
 // them either side because there the direction is the subject; here the subject
 // is where the network goes. A route with branches or a long tail draws each
-// once (src/lib/route-branches.ts), and routes of different colours on one road
-// are set side by side (src/lib/shared-roads.ts).
+// once (src/lib/map/route-branches.ts), and routes of different colours on one
+// road are set side by side (src/lib/map/shared-roads.ts).
 
 import { routeColour } from "@/components/ModeIcon";
 import { getDirectoryRoutes } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { lineName } from "@/lib/line-name";
+import { type RouteShape, routePaths } from "@/lib/map/route-branches";
+import { laneRuns } from "@/lib/map/shared-roads";
 import { unstable_cache } from "@/lib/mem-cache";
-import { type RouteShape, routePaths } from "@/lib/route-branches";
 import { routeSlug } from "@/lib/route-slug";
-import { laneRuns } from "@/lib/shared-roads";
 import type { NetworkLine } from "@/types/api";
 
 /** How far from the line a bend may sit before the overlay drops it, in metres. */

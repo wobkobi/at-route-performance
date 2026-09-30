@@ -12,9 +12,9 @@
 //   (--all = every completed day from the first day on record; add --dry-run to
 //   list the days without writing)
 import { daySummarised, writeHourlySummary } from "@/lib/aggregate";
-import { DATA_START_DAY } from "@/lib/data-start";
 import { prisma } from "@/lib/db";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { DATA_START_DAY } from "@/lib/time/data-start";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes("--dry-run");

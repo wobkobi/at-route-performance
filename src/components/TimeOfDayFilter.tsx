@@ -1,7 +1,7 @@
 // src/components/TimeOfDayFilter.tsx
 // Chip row narrowing a route's figures to a part of the service day.
 import { ChipLink } from "@/components/Chip";
-import { activePreset, hourRangeLabel, TIME_PRESETS, type HourRange } from "@/lib/time-of-day";
+import { activePreset, hourRangeLabel, TIME_PRESETS, type HourRange } from "@/lib/time/time-of-day";
 import type { JSX } from "react";
 
 /** Props for {@link TimeOfDayFilter}. */

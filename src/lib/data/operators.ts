@@ -1,8 +1,8 @@
 // src/lib/data/operators.ts
 // The stored operator list, as the nightly shapes sync last wrote it.
 
-import { AGENCIES_SETTING, parseStoredAgencies } from "@/lib/gtfs-agencies";
-import { getSetting } from "@/lib/gtfs-settings";
+import { AGENCIES_SETTING, parseStoredAgencies } from "@/lib/feed/gtfs-agencies";
+import { getSetting } from "@/lib/feed/gtfs-settings";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Operator } from "@/lib/operators";
 

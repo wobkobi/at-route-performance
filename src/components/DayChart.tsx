@@ -5,8 +5,8 @@
 // Plain HTML boxes rather than SVG or a chart library, rendered on the server.
 
 import { cn } from "@/lib/cn";
-import type { DaySlot } from "@/lib/day-series";
-import { serviceDayLabel, weekdayShort } from "@/lib/time";
+import type { DaySlot } from "@/lib/time/day-series";
+import { serviceDayLabel, weekdayShort } from "@/lib/time/service-day";
 import { VERDICT_BANDS } from "@/lib/verdict";
 import Link from "next/link";
 import type { JSX } from "react";

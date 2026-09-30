@@ -1,6 +1,5 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
-import { clampRangeToDataStart } from "@/lib/data-start";
 import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
@@ -9,7 +8,8 @@ import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
-import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/station";
+import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/stop/station";
+import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
   NZ_TZ,
   nzLast7DaysRange,
@@ -18,8 +18,8 @@ import {
   padScanRange,
   serviceDatesInRange,
   type DateRange,
-} from "@/lib/time";
-import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time-of-day";
+} from "@/lib/time/service-day";
+import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { RouteByStop, RouteDay, RouteSummary } from "@/types/api";
 
 /** Parameters for {@link getRouteStats}. */

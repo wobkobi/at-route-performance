@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.40.7] - 2026-09-30
+
+### Changed
+
+- The code's shared helpers are sorted into folders by job (the AT and GTFS feed, database writes,
+  stops and stations, the route strip diagram, the maps, and dates and service days) instead of over
+  a hundred files side by side, so each is quicker to find. Nothing on the site changes.
+
 ## [2.40.6] - 2026-09-30
 
 ### Changed

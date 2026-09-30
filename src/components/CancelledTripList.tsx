@@ -23,7 +23,7 @@ import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { boundFor } from "@/lib/departure-label";
 import { UNKNOWN_VALUE } from "@/lib/format";
-import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time";
+import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
   TRIP_NAME_CLASS,
   TRIP_NAME_GROUP_CLASS,

@@ -3,7 +3,7 @@
 
 import { DataFreshness } from "@/components/DataFreshness";
 import { readFallback } from "@/lib/db";
-import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/ingest-run";
+import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/feed/ingest-run";
 import { connection } from "next/server";
 import type { JSX } from "react";
 

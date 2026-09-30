@@ -3,7 +3,7 @@
 // explicit-date and catch-up forms, and one IngestRun row per day.
 import { POST } from "@/app/api/ingest/aggregate/route";
 import { aggregateDay, dayHasEvents, daySummarised } from "@/lib/aggregate";
-import { recordIngestRun } from "@/lib/ingest-run";
+import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/aggregate", async (importOriginal) => ({
@@ -12,7 +12,7 @@ vi.mock("@/lib/aggregate", async (importOriginal) => ({
   daySummarised: vi.fn(),
   dayHasEvents: vi.fn(),
 }));
-vi.mock("@/lib/ingest-run", () => ({ recordIngestRun: vi.fn() }));
+vi.mock("@/lib/feed/ingest-run", () => ({ recordIngestRun: vi.fn() }));
 // `after` needs a request context in Next; run the deferred work inline instead.
 vi.mock("next/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/server")>()),

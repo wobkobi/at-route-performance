@@ -29,7 +29,7 @@ import type { TripSort } from "@/lib/data";
 import { boundFor } from "@/lib/departure-label";
 import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
 import { MODE_NOUN } from "@/lib/mode";
-import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time";
+import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip-board";
 import {
   TRIP_NAME_CLASS,

@@ -1,7 +1,7 @@
 // src/lib/live-view.ts
 // Whether the window a page's URL names can still change. Pure and free of the
 // data layer, so the footer's client-side poller can import it.
-import { shiftWeek } from "@/lib/time";
+import { shiftWeek } from "@/lib/time/service-day";
 
 /** A `YYYY-MM` month key: the month view's `?period=`. */
 const MONTH_KEY = /^\d{4}-\d{2}$/;

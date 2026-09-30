@@ -5,7 +5,7 @@
 
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { STATION_PREFIX, isLegacyStationId, stationId, stationName } from "@/lib/station";
+import { STATION_PREFIX, isLegacyStationId, stationId, stationName } from "@/lib/stop/station";
 
 /** One stop a search found, by the id its page is keyed on. */
 export interface StopMatch {

@@ -3,7 +3,7 @@
 // where it ranks on the hardest-worked board, and each run's figures.
 
 import { routeSlug } from "@/lib/route-slug";
-import { nzServiceDayString } from "@/lib/time";
+import { nzServiceDayString } from "@/lib/time/service-day";
 import type { VehicleTotal } from "@/lib/vehicle-rank";
 
 /**

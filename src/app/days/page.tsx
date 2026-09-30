@@ -17,8 +17,6 @@ import {
   getRankings,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { DATA_START_DAY } from "@/lib/data-start";
-import { daySlot, type DaySlot } from "@/lib/day-series";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
@@ -27,7 +25,6 @@ import {
   periodRangeNav,
   type RangeWindow,
 } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import {
   sortRows,
@@ -36,7 +33,10 @@ import {
   type SortDir,
   type TableSort,
 } from "@/lib/table-sort";
-import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time";
+import { DATA_START_DAY } from "@/lib/time/data-start";
+import { daySlot, type DaySlot } from "@/lib/time/day-series";
+import { requestServiceDay } from "@/lib/time/request-now";
+import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { TopRouteRow } from "@/types/api";
 import type { Metadata } from "next";
@@ -114,7 +114,7 @@ export default async function DaysPage({
   ) as ModeFilterValue;
   const schools = parseSchoolFilter(sp.school);
   // One request-time clock read for the whole render, handed to every helper that
-  // places a day against today (see lib/request-now.ts). Resolved before the
+  // places a day against today (see lib/time/request-now.ts). Resolved before the
   // redirect below, which needs it to place a carried day in its week.
   const today = await requestServiceDay();
   // One day is one column here, so there is no day view to honour and a

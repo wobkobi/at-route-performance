@@ -8,8 +8,8 @@
 // recorded in IngestRun and the function logs.
 
 import { requireCronAuth } from "@/lib/auth";
-import { syncShapes, syncTripMeta } from "@/lib/ingest";
-import { recordIngestRun } from "@/lib/ingest-run";
+import { syncShapes, syncTripMeta } from "@/lib/feed/ingest";
+import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any

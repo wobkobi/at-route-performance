@@ -2,8 +2,8 @@
 // Render a card for the window's worst-performing stop.
 
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { dayLinkParam } from "@/lib/day-url";
-import { nzHourLabel, weekdayShort } from "@/lib/time";
+import { dayLinkParam } from "@/lib/time/day-url";
+import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
 import Link from "next/link";
 import type { JSX } from "react";

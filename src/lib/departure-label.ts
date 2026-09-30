@@ -2,7 +2,7 @@
 // Turn AT's two headsigns into what a departures board needs: where a service is
 // going from this stop, and the road or station it goes by.
 
-import { normaliseHeadsign } from "@/lib/station";
+import { normaliseHeadsign } from "@/lib/stop/station";
 
 /** Where a departure is bound, split for a board's two lines. */
 export interface DepartureLabel {

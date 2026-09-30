@@ -8,12 +8,11 @@
 // trip per service day, and the vehicle feed is joined best-effort so a feed
 // outage leaves rows unnamed rather than failing. The same vehicle read feeds
 // the off-route check (lib/off-route.ts) and the fleet register
-// (lib/fleet-store.ts), and the stop closures (lib/stop-closures.ts) are recorded
+// (lib/store/fleet.ts), and the stop closures (lib/stop/closures.ts) are recorded
 // last; all three are best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
-import { fetchATTripUpdates } from "@/lib/at";
 import { requireCronAuth } from "@/lib/auth";
 import {
   DUPLICATE_KEY,
@@ -23,19 +22,20 @@ import {
   throwOnWriteErrors,
 } from "@/lib/db";
 import { arrivalWriteStages, NO_DELAY_SOURCE, type ArrivalWrite } from "@/lib/deviation";
-import { recordFleet } from "@/lib/fleet-store";
-import { claimIngestLease, releaseIngestLease, UNLEASED } from "@/lib/ingest-lease";
-import { lastRecordedRun, recordIngestRun } from "@/lib/ingest-run";
+import { fetchATTripUpdates } from "@/lib/feed/at";
+import { claimIngestLease, releaseIngestLease, UNLEASED } from "@/lib/feed/ingest-lease";
+import { lastRecordedRun, recordIngestRun } from "@/lib/feed/ingest-run";
 import {
   drainSpool,
   spoolEnabled,
   spoolMayHold,
   spoolWrites,
   type SpooledWrite,
-} from "@/lib/ingest-spool";
-import { recordOffRouteSightings } from "@/lib/off-route-store";
-import { cancelledServiceDate, runServiceDate } from "@/lib/run-day";
-import { recordStopClosures } from "@/lib/stop-closure-store";
+} from "@/lib/feed/ingest-spool";
+import { recordFleet } from "@/lib/store/fleet";
+import { recordOffRouteSightings } from "@/lib/store/off-route";
+import { recordStopClosures } from "@/lib/store/stop-closures";
+import { cancelledServiceDate, runServiceDate } from "@/lib/time/run-day";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";

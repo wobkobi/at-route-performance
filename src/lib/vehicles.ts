@@ -4,7 +4,7 @@
 // updates feed, yielding delay-aware LiveVehicle markers for the map.
 // Cached briefly so map polling does not hammer the AT API.
 
-import { fetchATTripUpdates, type TripUpdate } from "@/lib/at";
+import { fetchATTripUpdates, type TripUpdate } from "@/lib/feed/at";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { VehicleReading } from "@/lib/off-route";
 import { trainCars, type TrainUnit } from "@/lib/train-consist";

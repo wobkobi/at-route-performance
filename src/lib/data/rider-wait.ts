@@ -18,8 +18,8 @@ import {
   type TripPenalty,
 } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
-import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time";
-import type { HourRange } from "@/lib/time-of-day";
+import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
+import type { HourRange } from "@/lib/time/time-of-day";
 
 /** One service day's penalties. */
 export interface DayRiderWait {
