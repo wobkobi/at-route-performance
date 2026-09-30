@@ -7,6 +7,7 @@ import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trip
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { Mode } from "@/lib/mode";
 import { lateSum, onTimePerEventSum } from "@/lib/on-time";
 import type { DelayDirection } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route/slug";
@@ -67,7 +68,7 @@ import type {
  */
 export function cachedWorstStopsOfDay(
   date: string,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   direction: DelayDirection,
   revalidate: number,
@@ -98,10 +99,7 @@ export const MIN_STOP_EVENTS_HOUR = 5;
  * @param modeMap - The full route-mode map from {@link getRouteModeMap}.
  * @returns The dominant mode, or `"BUS"` when no routes are recognised.
  */
-function dominantMode(
-  routeIds: string[],
-  modeMap: Map<string, "BUS" | "TRAIN" | "FERRY">,
-): "BUS" | "TRAIN" | "FERRY" {
+function dominantMode(routeIds: string[], modeMap: Map<string, Mode>): Mode {
   const counts = { BUS: 0, TRAIN: 0, FERRY: 0 };
   for (const id of routeIds) {
     const m = modeMap.get(id);
@@ -486,7 +484,7 @@ export async function getWorstStopsOfWeek(
  */
 async function worstStopsForRange(
   range: DateRange,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   direction: DelayDirection,
   classified: boolean,

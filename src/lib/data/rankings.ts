@@ -11,6 +11,7 @@ import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { Mode } from "@/lib/mode";
 import {
   earlyTwoCounts,
   lateSum,
@@ -35,7 +36,7 @@ export interface TopRoutesParams {
   limit: number;
   metric: "on_time_rate" | "avg_delay";
   thresholdSec: number;
-  mode?: "BUS" | "TRAIN" | "FERRY";
+  mode?: Mode;
 }
 
 /**

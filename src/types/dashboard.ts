@@ -1,3 +1,4 @@
+import type { Mode } from "@/lib/mode";
 // src/types/dashboard.ts
 // Dashboard view-model types, including fleet-wide summary totals.
 
@@ -78,7 +79,7 @@ export interface ShameStop {
   events: number;
   avg_delay_sec: number | null;
   avg_abs_delay_sec: number;
-  mode: "BUS" | "TRAIN" | "FERRY";
+  mode: Mode;
 }
 
 /** The day's worst stop per hour, for the Stop Shame day board. */
@@ -97,7 +98,7 @@ export interface ShameDayStop {
   events: number;
   avg_delay_sec: number | null;
   avg_abs_delay_sec: number;
-  mode: "BUS" | "TRAIN" | "FERRY";
+  mode: Mode;
 }
 
 /** The week's worst stop per service day, for the Stop Shame week board. */
@@ -152,5 +153,5 @@ export interface WorstStop {
   /** Average absolute deviation - the off-schedule magnitude (the sort key). */
   avg_abs_delay_sec: number;
   /** Dominant mode of the routes that call at this stop. */
-  mode: "BUS" | "TRAIN" | "FERRY";
+  mode: Mode;
 }

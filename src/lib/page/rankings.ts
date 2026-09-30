@@ -5,6 +5,7 @@
 // days; an explicit `period` is a calendar week reached by stepping back. A
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
+import { parseMode, type Mode } from "@/lib/mode";
 import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter } from "@/lib/school-bus";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
@@ -24,8 +25,6 @@ import {
 
 /** Active rankings window. */
 export type RankWindow = "week" | "month";
-/** Active mode filter, or null for every mode. */
-export type RankMode = "BUS" | "TRAIN" | "FERRY" | null;
 /** Query params for the rankings page. */
 export interface RankingsSearchParams {
   window?: string;
@@ -38,7 +37,7 @@ export interface RankingsSearchParams {
 /** Parsed rankings params. */
 export interface ParsedRankingsParams {
   window: RankWindow;
-  mode: RankMode;
+  mode: Mode | null;
   dir: DelayDirection;
   schools: SchoolFilter;
 }
@@ -50,7 +49,7 @@ export interface ParsedRankingsParams {
  */
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
   const window: RankWindow = sp.window === "month" ? "month" : "week";
-  const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as RankMode;
+  const mode = parseMode(sp.mode);
   const dir = parseDelayDirection(sp.dir);
   const schools = parseSchoolFilter(sp.school);
   return { window, mode, dir, schools };

@@ -34,6 +34,7 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -57,7 +58,6 @@ import {
   type DateRange,
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { VehicleMode } from "@/lib/vehicle/counts";
 import {
   liveRunHref,
   occupancyLabel,
@@ -78,8 +78,6 @@ import type { JSX, ReactNode } from "react";
 // search params and its data above any Suspense boundary, so it is allowed to
 // block. Removing this line is what converts the route.
 export const instant = false;
-
-const MODE_NAME: Record<VehicleMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
 
 /** Text colour for a live status band; no live delay stays muted. */
 const STATUS_CLASS = {
@@ -531,7 +529,7 @@ function LiveCard({
 }: {
   now: LiveVehicle | undefined;
   register: FleetVehicle | undefined;
-  mode: VehicleMode | null;
+  mode: Mode | null;
   names: Record<string, string>;
 }): JSX.Element {
   if (!now?.tripId) {
@@ -628,7 +626,7 @@ function RunsTable({
   hrefFor,
 }: {
   runs: VehicleRunRow[];
-  mode: VehicleMode;
+  mode: Mode;
   names: Record<string, string>;
   routeQuery: string;
   sp: VehicleSearchParams;

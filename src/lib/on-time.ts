@@ -66,7 +66,7 @@ const BUS_EARLY_SEC = 60;
 
 /**
  * Early tolerance (seconds) for a mode.
- * @param mode - Route mode ("BUS" | "TRAIN" | "FERRY").
+ * @param mode - Route mode (Mode).
  * @returns Seconds early a service may run and still count on time.
  */
 export function earlyToleranceFor(mode: string): number {

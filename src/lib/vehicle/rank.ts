@@ -1,15 +1,14 @@
+import type { Mode } from "@/lib/mode";
 // src/lib/vehicle/rank.ts
 // Rank individual vehicles by how hard they were worked: time in service, runs
 // and arrivals, merged from per-day rows.
-
-import type { VehicleMode } from "@/lib/vehicle/counts";
 
 /** One vehicle's work on one service day, as the per-day aggregation returns it. */
 export interface VehicleDayRow {
   /** Feed vehicle id. */
   v: string;
   /** Mode of the first route it ran that day. */
-  m: VehicleMode;
+  m: Mode;
   /** Runs (distinct trips) it carried. */
   r: number;
   /** Seconds in service: each run's first to last recorded arrival, summed. */
@@ -25,7 +24,7 @@ export interface VehicleDayRow {
 /** One vehicle's work across a window. */
 export interface VehicleTotal {
   vehicleId: string;
-  mode: VehicleMode;
+  mode: Mode;
   runs: number;
   serviceSec: number;
   arrivals: number;
@@ -60,7 +59,7 @@ export function mergeVehicleDays(days: VehicleDayRow[][]): VehicleTotal[] {
   const acc = new Map<
     string,
     {
-      mode: VehicleMode;
+      mode: Mode;
       r: number;
       s: number;
       e: number;

@@ -24,6 +24,7 @@ import {
   type ScheduledStop,
 } from "@/lib/data";
 import { formatGtfsTime } from "@/lib/format";
+import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
@@ -150,8 +151,8 @@ export default async function TripPage({
   if (!route && !scheduleFailed && timeline.stops.length === 0 && scheduledStops.length === 0) {
     notFound();
   }
-  const routeMode = route?.mode ?? "BUS";
-  const vehicleNoun = routeMode === "TRAIN" ? "train" : routeMode === "FERRY" ? "ferry" : "bus";
+  const routeMode = modeOrBus(route?.mode);
+  const vehicleNoun = modeWord(routeMode);
   // The ghost panels' link to the other run keeps this run's day.
   const linkD = d ?? day?.start.toISOString() ?? null;
 
@@ -378,7 +379,7 @@ export default async function TripPage({
                 lon: s.lon,
                 label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
               }))}
-              mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
+              mode={route ? modeOrBus(route.mode) : undefined}
               stopQuery={dayQuery}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />

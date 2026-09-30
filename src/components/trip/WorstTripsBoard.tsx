@@ -19,8 +19,8 @@ import { ChipLink } from "@/components/Chip";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { OFF_SCHEDULE_TONE_CLASS, formatDuration, offScheduleValue } from "@/lib/format";
-import { MODE_NOUN } from "@/lib/mode";
+import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { isMode, MODE_NOUN } from "@/lib/mode";
 import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
 import {
@@ -255,7 +255,7 @@ export function WorstTripsBoard({
   liveTripIds,
   detouredTripIds,
 }: WorstTripsBoardProps): JSX.Element {
-  const noun = (mode && MODE_NOUN[mode]) ?? "Services";
+  const noun = isMode(mode) ? MODE_NOUN[mode] : "Services";
   // The board as it stands, for a run's link to hand back to this page.
   const view = tripBoardView({
     ...preservedParams,

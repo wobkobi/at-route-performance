@@ -6,7 +6,7 @@
 
 import type { DotBand } from "@/components/map/LiveMap";
 import { cn } from "@/lib/cn";
-import type { LiveMode } from "@/lib/live-routes";
+import type { Mode } from "@/lib/mode";
 import dynamic from "next/dynamic";
 import { useState, type JSX } from "react";
 
@@ -58,7 +58,7 @@ export default function LiveMapWrapper({
   mode,
   className,
 }: {
-  mode: LiveMode | null;
+  mode: Mode | null;
   className?: string;
 }): JSX.Element {
   const [bands, setBands] = useState<ReadonlySet<DotBand>>(

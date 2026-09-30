@@ -5,6 +5,7 @@
 // A worst entry is only crowned when its average absolute deviation clears the
 // on-time late bound, so quiet days where everything sits within the window
 // crown nothing.
+import { type Mode, MODE_NOUN, parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
@@ -26,15 +27,12 @@ export const WEEK_REVALIDATE = 3600;
  */
 export const ITEMS_PER_COL = 12;
 
-/** A transport mode the boards can filter by, or null for every mode. */
-export type ShameMode = "BUS" | "TRAIN" | "FERRY" | null;
-
 /**
  * Active filter shared by every shame board query. `direction` is read by the
  * stop board alone; the trip and route boards take the same object and ignore it.
  */
 export interface ShameFilter {
-  mode: ShameMode;
+  mode: Mode | null;
   schools: SchoolFilter;
   direction: DelayDirection;
 }
@@ -72,13 +70,6 @@ export const SHAME_PARAMS = [
   "period",
   "hours",
 ] as const satisfies ReadonlyArray<keyof ShameSearchParams>;
-
-/** Human label for an active mode filter, used in the page subtitle. */
-export const MODE_LABEL: Record<string, string> = {
-  BUS: "Buses",
-  TRAIN: "Trains",
-  FERRY: "Ferries",
-};
 
 /**
  * Human label for an active direction filter, for the subtitle. "Only" is the
@@ -147,7 +138,7 @@ export type ShameView = "day" | "week" | "month";
 
 /** Parsed shame-page params: the active filter plus its derived view state. */
 export interface ParsedShameParams {
-  mode: ShameMode;
+  mode: Mode | null;
   schools: SchoolFilter;
   direction: DelayDirection;
   filter: ShameFilter;
@@ -173,14 +164,14 @@ export interface ParsedShameParams {
  * @returns The filter, active view, preserved params, and subtitle.
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
-  const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const direction = parseDelayDirection(sp.dir);
   const subtitle =
     schools === "only"
       ? "School buses"
       : mode
-        ? (MODE_LABEL[mode] ?? mode)
+        ? MODE_NOUN[mode]
         : schools === "include"
           ? "All services"
           : "Buses, trains & ferries";

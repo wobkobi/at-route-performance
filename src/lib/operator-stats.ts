@@ -3,6 +3,7 @@
 // reads, so an operator's punctuality costs no query of its own: each route's
 // figures are weighted by its arrivals, as a multi-day route row is built from
 // its days.
+import { MODES } from "@/lib/mode";
 import { type Operator, operatorOf } from "@/lib/operators";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route/slug";
@@ -36,8 +37,6 @@ const WEIGHTED = [
   "early_pct",
   "late_pct",
 ] as const;
-
-const MODE_ORDER = ["BUS", "TRAIN", "FERRY"];
 
 /**
  * The operator code behind a route row. The lookup is by slug, since a row may
@@ -153,7 +152,7 @@ export function operatorRows(
       late_pct: avg("late_pct"),
       cancelled: a.cancelled,
       vehicles: vehicles ? a.vehicles : null,
-      modes: MODE_ORDER.filter((m) => a.modes.has(m)),
+      modes: MODES.filter((m) => a.modes.has(m)),
     });
   }
   return out.sort(

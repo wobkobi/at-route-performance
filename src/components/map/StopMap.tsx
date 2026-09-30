@@ -9,6 +9,7 @@ import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/map/line-arrows";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
 import { wheelZoomOnHover } from "@/lib/map/wheel";
+import { MODE_NAME, type Mode } from "@/lib/mode";
 import { operatorHref, type Operator } from "@/lib/operators";
 import { routeSlug } from "@/lib/route/slug";
 import { liveRunHref } from "@/lib/vehicle/detail";
@@ -53,9 +54,6 @@ const POLL_MS = 120_000;
 /** How long a vehicle takes to glide from its last polled position to its new one. */
 const GLIDE_MS = 1000;
 
-/** The word a vehicle marker's accessible name starts with. */
-const MODE_WORD: Record<RouteMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
-
 /** Options for a vehicle's floating delay label. */
 const VEHICLE_TOOLTIP: Leaflet.TooltipOptions = {
   permanent: true,
@@ -94,9 +92,6 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** The route's transport mode; picks the vehicle glyph. */
-type RouteMode = "BUS" | "TRAIN" | "FERRY";
-
 /**
  * Inner SVG markup for each mode's vehicle glyph, scaled to fit the 20x20 glyph
  * area inside the 40x40 marker disc. Each icon is scaled evenly by 20 over its
@@ -105,7 +100,7 @@ type RouteMode = "BUS" | "TRAIN" | "FERRY";
  *   TRAIN (FaSubway) 448x512 - scale(20/512), 17.5 wide, so shifted 1.25 right
  *   FERRY (FaShip)   640x512 - scale(20/640), 16 tall, so shifted 2 down
  */
-const MODE_GLYPHS: Record<RouteMode, string> = {
+const MODE_GLYPHS: Record<Mode, string> = {
   BUS:
     '<g transform="scale(0.0390625)">' +
     '<path d="M488 128h-8V80c0-44.8-99.2-80-224-80S32 35.2 32 80v48h-8c-13.25 0-24 10.74-24 24v80c0 13.25 10.75 24 24 24h8v160c0 17.67 14.33 32 32 32v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h192v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h6.4c16 0 25.6-12.8 25.6-25.6V256h8c13.25 0 24-10.75 24-24v-80c0-13.26-10.75-24-24-24zM160 72c0-4.42 3.58-8 8-8h176c4.42 0 8 3.58 8 8v16c0 4.42-3.58 8-8 8H168c-4.42 0-8-3.58-8-8V72zm-48 328c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32zm128-112H128c-17.67 0-32-14.33-32-32v-96c0-17.67 14.33-32 32-32h112v160zm32 0V128h112c17.67 0 32 14.33 32 32v96c0 17.67-14.33 32-32 32H272zm128 112c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32z"/>' +
@@ -136,7 +131,7 @@ const MODE_GLYPHS: Record<RouteMode, string> = {
  */
 function vehicleIcon(
   L: typeof import("leaflet"),
-  opts: { colour: string; mode: RouteMode; bearing: number | null },
+  opts: { colour: string; mode: Mode; bearing: number | null },
 ): Leaflet.DivIcon {
   const glyph = MODE_GLYPHS[opts.mode] ?? MODE_GLYPHS.BUS;
   const arrow =
@@ -281,7 +276,7 @@ function glide(marker: Leaflet.Marker): void {
 function syncVehicles(
   state: MapState,
   vehicles: LiveVehicle[],
-  mode: RouteMode,
+  mode: Mode,
   op: Operator | null,
 ): void {
   const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
@@ -315,11 +310,7 @@ function syncVehicles(
       `<br>${links.join(" &middot; ")}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
-    const name = [
-      `${MODE_WORD[mode] ?? "Vehicle"} ${veh.label ?? veh.vehicleId}`,
-      cars,
-      status.detail,
-    ]
+    const name = [`${MODE_NAME[mode]} ${veh.label ?? veh.vehicleId}`, cars, status.detail]
       .filter(Boolean)
       .join(", ");
 
@@ -471,7 +462,7 @@ function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
 function drawStopLayer(
   state: MapState,
   stops: StopPoint[],
-  mode: RouteMode,
+  mode: Mode,
   stopQuery: string | undefined,
 ): void {
   const { L, stopLayer, colours, markerById } = state;
@@ -577,7 +568,7 @@ export default function StopMap({
   routeLines?: RouteLine[];
   routeId?: string;
   live?: boolean;
-  mode?: RouteMode;
+  mode?: Mode;
   selectedStopId?: string;
   filterTripId?: string;
   filterDirectionIds?: number[];
@@ -594,7 +585,7 @@ export default function StopMap({
   const [vehiclesFailed, setVehiclesFailed] = useState(false);
   // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
   // the current mode reachable without rebuilding the map when the prop changes.
-  const modeRef = useRef<RouteMode>(mode);
+  const modeRef = useRef<Mode>(mode);
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.

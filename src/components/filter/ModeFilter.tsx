@@ -3,17 +3,15 @@
 // Filter box narrowing a page by transport mode - bus, train, ferry, or all.
 
 import { FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
+import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useId, type JSX } from "react";
 
-/** A transport mode, or null for "All". */
-export type ModeFilterValue = "BUS" | "TRAIN" | "FERRY" | null;
-
 /** Props for {@link ModeFilter}. */
 export interface ModeFilterProps {
   /** Currently active mode, or null for "All". */
-  active: ModeFilterValue;
+  active: Mode | null;
   /** Page path the choices navigate to. */
   basePath: string;
   /** Query params to preserve on the way (the `mode` param is set here). */
@@ -28,11 +26,10 @@ export interface ModeFilterProps {
   availableModes?: Set<string>;
 }
 
-const MODES: { key: ModeFilterValue; label: string }[] = [
+/** The choices: "All", then each mode. */
+const OPTIONS: { key: Mode | null; label: string }[] = [
   { key: null, label: "All" },
-  { key: "BUS", label: "Bus" },
-  { key: "TRAIN", label: "Train" },
-  { key: "FERRY", label: "Ferry" },
+  ...MODES.map((key) => ({ key, label: MODE_NAME[key] })),
 ];
 
 /**
@@ -58,12 +55,12 @@ export function ModeFilter({
    * Navigate to the page on a mode.
    * @param key - The mode, or null for every mode.
    */
-  const choose = (key: ModeFilterValue): void => {
+  const choose = (key: Mode | null): void => {
     router.push(buildHref(basePath, { ...preservedParams, mode: key ?? undefined }), {
       scroll: false,
     });
   };
-  const offered = MODES.filter(
+  const offered = OPTIONS.filter(
     (m) => !m.key || m.key === active || !availableModes || availableModes.has(m.key),
   );
   // "All" plus one mode is no choice; an active mode stays, so it can be cleared.
@@ -71,7 +68,7 @@ export function ModeFilter({
   return (
     <FilterMenu
       label="Mode"
-      summary={MODES.find((m) => m.key !== null && m.key === active)?.label ?? null}
+      summary={OPTIONS.find((m) => m.key !== null && m.key === active)?.label ?? null}
       onReset={() => choose(null)}
     >
       {offered.map((m) => (

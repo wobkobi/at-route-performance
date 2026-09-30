@@ -32,7 +32,7 @@ const SERVICE_COLOUR: Record<string, string> = {
 
 /** Props for {@link ModeIcon}. */
 export interface ModeIconProps {
-  /** Route mode ("BUS" | "TRAIN" | "FERRY"). */
+  /** Route mode (Mode). */
   mode: string;
   /** Route short name (the code), for service colour + school detection. */
   shortName?: string | null;

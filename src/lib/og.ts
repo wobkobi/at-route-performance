@@ -5,6 +5,7 @@
 // or filter a card describes. Pure and unit-tested; the rendering and the data
 // reads live in the route handler.
 import { SITE_NAME } from "@/lib/copy";
+import { MODE_NOUN, parseMode, type Mode } from "@/lib/mode";
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page/nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
@@ -16,13 +17,6 @@ import type { Metadata } from "next";
 /** Card canvas: the 1.91:1 Slack, Discord, X and LinkedIn all accept. */
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
-
-/** The modes a card can be filtered to. */
-const MODES = ["BUS", "TRAIN", "FERRY"] as const;
-export type CardMode = (typeof MODES)[number];
-
-/** Plural nouns for the eyebrow's filter. */
-const MODE_NOUNS: Record<CardMode, string> = { BUS: "Buses", TRAIN: "Trains", FERRY: "Ferries" };
 
 /** Month names for a `YYYY-MM` period. */
 const MONTHS = [
@@ -52,15 +46,6 @@ function cleanId(v: string | null | undefined): string | null {
   return v && v.length <= ID_MAX ? v : null;
 }
 
-/**
- * A mode param, or null for every mode.
- * @param v - The raw value.
- * @returns The mode, or null.
- */
-function parseMode(v: string | undefined): CardMode | null {
-  return MODES.find((m) => m === v) ?? null;
-}
-
 /** What the home page's card describes, validated. */
 export interface HomeCard {
   window: RangeWindow;
@@ -68,7 +53,7 @@ export interface HomeCard {
   day: string | null;
   /** The requested week (its Monday) or month (`YYYY-MM`), or null for the default. */
   period: string | null;
-  mode: CardMode | null;
+  mode: Mode | null;
   schools: SchoolFilter;
 }
 
@@ -137,7 +122,7 @@ export interface ShameCard {
   window: RangeWindow;
   day: string | null;
   period: string | null;
-  mode: CardMode | null;
+  mode: Mode | null;
   schools: SchoolFilter;
 }
 
@@ -354,8 +339,8 @@ export function parseCardQuery(query: URLSearchParams): Card {
  * @param schools - Which school services are counted.
  * @returns The label, or null.
  */
-export function cardFilterLabel(mode: CardMode | null, schools: SchoolFilter): string | null {
-  const noun = mode ? MODE_NOUNS[mode] : null;
+export function cardFilterLabel(mode: Mode | null, schools: SchoolFilter): string | null {
+  const noun = mode ? MODE_NOUN[mode] : null;
   if (schools === "only") return "School buses";
   if (schools === "exclude") return noun;
   return noun ? `${noun} incl. school` : "Incl. school services";

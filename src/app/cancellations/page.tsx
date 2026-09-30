@@ -10,7 +10,7 @@ import { CancellationSummary } from "@/components/cancellation/CancellationSumma
 import { CancelledBoard } from "@/components/cancellation/CancelledBoard";
 import { CancelledTripList } from "@/components/cancellation/CancelledTripList";
 import { RangeControls } from "@/components/date/RangeControls";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronRight } from "@/components/icons";
 import {
@@ -20,6 +20,7 @@ import {
   type CancelledRouteRow,
   type NetworkCancelledTrip,
 } from "@/lib/data";
+import { parseMode } from "@/lib/mode";
 import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -103,9 +104,7 @@ export default async function CancellationsPage({
     clampDayParam("/cancellations", sp, today);
     dropTodayParam("/cancellations", sp, today);
   }
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const stage = CANCELLATION_STAGES.find((s) => s === sp.stage) ?? null;
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);

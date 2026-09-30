@@ -4,6 +4,7 @@
 
 import { TODAY_REVALIDATE } from "@/lib/data/cache";
 import { getRankings } from "@/lib/data/rankings";
+import { MODES } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import type { DateRange } from "@/lib/time/service-day";
 
@@ -29,6 +30,6 @@ export async function getFilterUsage(range: DateRange): Promise<FilterUsage> {
     const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
     return { modes: new Set(rows.map((r) => r.mode)) };
   } catch {
-    return { modes: new Set(["BUS", "TRAIN", "FERRY"]) };
+    return { modes: new Set(MODES) };
   }
 }

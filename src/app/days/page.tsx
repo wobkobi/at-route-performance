@@ -6,7 +6,7 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { CHART_FLOOR, DayChart } from "@/components/DayChart";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { SortHeader } from "@/components/SortHeader";
@@ -18,6 +18,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
+import { parseMode, type Mode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
   parseRangeWindow,
@@ -109,9 +110,7 @@ export default async function DaysPage({
   // robots.txt disallows every query string, so the redirect would send a crawler
   // from the canonical page to one it may not fetch.
   const requested = sp.window ? parseRangeWindow(sp.window) : "week";
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   // One request-time clock read for the whole render, handed to every helper that
   // places a day against today (see lib/time/request-now.ts). Resolved before the
@@ -244,7 +243,7 @@ async function DaysFilters({
   schoolPreserved,
 }: {
   dayRows: Promise<(TopRouteRow[] | null)[]>;
-  mode: ModeFilterValue;
+  mode: Mode | null;
   schools: SchoolFilter;
   modePreserved: Record<string, string>;
   schoolPreserved: Record<string, string>;
@@ -290,7 +289,7 @@ async function DaysBody({
   dates: string[];
   dayRows: Promise<(TopRouteRow[] | null)[]>;
   monthView: boolean;
-  mode: ModeFilterValue;
+  mode: Mode | null;
   schools: SchoolFilter;
   today: string;
   sort: TableSort | null;

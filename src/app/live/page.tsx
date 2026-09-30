@@ -4,7 +4,7 @@
 // on-time window. Read from AT's live feed, which the site caches for two minutes.
 
 import { ChipLink } from "@/components/Chip";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { LoadingBlock } from "@/components/Loading";
 import LiveMapWrapper from "@/components/map/LiveMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -16,6 +16,7 @@ import { logReadFailure, readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
+import { parseMode, type Mode } from "@/lib/mode";
 import {
   sortRows,
   tableSort,
@@ -82,9 +83,7 @@ export default async function LivePage({
   searchParams?: Promise<LiveSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const all = sp.all === "1";
   const { sort, head, keep } = tableSort(sp, COLUMNS, "running", (p) =>
     buildHref("/live", { mode: mode ?? undefined, ...p, all: all ? "1" : undefined }),
@@ -167,7 +166,7 @@ export default async function LivePage({
  * @param sort - The table's sort; level rows keep the most-running order.
  * @returns The rows.
  */
-async function loadRows(mode: ModeFilterValue, sort: TableSort | null): Promise<LiveRouteRow[]> {
+async function loadRows(mode: Mode | null, sort: TableSort | null): Promise<LiveRouteRow[]> {
   const [vehicles, modes] = await Promise.all([getLiveVehicles(), getRouteModeMap()]);
   const rows = sortRows(liveRoutes(vehicles, modes, "running"), COLUMNS, sort);
   return mode ? rows.filter((r) => r.mode === mode) : rows;
@@ -189,7 +188,7 @@ function pct(n: number, total: number): string | null {
  * @param props.mode - The mode filter.
  * @returns The strip.
  */
-async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Element> {
+async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element> {
   let rows: LiveRouteRow[];
   try {
     rows = await loadRows(mode, null);
@@ -265,7 +264,7 @@ async function LiveTable({
   keep,
   all,
 }: {
-  mode: ModeFilterValue;
+  mode: Mode | null;
   sort: TableSort | null;
   head: (key: string) => { href: string; dir: SortDir | null };
   keep: Record<string, string | undefined>;

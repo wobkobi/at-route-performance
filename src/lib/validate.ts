@@ -3,6 +3,7 @@
 // value (`?limit=`) reads as unset, so a link that clears a control falls back
 // to the default instead of a 400.
 
+import { MODES } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { z } from "zod";
 
@@ -31,7 +32,7 @@ export const topRoutesQuery = z.object({
     emptyToUndefined,
     z.coerce.number().int().min(0).max(3600).default(ON_TIME_LATE_SEC),
   ),
-  mode: z.preprocess(emptyToUndefined, z.enum(["BUS", "TRAIN", "FERRY"]).optional()),
+  mode: z.preprocess(emptyToUndefined, z.enum(MODES).optional()),
 });
 export type TopRoutesQuery = z.infer<typeof topRoutesQuery>;
 

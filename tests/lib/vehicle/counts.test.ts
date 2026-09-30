@@ -1,9 +1,10 @@
 // tests/lib/vehicle/counts.test.ts
 // Unit tests for the per-mode vehicle split and the distinct count across days.
-import { type VehicleMode, countVehicles, vehiclesByMode } from "@/lib/vehicle/counts";
+import type { Mode } from "@/lib/mode";
+import { countVehicles, vehiclesByMode } from "@/lib/vehicle/counts";
 import { describe, expect, it } from "vitest";
 
-const modes = new Map<string, VehicleMode>([
+const modes = new Map<string, Mode>([
   ["NX1", "BUS"],
   ["70", "BUS"],
   ["STH", "TRAIN"],

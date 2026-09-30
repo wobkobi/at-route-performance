@@ -3,6 +3,7 @@
 import { MS_IN_DAY } from "@/lib/data/cache";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { Mode } from "@/lib/mode";
 import {
   allSuccessorSlugs,
   directoryLineageRows,
@@ -235,7 +236,7 @@ export async function getRouteLabel(
  * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
  * @returns Map from route id to its mode.
  */
-export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "FERRY">> {
+export async function getRouteModeMap(): Promise<Map<string, Mode>> {
   const pairs = await unstable_cache(
     async () => {
       const rows = await prisma.route.findMany({ select: { id: true, mode: true } });
@@ -244,7 +245,7 @@ export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "
     ["route-mode-map"],
     { revalidate: 3600 },
   )();
-  return new Map(pairs as [string, "BUS" | "TRAIN" | "FERRY"][]);
+  return new Map(pairs as [string, Mode][]);
 }
 
 /**

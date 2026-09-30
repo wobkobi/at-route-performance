@@ -5,13 +5,11 @@
 // bays and a reader at one bus pole were told the same thing about figures that
 // mean different things.
 
+import { isMode, modeWord } from "@/lib/mode";
 import { platformNoun } from "@/lib/stop/station-platforms";
 
 /** The generic word for one pole of each mode, for a place whose labels carry none. */
-const MODE_WORD: Record<string, string> = { BUS: "stop", TRAIN: "platform", FERRY: "pier" };
-
-/** How each mode is named in the eyebrow. */
-const MODE_LABEL: Record<string, string> = { BUS: "bus", TRAIN: "train", FERRY: "ferry" };
+const STOP_NOUN: Record<string, string> = { BUS: "stop", TRAIN: "platform", FERRY: "pier" };
 
 /**
  * The mode a stop's arrivals were mostly made by, weighted by arrivals rather than
@@ -68,8 +66,8 @@ export function stopGrain(
       ? platformNoun(labels.map((label) => ({ label })))
       : mode === null
         ? "stop"
-        : (MODE_WORD[mode] ?? "stop");
-  const modeLabel = mode === null ? null : (MODE_LABEL[mode] ?? null);
+        : (STOP_NOUN[mode] ?? "stop");
+  const modeLabel = isMode(mode) ? modeWord(mode) : null;
   if (poleCount > 1) {
     return `${poleCount} ${modeLabel === null ? "" : `${modeLabel} `}${noun}s`;
   }

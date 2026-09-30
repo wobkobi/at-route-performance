@@ -1,5 +1,6 @@
 // tests/lib/on-time.test.ts
 // Unit tests for the on-time window and delay banding.
+import { MODES } from "@/lib/mode";
 import {
   delayBand,
   earlyToleranceFor,
@@ -11,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 describe("the on-time window", () => {
   it("allows up to five minutes late for every mode", () => {
-    for (const mode of ["BUS", "TRAIN", "FERRY"]) {
+    for (const mode of MODES) {
       expect(isOnTime(ON_TIME_LATE_SEC, mode)).toBe(true);
       expect(isOnTime(ON_TIME_LATE_SEC + 1, mode)).toBe(false);
     }

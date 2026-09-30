@@ -20,6 +20,7 @@ import {
 } from "@/lib/format";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
+import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -70,12 +71,10 @@ const BOX_OFF =
   "border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore";
 
 /** The Mode filter's choices, null for every mode. */
-const MODES = [
+const MODE_OPTIONS: [Mode | null, string][] = [
   [null, "All"],
-  ["BUS", "Bus"],
-  ["TRAIN", "Train"],
-  ["FERRY", "Ferry"],
-] as const;
+  ...MODES.map((mode): [Mode, string] => [mode, MODE_NAME[mode]]),
+];
 
 /** The Running filter's choices, null for either way. */
 const LEANS = [
@@ -299,10 +298,12 @@ export function RouteExplorer({
         <FilterRow label="Filter">
           <FilterMenu
             label="Mode"
-            summary={MODES.find(([key]) => key !== null && key === filters.mode)?.[1] ?? null}
+            summary={
+              MODE_OPTIONS.find(([key]) => key !== null && key === filters.mode)?.[1] ?? null
+            }
             onReset={() => update({ mode: null })}
           >
-            {MODES.map(([key, label]) => (
+            {MODE_OPTIONS.map(([key, label]) => (
               <FilterOption
                 key={label}
                 type="radio"

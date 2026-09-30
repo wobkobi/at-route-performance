@@ -5,7 +5,7 @@
 // fleet count the Vehicles page already caches.
 
 import { RangeControls } from "@/components/date/RangeControls";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SchoolAdded } from "@/components/SchoolAdded";
@@ -23,6 +23,7 @@ import {
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import { formatDuration } from "@/lib/format";
+import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
 import { operatorHref, type Operator } from "@/lib/operators";
@@ -105,9 +106,7 @@ export default async function OperatorsPage({
     clampDayParam("/operators", sp, today);
     dropTodayParam("/operators", sp, today);
   }
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const filter = { mode, schools };
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);

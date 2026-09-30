@@ -21,9 +21,10 @@ import {
   getShameRouteOfWeek,
   getWorstStopsOfWeek,
 } from "@/lib/data";
+import { MODE_NAME, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
 import { routeLinkQuery } from "@/lib/page/range";
-import { resolvePrevRange, type RankMode, type RankWindow } from "@/lib/page/rankings";
+import { resolvePrevRange, type RankWindow } from "@/lib/page/rankings";
 import { hasRankingFilters, type RankingFilters } from "@/lib/ranking-filters";
 import {
   computeRankDelta,
@@ -61,7 +62,7 @@ const BOARD_SIZE = 10;
 /** The view a period batch is loaded for. */
 export interface PeriodView {
   window: RankWindow;
-  mode: RankMode;
+  mode: Mode | null;
   dir: DelayDirection;
   schools: SchoolFilter;
   /** Raw `?period=` value, used for the previous range and row links. */
@@ -237,7 +238,7 @@ export async function PeriodModeFilter({
   preservedParams,
 }: {
   batch: PeriodBatch;
-  active: RankMode;
+  active: Mode | null;
   preservedParams: Record<string, string>;
 }): Promise<JSX.Element> {
   return (
@@ -348,8 +349,8 @@ export async function PeriodBoards({
     <>
       {b.noModeData && mode && (
         <p className="text-sm text-at-muted">
-          Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this period - try a
-          wider window or switch back to All.
+          Not enough {MODE_NAME[mode]} data for this period - try a wider window or switch back to
+          All.
         </p>
       )}
 

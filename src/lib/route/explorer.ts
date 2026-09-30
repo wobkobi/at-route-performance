@@ -5,6 +5,7 @@
 // the defaults, so a filtered view is a shareable link.
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
+import type { Mode } from "@/lib/mode";
 import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
 import {
   parseSchoolFilter,
@@ -49,9 +50,6 @@ export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; d
   { key: "cancelled", label: "Cancellations", dir: "desc" },
 ];
 
-/** Transport mode filter, or null for every mode. */
-export type ExplorerMode = "BUS" | "TRAIN" | "FERRY" | null;
-
 /** Which way a route runs off schedule on average, or null for either. */
 export type ExplorerLean = "late" | "early" | null;
 
@@ -59,7 +57,7 @@ export type ExplorerLean = "late" | "early" | null;
 export interface ExplorerFilters {
   /** Free-text search over route number and name. */
   q: string;
-  mode: ExplorerMode;
+  mode: Mode | null;
   /** Areas to match; a route matches when it serves any of them. Empty matches every route. */
   areas: AreaKey[];
   /** Fare zones to match; a route matches when it serves any of them. Empty matches every route. */

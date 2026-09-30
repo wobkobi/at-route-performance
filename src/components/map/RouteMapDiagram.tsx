@@ -4,6 +4,7 @@
 
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
+import { modeOrBus } from "@/lib/mode";
 import type { JSX } from "react";
 
 /** A stop plotted on the route map (the shape {@link StopMapWrapper} expects). */
@@ -80,7 +81,7 @@ export function RouteMapDiagram({
         routeLines={routeLines}
         routeId={routeId}
         live={live}
-        mode={mode as "BUS" | "TRAIN" | "FERRY"}
+        mode={modeOrBus(mode)}
         filterDirectionIds={filterDirectionIds}
         stopQuery={stopQuery}
         className="h-[min(31.25rem,60svh)]"

@@ -4,17 +4,15 @@
 // so the live page, the Routes "running now" filter and the tests share one fold.
 
 import type { LiveVehicle } from "@/lib/feed/vehicles";
+import { modeOrBus, type Mode } from "@/lib/mode";
 import { delayBand } from "@/lib/on-time";
 import { routeSlug } from "@/lib/route/slug";
-
-/** A transport mode as the route table stores it. */
-export type LiveMode = "BUS" | "TRAIN" | "FERRY";
 
 /** One route with vehicles on a run now. */
 export interface LiveRouteRow {
   /** Version-stripped route slug, for links. */
   slug: string;
-  mode: LiveMode;
+  mode: Mode;
   /** Vehicles on a run. */
   vehicles: number;
   late: number;
@@ -74,7 +72,7 @@ export function liveRoutes(
   const bySlug = new Map<string, LiveRouteRow & { sum: number; timed: number }>();
   for (const v of onARun(vehicles)) {
     const slug = routeSlug(v.routeId);
-    const mode = (modeOf.get(v.routeId) ?? "BUS") as LiveMode;
+    const mode = modeOrBus(modeOf.get(v.routeId));
     let row = bySlug.get(slug);
     if (!row) {
       row = {
@@ -127,7 +125,7 @@ export interface LiveMapVehicle {
   id: string;
   label: string | null;
   slug: string;
-  mode: LiveMode;
+  mode: Mode;
   tripId: string;
   lat: number;
   lon: number;
@@ -160,7 +158,7 @@ export function mapVehicles(
     id: v.vehicleId,
     label: v.label,
     slug: routeSlug(v.routeId),
-    mode: (modeOf.get(v.routeId) ?? "BUS") as LiveMode,
+    mode: modeOrBus(modeOf.get(v.routeId)),
     tripId: v.tripId as string,
     // Five decimals is about a metre, all a dot on a city map can show.
     lat: Math.round(v.lat * 1e5) / 1e5,

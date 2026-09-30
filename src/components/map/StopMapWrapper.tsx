@@ -3,6 +3,7 @@
 // Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
 import type { OffRoutePoint } from "@/components/map/StopMap";
+import type { Mode } from "@/lib/mode";
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
@@ -41,7 +42,7 @@ interface StopMapWrapperProps {
   /** Poll and plot the route's live vehicles; set only when the view covers now. */
   live?: boolean;
   /** Route transport mode, selecting the live-vehicle glyph. */
-  mode?: "BUS" | "TRAIN" | "FERRY";
+  mode?: Mode;
   /** When set, the map centres on this stop and opens its popup. */
   selectedStopId?: string;
   /** When set, only the live vehicle whose tripId matches is shown. */

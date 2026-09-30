@@ -14,7 +14,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
@@ -55,6 +55,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
+import { MODE_NAME, parseMode, type Mode } from "@/lib/mode";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -348,9 +349,7 @@ export default async function Home({
   const today = await requestServiceDay();
   clampDayParam("/", sp, today);
   dropTodayParam("/", sp, today);
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
 
   // Service day from ?day, or the one every day page opens on (the current day
@@ -521,7 +520,7 @@ export default async function Home({
 
         {mode && visible.every((r) => r.events < boardMin) && (
           <p className="text-sm text-at-muted">
-            Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day - try the{" "}
+            Not enough {MODE_NAME[mode]} data for this day - try the{" "}
             <Link
               href={buildHref("/", {
                 window: "week",
@@ -625,7 +624,7 @@ async function HomeShameCards({
 }: {
   range: DateRange;
   serviceDate: string;
-  mode: ModeFilterValue;
+  mode: Mode | null;
   schools: SchoolFilter;
   linkDay: string | undefined;
   when: string;

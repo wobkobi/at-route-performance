@@ -5,10 +5,11 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronLeft } from "@/components/icons";
 import type { FilterUsage } from "@/lib/data/filter-usage";
+import type { Mode } from "@/lib/mode";
 import { preservedFilters } from "@/lib/page/filter-params";
 import type { RangeNav } from "@/lib/page/range";
 import type { DelayDirection } from "@/lib/rankings";
@@ -33,7 +34,7 @@ const TABS: ReadonlyArray<{ key: ShameTab; label: string }> = [
  */
 export interface ShameFilterControls {
   /** Active mode, or null for All. */
-  mode: ModeFilterValue;
+  mode: Mode | null;
   /** Which school services count. */
   schools: SchoolFilter;
   /** Window/period/day (and on the day board, hours) params the chips carry through. */

@@ -4,7 +4,7 @@
 
 import { ChipLink } from "@/components/Chip";
 import { RangeControls } from "@/components/date/RangeControls";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { OperatorSelect } from "@/components/filter/OperatorSelect";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -24,6 +24,7 @@ import {
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap } from "@/lib/feed/vehicles";
 import { formatDuration, formatHours } from "@/lib/format";
+import { parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf, type Operator } from "@/lib/operators";
@@ -115,9 +116,7 @@ export default async function VehiclesPage({
     clampDayParam("/vehicles", sp, today);
     dropTodayParam("/vehicles", sp, today);
   }
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const shown = Math.max(PAGE_SIZE, Math.ceil(Number(sp.show) / PAGE_SIZE) * PAGE_SIZE || 0);
   const filter = { mode, schools };

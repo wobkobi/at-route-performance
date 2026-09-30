@@ -11,12 +11,13 @@
 import { LocateArrow } from "@/components/icons";
 import { modeGlyph } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import type { LiveMapVehicle, LiveMode } from "@/lib/live-routes";
+import type { LiveMapVehicle } from "@/lib/live-routes";
 import { coreBounds } from "@/lib/map/frame";
 import { nearbyFrame } from "@/lib/map/near-frame";
 import { shiftPixels } from "@/lib/map/shared-roads";
 import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
 import { wheelZoomOnHover } from "@/lib/map/wheel";
+import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
@@ -54,9 +55,6 @@ const BASE_ZOOM = 11;
  */
 const ICON_ZOOM = 15;
 
-/** The modes whose icons the markers carry. */
-const MODES: readonly LiveMode[] = ["BUS", "TRAIN", "FERRY"];
-
 /**
  * A road path's stroke at a zoom. Rail and ferry lines are few and long, so they
  * carry more weight than the bus roads, which overlap and stay hairlines at the
@@ -68,11 +66,7 @@ const MODES: readonly LiveMode[] = ["BUS", "TRAIN", "FERRY"];
  * @param hover - Whether the pointer is on the path, which draws it bold.
  * @returns Stroke weight and opacity.
  */
-function lineStyle(
-  mode: LiveMode,
-  zoom: number,
-  hover = false,
-): { weight: number; opacity: number } {
+function lineStyle(mode: Mode, zoom: number, hover = false): { weight: number; opacity: number } {
   const levels = Math.min(Math.max(zoom - BASE_ZOOM, 0), 6);
   const weight = (mode === "BUS" ? 1.5 : 2.5) * (1 + levels / 3);
   return hover ? { weight: weight + 2, opacity: 0.9 } : { weight, opacity: 0.4 + levels * 0.05 };
@@ -80,9 +74,6 @@ function lineStyle(
 
 /** A dot's delay band, which the map's toggles show or hide one at a time. */
 export type DotBand = "late" | "ontime" | "early" | "unknown";
-
-/** The word a vehicle's popup names it by. */
-const MODE_WORD: Record<LiveMode, string> = { BUS: "Bus", TRAIN: "Train", FERRY: "Ferry" };
 
 /**
  * Escape HTML special characters in feed strings before they go into popup HTML.
@@ -116,7 +107,7 @@ function cssVar(name: string): string {
  * @returns Popup HTML.
  */
 function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operator[]): string {
-  const name = `${MODE_WORD[v.mode]} ${v.label ?? v.id}`;
+  const name = `${MODE_NAME[v.mode]} ${v.label ?? v.id}`;
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
   const op = operatorOf(v.op, operators);
@@ -171,7 +162,7 @@ export default function LiveMap({
   showLines,
   className,
 }: {
-  mode: LiveMode | null;
+  mode: Mode | null;
   bands: ReadonlySet<DotBand>;
   showLines: boolean;
   className?: string;
@@ -490,7 +481,7 @@ export default function LiveMap({
         md,
         glyphRef.current?.querySelector(`[data-mode="${md}"]`)?.outerHTML ?? "",
       ]),
-    ) as Record<LiveMode, string>;
+    ) as Record<Mode, string>;
     const shown = vehicles.filter((v) => (!mode || v.mode === mode) && v.stored);
     const drawn = shown
       .map((v) => ({ v, status: vehicleStatus(v.delaySec, v.mode) }))

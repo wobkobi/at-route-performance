@@ -4,6 +4,7 @@ import { cachedForDay, cachedForRange, scheduledAtWindow, toIso } from "@/lib/da
 import { schoolRouteMatch, type ShameFilter } from "@/lib/data/shame-filter";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
+import type { Mode } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -27,7 +28,7 @@ import type { ShameOfDay, ShameOfWeek, ShameRanked, ShameTrip } from "@/types/da
  */
 export function cachedWorstTripsOfDay(
   date: string,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   revalidate: number,
 ): Promise<ShameTrip[]> {
@@ -403,7 +404,7 @@ export async function getShameOfWeek(
  */
 async function worstTripsForRange(
   range: DateRange,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   classified: boolean,
 ): Promise<ShameTrip[]> {

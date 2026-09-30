@@ -9,6 +9,7 @@ import { ChipLink } from "@/components/Chip";
 import { cn } from "@/lib/cn";
 import type { StopDepartures } from "@/lib/feed/at-stop-trips";
 import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
+import type { Mode } from "@/lib/mode";
 import { routeSlug } from "@/lib/route/slug";
 import { departuresFromNow } from "@/lib/stop/departure-board";
 import {
@@ -28,7 +29,7 @@ export interface StopScheduleProps {
   /** Maps route_id to short_name for display. */
   routeNames: Map<string, string | null>;
   /** Maps route_id to its mode, which decides how its headsign is read. */
-  routeModes: Map<string, "BUS" | "TRAIN" | "FERRY">;
+  routeModes: Map<string, Mode>;
   /** Service date as YYYY-MM-DD. */
   serviceDate: string;
   /** Where now falls on this day's GTFS clock, or null when it is not today. */

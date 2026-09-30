@@ -1,5 +1,6 @@
 // src/types/api.ts
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
+import type { Mode } from "@/lib/mode";
 import type { PlatformRow } from "@/lib/stop/station-platforms";
 
 // One route's road path, returned by /api/network-lines for the live map's underlay
@@ -9,7 +10,7 @@ export interface NetworkLine {
   /** The route's name ("South City Line", or AT's long name), or null when it has none. */
   name: string | null;
   /** The mode that drives it, so the map's mode filter can hide the rest. */
-  mode: "BUS" | "TRAIN" | "FERRY";
+  mode: Mode;
   /** The route icon's colour: `#rrggbb`, or a `--color-*` custom property to resolve. */
   colour: string;
   /**
