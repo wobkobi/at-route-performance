@@ -18,7 +18,7 @@
 // night whose shape could qualify.
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
-import { serviceDayClockSeconds, type DateRange } from "@/lib/time";
+import { serviceDayClockSeconds, type DateRange } from "@/lib/time/service-day";
 import { tripIdPrefix, tripIdStartSeconds, tripIdVariantHash } from "@/lib/trip-id";
 import type { Prisma } from "@prisma/client";
 

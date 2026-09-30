@@ -4,7 +4,7 @@ import type { ShameFilter } from "@/lib/data/shame-filter";
 import { getShameRouteOfDay } from "@/lib/data/shame-routes";
 import { getShameOfDay } from "@/lib/data/shame-trips";
 import { getWorstStopsOfDay } from "@/lib/data/stops";
-import type { DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time/service-day";
 
 /**
  * Every hour of day holding a row on the trips, routes or stops day board. Each

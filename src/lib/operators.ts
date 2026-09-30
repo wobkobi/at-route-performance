@@ -2,8 +2,9 @@
 // The companies AT contracts to run its services. A route carries its
 // operator's code (`Route.agencyId`, from the route sync); the operator list
 // itself comes from AT's GTFS `agency.txt`, stored by the nightly shapes sync
-// (src/lib/gtfs-agencies.ts). These helpers turn a code into a name and a URL
-// slug against that list, and stay free of the database so the maps can use them.
+// (src/lib/feed/gtfs-agencies.ts). These helpers turn a code into a name and a
+// URL slug against that list, and stay free of the database so the maps can use
+// them.
 
 /** One operator. */
 export interface Operator {

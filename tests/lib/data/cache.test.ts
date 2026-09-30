@@ -1,7 +1,7 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
 import { cacheKey, cacheState, rangeIsFinal, scheduledAtWindow, windowEnd } from "@/lib/data/cache";
-import { nzServiceDayRange, nzWeekRange } from "@/lib/time";
+import { nzServiceDayRange, nzWeekRange } from "@/lib/time/service-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));

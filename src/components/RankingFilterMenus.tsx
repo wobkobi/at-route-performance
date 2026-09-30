@@ -7,16 +7,16 @@
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/FilterMenu";
 import { AREAS, type AreaKey } from "@/lib/areas";
 import { cn } from "@/lib/cn";
-import { DAY_TYPES, DAYS_PARAM, type DayType } from "@/lib/day-type";
 import { AREA_PARAM } from "@/lib/ranking-filters";
-import { nzHourLabel, SERVICE_START_HOUR } from "@/lib/time";
+import { DAY_TYPES, DAYS_PARAM, type DayType } from "@/lib/time/day-type";
+import { nzHourLabel, SERVICE_START_HOUR } from "@/lib/time/service-day";
 import {
   hourRangeClock,
   hourRangeParam,
   HOURS_PARAM,
   serviceHourIndex,
   type HourRange,
-} from "@/lib/time-of-day";
+} from "@/lib/time/time-of-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useId, type JSX } from "react";

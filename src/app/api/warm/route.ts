@@ -11,7 +11,7 @@
 import { requireCronAuth } from "@/lib/auth";
 import { cachedWorstRoutesOfDay, cachedWorstStopsOfDay, cachedWorstTripsOfDay } from "@/lib/data";
 import { WEEK_REVALIDATE } from "@/lib/shame-page";
-import { nzServiceDayString } from "@/lib/time";
+import { nzServiceDayString } from "@/lib/time/service-day";
 import { forEachLimited, pageWarmPaths } from "@/lib/warm";
 import { after, NextResponse } from "next/server";
 

@@ -6,7 +6,7 @@
 import { prisma } from "@/lib/db";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
 import { classifyGhosts, ghostLevelStages } from "@/lib/ghost-pass";
-import { nzServiceDayRange, serviceDayClockInstant } from "@/lib/time";
+import { nzServiceDayRange, serviceDayClockInstant } from "@/lib/time/service-day";
 import type { Prisma } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

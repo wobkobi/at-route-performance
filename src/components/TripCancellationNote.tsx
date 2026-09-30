@@ -4,7 +4,7 @@
 
 import type { CancellationStage } from "@/lib/cancellation";
 import { cn } from "@/lib/cn";
-import { nzClockTime } from "@/lib/time";
+import { nzClockTime } from "@/lib/time/service-day";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 

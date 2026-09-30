@@ -118,7 +118,7 @@ export interface TripObservation {
   /**
    * Groups observations that describe the same physical arrival, so one place
    * cannot pull the level twice - a station id for train platforms, else the
-   * stop id (see `stationId` in station.ts).
+   * stop id (see `stationId` in stop/station.ts).
    */
   stationId: string;
   /** Signed deviation in seconds (negative early, positive late). */

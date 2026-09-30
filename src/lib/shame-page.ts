@@ -8,14 +8,14 @@
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
-import { SERVICE_START_HOUR } from "@/lib/time";
+import { SERVICE_START_HOUR } from "@/lib/time/service-day";
 import {
   type HourRange,
   hourRangeLabel,
   hourRangeParam,
   parseHourRange,
   singleHourRange,
-} from "@/lib/time-of-day";
+} from "@/lib/time/time-of-day";
 import { buildHref } from "@/lib/utils";
 
 /** Cache TTL for the week boards (seconds). */
@@ -48,7 +48,7 @@ export interface ShameSearchParams {
   period?: string;
   dir?: string;
   /**
-   * Part of the day to rank on the day board (`7-9`, see src/lib/time-of-day.ts),
+   * Part of the day to rank on the day board (`7-9`, see src/lib/time/time-of-day.ts),
    * or `all` for the whole service day.
    */
   hours?: string;

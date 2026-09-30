@@ -1,9 +1,14 @@
 // src/lib/data/data-days.ts
 // The edges of the archive: the earliest and latest days with enough data to show.
-import { DATA_START_DAY } from "@/lib/data-start";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { nzServiceDayRange, nzServiceDayString, serviceDayNoon, shiftWeek } from "@/lib/time";
+import { DATA_START_DAY } from "@/lib/time/data-start";
+import {
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDayNoon,
+  shiftWeek,
+} from "@/lib/time/service-day";
 
 /**
  * The scheduled time of the event at one end of the collection, read via the

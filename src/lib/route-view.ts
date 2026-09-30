@@ -11,10 +11,10 @@
 // is recomputed per request.
 import { getRecentStopIds } from "@/lib/data";
 import { prisma } from "@/lib/db";
+import { offsetPath } from "@/lib/map/route-geo";
 import { memCache } from "@/lib/mem-cache";
-import { offsetPath } from "@/lib/route-geo";
 import { getRoutePattern } from "@/lib/route-pattern";
-import { normaliseHeadsign, stationId, stationName } from "@/lib/station";
+import { normaliseHeadsign, stationId, stationName } from "@/lib/stop/station";
 import type { RoutePattern, RouteVariant } from "@/types/api";
 
 /**

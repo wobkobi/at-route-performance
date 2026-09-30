@@ -1,16 +1,16 @@
 // A route's per-stop arrival sums split by the direction, shape and headsign of each run, for the
 // route diagram's two figure columns and its version chips. ArrivalEvent carries none of those,
-// so each reading is joined to its run's TripMeta row. Folded into figures by lib/stop-split.ts.
-// Arrivals timed at a stop while it was closed that way are left out (rule 26): the feed keeps
-// timing buses past closed stops.
+// so each reading is joined to its run's TripMeta row. Folded into figures by
+// lib/strip/stop-split.ts. Arrivals timed at a stop while it was closed that way are left out
+// (rule 26): the feed keeps timing buses past closed stops.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { closedArrivalsMatch, queryRouteClosures } from "@/lib/data/route-closures";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { onTimeSingleModeSum } from "@/lib/on-time";
-import type { StopSplitRow } from "@/lib/stop-split";
-import type { DateRange } from "@/lib/time";
+import type { StopSplitRow } from "@/lib/strip/stop-split";
+import type { DateRange } from "@/lib/time/service-day";
 
 /**
  * Run the split aggregation for one route over one window. The join runs per reading, so this

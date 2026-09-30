@@ -21,9 +21,7 @@ import {
   getVehicleWork,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import { formatDuration, formatHours } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
@@ -36,11 +34,13 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import { parseSchoolFilter, schoolFilterParam } from "@/lib/school-bus";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { sortRows, tableSort, type SortColumn } from "@/lib/table-sort";
-import type { DateRange } from "@/lib/time";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
+import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
 import { sortVehicles, type VehicleSort, type VehicleTotal } from "@/lib/vehicle-rank";
 import { getLiveVehicleMap } from "@/lib/vehicles";
@@ -108,8 +108,8 @@ export default async function VehiclesPage({
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   if (window === "day") {
     clampDayParam("/vehicles", sp, today);

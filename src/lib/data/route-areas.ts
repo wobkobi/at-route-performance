@@ -11,7 +11,7 @@ import { routeFareZones } from "@/lib/fare-zone-geo";
 import type { FareZoneKey } from "@/lib/fare-zones";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route-slug";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 
 /** Completed service days the areas are drawn from. */
 const LOOKBACK_DAYS = 7;

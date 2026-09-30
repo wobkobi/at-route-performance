@@ -10,7 +10,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import type { VehicleRunRow } from "@/lib/vehicle-detail";
 import { type VehicleDayRow, type VehicleTotal, mergeVehicleDays } from "@/lib/vehicle-rank";
 

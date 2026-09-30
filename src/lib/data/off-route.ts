@@ -5,7 +5,7 @@ import { cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import { confirmedDetour, MIN_SIGHTINGS, type Sighting } from "@/lib/off-route";
-import type { DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time/service-day";
 
 /** A trip that left its route, for the trip page. */
 export interface TripDetour {

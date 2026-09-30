@@ -1,6 +1,6 @@
 // tests/lib/off-route.test.ts
 // Unit tests for measuring vehicles against their trip's road path.
-import type { AtTripUpdates } from "@/lib/at";
+import type { AtTripUpdates } from "@/lib/feed/at";
 import {
   confirmedDetour,
   distanceToPathM,

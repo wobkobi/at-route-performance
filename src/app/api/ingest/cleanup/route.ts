@@ -24,7 +24,7 @@ import {
   type CleanupParams,
   type CleanupRunDetail,
 } from "@/lib/cleanup";
-import { recordIngestRun } from "@/lib/ingest-run";
+import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { after, NextResponse } from "next/server";
 
 /**

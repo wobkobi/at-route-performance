@@ -10,7 +10,7 @@
 import { dailySummaryPipeline, summaryUpsertOps, type DailyStats } from "@/lib/aggregate";
 import { throwOnWriteErrors } from "@/lib/db";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 import { PrismaClient } from "@prisma/client";
 
 const p = new PrismaClient();

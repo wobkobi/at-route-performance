@@ -26,9 +26,9 @@ import {
 } from "@/lib/data";
 import { formatGtfsTime } from "@/lib/format";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
-import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
 import { buildRouteView, type MapStop } from "@/lib/route-view";
+import { requestServiceDay } from "@/lib/time/request-now";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
@@ -37,7 +37,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayLabel,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import { tripBoardView } from "@/lib/trip-board";
 import { buildTripLine } from "@/lib/trip-line";
 import { buildHref } from "@/lib/utils";
@@ -109,7 +109,7 @@ export default async function TripPage({
   const slug = routeSlug(id);
   const sp = (await searchParams) ?? {};
   const d = typeof sp.d === "string" ? sp.d : undefined;
-  // One request-time clock read for the whole render (see lib/request-now.ts).
+  // One request-time clock read for the whole render (see lib/time/request-now.ts).
   // The reads below need it before they run, not just the live tests further
   // down: the cache policy behind them asks whether this run's day is over.
   const today = await requestServiceDay();

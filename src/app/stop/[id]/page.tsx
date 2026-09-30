@@ -18,13 +18,6 @@ import { PunctualityStat, type PunctualityBreakdown } from "@/components/Punctua
 import { RankBoard } from "@/components/RankBoard";
 import StopMapWrapper from "@/components/StopMapWrapper";
 import { StopSchedule } from "@/components/StopSchedule";
-import {
-  alertsForStop,
-  getServiceAlerts,
-  getUpcomingAlerts,
-  type ServiceAlert,
-} from "@/lib/at-alerts";
-import { getStopDepartures } from "@/lib/at-stop-trips";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
@@ -36,11 +29,16 @@ import {
   getStopStats,
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { serviceClockNow } from "@/lib/departure-board";
 import { fareZonesOf } from "@/lib/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/fare-zones";
+import {
+  alertsForStop,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/feed/at-alerts";
+import { getStopDepartures } from "@/lib/feed/at-stop-trips";
 import {
   formatDuration,
   OFF_SCHEDULE_TONE_CLASS,
@@ -51,14 +49,16 @@ import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og"
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
 import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
+import { serviceClockNow } from "@/lib/stop/departure-board";
+import { dominantStopMode, stopGrain } from "@/lib/stop/grain";
 import {
   MIN_PLATFORM_EVENTS,
   platformNoun,
   platformsDiffer,
   type PlatformRow,
-} from "@/lib/station-platforms";
-import { dominantStopMode, stopGrain } from "@/lib/stop-grain";
+} from "@/lib/stop/station-platforms";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -156,8 +156,8 @@ export default async function StopPage({
     redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
   }
 
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   clampDayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
   dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp, today);

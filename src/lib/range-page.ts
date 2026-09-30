@@ -3,8 +3,6 @@
 // pages: parse `?window`, resolve the range and its stepper, and the query a route
 // link carries so the route opens on the same window. Week and month anchor to the
 // latest day with data (see rankings-page.ts).
-import { mondayOf, type PickerState } from "@/lib/calendar";
-import { DATA_START_DAY } from "@/lib/data-start";
 import {
   resolveMonthNav,
   resolveRequestedDay,
@@ -12,6 +10,8 @@ import {
   resolveWeekNav,
 } from "@/lib/page-nav";
 import { resolveRange } from "@/lib/rankings-page";
+import { mondayOf, type PickerState } from "@/lib/time/calendar";
+import { DATA_START_DAY } from "@/lib/time/data-start";
 import {
   type DateRange,
   nzServiceDayString,
@@ -19,7 +19,7 @@ import {
   serviceDayLabel,
   shiftMonth,
   shiftWeek,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 
 /** The window a range page shows. */
@@ -322,7 +322,7 @@ export function periodForCarriedDay(
   const day = resolveRequestedDay(rawDay);
   if (day === null) return undefined;
   // Only a carried day needs placing against today, so the clock is read here
-  // rather than as a default: see the note at the top of day-url.ts.
+  // rather than as a default: see the note at the top of time/day-url.ts.
   return rangeTabPeriods(day, today ?? nzServiceDayString())[window] ?? undefined;
 }
 

@@ -12,8 +12,8 @@
  * Pass two folds the straddlers. A run that crossed the boundary hour has
  * readings on both sides of it and so took two dates from pass one. Each
  * service day's boundary is rescanned with RUN_TAIL_HOURS of slack on the late
- * side and twice that on the early side, foldRunDates (lib/run-day.ts) rewrites
- * the later readings of a two-date run onto the date of its earliest one, and
+ * side and twice that on the early side, foldRunDates (lib/time/run-day.ts)
+ * rewrites the later readings of a two-date run onto the date of its earliest one, and
  * readings further than RUN_TAIL_HOURS from that earliest one keep their own
  * date, so a reused trip id cannot drag a whole day's readings onto one date.
  * On 15 September no run in the whole day spanned more than 104 minutes across
@@ -30,8 +30,13 @@
  * Usage:
  *   npx tsx --env-file=.env.local scripts/backfill-arrival-service-date.ts [--dry-run] [--since=<hours>]
  */
-import { type RunRowDate, foldRunDates } from "@/lib/run-day";
-import { RUN_TAIL_HOURS, nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time";
+import { type RunRowDate, foldRunDates } from "@/lib/time/run-day";
+import {
+  RUN_TAIL_HOURS,
+  nzServiceDayRange,
+  nzServiceDayString,
+  shiftWeek,
+} from "@/lib/time/service-day";
 import { PrismaClient } from "@prisma/client";
 
 const p = new PrismaClient();

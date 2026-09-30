@@ -23,12 +23,6 @@ import { SortHeader } from "@/components/SortHeader";
 import { StepPending } from "@/components/StepPending";
 import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
 import { WorstTripsBoard } from "@/components/WorstTripsBoard";
-import {
-  alertsForRoute,
-  getServiceAlerts,
-  getUpcomingAlerts,
-  type ServiceAlert,
-} from "@/lib/at-alerts";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -49,31 +43,37 @@ import {
   getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
+import {
+  alertsForRoute,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  type ServiceAlert,
+} from "@/lib/feed/at-alerts";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
 import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
 import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { withTripPenalty } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route-slug";
-import { buildStrip, type StripSide } from "@/lib/route-strip";
 import { buildRouteView, type RouteView } from "@/lib/route-view";
 import { aggregateWeek } from "@/lib/route-week";
-import { splitStopFigures } from "@/lib/stop-split";
-import { stripMarks } from "@/lib/strip-marks";
+import { stripMarks } from "@/lib/strip/marks";
+import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
+import { splitStopFigures } from "@/lib/strip/stop-split";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
-import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
+import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time/service-day";
 import {
   hourRangeParam,
   isHourInRange,
   parseHourRange,
   TIME_PRESETS,
   type HourRange,
-} from "@/lib/time-of-day";
+} from "@/lib/time/time-of-day";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
@@ -405,8 +405,8 @@ export default async function RoutePage({
     redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
   }
 
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   clampDayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
   dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp, today);

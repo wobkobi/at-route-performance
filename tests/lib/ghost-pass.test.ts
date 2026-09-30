@@ -19,7 +19,11 @@ import {
   type GhostRunCandidate,
   type TripLevel,
 } from "@/lib/ghost-pass";
-import { nzServiceDayRange, serviceDayClockInstant, serviceDayClockSeconds } from "@/lib/time";
+import {
+  nzServiceDayRange,
+  serviceDayClockInstant,
+  serviceDayClockSeconds,
+} from "@/lib/time/service-day";
 import { describe, expect, it, vi } from "vitest";
 
 // The module under test imports the Prisma client; the pure parts never touch it.

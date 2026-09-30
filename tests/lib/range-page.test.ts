@@ -1,6 +1,5 @@
 // tests/lib/range-page.test.ts
 // Unit tests for the Day / Week / Month window helpers.
-import { DATA_START_DAY } from "@/lib/data-start";
 import {
   dayRangeNav,
   hasEarlierDay,
@@ -15,7 +14,8 @@ import {
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/range-page";
-import { nzServiceDayRange } from "@/lib/time";
+import { DATA_START_DAY } from "@/lib/time/data-start";
+import { nzServiceDayRange } from "@/lib/time/service-day";
 import { describe, expect, it } from "vitest";
 
 const TODAY = "2026-09-14";

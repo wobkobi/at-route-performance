@@ -7,9 +7,9 @@
 // started yet are dropped so AT's predicted-future slots don't show as phantom
 // on-time entries; and the shown-day resolver lazily imports the data layer so
 // these helpers stay pure and unit-testable.
-import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/data-start";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { requestServiceDay } from "@/lib/request-now";
+import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/time/data-start";
+import { requestServiceDay } from "@/lib/time/request-now";
 import {
   monthRangeLabel,
   nzLast7DaysRange,
@@ -25,7 +25,7 @@ import {
   shiftWeek,
   weekRangeLabel,
   type DateRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 
 /** Matches an ISO `YYYY-MM-DD` date string, capturing year, month and day. */
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;

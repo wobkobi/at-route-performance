@@ -1,9 +1,9 @@
 // tests/lib/rankings-page.test.ts
 // The rankings windows are clamped to the archive floor while their labels keep
 // naming the calendar period, so a partial first week reads as the week it is.
-import { DATA_START_DAY, rangeIsEmpty } from "@/lib/data-start";
 import { resolvePrevRange, resolveRange } from "@/lib/rankings-page";
-import { nzServiceDayRange } from "@/lib/time";
+import { DATA_START_DAY, rangeIsEmpty } from "@/lib/time/data-start";
+import { nzServiceDayRange } from "@/lib/time/service-day";
 import { describe, expect, it } from "vitest";
 
 const anchor = new Date("2026-09-16T00:00:00Z");

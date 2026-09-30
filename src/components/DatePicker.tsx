@@ -4,6 +4,7 @@
 // so a reader can jump straight to a date instead of stepping one at a time.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { cn } from "@/lib/cn";
 import {
   monthPickPeriod,
   monthShort,
@@ -11,9 +12,8 @@ import {
   monthWeeks,
   weekPickPeriod,
   type PickerState,
-} from "@/lib/calendar";
-import { cn } from "@/lib/cn";
-import { serviceDayLabel, shiftMonth } from "@/lib/time";
+} from "@/lib/time/calendar";
+import { serviceDayLabel, shiftMonth } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import {

@@ -2,13 +2,14 @@
 // src/components/RouteStrip.tsx
 // The route diagram as a strip map: one line down the page carrying both directions, each stop a
 // ring split between them, with its name and a figure column per direction beside it. The line
-// and rings are one svg behind each column, drawn 1:1 from lib/route-strip.ts; the names and
+// and rings are one svg behind each column, drawn 1:1 from lib/strip/route-strip.ts; the names and
 // figures are the rows of a list on the same 32px pitch, so CSS wraps or cuts a name to fit and
 // the figure columns size to their widest figure.
 
 import { ChipToggle } from "@/components/Chip";
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
+import type { StripMarks } from "@/lib/strip/marks";
 import {
   BYPASS_OFF,
   bypassSpan,
@@ -20,10 +21,9 @@ import {
   type StripColumn,
   type RouteStrip as StripData,
   type StripSide,
-} from "@/lib/route-strip";
-import type { StopSplit } from "@/lib/stop-split";
-import type { StripMarks } from "@/lib/strip-marks";
-import { stripView, type HalfTone, type StripView } from "@/lib/strip-view";
+} from "@/lib/strip/route-strip";
+import type { StopSplit } from "@/lib/strip/stop-split";
+import { stripView, type HalfTone, type StripView } from "@/lib/strip/view";
 import { useUrlParam } from "@/lib/use-url-param";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";

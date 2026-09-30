@@ -77,10 +77,10 @@ irreversible and the rollup reads the events the cleanup then removes.
   headline figure everywhere. It would also blind short-detour detection, which needs
   `MIN_SIGHTINGS` (2, `src/lib/off-route.ts`) readings off-route - at five minutes a detour has to
   last ten. And three constants are pinned to the 120s cadence: `INGEST_INTERVAL_SEC`
-  (`src/lib/ingest-run.ts`), the client `staleTimes.dynamic` (`next.config.ts`) and the footer's
-  `REFRESH_MS` (`src/components/DataFreshness.tsx`). Change the schedule without them and the footer
-  shows "update due now" for most of every gap. If invocations must come down, move those four
-  together and accept the coarser figures.
+  (`src/lib/feed/ingest-run.ts`), the client `staleTimes.dynamic` (`next.config.ts`) and the
+  footer's `REFRESH_MS` (`src/components/DataFreshness.tsx`). Change the schedule without them and
+  the footer shows "update due now" for most of every gap. If invocations must come down, move those
+  four together and accept the coarser figures.
 - **A failure notice from cron-job.org on the realtime job is usually not a failure.** Of 8,617
   polls to 22 Sep 2026, none failed server-side, but 337 (3.9%) ran past the scheduler's 30s drop
   and 35 past 60s - the poll finishes and records its `IngestRun` regardless. Check the endpoint's

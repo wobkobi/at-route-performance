@@ -4,6 +4,7 @@
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
 // identical is a feed people learn to ignore.
+import { cn } from "@/lib/cn";
 import {
   alertPeriodToShow,
   alertSeverity,
@@ -11,10 +12,9 @@ import {
   extractText,
   hasSevereAlert,
   type ServiceAlert,
-} from "@/lib/at-alerts";
-import { cn } from "@/lib/cn";
+} from "@/lib/feed/at-alerts";
 import { routeSlug } from "@/lib/route-slug";
-import { NZ_TZ } from "@/lib/time";
+import { NZ_TZ } from "@/lib/time/service-day";
 import Link from "next/link";
 import type { JSX } from "react";
 

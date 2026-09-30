@@ -5,9 +5,9 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { SectionLink } from "@/components/SectionLink";
 import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/lib/data";
-import { DATA_START_SHORT } from "@/lib/data-start";
 import { type SchoolFilter } from "@/lib/school-bus";
-import type { DateRange } from "@/lib/time";
+import { DATA_START_SHORT } from "@/lib/time/data-start";
+import type { DateRange } from "@/lib/time/service-day";
 import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle-counts";
 import type { JSX } from "react";
 

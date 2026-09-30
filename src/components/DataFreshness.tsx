@@ -4,7 +4,7 @@
 // and the trigger that re-renders a live page once a newer ingest run lands.
 
 import { viewIncludesToday } from "@/lib/live-view";
-import { NZ_TZ, nzServiceDayString } from "@/lib/time";
+import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 

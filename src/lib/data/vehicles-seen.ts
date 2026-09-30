@@ -1,20 +1,20 @@
 // src/lib/data/vehicles-seen.ts
 // How many distinct buses, trains and ferries ran the ranked routes, over a
 // window and since the archive began.
-import { DATA_START_DAY } from "@/lib/data-start";
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
+import { DATA_START_DAY } from "@/lib/time/data-start";
 import {
   type DateRange,
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
   shiftWeek,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import {
   type VehicleCounts,
   type VehicleRouteRow,

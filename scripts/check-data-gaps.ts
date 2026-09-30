@@ -2,7 +2,7 @@
 // Diagnostic: events per NZ service day and ingest-run stats for the last N
 // days, every table bucketed by service date so the rows line up. Run with:
 //   npx tsx --env-file=.env.local scripts/check-data-gaps.ts
-import { serviceDateExpr } from "@/lib/service-day-expr";
+import { serviceDateExpr } from "@/lib/time/service-day-expr";
 import { PrismaClient } from "@prisma/client";
 
 const DAYS = 35;

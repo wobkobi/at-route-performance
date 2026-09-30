@@ -8,11 +8,11 @@
 // exceed the external scheduler's 30s request timeout); the outcome is recorded
 // in IngestRun and the function logs.
 
-import { fetchCurrentGtfsVersion } from "@/lib/at-versions";
 import { requireCronAuth } from "@/lib/auth";
-import { getSetting, setSetting } from "@/lib/gtfs-settings";
-import { syncRoutes, syncStops } from "@/lib/ingest";
-import { recordIngestRun } from "@/lib/ingest-run";
+import { fetchCurrentGtfsVersion } from "@/lib/feed/at-versions";
+import { getSetting, setSetting } from "@/lib/feed/gtfs-settings";
+import { syncRoutes, syncStops } from "@/lib/feed/ingest";
+import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any

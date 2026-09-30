@@ -10,7 +10,7 @@
 // CRON_SECRET is read from .env.local (or the environment). The --url flag
 // overrides the default http://localhost:3000.
 
-import { nzServiceDayString, shiftWeek } from "@/lib/time";
+import { nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 import fs from "node:fs";
 
 /* ---------------------------------------------------------------- env load */

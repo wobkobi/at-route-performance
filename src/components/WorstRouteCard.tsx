@@ -3,10 +3,10 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { dayLinkParam } from "@/lib/day-url";
 import { routeSlug } from "@/lib/route-slug";
-import { nzHourLabel, weekdayShort } from "@/lib/time";
-import { HOURS_PARAM, hourRangeParam, singleHourRange } from "@/lib/time-of-day";
+import { dayLinkParam } from "@/lib/time/day-url";
+import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
+import { HOURS_PARAM, hourRangeParam, singleHourRange } from "@/lib/time/time-of-day";
 import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
 import Link from "next/link";

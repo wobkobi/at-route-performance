@@ -10,7 +10,7 @@
 // its route only when two readings fall between arrivals it recorded before and
 // after (see confirmedDetour).
 
-import type { AtTripUpdates } from "@/lib/at";
+import type { AtTripUpdates } from "@/lib/feed/at";
 
 /**
  * Metres from the trip's road path before a reading counts. The stored shapes are

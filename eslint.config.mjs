@@ -73,14 +73,15 @@ export default defineConfig([
       // Core hygiene: require === except the idiomatic `!= null` check
       eqeqeq: ["error", "smart"],
 
-      // The NZ timezone name lives in nz-tz.ts and reaches everything else as
-      // NZ_TZ from time.ts, with the helpers built on it. Hardcoding the literal
-      // is how a file ends up doing its own date maths, and how a DST bug gets in.
+      // The NZ timezone name lives in time/nz-tz.ts and reaches everything else
+      // as NZ_TZ from time/service-day.ts, with the helpers built on it.
+      // Hardcoding the literal is how a file ends up doing its own date maths,
+      // and how a DST bug gets in.
       "no-restricted-syntax": [
         "error",
         {
           selector: "Literal[value='Pacific/Auckland']",
-          message: "Import NZ_TZ from @/lib/time instead of hardcoding the timezone.",
+          message: "Import NZ_TZ from @/lib/time/service-day instead of hardcoding the timezone.",
         },
       ],
 
@@ -117,9 +118,9 @@ export default defineConfig([
     },
   },
 
-  // nz-tz.ts owns the timezone literal; everywhere else imports NZ_TZ.
+  // time/nz-tz.ts owns the timezone literal; everywhere else imports NZ_TZ.
   {
-    files: ["src/lib/nz-tz.ts"],
+    files: ["src/lib/time/nz-tz.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
 

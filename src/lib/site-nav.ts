@@ -2,7 +2,7 @@
 // Top-bar sections: which one a path belongs to, and the link to each that keeps
 // the reader's day, window and mode filter, which the Overview, Routes, Shame and
 // Cancellations pages (and the route and stop pages under them) read the same way.
-import { nzServiceDayString } from "@/lib/time";
+import { nzServiceDayString } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */

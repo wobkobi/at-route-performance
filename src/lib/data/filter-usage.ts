@@ -5,7 +5,7 @@
 import { TODAY_REVALIDATE } from "@/lib/data/cache";
 import { getRankings } from "@/lib/data/rankings";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import type { DateRange } from "@/lib/time";
+import type { DateRange } from "@/lib/time/service-day";
 
 /** Which filter choices would change a window's figures. */
 export interface FilterUsage {

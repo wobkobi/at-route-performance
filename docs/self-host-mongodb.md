@@ -329,8 +329,8 @@ What the app does about it, outermost first:
   about 27 seconds over five attempts. That alone covers a restart or a failover.
   `isDatabaseUnreachableError` is kept separate from `isTransientConnectionError` because a dropped
   socket is fixed by reconnecting and an outage only by waiting.
-- **Then the poll's writes are spooled.** When the retries run out, `src/lib/ingest-spool.ts` gzips
-  the batch into the blob store under `ingest-spool/` and the run reports success rather than
+- **Then the poll's writes are spooled.** When the retries run out, `src/lib/feed/ingest-spool.ts`
+  gzips the batch into the blob store under `ingest-spool/` and the run reports success rather than
   failing. Every later poll drains the spool oldest-first before fetching AT, and deletes each batch
   once it lands. Replay is safe by construction: the inserts run `ordered: false` with duplicate
   keys ignored, and the arrivals are upserts keyed on the stop visit, so a batch that partly landed

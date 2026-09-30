@@ -8,7 +8,7 @@
 import { FleetSummary } from "@/components/FleetSummary";
 import { ModeFilter } from "@/components/ModeFilter";
 import { RankBoard } from "@/components/RankBoard";
-import { ShameOfDay } from "@/components/ShameOfDay";
+import { ShameOfDay } from "@/components/shame/ShameOfDay";
 import { WorstRouteCard } from "@/components/WorstRouteCard";
 import { WorstStopCard } from "@/components/WorstStopCard";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
@@ -21,7 +21,6 @@ import {
   getShameRouteOfWeek,
   getWorstStopsOfWeek,
 } from "@/lib/data";
-import { rangeIsEmpty } from "@/lib/data-start";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
 import { routeLinkQuery } from "@/lib/range-page";
 import { hasRankingFilters, type RankingFilters } from "@/lib/ranking-filters";
@@ -43,7 +42,8 @@ import {
   type SchoolDelta,
   type SchoolFilter,
 } from "@/lib/school-bus";
-import type { DateRange } from "@/lib/time";
+import { rangeIsEmpty } from "@/lib/time/data-start";
+import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { TopRouteRow } from "@/types/api";
 import type {

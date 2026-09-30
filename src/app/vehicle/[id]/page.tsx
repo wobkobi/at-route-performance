@@ -25,9 +25,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
-import { clampDayParam, dropTodayParam } from "@/lib/day-url";
 import { readFallback } from "@/lib/db";
-import { getFleet, type FleetVehicle } from "@/lib/fleet-store";
 import {
   formatDuration,
   formatHours,
@@ -45,16 +43,18 @@ import {
   routeLinkQuery,
   type RangeNav,
 } from "@/lib/range-page";
-import { requestServiceDay } from "@/lib/request-now";
 import { routeSlug } from "@/lib/route-slug";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
+import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestServiceDay } from "@/lib/time/request-now";
 import {
   nzClockTime,
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayLabel,
   type DateRange,
-} from "@/lib/time";
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { VehicleMode } from "@/lib/vehicle-counts";
 import {
@@ -192,8 +192,8 @@ export default async function VehiclePage({
   const basePath = `/vehicle/${id}`;
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
-  // One request-time clock read for the whole render, taken before the day-param redirects
-  // below so none of them reads the clock during the static prerender (see lib/request-now.ts).
+  // One request-time clock read for the whole render, taken before the day-param redirects below
+  // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
   if (window === "day") {
     clampDayParam(basePath, sp, today);

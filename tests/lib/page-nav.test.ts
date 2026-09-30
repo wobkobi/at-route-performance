@@ -3,7 +3,6 @@
 // shown-day fallback and the live-hour filters.
 
 import { currentDayIsOpen, getMostRecentDataDay } from "@/lib/data";
-import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/data-start";
 import {
   fillServiceHours,
   filterLiveHours,
@@ -18,7 +17,8 @@ import {
   serviceHourSpan,
 } from "@/lib/page-nav";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { nzServiceDayRange } from "@/lib/time";
+import { DATA_START_DAY, dataStartDate, rangeIsEmpty } from "@/lib/time/data-start";
+import { nzServiceDayRange } from "@/lib/time/service-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/data", () => ({

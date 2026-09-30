@@ -6,8 +6,8 @@
 // resolving only the most-frequent patterns (capped at MAX_PATTERNS) to stay
 // within the API quota. Only stop order is available here, no road geometry.
 // Results are cached daily and keyed by route, since the schedule is static.
-import { fetchAll } from "@/lib/at-static";
 import { routeIdsForSlug } from "@/lib/data";
+import { fetchAll } from "@/lib/feed/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { RoutePattern, RouteVariant } from "@/types/api";
 
