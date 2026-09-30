@@ -97,7 +97,7 @@ export function WorstRouteCard({
       </div>
     );
   }
-  const name = route.short_name || route.long_name || routeSlug(route.route_id);
+  const name = route.shortName || route.longName || routeSlug(route.routeId);
 
   // Week-view rows carry a service date and no meaningful hour; day rows are the
   // other way round.
@@ -113,7 +113,7 @@ export function WorstRouteCard({
   // A week row names a day instead, and its `hour` is a placeholder 0.
   const href =
     hrefProp ??
-    buildHref(`/route/${encodeURIComponent(routeSlug(route.route_id))}`, {
+    buildHref(`/route/${encodeURIComponent(routeSlug(route.routeId))}`, {
       day: dayLinkParam(day),
       [HOURS_PARAM]: route.date ? undefined : hourRangeParam(hours ?? singleHourRange(route.hour)),
     });
@@ -126,8 +126,8 @@ export function WorstRouteCard({
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={route.mode}
-          shortName={route.short_name}
-          longName={route.long_name}
+          shortName={route.shortName}
+          longName={route.longName}
           colour={route.colour}
           className="h-6 w-6"
         />

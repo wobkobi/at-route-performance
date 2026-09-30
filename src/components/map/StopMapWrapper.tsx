@@ -4,6 +4,7 @@
 
 import type { OffRoutePoint } from "@/components/map/StopMap";
 import type { Mode } from "@/lib/mode";
+import type { MapStop } from "@/lib/route/view";
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
@@ -25,16 +26,7 @@ const StopMap = dynamic(() => import("@/components/map/StopMap"), {
 });
 
 interface StopMapWrapperProps {
-  stops: Array<{
-    stop_id: string;
-    name: string;
-    lat: number;
-    lon: number;
-    avg_delay_sec: number | null;
-    on_time_pct: number | null;
-    /** Average absolute deviation (off-by); when set, the popup shows it too. */
-    avg_abs_delay_sec?: number | null;
-  }>;
+  stops: MapStop[];
   /** Per-variant stop-coordinate sequences drawn as the route path. */
   routeLines?: Array<Array<[number, number]>>;
   /** Route id, keying the saved viewport and the live-vehicle poll. */

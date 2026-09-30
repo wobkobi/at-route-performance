@@ -77,15 +77,15 @@ export function ShameOfDay({
     );
   }
 
-  const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
+  const name = trip.shortName || trip.longName || routeSlug(trip.routeId);
   const bound = boundFor(trip.headsign, trip.mode);
-  const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
+  const routeHourCount = hours ? hours.filter((h) => h.routeId === trip.routeId).length : 0;
   // The card names one run, so it opens that run. `?d` is the run's own instant,
   // which is how the trip page tells this day's run from the same trip id on
   // another day. The board link belongs on the section heading above.
   const href =
     hrefProp ??
-    `/route/${encodeURIComponent(routeSlug(trip.route_id))}/trip/${encodeURIComponent(trip.trip_id)}?d=${encodeURIComponent(trip.scheduled_start)}`;
+    `/route/${encodeURIComponent(routeSlug(trip.routeId))}/trip/${encodeURIComponent(trip.trip_id)}?d=${encodeURIComponent(trip.scheduled_start)}`;
   return (
     <Link
       href={href}
@@ -95,8 +95,8 @@ export function ShameOfDay({
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={trip.mode}
-          shortName={trip.short_name}
-          longName={trip.long_name}
+          shortName={trip.shortName}
+          longName={trip.longName}
           colour={trip.colour}
           className="h-6 w-6"
         />

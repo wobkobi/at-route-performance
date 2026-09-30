@@ -47,6 +47,7 @@ import {
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { routeSlug } from "@/lib/route/slug";
+import type { MapStop } from "@/lib/route/view";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -424,16 +425,6 @@ export default async function VehiclePage({
           )}
     </main>
   );
-}
-
-/** A stop as the map draws it. */
-interface MapStop {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  avg_delay_sec: number | null;
-  on_time_pct: null;
 }
 
 /**

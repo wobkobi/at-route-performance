@@ -197,17 +197,17 @@ export default async function OperatorPage({
       schools === "include" ? getCancelledRoutes(range, withoutSchool, 10_000, revalidate) : null,
       schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
     ]);
-  const rows = allRows.filter((r) => schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)));
-  const cancelled = new Map(cancelledRoutes.map((c) => [c.route_id, c.cancelled]));
+  const rows = allRows.filter((r) => schoolAllows(schools, isSchoolBus(r.shortName, r.longName)));
+  const cancelled = new Map(cancelledRoutes.map((c) => [c.slug, c.cancelled]));
   const table = operatorRows(rows, operators, cancelled, vehicles, directory);
   const rank = table.findIndex((o) => o.operator.code === op.code);
   const mine = rank === -1 ? null : table[rank]!;
   const base =
     cancelledBase && vehiclesBase
       ? (operatorRows(
-          allRows.filter((r) => !isSchoolBus(r.short_name, r.long_name)),
+          allRows.filter((r) => !isSchoolBus(r.shortName, r.longName)),
           operators,
-          new Map(cancelledBase.map((c) => [c.route_id, c.cancelled])),
+          new Map(cancelledBase.map((c) => [c.slug, c.cancelled])),
           vehiclesBase,
           directory,
         ).find((o) => o.operator.code === op.code) ?? null)
@@ -226,14 +226,14 @@ export default async function OperatorPage({
   // together by arrivals, as the operator's own are.
   const routes = new Map<string, OperatorRoute>();
   for (const r of rows) {
-    if (operatorCodeOf(r.route_id, operators) !== op.code) continue;
-    const s = routeSlug(r.route_id);
+    if (operatorCodeOf(r.routeId, operators) !== op.code) continue;
+    const s = routeSlug(r.routeId);
     const prev = routes.get(s);
     const events = r.events + (prev?.events ?? 0);
     routes.set(s, {
       slug: s,
-      name: r.short_name ?? s,
-      long: r.long_name,
+      name: r.shortName ?? s,
+      long: r.longName,
       mode: r.mode,
       colour: r.colour,
       events,
@@ -243,11 +243,11 @@ export default async function OperatorPage({
     });
   }
   for (const c of cancelledRoutes) {
-    if (operators[c.route_id] !== op.code || routes.has(c.route_id)) continue;
-    routes.set(c.route_id, {
-      slug: c.route_id,
-      name: c.short_name ?? c.route_id,
-      long: c.long_name ?? "",
+    if (operators[c.slug] !== op.code || routes.has(c.slug)) continue;
+    routes.set(c.slug, {
+      slug: c.slug,
+      name: c.shortName ?? c.slug,
+      long: c.longName ?? "",
       mode: c.mode,
       colour: c.colour,
       events: 0,

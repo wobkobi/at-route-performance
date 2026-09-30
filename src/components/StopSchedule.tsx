@@ -26,9 +26,9 @@ import { Fragment, type JSX } from "react";
 export interface StopScheduleProps {
   /** The lookup's outcome: the departures, or why there are none to show. */
   result: StopDepartures;
-  /** Maps route_id to short_name for display. */
+  /** Route id to short name, for display. */
   routeNames: Map<string, string | null>;
-  /** Maps route_id to its mode, which decides how its headsign is read. */
+  /** Route id to its mode, which decides how its headsign is read. */
   routeModes: Map<string, Mode>;
   /** Service date as YYYY-MM-DD. */
   serviceDate: string;

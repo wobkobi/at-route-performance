@@ -375,7 +375,7 @@ export default async function Home({
   const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = modeFiltered.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
+    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
   );
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
@@ -674,9 +674,9 @@ async function HomeShameCards({
   const trip = crownedRow(tripHours);
   const route = crownedRow(filterLiveHours(shameRoutes.hours, serviceDate));
   const stop = crownedRow(filterLiveHours(shameStops.hours, serviceDate));
-  // Needs the crowned run's route_id, so it runs after the parallel three.
+  // Needs the crowned run's routeId, so it runs after the parallel three.
   const routeStreakDays = trip.row
-    ? await getShameRouteStreak(trip.row.route_id, range, TODAY_REVALIDATE)
+    ? await getShameRouteStreak(trip.row.routeId, range, TODAY_REVALIDATE)
     : 0;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

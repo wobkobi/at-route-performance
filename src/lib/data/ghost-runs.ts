@@ -12,7 +12,7 @@ import { tripIdStartSeconds } from "@/lib/trip/id";
 /** One hidden run, for the trip page. */
 export interface GhostRunRow {
   trip_id: string;
-  route_id: string;
+  routeId: string;
   /** The run's own NZ service date (`YYYY-MM-DD`). */
   service_date: string;
   /** Auckland clock time this run was scheduled to start, or null when its id encodes none. */
@@ -77,7 +77,7 @@ function startLabel(tripId: string, serviceDate: string): string | null {
 function toRow(row: StoredGhostRun): GhostRunRow {
   return {
     trip_id: row.tripId,
-    route_id: row.routeId,
+    routeId: row.routeId,
     service_date: row.serviceDate,
     label: startLabel(row.tripId, row.serviceDate),
     level_sec: row.levelSec,

@@ -46,7 +46,7 @@ import {
 import { rangeIsEmpty } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type {
   FleetSummary as FleetSummaryData,
   ShameOfWeek,
@@ -81,8 +81,8 @@ export interface PeriodCore {
   schoolAdded: SchoolDelta | null;
   /** Modes with at least one route over the board bar, for the mode chips. */
   availableModes: Set<string>;
-  offSchedule: TopRouteRow[];
-  reliable: TopRouteRow[];
+  offSchedule: RouteRow[];
+  reliable: RouteRow[];
   offScheduleDeltas: ReturnType<typeof computeRankDelta> | undefined;
   reliableDeltas: ReturnType<typeof computeRankDelta> | undefined;
   cancelledByRoute: Awaited<ReturnType<typeof getCancelledByRoute>>;
@@ -149,7 +149,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
       // The previous window under the same filters, so a rank arrow compares
       // like with like (last month's Saturdays against this month's).
       rangeIsEmpty(prevRange)
-        ? Promise.resolve<TopRouteRow[]>([])
+        ? Promise.resolve<RouteRow[]>([])
         : getFilteredRankings(prevRange, filters, REVALIDATE),
       hasRankingFilters(filters)
         ? getFilteredCancellations(range, filters, { mode, schools }).then(
@@ -167,7 +167,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
   );
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = modeFiltered.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
+    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
   );
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
   const boardMin = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
@@ -180,7 +180,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     size: Infinity,
   });
   const prevFiltered = (mode ? prevRows.filter((r) => r.mode === mode) : prevRows).filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
+    schoolAllows(schools, isSchoolBus(r.shortName, r.longName)),
   );
   const hasPrev = prevFiltered.length > 0;
   return {

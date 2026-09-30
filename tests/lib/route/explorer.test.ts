@@ -24,10 +24,10 @@ import { describe, expect, it } from "vitest";
  */
 function route(slug: string, extra: Partial<ExplorerRoute> = {}): ExplorerRoute {
   return {
-    route_id: `${slug}-203`,
+    routeId: `${slug}-203`,
     slug,
-    short_name: slug,
-    long_name: `${slug} long name`,
+    shortName: slug,
+    longName: `${slug} long name`,
     mode: "BUS",
     events: 500,
     avg_delay_sec: 60,
@@ -72,7 +72,7 @@ describe("filterRoutes", () => {
       operator: "howick-and-eastern",
     }),
     route("S-C", { mode: "TRAIN", areas: ["central", "south"] }),
-    route("046", { long_name: "S046", school: true, events: 40 }),
+    route("046", { longName: "S046", school: true, events: 40 }),
   ];
 
   it("keeps routes serving any chosen fare zone", () => {

@@ -11,7 +11,7 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { routeSlug } from "@/lib/route/slug";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
@@ -60,7 +60,7 @@ function barWidth(pct: number): string {
  * @param row - The ranked row.
  * @returns Seconds, or 0 when the row has no figure at all.
  */
-function rowMagnitude(row: TopRouteRow): number {
+function rowMagnitude(row: RouteRow): number {
   return Math.abs(row.avg_abs_delay_sec ?? row.avg_delay_sec ?? 0);
 }
 
@@ -97,7 +97,7 @@ export interface RankBoardProps {
   /** Tailwind text-colour class for the heading accent. */
   accentClass: string;
   /** Ranked rows to show. */
-  rows: TopRouteRow[];
+  rows: RouteRow[];
   /** Which metric to render on the right. */
   metric: "delay" | "onTime";
   /**
@@ -212,7 +212,7 @@ export function RankBoard({
                 : r.on_time_pct === null
                   ? UNKNOWN_VALUE
                   : `${r.on_time_pct.toFixed(1)}%`;
-            const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
+            const cancelledCount = cancelled?.get(routeSlug(r.routeId)) ?? 0;
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
             const barClass =
@@ -224,10 +224,10 @@ export function RankBoard({
                   ? (rowMagnitude(r) / worst) * 100
                   : 0;
             return (
-              <li key={r.route_id}>
+              <li key={r.routeId}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
                 <Link
-                  href={`/route/${encodeURIComponent(routeSlug(r.route_id))}${routeQuery ?? ""}`}
+                  href={`/route/${encodeURIComponent(routeSlug(r.routeId))}${routeQuery ?? ""}`}
                   className={cn(
                     "-mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",
@@ -240,7 +240,7 @@ export function RankBoard({
                           {i + 1}
                         </span>
                         <span className="flex w-9 shrink-0 items-center pl-0.5">
-                          <DeltaBadge delta={deltas.get(r.route_id)} />
+                          <DeltaBadge delta={deltas.get(r.routeId)} />
                         </span>
                       </span>
                     ) : (
@@ -248,12 +248,12 @@ export function RankBoard({
                     )}
                     <ModeIcon
                       mode={r.mode}
-                      shortName={r.short_name}
-                      longName={r.long_name}
+                      shortName={r.shortName}
+                      longName={r.longName}
                       colour={r.colour}
                     />
                     <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
-                      {r.short_name || r.long_name || r.route_id}
+                      {r.shortName || r.longName || r.routeId}
                       {cancelledCount > 0 && (
                         <span className="ml-2 text-xs font-semibold text-at-late">
                           {cancelledCount} cancelled

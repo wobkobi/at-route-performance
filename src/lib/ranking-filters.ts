@@ -104,20 +104,20 @@ export function inAreas(
  * @param routeAreas - Route slug to the areas it serves.
  * @returns The rows that pass.
  */
-export function rowsInAreas<T extends { route_id: string }>(
+export function rowsInAreas<T extends { routeId: string }>(
   rows: readonly T[],
   areas: readonly AreaKey[],
   routeAreas: Readonly<Record<string, readonly AreaKey[]>>,
 ): T[] {
   return areas.length === 0
     ? [...rows]
-    : rows.filter((r) => inAreas(routeSlug(r.route_id), areas, routeAreas));
+    : rows.filter((r) => inAreas(routeSlug(r.routeId), areas, routeAreas));
 }
 
 /** A cancelled trip, as far as the filters read it. */
 export interface FilterableCancellation {
   /** Route slug. */
-  route_id: string;
+  slug: string;
   mode: string;
   school: boolean;
   service_date: string;
@@ -144,7 +144,7 @@ export function cancellationMatches(
     if (!trip.scheduled_start) return false;
     if (!isHourInRange(nzLocalHour(new Date(trip.scheduled_start)), f.hours)) return false;
   }
-  return inAreas(trip.route_id, f.areas, routeAreas);
+  return inAreas(trip.slug, f.areas, routeAreas);
 }
 
 /**

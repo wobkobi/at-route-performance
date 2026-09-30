@@ -8,23 +8,23 @@ import {
   predecessorSlugs,
   successorSlug,
 } from "@/lib/route/lineage";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
 import nextConfig from "../../../next.config";
 
 /**
  * A ranking row with the averaged fields defaulted, so a test states only what it
  * checks.
- * @param route_id - Full route id.
+ * @param routeId - Full route id.
  * @param events - Event count (the fold's weight).
  * @param over - Field overrides.
  * @returns The row.
  */
-function row(route_id: string, events: number, over: Partial<TopRouteRow> = {}): TopRouteRow {
+function row(routeId: string, events: number, over: Partial<RouteRow> = {}): RouteRow {
   return {
-    route_id,
-    short_name: route_id.replace(/-\d+$/, ""),
-    long_name: `${route_id} line`,
+    routeId,
+    shortName: routeId.replace(/-\d+$/, ""),
+    longName: `${routeId} line`,
     mode: "TRAIN",
     events,
     avg_delay_sec: 0,
@@ -94,16 +94,16 @@ describe("successorSlug", () => {
 
 describe("directoryLineageRows", () => {
   const rows = [
-    { id: "STH-201" },
-    { id: "S-C-201" },
-    { id: "EAST-201" },
-    { id: "WEST-201" },
-    { id: "E-W-201" },
-    { id: "NX1-201" },
+    { routeId: "STH-201" },
+    { routeId: "S-C-201" },
+    { routeId: "EAST-201" },
+    { routeId: "WEST-201" },
+    { routeId: "E-W-201" },
+    { routeId: "NX1-201" },
   ];
 
   it("lists the retired lines and hides the successors before their first train", () => {
-    expect(directoryLineageRows(rows, new Set()).map((r) => r.id)).toEqual([
+    expect(directoryLineageRows(rows, new Set()).map((r) => r.routeId)).toEqual([
       "STH-201",
       "EAST-201",
       "WEST-201",
@@ -112,7 +112,7 @@ describe("directoryLineageRows", () => {
   });
 
   it("swaps a retired line for its successor once the successor is running", () => {
-    expect(directoryLineageRows(rows, new Set(["S-C"])).map((r) => r.id)).toEqual([
+    expect(directoryLineageRows(rows, new Set(["S-C"])).map((r) => r.routeId)).toEqual([
       "S-C-201",
       "EAST-201",
       "WEST-201",
@@ -121,7 +121,7 @@ describe("directoryLineageRows", () => {
   });
 
   it("hides both merged lines once the merged successor is running", () => {
-    expect(directoryLineageRows(rows, new Set(["S-C", "E-W"])).map((r) => r.id)).toEqual([
+    expect(directoryLineageRows(rows, new Set(["S-C", "E-W"])).map((r) => r.routeId)).toEqual([
       "S-C-201",
       "E-W-201",
       "NX1-201",
@@ -147,15 +147,15 @@ describe("foldLineageRows", () => {
         avg_delay_sec: 20,
         avg_abs_delay_sec: 40,
         on_time_pct: 90,
-        long_name: "South-City Line",
+        longName: "South-City Line",
         colour: "0A5",
       }),
     ]);
-    expect(folded.map((r) => r.route_id)).toEqual(["S-C-201", "NX1-201"]);
+    expect(folded.map((r) => r.routeId)).toEqual(["S-C-201", "NX1-201"]);
     expect(folded[0]).toEqual({
-      route_id: "S-C-201",
-      short_name: "S-C",
-      long_name: "South-City Line",
+      routeId: "S-C-201",
+      shortName: "S-C",
+      longName: "South-City Line",
       mode: "TRAIN",
       colour: "0A5",
       events: 400,
@@ -173,7 +173,7 @@ describe("foldLineageRows", () => {
       row("E-W-201", 200, { avg_delay_sec: 50 }),
     ]);
     expect(folded).toHaveLength(1);
-    expect(folded[0]?.route_id).toBe("E-W-201");
+    expect(folded[0]?.routeId).toBe("E-W-201");
     expect(folded[0]?.events).toBe(400);
     expect(folded[0]?.avg_delay_sec).toBe(35);
   });
@@ -184,7 +184,7 @@ describe("foldLineageRows", () => {
       row("501-218", 300, { avg_delay_sec: 30, on_time_pct: 60 }),
     ]);
     expect(folded).toHaveLength(1);
-    expect(folded[0]?.route_id).toBe("501-218");
+    expect(folded[0]?.routeId).toBe("501-218");
     expect(folded[0]?.events).toBe(400);
     expect(folded[0]?.avg_delay_sec).toBe(25);
     expect(folded[0]?.on_time_pct).toBe(65);
@@ -194,10 +194,10 @@ describe("foldLineageRows", () => {
     const folded = foldLineageRows([
       row("STH-205", 100),
       row("S-C-201", 100),
-      row("S-C-202", 100, { long_name: "newest" }),
+      row("S-C-202", 100, { longName: "newest" }),
     ]);
-    expect(folded[0]?.route_id).toBe("S-C-202");
-    expect(folded[0]?.long_name).toBe("newest");
+    expect(folded[0]?.routeId).toBe("S-C-202");
+    expect(folded[0]?.longName).toBe("newest");
     expect(folded[0]?.events).toBe(300);
   });
 

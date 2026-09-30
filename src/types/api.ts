@@ -1,6 +1,7 @@
 // src/types/api.ts
 // Shared API response shapes for routes, stops, trips and per-day route summaries.
 import type { Mode } from "@/lib/mode";
+import type { RouteDisplay } from "@/lib/route/slug";
 import type { PlatformRow } from "@/lib/stop/station-platforms";
 
 // One route's road path, returned by /api/network-lines for the live map's underlay
@@ -22,12 +23,8 @@ export interface NetworkLine {
   runs: { slot: number; path: number[] }[];
 }
 
-// Top routes row returned by /api/routes/top
-export interface TopRouteRow {
-  route_id: string;
-  short_name: string | null;
-  long_name: string;
-  mode: string;
+/** One route's punctuality over a window: a rankings row, and the body of /api/routes/top. */
+export interface RouteRow extends RouteDisplay {
   events: number;
   avg_delay_sec: number | null;
   avg_abs_delay_sec: number | null;
@@ -36,8 +33,6 @@ export interface TopRouteRow {
   early_pct?: number | null;
   /** Percent of events beyond the late bound (present on the daily rows). */
   late_pct?: number | null;
-  /** AT brand colour hex without `#`, or null when not set. */
-  colour?: string | null;
 }
 
 // Summary object returned by /api/routes/[id]/stats
@@ -93,7 +88,7 @@ export interface StopStats {
   /** Overall punctuality across every route at the stop, or null when no events. */
   summary: RouteSummary | null;
   /** The worst-performing routes at this stop, off-schedule magnitude first. */
-  routes: TopRouteRow[];
+  routes: RouteRow[];
   /** How many distinct routes called at the stop in the window. */
   routes_count: number;
   /**
@@ -144,12 +139,7 @@ export interface TripStop {
 // A single trip's stop-by-stop timeline.
 export interface TripTimeline {
   trip_id: string;
-  route: {
-    shortName: string | null;
-    longName: string;
-    mode: string;
-    colour?: string | null;
-  } | null;
+  route: Pick<RouteDisplay, "shortName" | "longName" | "mode" | "colour"> | null;
   vehicle_id: string | null;
   stops: TripStop[];
 }

@@ -5,7 +5,7 @@ import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route/slug";
+import { type RouteDisplay, routeSlug } from "@/lib/route/slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -166,12 +166,10 @@ function byScheduledStart(a: CancelledTripRow, b: CancelledTripRow): number {
 }
 
 /** A cancelled trip anywhere on the network, for the Cancellations page. */
-export interface NetworkCancelledTrip extends CancelledTripRow {
-  /** Route slug. */
-  route_id: string;
-  short_name: string | null;
-  long_name: string | null;
-  mode: string;
+export interface NetworkCancelledTrip
+  extends CancelledTripRow, Omit<RouteDisplay, "routeId" | "colour"> {
+  /** Route slug: the flags are tallied by line, across feed versions. */
+  slug: string;
   colour: string | null;
   /** Whether the route is a school service. */
   school: boolean;
@@ -214,9 +212,9 @@ function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[
           const route = flag ? routeById.get(flag.routeId) : undefined;
           return {
             ...row,
-            route_id: routeSlug(flag?.routeId ?? ""),
-            short_name: route?.shortName ?? null,
-            long_name: route?.longName ?? null,
+            slug: routeSlug(flag?.routeId ?? ""),
+            shortName: route?.shortName ?? null,
+            longName: route?.longName ?? "",
             mode: route?.mode ?? "BUS",
             colour: route?.colour ?? null,
             school: isSchoolBus(route?.shortName, route?.longName),
@@ -340,15 +338,13 @@ export async function getCancelledByRoute(
   revalidate: number,
 ): Promise<Map<string, number>> {
   const rows = await getCancelledRoutes(range, filter, ALL_ROUTES, revalidate);
-  return new Map(rows.map((r) => [r.route_id, r.cancelled]));
+  return new Map(rows.map((r) => [r.slug, r.cancelled]));
 }
 
 /** A route's cancellation tally for a service day. */
-export interface CancelledRouteRow {
-  route_id: string;
-  short_name: string | null;
-  long_name: string | null;
-  mode: string;
+export interface CancelledRouteRow extends Omit<RouteDisplay, "routeId" | "colour"> {
+  /** Route slug: the flags are tallied by line, across feed versions. */
+  slug: string;
   colour: string | null;
   /** Trips cancelled on this route that day. */
   cancelled: number;
@@ -405,15 +401,15 @@ export async function getCancelledRoutes(
         .map(([slug, cancelled]) => {
           const meta = metaBySlug.get(slug);
           return {
-            route_id: slug,
-            short_name: meta?.shortName ?? null,
-            long_name: meta?.longName ?? null,
+            slug,
+            shortName: meta?.shortName ?? null,
+            longName: meta?.longName ?? "",
             mode: meta?.mode ?? "BUS",
             colour: meta?.colour ?? null,
             cancelled,
           };
         })
-        .sort((a, b) => b.cancelled - a.cancelled || a.route_id.localeCompare(b.route_id))
+        .sort((a, b) => b.cancelled - a.cancelled || a.slug.localeCompare(b.slug))
         .slice(0, limit);
     },
     [

@@ -13,10 +13,10 @@ import {
   type SchoolFilter,
   schoolFilterParam,
 } from "@/lib/school-bus";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 
 /** One route on the Routes page: its window stats plus what the filters need. */
-export interface ExplorerRoute extends TopRouteRow {
+export interface ExplorerRoute extends RouteRow {
   /** Version-stripped route slug, for links and joins. */
   slug: string;
   /** Areas the route served over the last week of completed days. */
@@ -210,7 +210,7 @@ export function filterRoutes(
   const q = f.q.trim().toLowerCase();
   const minEvents = f.mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   return rows.filter((r) => {
-    if (q && !`${r.short_name ?? ""} ${r.long_name} ${r.slug}`.toLowerCase().includes(q)) {
+    if (q && !`${r.shortName ?? ""} ${r.longName} ${r.slug}`.toLowerCase().includes(q)) {
       return false;
     }
     if (f.mode && r.mode !== f.mode) return false;
@@ -260,7 +260,7 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
  * @returns The standard sort contract.
  */
 function byName(a: ExplorerRoute, b: ExplorerRoute): number {
-  return (a.short_name ?? a.slug).localeCompare(b.short_name ?? b.slug, undefined, {
+  return (a.shortName ?? a.slug).localeCompare(b.shortName ?? b.slug, undefined, {
     numeric: true,
   });
 }

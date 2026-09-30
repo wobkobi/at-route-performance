@@ -4,7 +4,7 @@ import { cachedForDay, cachedForRange, scheduledAtWindow, toIso } from "@/lib/da
 import { schoolRouteMatch, type ShameFilter } from "@/lib/data/shame-filter";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import type { Mode } from "@/lib/mode";
+import { type Mode, modeOrBus } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -46,11 +46,11 @@ export const SHAME_MIN_STOPS = 5;
 /** Raw Shame row before its `scheduled_start` date is normalised. */
 interface ShameTripRaw extends Omit<
   ShameTrip,
-  "scheduled_start" | "short_name" | "long_name" | "mode"
+  "scheduled_start" | "shortName" | "longName" | "mode"
 > {
   scheduled_start: { $date: string } | string;
-  short_name?: string | null;
-  long_name?: string | null;
+  shortName?: string | null;
+  longName?: string | null;
   mode?: string | null;
 }
 
@@ -90,7 +90,7 @@ export async function getShameOfDay(
         {
           $group: {
             _id: "$tripId",
-            route_id: { $first: "$routeId" },
+            routeId: { $first: "$routeId" },
             scheduled_start: { $min: "$scheduledAt" },
             _stops: { $addToSet: "$stopId" },
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
@@ -102,7 +102,7 @@ export async function getShameOfDay(
         // that carries both a real arrival and a re-report.
         { $addFields: { stops: { $size: "$_stops" } } },
         { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
-        { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+        { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
         { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
         { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
         { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
@@ -125,9 +125,9 @@ export async function getShameOfDay(
           $group: {
             _id: "$hour",
             trip_id: { $first: { $toString: "$_id" } },
-            route_id: { $first: "$route_id" },
-            short_name: { $first: "$route.shortName" },
-            long_name: { $first: "$route.longName" },
+            routeId: { $first: "$routeId" },
+            shortName: { $first: "$route.shortName" },
+            longName: { $first: "$route.longName" },
             mode: { $first: "$route.mode" },
             colour: { $first: "$route.colour" },
             scheduled_start: { $first: "$scheduled_start" },
@@ -143,9 +143,9 @@ export async function getShameOfDay(
             _id: 0,
             hour: "$_id",
             trip_id: 1,
-            route_id: 1,
-            short_name: 1,
-            long_name: 1,
+            routeId: 1,
+            shortName: 1,
+            longName: 1,
             mode: 1,
             colour: 1,
             scheduled_start: 1,
@@ -168,10 +168,10 @@ export async function getShameOfDay(
       const hours: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
         hour: t.hour,
         trip_id: t.trip_id,
-        route_id: t.route_id,
-        short_name: t.short_name ?? null,
-        long_name: t.long_name ?? "",
-        mode: t.mode ?? "BUS",
+        routeId: t.routeId,
+        shortName: t.shortName ?? null,
+        longName: t.longName ?? "",
+        mode: modeOrBus(t.mode),
         colour: t.colour ?? null,
         scheduled_start: toIso(t.scheduled_start),
         stops: t.stops,
@@ -241,9 +241,9 @@ export async function getShameTripsInHours(
                 output: {
                   hour: "$hour",
                   trip_id: { $toString: "$_id" },
-                  route_id: "$route_id",
-                  short_name: "$route.shortName",
-                  long_name: "$route.longName",
+                  routeId: "$routeId",
+                  shortName: "$route.shortName",
+                  longName: "$route.longName",
                   mode: "$route.mode",
                   colour: "$route.colour",
                   scheduled_start: "$scheduled_start",
@@ -271,10 +271,10 @@ export async function getShameTripsInHours(
         rows: (doc?.rows ?? []).map((t) => ({
           hour: t.hour,
           trip_id: t.trip_id,
-          route_id: t.route_id,
-          short_name: t.short_name ?? null,
-          long_name: t.long_name ?? "",
-          mode: t.mode ?? "BUS",
+          routeId: t.routeId,
+          shortName: t.shortName ?? null,
+          longName: t.longName ?? "",
+          mode: modeOrBus(t.mode),
           colour: t.colour ?? null,
           scheduled_start: toIso(t.scheduled_start),
           stops: t.stops,
@@ -329,7 +329,7 @@ function shamePipelineBase(
     {
       $group: {
         _id: "$tripId",
-        route_id: { $first: "$routeId" },
+        routeId: { $first: "$routeId" },
         scheduled_start: { $min: "$scheduledAt" },
         // $min, not $first: $first is order-dependent without a preceding
         // $sort, so a run whose readings disagreed would bucket at random.
@@ -344,7 +344,7 @@ function shamePipelineBase(
     // that carries both a real arrival and a re-report.
     { $addFields: { stops: { $size: "$_stops" } } },
     { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
-    { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+    { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
     { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
     { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
     { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
@@ -426,9 +426,9 @@ async function worstTripsForRange(
             sortBy: { avg_abs_delay_sec: -1 },
             output: {
               trip_id: { $toString: "$_id" },
-              route_id: "$route_id",
-              short_name: "$route.shortName",
-              long_name: "$route.longName",
+              routeId: "$routeId",
+              shortName: "$route.shortName",
+              longName: "$route.longName",
               mode: "$route.mode",
               colour: "$route.colour",
               scheduled_start: "$scheduled_start",
@@ -446,9 +446,9 @@ async function worstTripsForRange(
       $project: {
         _id: 1,
         trip_id: "$worst.trip_id",
-        route_id: "$worst.route_id",
-        short_name: "$worst.short_name",
-        long_name: "$worst.long_name",
+        routeId: "$worst.routeId",
+        shortName: "$worst.shortName",
+        longName: "$worst.longName",
         mode: "$worst.mode",
         colour: "$worst.colour",
         scheduled_start: "$worst.scheduled_start",
@@ -474,10 +474,10 @@ async function worstTripsForRange(
     hour: 0,
     date: t._id,
     trip_id: t.trip_id,
-    route_id: t.route_id,
-    short_name: t.short_name ?? null,
-    long_name: t.long_name ?? "",
-    mode: t.mode ?? "BUS",
+    routeId: t.routeId,
+    shortName: t.shortName ?? null,
+    longName: t.longName ?? "",
+    mode: modeOrBus(t.mode),
     colour: t.colour ?? null,
     scheduled_start: toIso(t.scheduled_start),
     stops: t.stops,

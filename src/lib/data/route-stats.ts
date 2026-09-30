@@ -8,6 +8,7 @@ import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
+import type { RouteDisplay } from "@/lib/route/slug";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/stop/station";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
@@ -34,7 +35,7 @@ export interface RouteStatsParams {
 
 /** Result shape of {@link getRouteStats}. */
 export interface RouteStats {
-  route: { shortName: string | null; longName: string; mode: string; colour: string | null } | null;
+  route: (Pick<RouteDisplay, "shortName" | "longName" | "mode"> & { colour: string | null }) | null;
   summary: RouteSummary | null;
   byStop: RouteByStop[];
 }

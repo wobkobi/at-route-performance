@@ -12,24 +12,13 @@ import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { operatorHref, type Operator } from "@/lib/operators";
 import { routeSlug } from "@/lib/route/slug";
+import type { MapStop } from "@/lib/route/view";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle/status";
 import type * as Leaflet from "leaflet";
 import { useRouter } from "next/navigation";
 import type { JSX } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-
-/** Stop for map rendering */
-interface StopPoint {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  avg_delay_sec: number | null;
-  on_time_pct: number | null;
-  /** Average absolute deviation (off-by); when set, the popup shows it too. */
-  avg_abs_delay_sec?: number | null;
-}
 
 /** A route variant's path: stop coordinates in schedule order. */
 type RouteLine = Array<[number, number]>;
@@ -229,7 +218,7 @@ interface MapState {
   /** Direction arrows, redrawn on every zoom so they stay evenly spaced on screen. */
   arrowLayer: Leaflet.LayerGroup;
   /** The lines and stops the arrows were last placed from. */
-  arrowSource: { lines: RouteLine[]; stops: StopPoint[] };
+  arrowSource: { lines: RouteLine[]; stops: MapStop[] };
   offRouteLayer: Leaflet.LayerGroup;
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
@@ -374,7 +363,7 @@ function clearVehicles(state: MapState): void {
  * @param routeLines - Per-variant coordinate sequences.
  * @param stops - Stops to keep arrows clear of.
  */
-function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: StopPoint[]): void {
+function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: MapStop[]): void {
   const { L, routeLayer, colours } = state;
   routeLayer.clearLayers();
   for (const line of routeLines) {
@@ -461,7 +450,7 @@ function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
  */
 function drawStopLayer(
   state: MapState,
-  stops: StopPoint[],
+  stops: MapStop[],
   mode: Mode,
   stopQuery: string | undefined,
 ): void {
@@ -516,7 +505,7 @@ function drawStopLayer(
  * @param stops - Route stops (lat/lon bounds).
  * @param routeLines - Route path bounds.
  */
-function setInitialViewport(state: MapState, stops: StopPoint[], routeLines: RouteLine[]): void {
+function setInitialViewport(state: MapState, stops: MapStop[], routeLines: RouteLine[]): void {
   const { L, map } = state;
   const pts: Leaflet.LatLngExpression[] = [
     ...stops.map((s) => [s.lat, s.lon] as [number, number]),
@@ -564,7 +553,7 @@ export default function StopMap({
   stopQuery,
   className,
 }: {
-  stops: StopPoint[];
+  stops: MapStop[];
   routeLines?: RouteLine[];
   routeId?: string;
   live?: boolean;

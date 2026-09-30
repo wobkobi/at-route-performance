@@ -279,7 +279,7 @@ async function LiveTable({
       getDirectoryRoutes().catch(readFallback("directory-routes", [])),
     ]);
     rows = r;
-    routes = new Map(directory.map((d) => [routeSlug(d.id), d]));
+    routes = new Map(directory.map((d) => [routeSlug(d.routeId), d]));
   } catch (err) {
     // Same pair of sources as LiveFigures above, so the same reasoning applies.
     logReadFailure("live-routes", err);

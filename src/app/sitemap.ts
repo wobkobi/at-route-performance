@@ -70,7 +70,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // with it, which is why the root layout skips static generation in the first place.
   let slugs: string[];
   try {
-    slugs = [...new Set((await getDirectoryRoutes()).map((r) => routeSlug(r.id)))].sort();
+    slugs = [...new Set((await getDirectoryRoutes()).map((r) => routeSlug(r.routeId)))].sort();
   } catch (err) {
     logReadFailure("sitemap-routes", err);
     return sections;

@@ -46,7 +46,7 @@ import {
   serviceDatesInRange,
 } from "@/lib/time/service-day";
 import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
-import type { RouteSummary, StopStats, TopRouteRow } from "@/types/api";
+import type { RouteRow, RouteSummary, StopStats } from "@/types/api";
 import type {
   ShameDayStop,
   ShameRanked,
@@ -789,7 +789,7 @@ function slugsByName(ids: readonly { name: string | null; id: string }[]): Recor
 /** One facet's results from the stop-stats aggregation. */
 interface StopStatsFacet {
   summary: RouteSummary[];
-  routes: TopRouteRow[];
+  routes: RouteRow[];
   /** Per-platform rows, before the labels are joined on and the gate is applied. */
   platforms: (Omit<PlatformStats, "label"> & {
     routes: (string | null)[];
@@ -885,8 +885,8 @@ export async function getStopStats(
                       avg_delay_sec: { $avg: "$deviationSec" },
                       avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
                       on_time_count: onTimePerEventSum(),
-                      short_name: { $first: "$route.shortName" },
-                      long_name: { $first: "$route.longName" },
+                      shortName: { $first: "$route.shortName" },
+                      longName: { $first: "$route.longName" },
                       mode: { $first: "$route.mode" },
                     },
                   },
@@ -900,9 +900,9 @@ export async function getStopStats(
                   {
                     $project: {
                       _id: 0,
-                      route_id: { $toString: "$_id" },
-                      short_name: 1,
-                      long_name: 1,
+                      routeId: { $toString: "$_id" },
+                      shortName: 1,
+                      longName: 1,
                       mode: 1,
                       events: 1,
                       avg_delay_sec: { $round: ["$avg_delay_sec", 1] },

@@ -6,7 +6,7 @@ import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trip
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
-import type { Mode } from "@/lib/mode";
+import { type Mode, modeOrBus } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -55,7 +55,7 @@ export function cachedWorstRoutesOfDay(
  * row this route has been "featured" as the shame of the day. Queries
  * DailyRouteSummary (pre-aggregated, fast). Returns 0 when the route was not
  * today's top, or when there is no data.
- * @param routeId - The GTFS route_id to track.
+ * @param routeId - The route id to track.
  * @param currentRange - UTC half-open window for today's service day.
  * @param revalidate - Cache lifetime in seconds.
  * @returns Number of consecutive days this route topped the shame list.
@@ -418,9 +418,9 @@ function routeShamePipelineBase(
 /** Raw route-shame row from the aggregation cursor. */
 interface ShameRouteRaw {
   hour: number;
-  route_id: string;
-  short_name: string | null;
-  long_name: string | null;
+  routeId: string;
+  shortName: string | null;
+  longName: string | null;
   mode: string | null;
   colour: string | null;
   events: number;
@@ -457,9 +457,9 @@ export async function getShameRouteOfDay(
         {
           $group: {
             _id: "$_id.hour",
-            route_id: { $first: "$_id.routeId" },
-            short_name: { $first: "$route.shortName" },
-            long_name: { $first: "$route.longName" },
+            routeId: { $first: "$_id.routeId" },
+            shortName: { $first: "$route.shortName" },
+            longName: { $first: "$route.longName" },
             mode: { $first: "$route.mode" },
             colour: { $first: "$route.colour" },
             events: { $first: "$events" },
@@ -471,9 +471,9 @@ export async function getShameRouteOfDay(
           $project: {
             _id: 0,
             hour: "$_id",
-            route_id: 1,
-            short_name: 1,
-            long_name: 1,
+            routeId: 1,
+            shortName: 1,
+            longName: 1,
             mode: 1,
             colour: 1,
             events: 1,
@@ -492,10 +492,10 @@ export async function getShameRouteOfDay(
 
       const hours: ShameRouteRow[] = res.cursor.firstBatch.map((r) => ({
         hour: r.hour,
-        route_id: r.route_id,
-        short_name: r.short_name ?? null,
-        long_name: r.long_name ?? "",
-        mode: r.mode ?? "BUS",
+        routeId: r.routeId,
+        shortName: r.shortName ?? null,
+        longName: r.longName ?? "",
+        mode: modeOrBus(r.mode),
         colour: r.colour ?? null,
         events: r.events,
         avg_abs_delay_sec: r.avg_abs_delay_sec,
@@ -565,9 +565,9 @@ export async function getShameRoutesInHours(
               n: SHAME_RANKED_LIMIT,
               sortBy: { avg_abs_delay_sec: -1 },
               output: {
-                route_id: "$_id.routeId",
-                short_name: "$route.shortName",
-                long_name: "$route.longName",
+                routeId: "$_id.routeId",
+                shortName: "$route.shortName",
+                longName: "$route.longName",
                 mode: "$route.mode",
                 colour: "$route.colour",
                 events: "$events",
@@ -592,10 +592,10 @@ export async function getShameRoutesInHours(
         total: doc?.total ?? 0,
         rows: (doc?.rows ?? []).map((r) => ({
           hour: hours.from,
-          route_id: r.route_id,
-          short_name: r.short_name ?? null,
-          long_name: r.long_name ?? "",
-          mode: r.mode ?? "BUS",
+          routeId: r.routeId,
+          shortName: r.shortName ?? null,
+          longName: r.longName ?? "",
+          mode: modeOrBus(r.mode),
           colour: r.colour ?? null,
           events: r.events,
           avg_abs_delay_sec: r.avg_abs_delay_sec,
@@ -682,9 +682,9 @@ async function worstRoutesForRange(
           $top: {
             sortBy: { avg_abs_delay_sec: -1 },
             output: {
-              route_id: "$_id.routeId",
-              short_name: "$route.shortName",
-              long_name: "$route.longName",
+              routeId: "$_id.routeId",
+              shortName: "$route.shortName",
+              longName: "$route.longName",
               mode: "$route.mode",
               colour: "$route.colour",
               events: "$events",
@@ -698,9 +698,9 @@ async function worstRoutesForRange(
     {
       $project: {
         _id: 1,
-        route_id: "$worst.route_id",
-        short_name: "$worst.short_name",
-        long_name: "$worst.long_name",
+        routeId: "$worst.routeId",
+        shortName: "$worst.shortName",
+        longName: "$worst.longName",
         mode: "$worst.mode",
         colour: "$worst.colour",
         events: "$worst.events",
@@ -722,10 +722,10 @@ async function worstRoutesForRange(
   return res.cursor.firstBatch.map((r) => ({
     hour: 0,
     date: r._id,
-    route_id: r.route_id,
-    short_name: r.short_name ?? null,
-    long_name: r.long_name ?? "",
-    mode: r.mode ?? "BUS",
+    routeId: r.routeId,
+    shortName: r.shortName ?? null,
+    longName: r.longName ?? "",
+    mode: modeOrBus(r.mode),
     colour: r.colour ?? null,
     events: r.events,
     avg_abs_delay_sec: r.avg_abs_delay_sec,

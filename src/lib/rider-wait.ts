@@ -238,18 +238,18 @@ export function applyPenalty<T extends PunctualityFields>(row: T, p: Penalty | u
  * @param penalties - Route slug to penalty.
  * @returns The rows with their penalties folded in.
  */
-export function applyRoutePenalties<T extends PunctualityFields & { route_id: string }>(
+export function applyRoutePenalties<T extends PunctualityFields & { routeId: string }>(
   rows: readonly T[],
   penalties: Record<string, Penalty>,
 ): T[] {
-  const slugs = new Set(rows.map((r) => routeSlug(r.route_id)));
+  const slugs = new Set(rows.map((r) => routeSlug(r.routeId)));
   const bySlug: Record<string, Penalty> = {};
   for (const [slug, p] of Object.entries(penalties)) {
     const successor = successorSlug(slug);
     const key = !slugs.has(slug) && successor && slugs.has(successor) ? successor : slug;
     bySlug[key] = bySlug[key] ? addPenalties(bySlug[key], p) : p;
   }
-  return rows.map((r) => applyPenalty(r, bySlug[routeSlug(r.route_id)]));
+  return rows.map((r) => applyPenalty(r, bySlug[routeSlug(r.routeId)]));
 }
 
 /**

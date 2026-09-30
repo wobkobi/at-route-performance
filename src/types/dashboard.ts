@@ -1,4 +1,5 @@
 import type { Mode } from "@/lib/mode";
+import type { RouteDisplay } from "@/lib/route/slug";
 // src/types/dashboard.ts
 // Dashboard view-model types, including fleet-wide summary totals.
 
@@ -23,17 +24,12 @@ export interface FleetSummary {
 }
 
 /** One run nominated as a day's (or hour's) worst, for the Shame board. */
-export interface ShameTrip {
+export interface ShameTrip extends RouteDisplay {
   /** Auckland-local hour (0-23) of the run's first scheduled stop. */
   hour: number;
   /** Auckland-local service date (`YYYY-MM-DD`); present only in week-view entries. */
   date?: string;
   trip_id: string;
-  route_id: string;
-  short_name: string | null;
-  long_name: string;
-  mode: string;
-  colour?: string | null;
   /** ISO instant of the run's earliest scheduled stop. */
   scheduled_start: string;
   stops: number;
@@ -109,16 +105,11 @@ export interface ShameStopOfWeek {
 }
 
 /** One route nominated as an hour's or day's worst, for the Route Shame board. */
-export interface ShameRouteRow {
+export interface ShameRouteRow extends RouteDisplay {
   /** Auckland-local hour (0-23) of the window; `0` in week-view entries. */
   hour: number;
   /** Auckland-local service date (`YYYY-MM-DD`); present only in week-view entries. */
   date?: string;
-  route_id: string;
-  short_name: string | null;
-  long_name: string;
-  mode: string;
-  colour?: string | null;
   /** Arrival events observed for this route in the window. */
   events: number;
   /** Average absolute deviation. */

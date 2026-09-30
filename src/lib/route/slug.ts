@@ -6,6 +6,21 @@
 // are the same route. The companion helper reads the suffix back out as a number
 // so callers can pick the most recent feed version.
 
+import type { Mode } from "@/lib/mode";
+
+/** How a route is named and drawn: the fields every route row carries. */
+export interface RouteDisplay {
+  /** AT's route id, feed-version suffix included ("NX1-203"); {@link routeSlug} strips it. */
+  routeId: string;
+  /** The number riders know the route by ("NX1"), or null when AT gives none. */
+  shortName: string | null;
+  /** AT's long name, or an empty string when the route's record is missing. */
+  longName: string;
+  mode: Mode;
+  /** AT's brand colour hex without `#`, or null when unset; absent when not read. */
+  colour?: string | null;
+}
+
 /**
  * Strip the trailing GTFS feed-version suffix from an AT route id, yielding a
  * stable, version-independent slug for URLs ("501-217" > "501", "S015C-203" >

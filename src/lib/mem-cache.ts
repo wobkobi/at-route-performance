@@ -8,11 +8,28 @@
 // fires exactly one upstream call. The `force-dynamic` layout disables only
 // route-level static generation, not these caches.
 
-// `unstable_cache` re-exported from `next/cache` so callers get the persistent
-// Data Cache (file-backed, shared across Turbopack worker threads). The
-// `force-dynamic` layout only disables route-level static generation; it does
-// not bypass the Data Cache used by `unstable_cache`.
-export { unstable_cache } from "next/cache";
+import { unstable_cache as nextCache } from "next/cache";
+
+/**
+ * Leads every Data Cache key. Entries persist across deployments, and a key is
+ * built from the wrapper callback's source and its parts, neither of which
+ * changes when the data function behind it returns a new shape. Bump this
+ * whenever a cached value's fields are renamed or restructured, or a deploy
+ * serves the old shape until each entry expires.
+ */
+const SHAPE_VERSION = "s1";
+
+/**
+ * The Next.js Data Cache (file-backed, shared across Turbopack worker threads),
+ * with {@link SHAPE_VERSION} leading its key. The `force-dynamic` layout only
+ * disables route-level static generation; it does not bypass this cache.
+ * @param cb - The data function to cache.
+ * @param keyParts - Parts that make the key unique to the query.
+ * @param options - Revalidate time and tags.
+ * @returns The cached function.
+ */
+export const unstable_cache: typeof nextCache = (cb, keyParts, options) =>
+  nextCache(cb, [SHAPE_VERSION, ...(keyParts ?? [])], options);
 
 interface Entry<T> {
   value: T;

@@ -66,7 +66,7 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
           (c.scheduled_start == null || Date.parse(c.scheduled_start) < chargeableBefore),
       );
       if (flagged.length === 0) return { routes: {}, trips: {} };
-      const slugs = [...new Set(flagged.map((c) => c.route_id))];
+      const slugs = [...new Set(flagged.map((c) => c.slug))];
       const routeIds = (await Promise.all(slugs.map(routeIdsForSlug))).flat();
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
@@ -112,7 +112,7 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
       }));
       const flags: DayFlag[] = flagged.map((c) => ({
         tripId: c.trip_id,
-        route: c.route_id,
+        route: c.slug,
         direction: c.direction_id,
         start: c.scheduled_start ? Date.parse(c.scheduled_start) : null,
         stage: c.stage,

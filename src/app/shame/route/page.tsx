@@ -138,7 +138,7 @@ async function RouteRangeBoard({
   const shame = await getShameRouteOfWeek(range, filter, WEEK_REVALIDATE);
   const periodNoun = isMonth ? "month" : "week";
   const worstKey = shame.worst?.date ?? null;
-  const routeDayCounts = countById(shame.days, (d) => d.route_id);
+  const routeDayCounts = countById(shame.days, (d) => d.routeId);
 
   /**
    * Render one range-view day row.
@@ -148,14 +148,14 @@ async function RouteRangeBoard({
    */
   const renderWeekRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const isWorst = r.date === worstKey;
-    const name = r.short_name || r.long_name || routeSlug(r.route_id);
-    const slug = routeSlug(r.route_id);
+    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const slug = routeSlug(r.routeId);
     // Open the route's week view either way: a week row keeps the board's week
     // (rolling or fixed), and a month row opens the week holding its day, since
     // the route page has no month window.
     const weekPeriod = isMonth && r.date ? weekPeriodOf(r.date) : periodParam;
     const href = `/route/${encodeURIComponent(slug)}${routeLinkQuery("week", null, weekPeriod)}`;
-    const dayCount = routeDayCounts.get(r.route_id) ?? 0;
+    const dayCount = routeDayCounts.get(r.routeId) ?? 0;
     return (
       <ShameSplitRow
         ctx={ctx}
@@ -174,8 +174,8 @@ async function RouteRangeBoard({
       >
         <ModeIcon
           mode={r.mode}
-          shortName={r.short_name}
-          longName={r.long_name}
+          shortName={r.shortName}
+          longName={r.longName}
           colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
@@ -248,7 +248,7 @@ async function RouteDayBoard({
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const routeHourCounts = countById(visibleHours, (h) => h.route_id);
+  const routeHourCounts = countById(visibleHours, (h) => h.routeId);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
     range,
@@ -256,7 +256,7 @@ async function RouteDayBoard({
   );
 
   const worst = pickWorst(visibleHours);
-  const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.route_id}` : null;
+  const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.routeId}` : null;
   const noneNotablyBad = visibleHours.length > 0 && worstKey === null;
 
   /**
@@ -266,17 +266,17 @@ async function RouteDayBoard({
    * @returns The row anchor element.
    */
   const renderDayRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
-    const isWorst = worstKey === `${r.hour}-${r.route_id}`;
-    const name = r.short_name || r.long_name || routeSlug(r.route_id);
-    const slug = routeSlug(r.route_id);
+    const isWorst = worstKey === `${r.hour}-${r.routeId}`;
+    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const slug = routeSlug(r.routeId);
     // The row is one hour's, so the route page opens on that hour: its whole-day
     // figures are a different number under the same route name.
     const href = buildHref(`/route/${encodeURIComponent(slug)}`, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(singleHourRange(r.hour)),
     });
-    const hourCount = routeHourCounts.get(r.route_id) ?? 0;
-    const streakInfo = routeStreakMap.get(r.route_id);
+    const hourCount = routeHourCounts.get(r.routeId) ?? 0;
+    const streakInfo = routeStreakMap.get(r.routeId);
     const streakDays = streakInfo?.count ?? 1;
     const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
@@ -295,8 +295,8 @@ async function RouteDayBoard({
       >
         <ModeIcon
           mode={r.mode}
-          shortName={r.short_name}
-          longName={r.long_name}
+          shortName={r.shortName}
+          longName={r.longName}
           colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
@@ -413,8 +413,8 @@ async function RouteHoursBoard({
   const renderRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(r) + 1;
     const isWorst = crowned && rank === 1;
-    const name = r.short_name || r.long_name || routeSlug(r.route_id);
-    const href = buildHref(`/route/${encodeURIComponent(routeSlug(r.route_id))}`, {
+    const name = r.shortName || r.longName || routeSlug(r.routeId);
+    const href = buildHref(`/route/${encodeURIComponent(routeSlug(r.routeId))}`, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(isWholeDay(hours) ? null : hours),
     });
@@ -423,8 +423,8 @@ async function RouteHoursBoard({
         <ShameRankLabel rank={rank} />
         <ModeIcon
           mode={r.mode}
-          shortName={r.short_name}
-          longName={r.long_name}
+          shortName={r.shortName}
+          longName={r.longName}
           colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
@@ -448,7 +448,7 @@ async function RouteHoursBoard({
     <ShameBoard
       layout="week"
       items={rows}
-      keyOf={(r) => r.route_id}
+      keyOf={(r) => r.routeId}
       emptyMessage={
         noHourStarted(hoursInRange(hours), serviceDate)
           ? notStartedMessage(hours)

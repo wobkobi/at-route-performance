@@ -204,7 +204,7 @@ export function CancelledTripList({
                 )}
                 <li className={TRIP_ROW_CLASS}>
                   <Link
-                    href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
+                    href={`/route/${encodeURIComponent(t.slug)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
                     prefetch={false}
                     className={TRIP_ROW_LINK_CLASS}
                   >
@@ -220,15 +220,13 @@ export function CancelledTripList({
                     </span>
                     <ModeIcon
                       mode={t.mode}
-                      shortName={t.short_name}
-                      longName={t.long_name}
+                      shortName={t.shortName}
+                      longName={t.longName}
                       colour={t.colour}
                     />
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
-                        <span className="font-semibold text-at-ink">
-                          {t.short_name ?? t.route_id}
-                        </span>
+                        <span className="font-semibold text-at-ink">{t.shortName ?? t.slug}</span>
                         <span className="text-at-muted">
                           {t.headsign
                             ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}`

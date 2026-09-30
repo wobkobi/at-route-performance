@@ -28,7 +28,7 @@ import {
   nzWeekRange,
   serviceDatesInRange,
 } from "@/lib/time/service-day";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 
 /** Parameters for {@link getTopRoutes}. */
 export interface TopRoutesParams {
@@ -63,7 +63,7 @@ function isoWeekRange(iso?: string): DateRange {
  * @param p - Validated query parameters.
  * @returns Ranked route rows.
  */
-async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
+async function queryTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
   const { start, end } = isoWeekRange(p.week);
   const classified = await rangeIsFinal({ start, end });
 
@@ -117,9 +117,9 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
   pipeline.push({
     $project: {
       _id: 0,
-      route_id: { $toString: "$_id" },
-      short_name: "$route.shortName",
-      long_name: "$route.longName",
+      routeId: { $toString: "$_id" },
+      shortName: "$route.shortName",
+      longName: "$route.longName",
       mode: "$route.mode",
       events: 1,
       avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
@@ -134,7 +134,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
       pipeline: pipeline as never,
       cursor: { batchSize: 100_000 },
     }),
-  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+  )) as unknown as { cursor: { firstBatch: RouteRow[] } };
 
   // One row per line: a republish or the CRL cutover inside the week would
   // otherwise list the same line twice. The fold can only shorten the list
@@ -152,7 +152,7 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
  * @param p - Validated query parameters.
  * @returns Ranked route rows.
  */
-export async function getTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
+export async function getTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
   return unstable_cache(
     () => queryTopRoutes(p),
     ["top-routes", p.week ?? "", String(p.limit), p.metric, String(p.thresholdSec), p.mode ?? ""],
@@ -168,7 +168,7 @@ export async function getTopRoutes(p: TopRoutesParams): Promise<TopRouteRow[]> {
  * @param range - UTC half-open window.
  * @returns Rows for every route with at least one summary in the window.
  */
-async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
+async function querySummaryRankings(range: DateRange): Promise<RouteRow[]> {
   // A summary row for the current service day would be a mid-day snapshot;
   // the live day is always read from ArrivalEvent (see queryRankings).
   const end = new Date(Math.min(range.end.getTime(), nzServiceDayRange().start.getTime()));
@@ -200,9 +200,9 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
         {
           $project: {
             _id: 0,
-            route_id: { $toString: "$_id" },
-            short_name: "$route.shortName",
-            long_name: "$route.longName",
+            routeId: { $toString: "$_id" },
+            shortName: "$route.shortName",
+            longName: "$route.longName",
             mode: "$route.mode",
             events: 1,
             // Guard the divisor as the live path does: Mongo throws on a zero
@@ -218,7 +218,7 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
       ] as never,
       cursor: { batchSize: 100_000 },
     }),
-  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+  )) as unknown as { cursor: { firstBatch: RouteRow[] } };
   return result.cursor.firstBatch;
 }
 
@@ -229,7 +229,7 @@ async function querySummaryRankings(range: DateRange): Promise<TopRouteRow[]> {
  * @param range - UTC half-open window.
  * @returns Rows for every route with at least one qualifying event in the window.
  */
-async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
+async function queryLiveRankings(range: DateRange): Promise<RouteRow[]> {
   // Inline real-reading condition used for the weighted sums. The total `events`
   // count includes every row so no route falls below the rankings threshold;
   // delay averages use only the readings the nightly pass kept. Only days
@@ -268,9 +268,9 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
         {
           $project: {
             _id: 0,
-            route_id: { $toString: "$_id" },
-            short_name: "$route.shortName",
-            long_name: "$route.longName",
+            routeId: { $toString: "$_id" },
+            shortName: "$route.shortName",
+            longName: "$route.longName",
             mode: "$route.mode",
             colour: "$route.colour",
             events: 1,
@@ -303,7 +303,7 @@ async function queryLiveRankings(range: DateRange): Promise<TopRouteRow[]> {
       ] as never,
       cursor: { batchSize: 100_000 },
     }),
-  )) as unknown as { cursor: { firstBatch: TopRouteRow[] } };
+  )) as unknown as { cursor: { firstBatch: RouteRow[] } };
   return result.cursor.firstBatch;
 }
 
@@ -345,7 +345,7 @@ async function summaryDatesIn(range: DateRange): Promise<Set<string>> {
  * @param date - Service date (`YYYY-MM-DD`).
  * @returns Per-route rows for that day.
  */
-function cachedLiveRankingsOfDay(date: string): Promise<TopRouteRow[]> {
+function cachedLiveRankingsOfDay(date: string): Promise<RouteRow[]> {
   return cachedForDay(
     () => queryLiveRankings(nzServiceDayRange(date)),
     ["live-rankings-day", date],
@@ -367,7 +367,7 @@ function cachedLiveRankingsOfDay(date: string): Promise<TopRouteRow[]> {
  * @param range - UTC half-open window.
  * @returns Per-route rows.
  */
-async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
+async function queryRankings(range: DateRange): Promise<RouteRow[]> {
   const summarised = await summaryDatesIn(range);
   const now = new Date();
   const liveDates = serviceDatesInRange(range).filter(
@@ -375,7 +375,7 @@ async function queryRankings(range: DateRange): Promise<TopRouteRow[]> {
   );
   const [penalties, summaryRows, ...liveSets] = await Promise.all([
     getRouteRiderWait(range),
-    summarised.size > 0 ? querySummaryRankings(range) : Promise.resolve<TopRouteRow[]>([]),
+    summarised.size > 0 ? querySummaryRankings(range) : Promise.resolve<RouteRow[]>([]),
     ...liveDates.map(cachedLiveRankingsOfDay),
   ]);
   return applyRoutePenalties(foldLineageRows([...summaryRows, ...liveSets.flat()]), penalties);
@@ -393,7 +393,7 @@ export async function getRankings(
   range: DateRange,
   thresholdSec: number,
   revalidate: number,
-): Promise<TopRouteRow[]> {
+): Promise<RouteRow[]> {
   return cachedForRange(
     () => queryRankings(range),
     ["rankings-v2", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],

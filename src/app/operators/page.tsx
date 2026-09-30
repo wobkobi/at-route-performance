@@ -146,15 +146,13 @@ export default async function OperatorsPage({
       schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
     ]);
   const modeRows = allRows.filter((r) => mode === null || r.mode === mode);
-  const rows = modeRows.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
-  );
+  const rows = modeRows.filter((r) => schoolAllows(schools, isSchoolBus(r.shortName, r.longName)));
   const ranked = operatorRows(rows, operators, cancelled, vehicles, directory);
   const baseline =
     cancelledBase && vehiclesBase
       ? new Map(
           operatorRows(
-            modeRows.filter((r) => !isSchoolBus(r.short_name, r.long_name)),
+            modeRows.filter((r) => !isSchoolBus(r.shortName, r.longName)),
             operators,
             cancelledBase,
             vehiclesBase,

@@ -5,22 +5,13 @@
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { modeOrBus } from "@/lib/mode";
+import type { MapStop } from "@/lib/route/view";
 import type { JSX } from "react";
-
-/** A stop plotted on the route map (the shape {@link StopMapWrapper} expects). */
-interface MapStopView {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  avg_delay_sec: number | null;
-  on_time_pct: number | null;
-}
 
 /** Props for {@link RouteMapDiagram}. */
 export interface RouteMapDiagramProps {
   /** Stops to plot (already direction-filtered by the page). */
-  stops: MapStopView[];
+  stops: MapStop[];
   /** Per-direction road path lines. */
   routeLines: Array<Array<[number, number]>>;
   /** Route id, keying the saved viewport and the live-vehicle poll. */

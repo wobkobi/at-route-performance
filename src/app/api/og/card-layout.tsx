@@ -6,6 +6,7 @@
 import { brandColour, modeGlyph } from "@/components/ModeIcon";
 import { SITE_NAME } from "@/lib/copy";
 import { formatDuration } from "@/lib/format";
+import type { RouteDisplay } from "@/lib/route/slug";
 import {
   dayVerdict,
   LEAN_PHRASE,
@@ -224,12 +225,7 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
 }
 
 /** The route a subject card's badge is drawn for. */
-export interface GlyphRoute {
-  mode: string;
-  shortName: string | null;
-  longName: string | null;
-  colour?: string | null;
-}
+export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName" | "colour">;
 
 /**
  * A route's mode glyph as inline SVG, in the colour the site's icon uses. The

@@ -139,13 +139,13 @@ export default async function CancellationsPage({
   );
   const byRoute = new Map<string, CancelledRouteRow>();
   for (const t of visible) {
-    const row = byRoute.get(t.route_id);
+    const row = byRoute.get(t.slug);
     if (row) row.cancelled++;
     else
-      byRoute.set(t.route_id, {
-        route_id: t.route_id,
-        short_name: t.short_name,
-        long_name: t.long_name,
+      byRoute.set(t.slug, {
+        slug: t.slug,
+        shortName: t.shortName,
+        longName: t.longName,
         mode: t.mode,
         colour: t.colour,
         cancelled: 1,
@@ -154,7 +154,7 @@ export default async function CancellationsPage({
   const boardRows = [...byRoute.values()].sort(
     (a, b) =>
       b.cancelled - a.cancelled ||
-      (a.short_name ?? a.route_id).localeCompare(b.short_name ?? b.route_id, undefined, {
+      (a.shortName ?? a.slug).localeCompare(b.shortName ?? b.slug, undefined, {
         numeric: true,
       }),
   );

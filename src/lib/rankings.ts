@@ -9,7 +9,7 @@
 // populate their boards.
 
 import { isSchoolBus, schoolAllows, type SchoolFilter } from "@/lib/school-bus";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
 
 /**
@@ -23,13 +23,13 @@ import type { FleetSummary } from "@/types/dashboard";
  * @returns The visible rows.
  */
 export function visibleRows(
-  rows: TopRouteRow[],
+  rows: RouteRow[],
   filter: { mode: string | null; schools: SchoolFilter },
-): TopRouteRow[] {
+): RouteRow[] {
   return rows.filter(
     (r) =>
       (!filter.mode || r.mode === filter.mode) &&
-      schoolAllows(filter.schools, isSchoolBus(r.short_name, r.long_name)),
+      schoolAllows(filter.schools, isSchoolBus(r.shortName, r.longName)),
   );
 }
 
@@ -40,7 +40,7 @@ export function visibleRows(
  * @param rows - The filtered per-route rows.
  * @returns Totals: events, distinct routes, weighted average delay and on-time %.
  */
-export function summariseRows(rows: TopRouteRow[]): FleetSummary {
+export function summariseRows(rows: RouteRow[]): FleetSummary {
   let events = 0;
   let delayWeighted = 0;
   let absWeighted = 0;
@@ -85,11 +85,11 @@ export function summariseRows(rows: TopRouteRow[]): FleetSummary {
 /** The three leaderboards derived from a window's per-route rows. */
 export interface Boards {
   /** Most behind schedule first (highest positive average delay). */
-  latest: TopRouteRow[];
+  latest: RouteRow[];
   /** Most ahead of schedule first (most-negative average delay). */
-  earliest: TopRouteRow[];
+  earliest: RouteRow[];
   /** Highest on-time percentage first. */
-  reliable: TopRouteRow[];
+  reliable: RouteRow[];
 }
 
 /** Options for {@link deriveBoards}. */
@@ -107,7 +107,7 @@ export interface DeriveBoardsOptions {
  * @param options - Event threshold and board size.
  * @returns The three sorted, sliced boards.
  */
-export function deriveBoards(rows: TopRouteRow[], options: DeriveBoardsOptions): Boards {
+export function deriveBoards(rows: RouteRow[], options: DeriveBoardsOptions): Boards {
   const size = options.size ?? 10;
   const eligible = rows.filter((r) => r.events >= options.minEvents);
 
@@ -165,7 +165,7 @@ export interface OffScheduleOptions {
  * @param options - Event threshold, board size, and optional direction filter.
  * @returns The sorted, sliced board.
  */
-export function deriveOffSchedule(rows: TopRouteRow[], options: OffScheduleOptions): TopRouteRow[] {
+export function deriveOffSchedule(rows: RouteRow[], options: OffScheduleOptions): RouteRow[] {
   const size = options.size ?? 10;
   let eligible = rows.filter((r) => r.events >= options.minEvents && r.avg_delay_sec !== null);
   if (options.direction === "late") {
@@ -210,18 +210,18 @@ export const MIN_MODE_EVENTS = 20;
  * previous board.
  * @param current - Ordered current-period rows (index 0 = rank 1).
  * @param previous - Ordered previous-period rows.
- * @returns Map of route_id to position delta, or null for new entries.
+ * @returns Map of routeId to position delta, or null for new entries.
  */
 export function computeRankDelta(
-  current: TopRouteRow[],
-  previous: TopRouteRow[],
+  current: RouteRow[],
+  previous: RouteRow[],
 ): Map<string, number | null> {
   const prevRank = new Map<string, number>();
-  previous.forEach((r, i) => prevRank.set(r.route_id, i + 1));
+  previous.forEach((r, i) => prevRank.set(r.routeId, i + 1));
   const out = new Map<string, number | null>();
   current.forEach((r, i) => {
-    const prev = prevRank.get(r.route_id);
-    out.set(r.route_id, prev == null ? null : prev - (i + 1));
+    const prev = prevRank.get(r.routeId);
+    out.set(r.routeId, prev == null ? null : prev - (i + 1));
   });
   return out;
 }

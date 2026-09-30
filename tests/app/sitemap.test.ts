@@ -20,7 +20,7 @@ const ORIGIN = "https://example.test";
  * @returns The row.
  */
 function row(id: string): Awaited<ReturnType<typeof getDirectoryRoutes>>[number] {
-  return { id, shortName: null, longName: null, mode: "BUS", colour: null };
+  return { routeId: id, shortName: null, longName: "", mode: "BUS", colour: null };
 }
 
 beforeEach(() => {

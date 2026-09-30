@@ -10,7 +10,7 @@ import {
   predecessorSlugs,
   successorSlug,
 } from "@/lib/route/lineage";
-import { routeSlug, routeVersion } from "@/lib/route/slug";
+import { routeSlug, routeVersion, type RouteDisplay } from "@/lib/route/slug";
 
 /**
  * Every AT route id sharing one slug - the same route across feed-version
@@ -150,11 +150,7 @@ export async function findSuccessorRouteSlug(slug: string): Promise<string | nul
 }
 
 /** A route as listed in the directory. */
-export interface DirectoryRoute {
-  id: string;
-  shortName: string | null;
-  longName: string | null;
-  mode: string;
+export interface DirectoryRoute extends RouteDisplay {
   colour: string | null;
 }
 
@@ -188,11 +184,12 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
       const cutoff = newest?.lastSeenAt
         ? new Date(newest.lastSeenAt.getTime() - ROUTE_STALE_MS)
         : null;
-      return prisma.route.findMany({
+      const routes = await prisma.route.findMany({
         where: cutoff ? { lastSeenAt: { gte: cutoff } } : {},
         select: { id: true, shortName: true, longName: true, mode: true, colour: true },
         orderBy: { shortName: "asc" },
       });
+      return routes.map(({ id, ...route }) => ({ routeId: id, ...route }));
     },
     ["directory-routes"],
     { revalidate: 3600 },

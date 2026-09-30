@@ -45,10 +45,10 @@ describe("rankingFilterParams", () => {
 });
 
 describe("rowsInAreas", () => {
-  const rows = [{ route_id: "NX1-203" }, { route_id: "70-201" }, { route_id: "S101-2" }];
+  const rows = [{ routeId: "NX1-203" }, { routeId: "70-201" }, { routeId: "S101-2" }];
 
   it("keeps routes serving any chosen area, matched by slug", () => {
-    expect(rowsInAreas(rows, ["north"], ROUTE_AREAS)).toEqual([{ route_id: "NX1-203" }]);
+    expect(rowsInAreas(rows, ["north"], ROUTE_AREAS)).toEqual([{ routeId: "NX1-203" }]);
     expect(rowsInAreas(rows, ["north", "east"], ROUTE_AREAS)).toHaveLength(2);
     expect(rowsInAreas(rows, [], ROUTE_AREAS)).toEqual(rows);
   });
@@ -57,7 +57,7 @@ describe("rowsInAreas", () => {
 describe("cancellationMatches", () => {
   // 7:30am in Auckland on Saturday 26 Sep (NZST, UTC+12).
   const trip: FilterableCancellation = {
-    route_id: "NX1",
+    slug: "NX1",
     mode: "BUS",
     school: false,
     service_date: "2026-09-26",

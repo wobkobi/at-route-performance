@@ -5,6 +5,7 @@ import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
+import type { MapStop } from "@/lib/route/view";
 import {
   type DateRange,
   nzServiceDayRange,
@@ -211,20 +212,10 @@ export function getVehicleRunsOfDay(
 }
 
 /** A stop a vehicle called at, as its day map draws it. */
-export interface VehicleMapStop {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  /** Its average signed deviation over the day's calls there. */
-  avg_delay_sec: number | null;
-  on_time_pct: null;
-}
-
 /** Where a vehicle ran on one service day. */
 export interface VehicleDayMap {
   /** Every stop it called at, with how late it was there on average. */
-  stops: VehicleMapStop[];
+  stops: MapStop[];
   /** One road path per distinct shape its runs followed, as `[lat, lon]` pairs. */
   lines: Array<Array<[number, number]>>;
 }
@@ -282,7 +273,7 @@ export function getVehicleDayMap(
           cursor: { batchSize: 10_000 },
         }),
       )) as unknown as {
-        cursor: { firstBatch: (Omit<VehicleMapStop, "on_time_pct"> & { trips: string[] })[] };
+        cursor: { firstBatch: (Omit<MapStop, "on_time_pct"> & { trips: string[] })[] };
       };
       const rows = res.cursor.firstBatch;
       const tripIds = [...new Set(rows.flatMap((r) => r.trips))];

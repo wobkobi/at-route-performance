@@ -36,11 +36,11 @@ export interface SchoolDelta {
  * @returns The amounts added, each 0 or more.
  */
 export function schoolDelta(
-  rows: ReadonlyArray<{ short_name?: string | null; long_name?: string | null; events: number }>,
+  rows: ReadonlyArray<{ shortName?: string | null; longName?: string | null; events: number }>,
   cancelled: number | null,
   cancelledWithout: number | null,
 ): SchoolDelta {
-  const school = rows.filter((r) => isSchoolBus(r.short_name, r.long_name));
+  const school = rows.filter((r) => isSchoolBus(r.shortName, r.longName));
   return {
     events: school.reduce((sum, r) => sum + r.events, 0),
     cancelled: Math.max(0, (cancelled ?? 0) - (cancelledWithout ?? 0)),

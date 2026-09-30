@@ -106,7 +106,7 @@ const BASE = "/shame/trip";
  * @returns The trip-page URL.
  */
 function tripHref(t: ShameTrip): string {
-  return `/route/${encodeURIComponent(routeSlug(t.route_id))}/trip/${encodeURIComponent(
+  return `/route/${encodeURIComponent(routeSlug(t.routeId))}/trip/${encodeURIComponent(
     t.trip_id,
   )}?d=${encodeURIComponent(t.scheduled_start)}`;
 }
@@ -135,7 +135,7 @@ async function TripRangeBoard({
 }): Promise<JSX.Element> {
   const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
-  const routeDayCounts = countById(shame.days, (d) => d.route_id);
+  const routeDayCounts = countById(shame.days, (d) => d.routeId);
 
   /**
    * Render one range-view day row.
@@ -145,8 +145,8 @@ async function TripRangeBoard({
    */
   const renderWeekRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = t.date === worstKey;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
-    const dayCount = routeDayCounts.get(t.route_id) ?? 0;
+    const name = t.shortName || t.longName || routeSlug(t.routeId);
+    const dayCount = routeDayCounts.get(t.routeId) ?? 0;
     return (
       <ShameSplitRow
         ctx={ctx}
@@ -165,8 +165,8 @@ async function TripRangeBoard({
       >
         <ModeIcon
           mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
+          shortName={t.shortName}
+          longName={t.longName}
           colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
@@ -240,7 +240,7 @@ async function TripDayBoard({
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const routeHourCounts = countById(visibleHours, (h) => h.route_id);
+  const routeHourCounts = countById(visibleHours, (h) => h.routeId);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
     range,
@@ -260,9 +260,9 @@ async function TripDayBoard({
    */
   const renderDayRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = worstKey === `${t.hour}-${t.trip_id}`;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
-    const hourCount = routeHourCounts.get(t.route_id) ?? 0;
-    const streakInfo = routeStreakMap.get(t.route_id);
+    const name = t.shortName || t.longName || routeSlug(t.routeId);
+    const hourCount = routeHourCounts.get(t.routeId) ?? 0;
+    const streakInfo = routeStreakMap.get(t.routeId);
     const streakDays = streakInfo?.count ?? 1;
     const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
     const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
@@ -281,8 +281,8 @@ async function TripDayBoard({
       >
         <ModeIcon
           mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
+          shortName={t.shortName}
+          longName={t.longName}
           colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
@@ -395,14 +395,14 @@ async function TripHoursBoard({
   const renderRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(t) + 1;
     const isWorst = crowned && rank === 1;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
+    const name = t.shortName || t.longName || routeSlug(t.routeId);
     return (
       <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
         <ShameRankLabel rank={rank} />
         <ModeIcon
           mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
+          shortName={t.shortName}
+          longName={t.longName}
           colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />

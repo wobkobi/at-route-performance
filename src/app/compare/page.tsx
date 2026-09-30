@@ -43,7 +43,7 @@ import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
@@ -91,7 +91,7 @@ interface CompareColumn {
   detail: string | null;
   href: string;
   /** The route's badge, for a route column. */
-  route: Pick<TopRouteRow, "mode" | "short_name" | "long_name" | "colour"> | null;
+  route: Pick<RouteRow, "mode" | "shortName" | "longName" | "colour"> | null;
   /** Null when nothing was recorded in the window. */
   figures: CompareFigures | null;
   /** Cancelled trips (routes) or routes calling (stops). */
@@ -166,8 +166,8 @@ function formatFigure(v: number, format: FigureRow["format"]): string {
  * @param r - The route row.
  * @returns The name.
  */
-function routeName(r: Pick<TopRouteRow, "short_name" | "long_name" | "route_id">): string {
-  return r.short_name || r.long_name || routeSlug(r.route_id);
+function routeName(r: Pick<RouteRow, "shortName" | "longName" | "routeId">): string {
+  return r.shortName || r.longName || routeSlug(r.routeId);
 }
 
 /**
@@ -178,7 +178,7 @@ function routeName(r: Pick<TopRouteRow, "short_name" | "long_name" | "route_id">
  * @param exclude - Slugs already being compared.
  * @returns Up to {@link SEARCH_LIMIT} matches.
  */
-function searchRoutes(rows: TopRouteRow[], q: string, exclude: Set<string>): CompareCandidate[] {
+function searchRoutes(rows: RouteRow[], q: string, exclude: Set<string>): CompareCandidate[] {
   const text = q.trim().toLowerCase();
   if (!text) return [];
   /**
@@ -186,18 +186,18 @@ function searchRoutes(rows: TopRouteRow[], q: string, exclude: Set<string>): Com
    * @param r - The route row.
    * @returns The match tier.
    */
-  const rank = (r: TopRouteRow): number => {
-    const short = (r.short_name ?? "").toLowerCase();
+  const rank = (r: RouteRow): number => {
+    const short = (r.shortName ?? "").toLowerCase();
     if (short === text) return 0;
     if (short.startsWith(text)) return 1;
-    return r.long_name.toLowerCase().includes(text) ? 2 : -1;
+    return r.longName.toLowerCase().includes(text) ? 2 : -1;
   };
   return rows
     .map((r) => ({ r, score: rank(r) }))
-    .filter(({ r, score }) => score >= 0 && !exclude.has(routeSlug(r.route_id).toLowerCase()))
+    .filter(({ r, score }) => score >= 0 && !exclude.has(routeSlug(r.routeId).toLowerCase()))
     .sort((a, b) => a.score - b.score || b.r.events - a.r.events)
     .slice(0, SEARCH_LIMIT)
-    .map(({ r }) => ({ id: routeSlug(r.route_id), name: routeName(r), detail: r.long_name }));
+    .map(({ r }) => ({ id: routeSlug(r.routeId), name: routeName(r), detail: r.longName }));
 }
 
 /**
@@ -291,7 +291,7 @@ export default async function ComparePage({
       getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
       ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
-    const bySlug = new Map(rows.map((r) => [routeSlug(r.route_id).toLowerCase(), r]));
+    const bySlug = new Map(rows.map((r) => [routeSlug(r.routeId).toLowerCase(), r]));
     const routeQuery = routeLinkQuery(window, serviceDate, period, today);
     for (const id of ids) {
       const r = bySlug.get(id.toLowerCase());
@@ -299,11 +299,11 @@ export default async function ComparePage({
         missing.push(id);
         continue;
       }
-      const slug = routeSlug(r.route_id);
+      const slug = routeSlug(r.routeId);
       columns.push({
         id,
         name: routeName(r),
-        detail: r.short_name && r.long_name !== r.short_name ? r.long_name : null,
+        detail: r.shortName && r.longName !== r.shortName ? r.longName : null,
         href: `/route/${encodeURIComponent(slug)}${routeQuery}`,
         route: r,
         figures: {
@@ -322,7 +322,7 @@ export default async function ComparePage({
       .filter((s) => !chosen.has(s.toLowerCase()))
       .flatMap((s) => {
         const r = bySlug.get(s.toLowerCase());
-        return r ? [{ id: s, name: routeName(r), detail: r.long_name }] : [];
+        return r ? [{ id: s, name: routeName(r), detail: r.longName }] : [];
       })
       .slice(0, 6);
   } else {
@@ -408,8 +408,8 @@ export default async function ComparePage({
                         {c.route && (
                           <ModeIcon
                             mode={c.route.mode}
-                            shortName={c.route.short_name}
-                            longName={c.route.long_name}
+                            shortName={c.route.shortName}
+                            longName={c.route.longName}
                             colour={c.route.colour}
                             className="mt-0.5 h-4 w-4 shrink-0"
                           />

@@ -49,19 +49,19 @@ export function CancelledBoard({ rows, total, routeQuery }: CancelledBoardProps)
       ) : (
         <ol className="striped divide-y divide-at-border">
           {rows.map((r, i) => {
-            const label = r.short_name || r.long_name || r.route_id;
-            const subtitle = lineName(r.mode, r.short_name);
+            const label = r.shortName || r.longName || r.slug;
+            const subtitle = lineName(r.mode, r.shortName);
             return (
-              <li key={r.route_id}>
+              <li key={r.slug}>
                 <Link
-                  href={`/route/${encodeURIComponent(r.route_id)}${routeQuery ?? ""}`}
+                  href={`/route/${encodeURIComponent(r.slug)}${routeQuery ?? ""}`}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
                   <span className="w-5 shrink-0 text-sm text-at-muted tabular-nums">{i + 1}</span>
                   <ModeIcon
                     mode={r.mode}
-                    shortName={r.short_name}
-                    longName={r.long_name}
+                    shortName={r.shortName}
+                    longName={r.longName}
                     colour={r.colour}
                   />
                   <span className="min-w-0 flex-1">

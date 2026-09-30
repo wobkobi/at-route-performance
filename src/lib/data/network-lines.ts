@@ -121,11 +121,11 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         // documents, against several hundred ids in a filter.
         prisma.shape.findMany({ select: { id: true, points: true } }),
       ]);
-      const routeById = new Map(routes.map((r) => [r.id, r]));
+      const routeById = new Map(routes.map((r) => [r.routeId, r]));
       const pointsById = new Map(shapes.map((s) => [s.id, s.points]));
       // By slug: a new feed version with no arrivals yet still has its route's history.
       const recorded = new Set(
-        [...(await routesWithHistory(routes.map((r) => r.id)))].map(routeSlug),
+        [...(await routesWithHistory(routes.map((r) => r.routeId)))].map(routeSlug),
       );
 
       // Gather every stored shape per slug, only where the route's mode is known:
@@ -145,7 +145,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
             shapes: held?.shapes ?? [],
             top: trips,
             name: name && name !== slug ? name : null,
-            mode: route.mode as NetworkLine["mode"],
+            mode: route.mode,
             colour: routeColour(route.mode, route.shortName, route.longName, route.colour),
           };
           bySlug.set(slug, held);

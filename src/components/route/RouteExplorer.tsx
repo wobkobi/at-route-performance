@@ -501,9 +501,9 @@ export function RouteExplorer({
       ) : (
         <ol className="space-y-2">
           {sorted.slice(0, shown).map((r, i) => {
-            const label = r.short_name || r.long_name || r.slug;
+            const label = r.shortName || r.longName || r.slug;
             const subtitle =
-              lineName(r.mode, r.short_name) ?? (r.long_name !== label ? r.long_name : null);
+              lineName(r.mode, r.shortName) ?? (r.longName !== label ? r.longName : null);
             // Always a distance, never the words "on time": this sits beside an
             // on-time percentage, and a delay figure reading "on time" under an
             // "Early or late" label read as the two figures disagreeing.
@@ -521,8 +521,8 @@ export function RouteExplorer({
                   )}
                   <ModeIcon
                     mode={r.mode}
-                    shortName={r.short_name}
-                    longName={r.long_name}
+                    shortName={r.shortName}
+                    longName={r.longName}
                     colour={r.colour}
                     className="mt-0.5 h-6 w-6"
                   />

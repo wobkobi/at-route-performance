@@ -4,7 +4,7 @@
 import { summariseRows, visibleRows } from "@/lib/rankings";
 import { type SchoolFilter } from "@/lib/school-bus";
 import { dayVerdict, type VerdictBand } from "@/lib/verdict";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { FleetSummary } from "@/types/dashboard";
 
 /** One service day on the chart and in the table. */
@@ -23,7 +23,7 @@ export type DaySlot =
 /** What the page fetched for one past or current day. */
 export interface DayData {
   /** The day's per-route rankings, cancellation penalty already applied. */
-  rows: TopRouteRow[];
+  rows: RouteRow[];
   /** Trips flagged cancelled that day under the same filters. */
   cancelled: number;
 }

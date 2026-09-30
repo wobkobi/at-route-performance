@@ -363,7 +363,7 @@ function eyebrowOf(...parts: (string | null)[]): string {
  * @returns The glyph route.
  */
 function glyphOf(r: ShameTrip | ShameRouteRow): SubjectBodyProps["route"] {
-  return { mode: r.mode, shortName: r.short_name, longName: r.long_name, colour: r.colour ?? null };
+  return { mode: r.mode, shortName: r.shortName, longName: r.longName, colour: r.colour ?? null };
 }
 
 /**
@@ -372,7 +372,7 @@ function glyphOf(r: ShameTrip | ShameRouteRow): SubjectBodyProps["route"] {
  * @returns The short name, the long name, or the slug.
  */
 function routeNameOf(r: ShameTrip | ShameRouteRow): string {
-  return r.short_name || r.long_name || routeSlug(r.route_id);
+  return r.shortName || r.longName || routeSlug(r.routeId);
 }
 
 /**
@@ -659,9 +659,9 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
   const { trips } = data;
   const byRoute = new Map<string, { name: string; n: number }>();
   for (const t of trips) {
-    const row = byRoute.get(t.route_id);
+    const row = byRoute.get(t.slug);
     if (row) row.n++;
-    else byRoute.set(t.route_id, { name: t.short_name ?? t.route_id, n: 1 });
+    else byRoute.set(t.slug, { name: t.shortName ?? t.slug, n: 1 });
   }
   const top = [...byRoute.values()].sort((a, b) => b.n - a.n)[0];
   const neverRan = trips.filter((t) => t.stage === "before").length;

@@ -24,14 +24,17 @@ import type { RoutePattern, RouteVariant } from "@/types/api";
  */
 const ROAD_OFFSET_M = 6;
 
-/** A stop plotted on the route map. */
+/** A stop plotted on a map: the route, trip, stop and vehicle maps all take this. */
 export interface MapStop {
   stop_id: string;
   name: string;
   lat: number;
   lon: number;
+  /** Average signed deviation of the calls there, or null when none was read. */
   avg_delay_sec: number | null;
   on_time_pct: number | null;
+  /** Average absolute deviation (off-by); when set, the popup shows it too. */
+  avg_abs_delay_sec?: number | null;
 }
 
 /** A route path line tagged with the direction it runs (for per-direction filtering). */

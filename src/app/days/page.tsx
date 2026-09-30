@@ -39,7 +39,7 @@ import { daySlot, type DaySlot } from "@/lib/time/day-series";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -242,7 +242,7 @@ async function DaysFilters({
   modePreserved,
   schoolPreserved,
 }: {
-  dayRows: Promise<(TopRouteRow[] | null)[]>;
+  dayRows: Promise<(RouteRow[] | null)[]>;
   mode: Mode | null;
   schools: SchoolFilter;
   modePreserved: Record<string, string>;
@@ -287,7 +287,7 @@ async function DaysBody({
   head,
 }: {
   dates: string[];
-  dayRows: Promise<(TopRouteRow[] | null)[]>;
+  dayRows: Promise<(RouteRow[] | null)[]>;
   monthView: boolean;
   mode: Mode | null;
   schools: SchoolFilter;

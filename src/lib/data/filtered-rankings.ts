@@ -34,7 +34,7 @@ import { datesOfType, type DayType } from "@/lib/time/day-type";
 import { NZ_TZ } from "@/lib/time/nz-tz";
 import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
 import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 
 /** How long a live day's filtered rows are served before a fresh read, in seconds. */
 const LIVE_DAY_REVALIDATE = 300;
@@ -75,9 +75,9 @@ const ROUTE_LOOKUP = [
 const ROW_PROJECT = {
   $project: {
     _id: 0,
-    route_id: { $toString: "$_id" },
-    short_name: "$route.shortName",
-    long_name: "$route.longName",
+    routeId: { $toString: "$_id" },
+    shortName: "$route.shortName",
+    longName: "$route.longName",
     mode: "$route.mode",
     colour: "$route.colour",
     events: 1,
@@ -133,8 +133,8 @@ async function hasHourlyRows(range: DateRange): Promise<boolean> {
  * @param hours - The Auckland clock hours to keep.
  * @returns Per-route rows.
  */
-function hourlySummaryRows(range: DateRange, hours: number[]): Promise<TopRouteRow[]> {
-  return aggregateRows<TopRouteRow>("HourlyRouteSummary", [
+function hourlySummaryRows(range: DateRange, hours: number[]): Promise<RouteRow[]> {
+  return aggregateRows<RouteRow>("HourlyRouteSummary", [
     {
       $match: {
         date: {
@@ -170,13 +170,9 @@ function hourlySummaryRows(range: DateRange, hours: number[]): Promise<TopRouteR
  * @param classified - Whether the day's ghost pass has run.
  * @returns Per-route rows.
  */
-function liveHourRows(
-  range: DateRange,
-  hours: number[],
-  classified: boolean,
-): Promise<TopRouteRow[]> {
+function liveHourRows(range: DateRange, hours: number[], classified: boolean): Promise<RouteRow[]> {
   const plausible = realDeviationExprFor(classified);
-  return aggregateRows<TopRouteRow>("ArrivalEvent", [
+  return aggregateRows<RouteRow>("ArrivalEvent", [
     {
       $match: {
         scheduledAt: scheduledAtWindow(range),
@@ -209,7 +205,7 @@ function liveHourRows(
  * @param hours - The part of the day.
  * @returns Per-route rows, measured arrivals only.
  */
-function hourRowsOfDay(date: string, hours: HourRange): Promise<TopRouteRow[]> {
+function hourRowsOfDay(date: string, hours: HourRange): Promise<RouteRow[]> {
   const range = nzServiceDayRange(date);
   const hourSet = hoursInRange(hours);
   return cachedForDay(
@@ -254,7 +250,7 @@ async function queryFilteredRankings(
   hours: HourRange | null,
   days: DayType | null,
   revalidate: number,
-): Promise<TopRouteRow[]> {
+): Promise<RouteRow[]> {
   const dates = filteredDates(range, days);
   if (!hours) {
     const sets = await Promise.all(
@@ -281,7 +277,7 @@ export async function getFilteredRankings(
   range: DateRange,
   filters: RankingFilters,
   revalidate: number,
-): Promise<TopRouteRow[]> {
+): Promise<RouteRow[]> {
   const { hours, days, areas } = filters;
   const [rows, geography] = await Promise.all([
     hours || days
@@ -346,7 +342,7 @@ export async function getFilteredCancellations(
     if (!t.school) withoutSchool++;
     if (!schoolAllows(base.schools, t.school)) continue;
     total++;
-    byRoute.set(t.route_id, (byRoute.get(t.route_id) ?? 0) + 1);
+    byRoute.set(t.slug, (byRoute.get(t.slug) ?? 0) + 1);
   }
   return { total, withoutSchool, byRoute };
 }

@@ -40,7 +40,7 @@ import { isSchoolBus } from "@/lib/school-bus";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import type { JSX } from "react";
 
@@ -102,7 +102,7 @@ export default async function RoutesPage({
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
-  let rows: TopRouteRow[];
+  let rows: RouteRow[];
   let nav: RangeNav;
   let serviceDate: string | null = null;
   let period: string | null = null;
@@ -131,14 +131,13 @@ export default async function RoutesPage({
     getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
     getOperators().catch(readFallback<Operator[]>("operators", [])),
   ]);
-  const rowSlugs = new Set(rows.map((r) => routeSlug(r.route_id)));
+  const rowSlugs = new Set(rows.map((r) => routeSlug(r.routeId)));
   // The rows fold a retired train line into its successor (see foldLineageRows),
   // so its cancellations follow it there.
   const cancelledBySlug = new Map<string, number>();
   for (const c of cancelledRoutes) {
-    const successor = successorSlug(c.route_id);
-    const slug =
-      !rowSlugs.has(c.route_id) && successor && rowSlugs.has(successor) ? successor : c.route_id;
+    const successor = successorSlug(c.slug);
+    const slug = !rowSlugs.has(c.slug) && successor && rowSlugs.has(successor) ? successor : c.slug;
     cancelledBySlug.set(slug, (cancelledBySlug.get(slug) ?? 0) + c.cancelled);
   }
   /**
@@ -146,27 +145,27 @@ export default async function RoutesPage({
    * @param r - The route row.
    * @returns The explorer row.
    */
-  const toExplorer = (r: TopRouteRow): ExplorerRoute => {
-    const slug = routeSlug(r.route_id);
+  const toExplorer = (r: RouteRow): ExplorerRoute => {
+    const slug = routeSlug(r.routeId);
     return {
       ...r,
       slug,
       areas: geo.areas[slug] ?? [],
       zones: geo.zones[slug] ?? [],
       cancelled: cancelledBySlug.get(slug) ?? 0,
-      school: isSchoolBus(r.short_name, r.long_name),
+      school: isSchoolBus(r.shortName, r.longName),
       operator: operatorOf(operators[slug], directory)?.slug ?? null,
     };
   };
   // A route that cancelled trips but recorded no arrival (a service with no
   // realtime feed, or one cancelled all day) still belongs on the list, with no
   // punctuality figures, so the cancellation totals add up.
-  const cancelOnly: TopRouteRow[] = cancelledRoutes
-    .filter((c) => !rowSlugs.has(c.route_id) && !rowSlugs.has(successorSlug(c.route_id) ?? ""))
+  const cancelOnly: RouteRow[] = cancelledRoutes
+    .filter((c) => !rowSlugs.has(c.slug) && !rowSlugs.has(successorSlug(c.slug) ?? ""))
     .map((c) => ({
-      route_id: c.route_id,
-      short_name: c.short_name,
-      long_name: c.long_name ?? c.route_id,
+      routeId: c.slug,
+      shortName: c.shortName,
+      longName: c.longName ?? c.slug,
       mode: c.mode,
       colour: c.colour,
       events: 0,

@@ -8,7 +8,7 @@ import { type Operator, operatorOf } from "@/lib/operators";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { routeSlug } from "@/lib/route/slug";
 import type { VehicleTotal } from "@/lib/vehicle/rank";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 
 /** One operator's figures over a window. */
 export interface OperatorRow {
@@ -65,7 +65,7 @@ export function operatorCodeOf(
  * @returns One row per operator with at least one route in the window.
  */
 export function operatorRows(
-  rows: readonly TopRouteRow[],
+  rows: readonly RouteRow[],
   operators: Record<string, string>,
   cancelledBySlug: ReadonlyMap<string, number> = new Map(),
   vehicles: readonly VehicleTotal[] | null = null,
@@ -105,10 +105,10 @@ export function operatorRows(
   };
 
   for (const r of rows) {
-    const code = operatorCodeOf(r.route_id, operators);
+    const code = operatorCodeOf(r.routeId, operators);
     if (!code) continue;
     const a = get(code);
-    a.slugs.add(routeSlug(r.route_id));
+    a.slugs.add(routeSlug(r.routeId));
     a.modes.add(r.mode);
     a.events += r.events;
     for (const k of WEIGHTED) {
