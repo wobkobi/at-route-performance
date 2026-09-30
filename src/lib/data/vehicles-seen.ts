@@ -14,7 +14,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { type HourRange, hourRangeParam, hoursInRange } from "@/lib/time/time-of-day";
 import {
@@ -138,7 +138,7 @@ export async function getVehicleCountsAllTime(
   const before = unstable_cache(
     async () => {
       const days: string[] = [];
-      for (let d = DATA_START_DAY; d < today; d = shiftWeek(d, 1)) days.push(d);
+      for (let d = DATA_START_DAY; d < today; d = shiftDays(d, 1)) days.push(d);
       return mergeVehicles(
         await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate, hours))),
       );

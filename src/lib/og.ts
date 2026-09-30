@@ -10,29 +10,18 @@ import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page/nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
-import { nzServiceDayString, serviceDayLabel } from "@/lib/time/service-day";
+import {
+  monthLabel,
+  nzServiceDayString,
+  parseInstantParam,
+  serviceDayLabel,
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 
 /** Card canvas: the 1.91:1 Slack, Discord, X and LinkedIn all accept. */
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
-
-/** Month names for a `YYYY-MM` period. */
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 /** Longest id a card URL carries; anything longer is not a real route, trip or stop. */
 const ID_MAX = 96;
@@ -168,12 +157,12 @@ export function parseRouteCard(
  * @returns The card state.
  */
 export function parseTripCard(id: string, tripId: string, d: string | undefined): TripCard {
-  const at = d ? new Date(d) : null;
+  const at = parseInstantParam(d);
   return {
     kind: "trip",
     id: routeSlug(id),
     tripId,
-    day: at && !Number.isNaN(at.getTime()) ? nzServiceDayString(at) : null,
+    day: at ? nzServiceDayString(at) : null,
   };
 }
 
@@ -344,15 +333,6 @@ export function cardFilterLabel(mode: Mode | null, schools: SchoolFilter): strin
   if (schools === "only") return "School buses";
   if (schools === "exclude") return noun;
   return noun ? `${noun} incl. school` : "Incl. school services";
-}
-
-/**
- * A `YYYY-MM` month as "September 2026".
- * @param ym - The month.
- * @returns The label.
- */
-export function monthLabel(ym: string): string {
-  return `${MONTHS[Number(ym.slice(5, 7)) - 1] ?? ""} ${ym.slice(0, 4)}`;
 }
 
 /**

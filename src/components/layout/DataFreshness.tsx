@@ -4,6 +4,7 @@
 // and the trigger that re-renders a live page once a newer ingest run lands.
 
 import { viewIncludesToday } from "@/lib/live-view";
+import { formatRelative } from "@/lib/time/format";
 import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
@@ -80,24 +81,6 @@ function nzClock(iso: string): string {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(iso));
-}
-
-/**
- * Render `fromMs` relative to `nowMs` ("2 minutes ago", "in 1 minute", "now"),
- * picking the coarsest sensible unit. Negative diffs are in the past.
- * @param fromMs - The instant being described, in epoch ms.
- * @param nowMs - The reference "now", in epoch ms.
- * @returns A localised relative-time phrase.
- */
-function formatRelative(fromMs: number, nowMs: number): string {
-  const rtf = new Intl.RelativeTimeFormat("en-NZ", { numeric: "auto" });
-  const diffSec = Math.round((fromMs - nowMs) / 1000);
-  if (Math.abs(diffSec) < 60) return rtf.format(diffSec, "second");
-  const diffMin = Math.round(diffSec / 60);
-  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute");
-  const diffHr = Math.round(diffMin / 60);
-  if (Math.abs(diffHr) < 24) return rtf.format(diffHr, "hour");
-  return rtf.format(Math.round(diffHr / 24), "day");
 }
 
 /**

@@ -9,12 +9,19 @@ import type { RangeWindow } from "@/lib/page/range";
 import {
   monthPickPeriod,
   monthShort,
-  monthTitle,
   monthWeeks,
   weekPickPeriod,
   type PickerState,
 } from "@/lib/time/calendar";
-import { serviceDayLabel, shiftMonth } from "@/lib/time/service-day";
+import {
+  monthLabel,
+  monthOf,
+  serviceDayLabel,
+  shiftDays,
+  shiftMonth,
+  weekdayShort,
+  ymKey,
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import {
@@ -27,8 +34,10 @@ import {
   type ReactNode,
 } from "react";
 
-/** Weekday initials over the grid, Monday first. */
-const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+/** Weekday initials over the grid, Monday first, read off a known Monday's week. */
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
+  weekdayShort(shiftDays("2026-09-21", i)).charAt(0),
+);
 
 /** The panel's width from `sm` up (`sm:w-80`), for choosing which edge it anchors to. */
 const PANEL_WIDTH_PX = 320;
@@ -79,9 +88,9 @@ export function DatePicker({
   const { today, minDay, maxDay, from, to } = calendar;
   // The month (or, on the Month view, the year) the panel shows; opens on the
   // one holding the end of the shown window.
-  const [shown, setShown] = useState(to.slice(0, 7));
-  const minMonth = minDay.slice(0, 7);
-  const maxMonth = maxDay.slice(0, 7);
+  const [shown, setShown] = useState(monthOf(to));
+  const minMonth = monthOf(minDay);
+  const maxMonth = monthOf(maxDay);
 
   // A page navigated away from is held hidden rather than unmounted; close
   // from a cleanup so the panel is not still open on the way back.
@@ -99,7 +108,7 @@ export function DatePicker({
   const openPanel = (): void => {
     const box = buttonRef.current?.getBoundingClientRect();
     setAlignEnd(box ? box.left + PANEL_WIDTH_PX > window.innerWidth - 16 : false);
-    setShown(to.slice(0, 7));
+    setShown(monthOf(to));
     setOpen(true);
   };
 
@@ -142,7 +151,7 @@ export function DatePicker({
       />
     ) : (
       <PanelHeader
-        title={monthTitle(shown)}
+        title={monthLabel(shown)}
         prevLabel="Previous month"
         nextLabel="Next month"
         canPrev={shown > minMonth}
@@ -189,8 +198,8 @@ export function DatePicker({
             {mode === "month" ? (
               <div className="mt-3 grid grid-cols-3 gap-1">
                 {Array.from({ length: 12 }, (_, i) => {
-                  const ym = `${year}-${String(i + 1).padStart(2, "0")}`;
-                  const on = ym === from.slice(0, 7);
+                  const ym = ymKey(Number(year), i + 1);
+                  const on = ym === monthOf(from);
                   return (
                     <button
                       key={ym}
@@ -245,7 +254,7 @@ export function DatePicker({
                             className={cn(
                               "h-9 text-sm tabular-nums",
                               cellClass(on),
-                              !on && d.slice(0, 7) !== shown && "text-at-muted",
+                              !on && monthOf(d) !== shown && "text-at-muted",
                               d === today && !on && "font-semibold text-at-shore",
                             )}
                           >
@@ -384,7 +393,7 @@ function WeekRow({
             // Inside the rolling week the days that fall in it are filled on
             // their own, since it rarely lines up with a Monday-to-Sunday row.
             !on && d >= from && d <= to && "bg-at-shore text-white",
-            !on && !(d >= from && d <= to) && d.slice(0, 7) !== month && "text-at-muted",
+            !on && !(d >= from && d <= to) && monthOf(d) !== month && "text-at-muted",
             !on && d === today && !(d >= from && d <= to) && "font-semibold text-at-shore",
           )}
         >

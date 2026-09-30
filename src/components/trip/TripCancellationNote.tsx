@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
-import { nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
 import type { CancellationStage } from "@/lib/trip/cancellation";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";

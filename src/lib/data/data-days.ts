@@ -7,7 +7,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayNoon,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 
 /**
@@ -69,7 +69,7 @@ async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Prom
     });
     if (n >= minEvents) return day;
     // Step inward: forward from the earliest end, back from the latest.
-    day = shiftWeek(day, direction);
+    day = shiftDays(day, direction);
   }
   return null;
 }

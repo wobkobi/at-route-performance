@@ -8,13 +8,15 @@
 import { ChipLink } from "@/components/Chip";
 import { cn } from "@/lib/cn";
 import type { StopDepartures } from "@/lib/feed/at-stop-trips";
-import { formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
+import { UNKNOWN_VALUE } from "@/lib/format";
 import type { Mode } from "@/lib/mode";
 import { routeSlug } from "@/lib/route/slug";
 import { departuresFromNow } from "@/lib/stop/departure-board";
+import { formatGtfsTime } from "@/lib/time/format";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
+  SEC_PER_DAY,
   serviceDateLabel,
   serviceDayLabel,
 } from "@/lib/time/service-day";
@@ -115,7 +117,7 @@ export function StopSchedule({
     showingAll && nowSeconds !== null && fromNow.length > 0 ? departures.indexOf(fromNow[0]!) : -1;
   // Past 24h on the service clock is after midnight (the list is sorted by it).
   const firstAfterMidnight = departures.findIndex(
-    (d) => d.departureTime !== null && (gtfsServiceSeconds(d.departureTime) ?? 0) >= 86_400,
+    (d) => d.departureTime !== null && (gtfsServiceSeconds(d.departureTime) ?? 0) >= SEC_PER_DAY,
   );
 
   return (

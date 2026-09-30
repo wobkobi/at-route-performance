@@ -5,10 +5,10 @@
 
 import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { formatDelay, formatGtfsTime, UNKNOWN_VALUE } from "@/lib/format";
+import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
-import { nzClockTime } from "@/lib/time/service-day";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
 import type { JSX } from "react";

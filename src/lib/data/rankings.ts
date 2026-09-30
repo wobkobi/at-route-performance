@@ -23,10 +23,12 @@ import { applyRoutePenalties } from "@/lib/rider-wait";
 import { foldLineageRows } from "@/lib/route/lineage";
 import {
   type DateRange,
+  mondayOf,
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
   serviceDatesInRange,
+  shiftDays,
 } from "@/lib/time/service-day";
 import type { RouteRow } from "@/types/api";
 
@@ -52,10 +54,8 @@ function isoWeekRange(iso?: string): DateRange {
   const parts = iso?.match(/^(\d{4})-W(\d{1,2})$/);
   if (!parts) return nzWeekRange();
   const [, yearPart = "", weekPart = ""] = parts;
-  const jan4 = new Date(Date.UTC(Number(yearPart), 0, 4));
-  const monday = new Date(jan4);
-  monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + 7 * (Number(weekPart) - 1));
-  return nzWeekRange(monday.toISOString().slice(0, 10));
+  const week1 = mondayOf(`${yearPart}-01-04`);
+  return nzWeekRange(shiftDays(week1, 7 * (Number(weekPart) - 1)));
 }
 
 /**

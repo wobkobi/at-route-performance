@@ -16,7 +16,7 @@ import {
 import { requireCronAuth } from "@/lib/cron/auth";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { resolveRequestedDay } from "@/lib/page/nav";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
+import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any
@@ -107,7 +107,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     // the catch-up rule over the two days before it.
     const yesterday = nzServiceDayString(new Date(Date.now() - 86_400_000));
     const candidates = Array.from({ length: CATCH_UP_EXTRA_DAYS }, (_, i) =>
-      shiftWeek(yesterday, -(i + 1)),
+      shiftDays(yesterday, -(i + 1)),
     );
     const [summarised, withEvents] = await Promise.all([
       Promise.all(candidates.map(daySummarised)),

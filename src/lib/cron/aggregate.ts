@@ -15,7 +15,7 @@ import {
   pickOnTimeByRouteMode,
 } from "@/lib/on-time";
 import { NZ_TZ } from "@/lib/time/nz-tz";
-import { nzServiceDayRange, shiftWeek, type DateRange } from "@/lib/time/service-day";
+import { nzServiceDayRange, shiftDays, type DateRange } from "@/lib/time/service-day";
 import type { Prisma } from "@prisma/client";
 
 /** One route's rolled-up day, as the pipeline projects it. */
@@ -337,7 +337,7 @@ export function catchUpDates(
 ): string[] {
   const dates: string[] = [];
   for (let back = extraDays; back >= 1; back--) {
-    const date = shiftWeek(yesterday, -back);
+    const date = shiftDays(yesterday, -back);
     if (!hasSummary(date) && hasEvents(date)) dates.push(date);
   }
   dates.push(yesterday);

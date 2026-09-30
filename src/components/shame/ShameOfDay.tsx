@@ -4,7 +4,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { routeSlug } from "@/lib/route/slug";
-import { nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
 import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
 import Link from "next/link";

@@ -18,8 +18,8 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
+  shiftDays,
   shiftMonth,
-  shiftWeek,
   weekRangeLabel,
   type DateRange,
 } from "@/lib/time/service-day";
@@ -101,9 +101,9 @@ export function resolvePrevRange(
   if (window === "month") {
     return clampRangeToDataStart(nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1)));
   }
-  if (period) return clampRangeToDataStart(nzWeekRange(shiftWeek(period, -7)));
+  if (period) return clampRangeToDataStart(nzWeekRange(shiftDays(period, -7)));
   // Step by service date rather than a fixed 7 * 24 h of milliseconds, which
   // lands an hour off the 4am boundary when the two windows straddle a DST switch.
-  const prevDay = shiftWeek(nzServiceDayString(anchor), -7);
+  const prevDay = shiftDays(nzServiceDayString(anchor), -7);
   return clampRangeToDataStart(nzLast7DaysRange(nzServiceDayRange(prevDay).start));
 }

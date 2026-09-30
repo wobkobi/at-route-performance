@@ -6,7 +6,7 @@
 
 import { getJson } from "@/lib/feed/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
-import { nzServiceDayString } from "@/lib/time/service-day";
+import { dashedDate, nzServiceDayString } from "@/lib/time/service-day";
 
 /** Attributes for a single GTFS feed version entry from AT v3 `/versions`. */
 export interface GtfsVersionAttr {
@@ -96,16 +96,6 @@ export interface FeedWindow {
   end: string;
   /** The feed publishing them. */
   version: string;
-}
-
-/**
- * Convert AT's compact `YYYYMMDD` to the dashed form the rest of the site uses.
- * @param compact - AT's date string, or whatever the field actually held.
- * @returns The dashed date, or null when the value is not eight digits.
- */
-function dashedDate(compact: unknown): string | null {
-  if (typeof compact !== "string" || !/^\d{8}$/.test(compact)) return null;
-  return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6)}`;
 }
 
 /**

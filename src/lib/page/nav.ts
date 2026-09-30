@@ -12,6 +12,7 @@ import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/time/data-start";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
+  isRealDate,
   monthRangeLabel,
   nzLast7DaysRange,
   nzLocalHour,
@@ -22,17 +23,12 @@ import {
   nzWeekRange,
   nzWeekStart,
   SERVICE_START_HOUR,
+  shiftDays,
   shiftMonth,
-  shiftWeek,
   weekRangeLabel,
+  YM_RE,
   type DateRange,
 } from "@/lib/time/service-day";
-
-/** Matches an ISO `YYYY-MM-DD` date string, capturing year, month and day. */
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** Matches an ISO `YYYY-MM` month key with a real month number. */
-const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * Validate a `?period=` query value as an ISO `YYYY-MM` month key.
@@ -40,7 +36,7 @@ const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
  * @returns The value when it is a valid month key, else null.
  */
 export function resolveRequestedMonth(value: string | undefined): string | null {
-  return value && ISO_MONTH.test(value) ? value : null;
+  return value && YM_RE.test(value) ? value : null;
 }
 
 /**
@@ -52,15 +48,7 @@ export function resolveRequestedMonth(value: string | undefined): string | null 
  * @returns The value when it is a real calendar date, else null.
  */
 export function resolveRequestedDay(value: string | undefined): string | null {
-  if (!value) return null;
-  const [, ys, ms, ds] = ISO_DATE.exec(value) ?? [];
-  if (ys === undefined || ms === undefined || ds === undefined) return null;
-  const y = Number(ys);
-  const m = Number(ms);
-  const d = Number(ds);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-  return real ? value : null;
+  return value && isRealDate(value) ? value : null;
 }
 
 /**
@@ -238,12 +226,12 @@ export function resolveWeekNav({
   const partial =
     (fixedWeekRange ?? nzLast7DaysRange(now)).start < nzServiceDayRange(DATA_START_DAY).start;
   const thisWeekStart = nzWeekStart(now);
-  const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
+  const prevWeek = shiftDays(periodParam ?? thisWeekStart, -7);
   const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
   const prevHref = !earliestWeekStart || prevWeek >= earliestWeekStart ? makeHref(prevWeek) : null;
   let nextHref: string | null = null;
   if (periodParam) {
-    const nextWeek = shiftWeek(periodParam, 7);
+    const nextWeek = shiftDays(periodParam, 7);
     nextHref = nextWeek >= thisWeekStart ? makeHref(null) : makeHref(nextWeek);
   }
   return { periodLabel, prevHref, nextHref, partial };
@@ -358,7 +346,7 @@ export async function resolveShownDay(
   today?: string,
 ): Promise<ShownDay> {
   const now = today ?? (await requestServiceDay());
-  const yesterday = shiftWeek(now, -1);
+  const yesterday = shiftDays(now, -1);
   // Only the day before today steps onto today, so any other asked-for day
   // skips the open test.
   if (requestedDay && requestedDay !== yesterday) return shownDay(requestedDay, false);

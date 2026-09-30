@@ -10,15 +10,19 @@ import {
   resolveWeekNav,
 } from "@/lib/page/nav";
 import { resolveRange } from "@/lib/page/rankings";
-import { mondayOf, type PickerState } from "@/lib/time/calendar";
+import { type PickerState } from "@/lib/time/calendar";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import {
   type DateRange,
+  mondayOf,
+  monthLastDay,
+  nzMonthKey,
   nzServiceDayString,
   parseYmd,
   serviceDayLabel,
+  shiftDays,
   shiftMonth,
-  shiftWeek,
+  ymKey,
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 
@@ -138,7 +142,7 @@ export function dayRangeNav(
     nextPending,
     hasPrev: hasEarlierDay(serviceDate, earliestDay),
     hasNext: serviceDate < today && !nextPending,
-    nextIsToday: shiftWeek(serviceDate, 1) === today,
+    nextIsToday: shiftDays(serviceDate, 1) === today,
     atFloor: serviceDate === DATA_START_DAY,
     tabs: rangeTabPeriods(serviceDate, today),
     calendar: {
@@ -146,7 +150,7 @@ export function dayRangeNav(
       minDay: firstPickableDay(earliestDay),
       // Before today opens the bare URL falls back to yesterday, so today is
       // not a day that can be opened yet.
-      maxDay: nextPending ? shiftWeek(today, -1) : today,
+      maxDay: nextPending ? shiftDays(today, -1) : today,
       from: serviceDate,
       to: serviceDate,
     },
@@ -221,12 +225,12 @@ function periodDays(
   anchor: Date,
 ): { from: string; to: string } {
   if (window === "week") {
-    if (period) return { from: period, to: shiftWeek(period, 6) };
+    if (period) return { from: period, to: shiftDays(period, 6) };
     const last = nzServiceDayString(anchor);
-    return { from: shiftWeek(last, -6), to: last };
+    return { from: shiftDays(last, -6), to: last };
   }
-  const month = period ?? nzServiceDayString(anchor).slice(0, 7);
-  return { from: `${month}-01`, to: shiftWeek(`${shiftMonth(month, 1)}-01`, -1) };
+  const month = period ?? nzMonthKey(anchor);
+  return { from: `${month}-01`, to: monthLastDay(month) };
 }
 
 /**
@@ -258,7 +262,7 @@ export function monthPeriodOf(
 ): string | null {
   if (serviceDate >= today) return null;
   const { y, mo } = parseYmd(serviceDate);
-  return `${y}-${String(mo).padStart(2, "0")}`;
+  return ymKey(y, mo);
 }
 
 /**
@@ -279,7 +283,7 @@ export function periodAnchorDay(
   // A month key has no day component, so step to the next month's first and
   // back one day rather than carrying a table of month lengths.
   const last =
-    window === "week" ? shiftWeek(period, 6) : shiftWeek(`${shiftMonth(period, 1)}-01`, -1);
+    window === "week" ? shiftDays(period, 6) : shiftDays(`${shiftMonth(period, 1)}-01`, -1);
   return last < today ? last : today;
 }
 

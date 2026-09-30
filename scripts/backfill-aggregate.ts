@@ -10,7 +10,7 @@
 // CRON_SECRET is read from .env.local (or the environment). The --url flag
 // overrides the default http://localhost:3000.
 
-import { nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
+import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 import fs from "node:fs";
 
 /* ---------------------------------------------------------------- env load */
@@ -86,7 +86,7 @@ async function main(): Promise<void> {
       console.error("Invalid --from or --to date (expected YYYY-MM-DD)");
       process.exit(1);
     }
-    for (let d = from; d <= to; d = shiftWeek(d, 1)) {
+    for (let d = from; d <= to; d = shiftDays(d, 1)) {
       dates.push(d);
     }
   } else {
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
     // by service date rather than 24-hour blocks so a DST switch inside the
     // range cannot skip or repeat a day.
     const today = nzServiceDayString();
-    for (let i = days ?? 1; i >= 1; i--) dates.push(shiftWeek(today, -i));
+    for (let i = days ?? 1; i >= 1; i--) dates.push(shiftDays(today, -i));
   }
 
   console.log(`Backfilling ${dates.length} day(s) against ${baseUrl}\n`);

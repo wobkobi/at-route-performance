@@ -3,6 +3,8 @@
 // Saturdays or its Sundays, since the three run different timetables and a
 // month's figure mixes them in whatever proportion the calendar gives.
 
+import { weekdayOf } from "@/lib/time/service-day";
+
 /** The query param holding the day type. */
 export const DAYS_PARAM = "days";
 
@@ -33,9 +35,7 @@ export function parseDayType(raw: string | undefined): DayType | null {
  * @returns Its day type.
  */
 export function dayTypeOf(date: string): DayType {
-  // Noon UTC keeps the weekday clear of any offset question: the string is a
-  // calendar date, not an instant.
-  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const day = weekdayOf(date);
   return day === 0 ? "sun" : day === 6 ? "sat" : "weekday";
 }
 

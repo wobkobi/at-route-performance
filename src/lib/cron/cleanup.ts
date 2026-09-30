@@ -3,7 +3,7 @@
 // behind POST /api/ingest/cleanup. The run takes its storage as a small port so
 // a test can drive it with an in-memory fake; the route passes the Prisma one.
 import { prisma, runCommand } from "@/lib/db";
-import { nzServiceDayRange } from "@/lib/time/service-day";
+import { MS_PER_DAY, nzServiceDayRange } from "@/lib/time/service-day";
 
 /**
  * Retention floor in days. A request under this is refused outright, and
@@ -179,7 +179,7 @@ export const prismaCleanupStore: CleanupStore = {
  * @returns The cutoff instant.
  */
 export function cleanupCutoff(days: number, now: Date = new Date()): Date {
-  return nzServiceDayRange(new Date(now.getTime() - days * 86_400_000)).start;
+  return nzServiceDayRange(new Date(now.getTime() - days * MS_PER_DAY)).start;
 }
 
 /** A validated cleanup request. */
@@ -332,7 +332,7 @@ export function checkCleanupPlan(
     };
   }
   if (lastCutoff) {
-    const advance = (plan.cutoff.getTime() - lastCutoff.getTime()) / 86_400_000;
+    const advance = (plan.cutoff.getTime() - lastCutoff.getTime()) / MS_PER_DAY;
     if (advance > MAX_CUTOFF_ADVANCE_DAYS) {
       return {
         ok: false,

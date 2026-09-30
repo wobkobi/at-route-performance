@@ -23,19 +23,21 @@ import {
   type GhostRunRow,
   type ScheduledStop,
 } from "@/lib/data";
-import { formatCount, formatGtfsTime } from "@/lib/format";
+import { formatCount } from "@/lib/format";
 import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
   isAfterMidnight,
-  nzClockTime,
   nzServiceDayRange,
   nzServiceDayString,
+  parseInstantParam,
+  SEC_PER_DAY,
   serviceDayLabel,
 } from "@/lib/time/service-day";
 import { tripBoardView } from "@/lib/trip/board";
@@ -119,9 +121,8 @@ export default async function TripPage({
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange). The
   // timeline and the cancellation flag must agree on that day, so it is resolved
   // here rather than inside the timeline query.
-  const dAt = d ? new Date(d) : null;
-  const day =
-    dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
+  const dAt = parseInstantParam(d);
+  const day = dAt ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
   // An AT outage costs this request its schedule and road path, not the day's
   // cache entries - but a swallowed failure read as "this run has no stops", so
   // `allSettled` keeps the rejection and the page below says which it was.
@@ -245,7 +246,7 @@ export default async function TripPage({
   // A 12:30am run counts toward the day before, which the date beside it names.
   const departsAfterMidnight = firstServed
     ? isAfterMidnight(new Date(firstServed.scheduled_at))
-    : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= 86_400;
+    : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= SEC_PER_DAY;
 
   const lastServed = recordedStops.reduce<TripStop | null>(
     (last, s) => (last === null || actualAt(s) > actualAt(last) ? s : last),

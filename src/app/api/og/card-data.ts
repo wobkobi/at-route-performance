@@ -29,7 +29,6 @@ import {
 import {
   formatCount,
   formatDuration,
-  formatGtfsTime,
   formatPct,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
@@ -37,7 +36,6 @@ import {
 } from "@/lib/format";
 import {
   cardFilterLabel,
-  monthLabel,
   type HomeCard,
   type ListCard,
   type RouteCard,
@@ -55,8 +53,9 @@ import { lineName } from "@/lib/route/line-name";
 import { routeSlug } from "@/lib/route/slug";
 import { aggregateWeek } from "@/lib/route/week";
 import { schoolAllows } from "@/lib/school-bus";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import {
-  nzClockTime,
+  monthLabel,
   nzHourLabel,
   nzMonthKey,
   nzServiceDayRange,

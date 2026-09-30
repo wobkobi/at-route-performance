@@ -1,7 +1,7 @@
 // src/lib/cron/warm.ts
 // What the nightly warm renders, and the small worker pool it renders them with.
 import { isBeforeDataStart } from "@/lib/time/data-start";
-import { shiftWeek } from "@/lib/time/service-day";
+import { shiftDays } from "@/lib/time/service-day";
 
 /**
  * Pages with a day stepper. Each is warmed on its default filters, the variant
@@ -29,7 +29,7 @@ export const WARM_DAYS = 7;
  * @returns Root-relative paths, each carrying its `?day=`.
  */
 export function pageWarmPaths(yesterday: string): string[] {
-  const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftWeek(yesterday, -i)).filter(
+  const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftDays(yesterday, -i)).filter(
     (day) => !isBeforeDataStart(day),
   );
   return days.flatMap((day) => DAY_PAGES.map((page) => `${page}?day=${day}`));

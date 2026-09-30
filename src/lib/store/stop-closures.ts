@@ -21,13 +21,14 @@ import {
   type RunTrace,
   type TraceArrival,
 } from "@/lib/stop/closures";
+import { MS_PER_HOUR } from "@/lib/time/service-day";
 import type { StopClosure } from "@prisma/client";
 
 /**
  * How much earlier than the lookback an arrival's `scheduledAt` may sit and
  * still be read: a late run's real time trails its schedule.
  */
-const LATE_SLACK_MS = 3_600_000;
+const LATE_SLACK_MS = MS_PER_HOUR;
 
 /** The arrival fields a run's trace is built from. */
 const ARRIVAL_FIELDS = {

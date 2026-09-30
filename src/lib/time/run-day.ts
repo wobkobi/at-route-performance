@@ -4,20 +4,19 @@
 // per run at ingest and stamped on every row. Pure: no database, no clock.
 import type { Trip } from "@/lib/feed/at";
 import {
+  dashedDate,
+  isRealDate,
+  MS_PER_DAY,
+  MS_PER_HOUR,
   nzServiceDayRange,
   nzServiceDayString,
-  parseYmd,
   RUN_TAIL_HOURS,
+  SEC_PER_DAY,
   SERVICE_START_HOUR,
-  shiftWeek,
+  serviceDayClockInstant,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip/id";
-
-/** AT's GTFS `start_date`, `YYYYMMDD`. */
-const START_DATE_RE = /^(\d{4})(\d{2})(\d{2})$/;
-
-/** Milliseconds in an hour, for the straddler fold's tail. */
-const HOUR_MS = 3_600_000;
 
 /**
  * AT's own `start_date` as a service date, accepted only when it is eight
@@ -27,13 +26,8 @@ const HOUR_MS = 3_600_000;
  * @returns The date as `YYYY-MM-DD`, or null when absent or malformed.
  */
 export function parseStartDate(startDate: string | undefined): string | null {
-  const m = startDate ? START_DATE_RE.exec(startDate) : null;
-  if (!m) return null;
-  const ymd = `${m[1]}-${m[2]}-${m[3]}`;
-  const { y, mo, d } = parseYmd(ymd);
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
-  return real ? ymd : null;
+  const ymd = dashedDate(startDate);
+  return ymd !== null && isRealDate(ymd) ? ymd : null;
 }
 
 /**
@@ -67,7 +61,7 @@ export function tripIdServiceDate(tripId: string, at: Date): string | null {
   const sec = tripIdStartSeconds(tripId);
   if (sec === null) return null;
   // Start hour 0 gives the plain Auckland calendar date of the instant.
-  return shiftWeek(nzServiceDayString(at, 0), -Math.floor(sec / 86_400));
+  return shiftDays(nzServiceDayString(at, 0), -Math.floor(sec / SEC_PER_DAY));
 }
 
 /** One stored row, for the straddler fold. */
@@ -103,7 +97,7 @@ export function foldRunDates(
   const out = new Map<string, string>();
   for (const list of byTrip.values()) {
     const first = list.reduce((a, b) => (a.scheduledAt <= b.scheduledAt ? a : b));
-    const tailEnd = first.scheduledAt.getTime() + tailHours * HOUR_MS;
+    const tailEnd = first.scheduledAt.getTime() + tailHours * MS_PER_HOUR;
     for (const row of list) {
       if (row.serviceDate === first.serviceDate) continue;
       if (row.scheduledAt.getTime() > tailEnd) continue;
@@ -125,10 +119,7 @@ export function foldRunDates(
  * unbroken from 11h to 12h40m, so a twelve-hour cut falls inside a cluster and
  * files every run above it a day early.
  */
-const MAX_FLAG_LAG_MS = 10 * HOUR_MS;
-
-/** A whole day: the width of the window {@link MAX_FLAG_LAG_MS} anchors. */
-const DAY_MS = 24 * HOUR_MS;
+const MAX_FLAG_LAG_MS = 10 * MS_PER_HOUR;
 
 /** A cancelled run, as ingest sees it live and as the restamp reads it back. */
 export interface CancelledRun {
@@ -139,22 +130,6 @@ export interface CancelledRun {
   startDate?: string | undefined;
   /** When ingest first saw the flag. */
   detectedAt: Date;
-}
-
-/**
- * The instant a GTFS start time falls at within a service day, resolved against
- * an explicit boundary hour. `serviceDayClockInstant` reads the live
- * `SERVICE_START_HOUR`; this needs whichever hour the caller is working in,
- * including a migration rolling back to 5.
- * @param dayStart - The service day's start instant under `startHour`.
- * @param seconds - Seconds since the GTFS reference.
- * @param startHour - The boundary hour `dayStart` was built with.
- * @returns The UTC instant of that schedule time.
- */
-function clockInstant(dayStart: Date, seconds: number, startHour: number): Date {
-  const startSec = startHour * 3600;
-  const offset = seconds < startSec ? seconds + 86_400 : seconds;
-  return new Date(dayStart.getTime() + (offset - startSec) * 1000);
 }
 
 /**
@@ -183,12 +158,12 @@ export function cancelledServiceDate(
   const day = nzServiceDayString(flag.detectedAt, startHour);
   const sec = gtfsTimeSeconds(flag.startTime) ?? tripIdStartSeconds(flag.tripId);
   if (sec === null) return day;
-  const departure = clockInstant(nzServiceDayRange(day, startHour).start, sec, startHour);
+  const departure = serviceDayClockInstant(nzServiceDayRange(day, startHour).start, sec, startHour);
   const ahead = departure.getTime() - flag.detectedAt.getTime();
   // The two edges sit a day apart, so exactly one service day can hold the run:
   // a departure further past than the lag allowance is the next day's run, and
   // one beyond the lead that allowance leaves over is the previous day's.
-  if (ahead < -MAX_FLAG_LAG_MS) return shiftWeek(day, 1);
-  if (ahead >= DAY_MS - MAX_FLAG_LAG_MS) return shiftWeek(day, -1);
+  if (ahead < -MAX_FLAG_LAG_MS) return shiftDays(day, 1);
+  if (ahead >= MS_PER_DAY - MAX_FLAG_LAG_MS) return shiftDays(day, -1);
   return day;
 }

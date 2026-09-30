@@ -21,7 +21,8 @@ import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
-import { afterMidnightNote, isAfterMidnight, nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
+import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
 import {
   CANCELLATION_BADGE,

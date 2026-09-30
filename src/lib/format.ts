@@ -208,24 +208,3 @@ export function dmY(d: Date): { dm: string; y: string } {
   }
   return { dm: `${day}/${month}`, y: year };
 }
-
-/**
- * Format a GTFS departure time string ("HH:MM:SS") as a short 12-hour clock
- * string. Handles GTFS extended times where hours >= 24 represent post-midnight
- * trips on the following calendar day (e.g. "25:30:00" displays as "1:30 am").
- * Spaced like the en-NZ clock times elsewhere on the site.
- * @param hms - GTFS time string or null.
- * @returns Formatted time like "9:05 am" / "1:30 am", or null when input is null.
- */
-export function formatGtfsTime(hms: string | null): string | null {
-  if (!hms) return null;
-  const [h, m] = hms.split(":");
-  if (h === undefined || m === undefined) return null;
-  let hours = parseInt(h, 10);
-  const mins = parseInt(m, 10);
-  if (isNaN(hours) || isNaN(mins)) return null;
-  // GTFS extended time: hours >= 24 wrap to the next calendar day.
-  const suffix = hours % 24 < 12 ? "am" : "pm";
-  hours = (hours % 24) % 12 || 12;
-  return `${hours}:${String(mins).padStart(2, "0")} ${suffix}`;
-}

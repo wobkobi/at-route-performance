@@ -6,12 +6,12 @@ import {
   formatCount,
   formatDelay,
   formatDuration,
-  formatGtfsTime,
   formatPct,
   offScheduleValue,
   plural,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { describe, expect, it } from "vitest";
 
 describe("formatDelay", () => {
@@ -142,5 +142,13 @@ describe("barPct", () => {
   it("keeps a floor so a sliver stays visible", () => {
     expect(barPct(0.5, 2)).toBe(2);
     expect(barPct(50, 2)).toBe(50);
+  });
+});
+
+describe("formatGtfsTime beside nzClockTime", () => {
+  it("spells a schedule time exactly as the recorded clock time", () => {
+    // 21:05 UTC on 20 Sep is 9:05 am on 21 Sep in Auckland (NZST).
+    expect(formatGtfsTime("09:05:00")).toBe(nzClockTime("2026-09-20T21:05:00Z"));
+    expect(formatGtfsTime("21:40:00")).toBe(nzClockTime("2026-09-21T09:40:00Z"));
   });
 });

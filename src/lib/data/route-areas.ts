@@ -11,7 +11,7 @@ import { routeFareZones } from "@/lib/geo/fare-zone-geo";
 import type { FareZoneKey } from "@/lib/geo/fare-zones";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route/slug";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
+import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 
 /** Completed service days the areas are drawn from. */
 const LOOKBACK_DAYS = 7;
@@ -72,10 +72,10 @@ export interface RouteGeography {
  * @returns Route slug to its areas and to its zones, each in display order.
  */
 export async function getRouteGeography(): Promise<RouteGeography> {
-  const yesterday = shiftWeek(nzServiceDayString(), -1);
+  const yesterday = shiftDays(nzServiceDayString(), -1);
   return unstable_cache(
     async () => {
-      const dates = Array.from({ length: LOOKBACK_DAYS }, (_, i) => shiftWeek(yesterday, -i));
+      const dates = Array.from({ length: LOOKBACK_DAYS }, (_, i) => shiftDays(yesterday, -i));
       const days = await Promise.all(dates.map(routeStopsOfDay));
       const stopsBySlug = new Map<string, Set<string>>();
       for (const day of days) {

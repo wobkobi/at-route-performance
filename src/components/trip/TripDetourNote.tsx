@@ -4,7 +4,7 @@
 
 import { formatCount } from "@/lib/format";
 import type { Sighting } from "@/lib/off-route";
-import { nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
 import Link from "next/link";
 import type { JSX } from "react";
 

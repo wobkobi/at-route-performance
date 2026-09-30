@@ -4,7 +4,7 @@ import { DatePicker } from "@/components/date/DatePicker";
 import { StepPending } from "@/components/date/StepPending";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import type { PickerState } from "@/lib/time/calendar";
-import { serviceDayLabel, serviceDayWindowText, shiftWeek } from "@/lib/time/service-day";
+import { serviceDayLabel, serviceDayWindowText, shiftDays } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -93,7 +93,7 @@ export function DayNav({
           back to the top of the next day, while a mode chip beside it did not. */}
       {hasPrev ? (
         <Link
-          href={dayHref(basePath, preservedParams, shiftWeek(serviceDate, -1))}
+          href={dayHref(basePath, preservedParams, shiftDays(serviceDate, -1))}
           prefetch
           scroll={false}
           className="chip chip-icon chip-off"
@@ -133,7 +133,7 @@ export function DayNav({
       )}
       {hasNext ? (
         <Link
-          href={nextHref ?? dayHref(basePath, preservedParams, shiftWeek(serviceDate, 1))}
+          href={nextHref ?? dayHref(basePath, preservedParams, shiftDays(serviceDate, 1))}
           prefetch
           scroll={false}
           className="chip chip-icon chip-off"

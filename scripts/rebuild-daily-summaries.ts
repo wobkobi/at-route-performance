@@ -10,7 +10,7 @@
 import { dailySummaryPipeline, summaryUpsertOps, type DailyStats } from "@/lib/cron/aggregate";
 import { throwOnWriteErrors } from "@/lib/db";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
+import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 import { PrismaClient } from "@prisma/client";
 
 const p = new PrismaClient();
@@ -20,7 +20,7 @@ const p = new PrismaClient();
 const args = process.argv.slice(2).filter((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const today = nzServiceDayString();
 const dates: string[] =
-  args.length > 0 ? args : Array.from({ length: 7 }, (_, i) => shiftWeek(today, i - 7));
+  args.length > 0 ? args : Array.from({ length: 7 }, (_, i) => shiftDays(today, i - 7));
 
 console.log(
   `Rebuilding DailyRouteSummary for ${dates.length} service day(s):\n  ${dates.join(", ")}\n`,

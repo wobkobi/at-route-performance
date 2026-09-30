@@ -18,7 +18,7 @@
 // night whose shape could qualify.
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { GHOST_GAP_SEC } from "@/lib/deviation";
-import { serviceDayClockSeconds, type DateRange } from "@/lib/time/service-day";
+import { SEC_PER_DAY, serviceDayClockSeconds, type DateRange } from "@/lib/time/service-day";
 import { tripIdPrefix, tripIdStartSeconds, tripIdVariantHash } from "@/lib/trip/id";
 import type { Prisma } from "@prisma/client";
 
@@ -78,8 +78,8 @@ export const GHOST_RUN_ALERT = 20;
  * @returns The wrapped distance in seconds, 0 to 43,200.
  */
 export function anchorGapSec(startSec: number, firstScheduledSec: number): number {
-  const d = Math.abs((startSec % 86_400) - (firstScheduledSec % 86_400)) % 86_400;
-  return Math.min(d, 86_400 - d);
+  const d = Math.abs((startSec % SEC_PER_DAY) - (firstScheduledSec % SEC_PER_DAY)) % SEC_PER_DAY;
+  return Math.min(d, SEC_PER_DAY - d);
 }
 
 /** One run, reduced to what the whole-run rule needs. */

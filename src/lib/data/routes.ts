@@ -1,6 +1,5 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
-import { MS_IN_DAY } from "@/lib/data/cache";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
@@ -11,6 +10,7 @@ import {
   successorSlug,
 } from "@/lib/route/lineage";
 import { routeSlug, routeVersion, type RouteDisplay } from "@/lib/route/slug";
+import { MS_PER_DAY } from "@/lib/time/service-day";
 
 /**
  * Every AT route id sharing one slug - the same route across feed-version
@@ -70,7 +70,7 @@ export async function routeIdsForSlug(slug: string): Promise<string[]> {
 }
 
 /** How far back {@link routeHasTraffic} looks for an arrival on a line's own ids. */
-const TRAFFIC_LOOKBACK_MS = 7 * MS_IN_DAY;
+const TRAFFIC_LOOKBACK_MS = 7 * MS_PER_DAY;
 
 /**
  * Whether a route has recorded any arrival on its own ids in the last week. A
@@ -155,7 +155,7 @@ export interface DirectoryRoute extends RouteDisplay {
 }
 
 /** How stale a route's `lastSeenAt` may be before it counts as retired (the sync runs daily). */
-const ROUTE_STALE_MS = 2 * MS_IN_DAY;
+const ROUTE_STALE_MS = 2 * MS_PER_DAY;
 
 /**
  * Routes AT's most recent GTFS sync still published, for the route directory.
@@ -333,7 +333,7 @@ async function allRouteNames(): Promise<Record<string, string>> {
 export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
   return unstable_cache(
     async () => {
-      const since = new Date(Date.now() - 7 * MS_IN_DAY);
+      const since = new Date(Date.now() - 7 * MS_PER_DAY);
       const result = (await runCommand(() =>
         prisma.$runCommandRaw({
           aggregate: "DailyRouteSummary",

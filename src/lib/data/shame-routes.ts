@@ -16,7 +16,7 @@ import {
   nzServiceDayString,
   padScanRange,
   serviceDatesInRange,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type {
@@ -71,7 +71,7 @@ export async function getShameRouteStreak(
       // by 7 x 24h of milliseconds: that lands an hour off 4am across a DST
       // change, and when the clocks go back it misses the first day's summary.
       const sevenDaysAgo = nzServiceDayRange(
-        shiftWeek(nzServiceDayString(currentRange.start), -6),
+        shiftDays(nzServiceDayString(currentRange.start), -6),
       ).start;
       const res = (await runCommand(() =>
         prisma.$runCommandRaw({
@@ -126,7 +126,7 @@ export async function getShameRouteStreak(
         if (expectedDate !== null && row.date !== expectedDate) break;
         if (row.topRouteId === routeId) {
           count++;
-          expectedDate = shiftWeek(row.date, -1);
+          expectedDate = shiftDays(row.date, -1);
         } else {
           break;
         }
@@ -306,7 +306,7 @@ export async function getShameRouteStreaksBatch(
   let worstRun = new Set(routeIds);
   // Step by date string, not fixed 24h of milliseconds: a millisecond step
   // drifts an hour off the 4am boundary across a DST change and skips a day.
-  let dayKey = shiftWeek(nzServiceDayString(currentRange.start), -1);
+  let dayKey = shiftDays(nzServiceDayString(currentRange.start), -1);
   for (let d = 0; d < STREAK_DAYS && open.size > 0; d++) {
     const day = await shameSlotsOfDay(dayKey, mode, schools);
     if (!day) break;
@@ -318,7 +318,7 @@ export async function getShameRouteStreaksBatch(
       r.prevHours += day.hours.get(id)!;
       if (worstRun.has(id)) r.prevWorstOfDayDays++;
     }
-    dayKey = shiftWeek(dayKey, -1);
+    dayKey = shiftDays(dayKey, -1);
   }
   return result;
 }

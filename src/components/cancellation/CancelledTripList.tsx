@@ -15,7 +15,8 @@ import { cn } from "@/lib/cn";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { UNKNOWN_VALUE, formatCount } from "@/lib/format";
 import { useUrlParam } from "@/lib/page/use-url-param";
-import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
+import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
   CANCELLATION_BADGE,
   CANCELLATION_BADGE_CLASS,

@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route/slug";
+import { SEC_PER_DAY } from "@/lib/time/service-day";
 import { isObj, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {
@@ -389,7 +390,7 @@ export function isAlertActive(alert: ServiceAlert, now: Date = new Date()): bool
  * closure AT announces on the Monday, without listing every recurring notice
  * booked months out.
  */
-export const UPCOMING_HORIZON_SEC = 7 * 86_400;
+export const UPCOMING_HORIZON_SEC = 7 * SEC_PER_DAY;
 
 /**
  * The next period of an alert that has yet to start at `now`, or null when

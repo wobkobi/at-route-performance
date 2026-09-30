@@ -51,9 +51,9 @@ import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
-  nzClockTime,
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayLabel,

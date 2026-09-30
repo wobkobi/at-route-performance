@@ -1,6 +1,6 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
-import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
@@ -13,6 +13,7 @@ import { byEvents, weightedMean } from "@/lib/stats";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/stop/station";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
+  MS_PER_DAY,
   NZ_TZ,
   nzLast7DaysRange,
   nzServiceDayRange,
@@ -290,7 +291,7 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
  * @returns The set of active stop ids.
  */
 export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<string>> {
-  const since = new Date(Date.now() - days * MS_IN_DAY);
+  const since = new Date(Date.now() - days * MS_PER_DAY);
   const ids = await unstable_cache(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);

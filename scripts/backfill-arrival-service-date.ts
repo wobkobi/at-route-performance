@@ -35,7 +35,7 @@ import {
   RUN_TAIL_HOURS,
   nzServiceDayRange,
   nzServiceDayString,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { PrismaClient } from "@prisma/client";
 
@@ -124,7 +124,7 @@ let straddlerRuns = 0;
 let movedRows = 0;
 let overran = 0;
 
-for (let date = firstDate; date <= lastDate; date = shiftWeek(date, 1)) {
+for (let date = firstDate; date <= lastDate; date = shiftDays(date, 1)) {
   const boundary = nzServiceDayRange(date).end;
   // Twice the tail on the early side, so a run that began well before the
   // boundary is seen whole rather than clipped into a false earliest reading.

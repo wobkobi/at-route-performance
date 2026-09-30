@@ -9,6 +9,7 @@ import {
   type DateRange,
   nzServiceDayRange,
   nzServiceDayString,
+  SEC_PER_DAY,
   serviceDatesInRange,
 } from "@/lib/time/service-day";
 
@@ -22,10 +23,8 @@ export function toIso(d: { $date: string } | string): string {
   return typeof d === "string" ? d : d.$date;
 }
 
-export const MS_IN_DAY = 86_400_000;
-
 /** Cache TTL for a completed, classified service day's aggregation (seconds). */
-const COMPLETED_DAY_REVALIDATE = 7 * 86_400;
+const COMPLETED_DAY_REVALIDATE = 7 * SEC_PER_DAY;
 
 /**
  * Bumped whenever the ghost classification changes what a completed day's boards

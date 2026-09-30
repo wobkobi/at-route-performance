@@ -8,7 +8,7 @@ import { delayBand } from "@/lib/on-time";
 import type { MarkKind, MarkNote, SideMark, StripMarks } from "@/lib/strip/marks";
 import { rowFigure, type RouteStrip, type StripRow, type StripSide } from "@/lib/strip/route-strip";
 import type { StopFigures, StopSplit } from "@/lib/strip/stop-split";
-import { nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
 
 /**
  * One half of a stop's ring, and its figure column's tone.

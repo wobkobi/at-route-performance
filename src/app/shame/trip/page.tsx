@@ -62,8 +62,9 @@ import {
 } from "@/lib/page/shame";
 import { routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
+import { nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
-import { nzClockTime, nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
+import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
 import { hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";

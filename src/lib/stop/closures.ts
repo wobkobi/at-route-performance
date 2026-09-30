@@ -21,7 +21,12 @@ import {
 } from "@/lib/feed/at-alerts";
 import { MIN_ARRIVALS_AFTER, MIN_SIGHTINGS } from "@/lib/off-route";
 import { parseStartDate } from "@/lib/time/run-day";
-import { nzServiceDayRange, SERVICE_START_HOUR } from "@/lib/time/service-day";
+import {
+  MS_PER_HOUR,
+  nzServiceDayRange,
+  SEC_PER_DAY,
+  SERVICE_START_HOUR,
+} from "@/lib/time/service-day";
 import { gtfsTimeSeconds } from "@/lib/trip/id";
 
 /**
@@ -54,13 +59,13 @@ export const NEAR_READING_SEC = 5 * 60;
  * Seconds a seen or skipped state may go with no run either way before it ends
  * at its last evidence, so a route that stops running can't hold a row open.
  */
-export const STALE_SEC = 24 * 3600;
+export const STALE_SEC = SEC_PER_DAY;
 
 /** Runs kept on a row, each way; the newest are kept. */
 export const MAX_MARKS = 12;
 
 /** Two marks on one trip id this far apart are separate runs: AT reuses a trip id every day. */
-const SAME_RUN_MS = 12 * 3_600_000;
+const SAME_RUN_MS = 12 * MS_PER_HOUR;
 
 /** What a row records. */
 export type ClosureKind = "closed" | "detour";
@@ -221,7 +226,7 @@ function tripStart(trip: Trip): Date | null {
   const day = parseStartDate(trip.start_date);
   const sec = gtfsTimeSeconds(trip.start_time);
   if (day === null || sec === null) return null;
-  const reference = nzServiceDayRange(day).start.getTime() - SERVICE_START_HOUR * 3_600_000;
+  const reference = nzServiceDayRange(day).start.getTime() - SERVICE_START_HOUR * MS_PER_HOUR;
   return new Date(reference + sec * 1000);
 }
 

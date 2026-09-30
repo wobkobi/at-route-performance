@@ -2,7 +2,7 @@
 // Top-bar sections: which one a path belongs to, and the link to each that keeps
 // the reader's day, window and mode filter, which the Overview, Routes, Shame and
 // Cancellations pages (and the route and stop pages under them) read the same way.
-import { nzServiceDayString } from "@/lib/time/service-day";
+import { nzServiceDayString, parseInstantParam } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 
 /** A top-bar section. */
@@ -118,9 +118,8 @@ export function carriedParams(params: URLSearchParams): Record<string, string | 
     CARRIED.map((k) => [k, params.get(k)]),
   );
   if (carried.day == null) {
-    const at = params.get("d");
-    const dAt = at ? new Date(at) : null;
-    if (dAt && !Number.isNaN(dAt.getTime())) {
+    const dAt = parseInstantParam(params.get("d"));
+    if (dAt) {
       const day = nzServiceDayString(dAt);
       if (day !== nzServiceDayString()) carried.day = day;
     }

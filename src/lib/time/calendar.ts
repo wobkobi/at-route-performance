@@ -3,7 +3,14 @@
 // service date and every month a `YYYY-MM` key, worked in UTC so no timezone
 // or DST shift can move a cell onto the wrong day.
 
-import { parseYmd, shiftMonth, shiftWeek } from "@/lib/time/service-day";
+import {
+  mondayOf,
+  monthOf,
+  monthShortName,
+  parseYm,
+  shiftDays,
+  shiftMonth,
+} from "@/lib/time/service-day";
 
 /** What the date picker needs to draw and bound its calendar. */
 export interface PickerState {
@@ -19,34 +26,6 @@ export interface PickerState {
   to: string;
 }
 
-/** Month names, indexed 0-11. */
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-/**
- * The Monday of the week holding a date, weeks running Monday to Sunday as the
- * site's week view does.
- * @param ymd - The date.
- * @returns That week's Monday.
- */
-export function mondayOf(ymd: string): string {
-  const { y, mo, d } = parseYmd(ymd);
-  const weekday = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
-  return shiftWeek(ymd, -((weekday + 6) % 7));
-}
-
 /**
  * A month's calendar rows, Monday first: every week touching the month, the
  * days either side of it included so each row is a whole week.
@@ -57,20 +36,10 @@ export function monthWeeks(ym: string): string[][] {
   const first = `${ym}-01`;
   const next = `${shiftMonth(ym, 1)}-01`;
   const rows: string[][] = [];
-  for (let monday = mondayOf(first); monday < next; monday = shiftWeek(monday, 7)) {
-    rows.push(Array.from({ length: 7 }, (_, i) => shiftWeek(monday, i)));
+  for (let monday = mondayOf(first); monday < next; monday = shiftDays(monday, 7)) {
+    rows.push(Array.from({ length: 7 }, (_, i) => shiftDays(monday, i)));
   }
   return rows;
-}
-
-/**
- * A month key as "September 2026".
- * @param ym - The month key.
- * @returns The label.
- */
-export function monthTitle(ym: string): string {
-  const [y, m] = ym.split("-");
-  return `${MONTHS[Number(m) - 1] ?? ""} ${y}`;
 }
 
 /**
@@ -79,7 +48,7 @@ export function monthTitle(ym: string): string {
  * @returns The name.
  */
 export function monthShort(ym: string): string {
-  return (MONTHS[Number(ym.slice(5, 7)) - 1] ?? "").slice(0, 3);
+  return monthShortName(parseYm(ym).mo);
 }
 
 /**
@@ -103,5 +72,5 @@ export function weekPickPeriod(ymd: string, today: string): string | null {
  * @returns The key, or null.
  */
 export function monthPickPeriod(ym: string, today: string): string | null {
-  return ym >= today.slice(0, 7) ? null : ym;
+  return ym >= monthOf(today) ? null : ym;
 }
