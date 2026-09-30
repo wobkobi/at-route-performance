@@ -24,6 +24,7 @@ import {
   type ScheduledStop,
 } from "@/lib/data";
 import { formatCount } from "@/lib/format";
+import { metresBetween } from "@/lib/geo/distance";
 import { modeOrBus, modeWord } from "@/lib/mode";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
@@ -216,10 +217,7 @@ export default async function TripPage({
   const furthest = detour?.sightings.reduce((a, b) => (b.distanceM > a.distanceM ? b : a));
   const nearest = furthest
     ? line.stops.reduce<{ name: string; stopId: string; d: number } | null>((best, s) => {
-        const d = Math.hypot(
-          s.lat - furthest.lat,
-          (s.lon - furthest.lon) * Math.cos((s.lat * Math.PI) / 180),
-        );
+        const d = metresBetween([s.lat, s.lon], [furthest.lat, furthest.lon]);
         return best === null || d < best.d ? { name: s.name, stopId: s.stop_id, d } : best;
       }, null)
     : null;

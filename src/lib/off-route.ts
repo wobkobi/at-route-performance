@@ -11,6 +11,7 @@
 // after (see confirmedDetour).
 
 import type { AtTripUpdates } from "@/lib/feed/at";
+import { M_PER_DEG } from "@/lib/geo/distance";
 
 /**
  * Metres from the trip's road path before a reading counts. The stored shapes are
@@ -35,9 +36,6 @@ export const MAX_POSITION_AGE_SEC = 180;
  * on it 1 minute, and nine in ten on it were within 8 minutes.
  */
 export const MAX_STOP_UPDATE_AGE_SEC = 600;
-
-/** Metres per degree of latitude (good enough locally). */
-const M_PER_DEG = 111_320;
 
 /**
  * Metres from a point to the nearest point on a path, on a local flat projection

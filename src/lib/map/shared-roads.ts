@@ -18,10 +18,8 @@
 // twice, once per carriageway.
 
 import { pushTo } from "@/lib/collections";
+import { M_PER_DEG } from "@/lib/geo/distance";
 import { simplifyPath } from "@/lib/map/route-geo";
-
-/** Metres per degree of latitude, the same flat approximation route-geo uses. */
-const M_PER_DEG = 111_320;
 
 /** The walking step along a path, in metres: fine enough that no road is skipped. */
 const STEP_M = 15;

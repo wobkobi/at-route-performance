@@ -5,6 +5,7 @@
 // is partly a client component. The line's geometry is built here too, once: every piece is drawn
 // exactly once, carries the versions that run along it, and meets its neighbours exactly.
 import { pushTo } from "@/lib/collections";
+import { metresBetween } from "@/lib/geo/distance";
 import { roundTenth } from "@/lib/stats";
 import type { StripBypass, StripMarks, StripSpan } from "@/lib/strip/marks";
 import type { StopFigure, StopFigures, VersionVariant } from "@/lib/strip/stop-split";
@@ -30,8 +31,6 @@ export const MINOR_SHARE = 0.05;
 const SAME_STOP_M = 400;
 /** How much two groups' stop names must overlap (Jaccard) to pair them as one version's two ways. */
 const PAIR_OVERLAP = 0.5;
-/** Metres per degree of latitude (close enough anywhere at city scale). */
-const M_PER_DEG = 111_320;
 
 /** Which way a direction reads on the strip: down the page (the first figure column) or up it. */
 export type StripSide = "down" | "up";
@@ -251,17 +250,6 @@ interface Track {
   lane: number;
   top: string;
   bottom: string;
-}
-
-/**
- * Metres between two points, on a flat projection around the first (ample at city scale).
- * @param a - `[lat, lon]`.
- * @param b - `[lat, lon]`.
- * @returns The distance in metres.
- */
-function metresBetween(a: readonly [number, number], b: readonly [number, number]): number {
-  const cosLat = Math.cos((a[0] * Math.PI) / 180);
-  return Math.hypot((b[0] - a[0]) * M_PER_DEG, (b[1] - a[1]) * M_PER_DEG * cosLat);
 }
 
 /**
