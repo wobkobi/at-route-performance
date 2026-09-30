@@ -9,7 +9,7 @@ import { type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
 import { type HourRange, hourRangeClock } from "@/lib/time/time-of-day";
-import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle-counts";
+import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle/counts";
 import type { JSX } from "react";
 
 const NOUN: Record<VehicleMode, [string, string]> = {

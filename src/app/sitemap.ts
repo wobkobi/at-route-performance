@@ -6,7 +6,7 @@
 import { getDirectoryRoutes, getOperators } from "@/lib/data";
 import { logReadFailure } from "@/lib/db";
 import { operatorHref } from "@/lib/operators";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 

@@ -4,11 +4,11 @@
 // figures come from the same per-day rankings and cancelled count the day view
 // reads, through the same summary, so a column always says what `/?day=` does.
 
+import { RangeControls } from "@/components/date/RangeControls";
 import { CHART_FLOOR, DayChart } from "@/components/DayChart";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
-import { RangeControls } from "@/components/RangeControls";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SortHeader } from "@/components/SortHeader";
 import {
   getCancelledCount,
@@ -24,15 +24,15 @@ import {
   periodForCarriedDay,
   periodRangeNav,
   type RangeWindow,
-} from "@/lib/range-page";
-import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
+} from "@/lib/page/range";
 import {
   sortRows,
   tableSort,
   type SortColumn,
   type SortDir,
   type TableSort,
-} from "@/lib/table-sort";
+} from "@/lib/page/table-sort";
+import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { daySlot, type DaySlot } from "@/lib/time/day-series";
 import { requestServiceDay } from "@/lib/time/request-now";

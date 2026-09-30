@@ -12,7 +12,7 @@
 // carrying no `?day` at all. Under Cache Components that read is an unstable
 // value, and it aborted the static shell of every page calling one of these.
 
-import { resolveRequestedDay } from "@/lib/page-nav";
+import { resolveRequestedDay } from "@/lib/page/nav";
 import { clampServiceDate } from "@/lib/time/data-start";
 import { nzServiceDayString } from "@/lib/time/service-day";
 import { redirect } from "next/navigation";

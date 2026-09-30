@@ -149,7 +149,7 @@ export function runDeviationLevel(observations: TripObservation[]): number | nul
 /**
  * Median of a set of signed deviations: the element at `floor(n / 2)` of the
  * sorted list. The nightly pass computes the same element inside its pipeline
- * (see `ghostLevelStages` in ghost-pass.ts), so both paths agree on a run's
+ * (see `ghostLevelStages` in cron/ghost-pass.ts), so both paths agree on a run's
  * level.
  * @param deviations - Signed deviations, one per place.
  * @returns The median, or null when the set is empty.

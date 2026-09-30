@@ -13,7 +13,7 @@ import {
   hasSevereAlert,
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { NZ_TZ } from "@/lib/time/service-day";
 import Link from "next/link";
 import type { JSX } from "react";

@@ -1,9 +1,9 @@
 // src/app/shame/trip/page.tsx
 // Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
 
-import { FlameCount } from "@/components/FlameCount";
 import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
+import { FlameCount } from "@/components/shame/FlameCount";
 import {
   ShameBoard,
   ShameDayLabel,
@@ -31,7 +31,6 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
-import { boundFor } from "@/lib/departure-label";
 import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
 import {
   fillServiceHours,
@@ -41,9 +40,8 @@ import {
   resolveShownDay,
   serviceHourSpan,
   type HourSlot,
-} from "@/lib/page-nav";
-import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/nav";
+import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
   countById,
@@ -59,11 +57,13 @@ import {
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
-} from "@/lib/shame-page";
+} from "@/lib/page/shame";
+import { routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzClockTime, nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
 import { hoursInRange, type HourRange } from "@/lib/time/time-of-day";
+import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";

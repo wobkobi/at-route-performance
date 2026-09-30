@@ -2,7 +2,7 @@
 // Column heading that sorts its table by that column when pressed.
 
 import { cn } from "@/lib/cn";
-import type { SortDir } from "@/lib/table-sort";
+import type { SortDir } from "@/lib/page/table-sort";
 import Link from "next/link";
 import type { JSX } from "react";
 

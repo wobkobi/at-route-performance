@@ -5,14 +5,14 @@
 // questions - and that the probe is a real collection read, because a ping
 // answers while the read path behind it is degraded.
 import { GET } from "@/app/api/health/route";
-import { recentCleanupRuns, type RecordedCleanupRun } from "@/lib/cleanup";
+import { recentCleanupRuns, type RecordedCleanupRun } from "@/lib/cron/cleanup";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import pkg from "../../../../package.json";
 
 /** The collection read the probe sends. Hoisted so the module mock closes over it. */
 const findFirst = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
-vi.mock("@/lib/cleanup", () => ({ recentCleanupRuns: vi.fn() }));
+vi.mock("@/lib/cron/cleanup", () => ({ recentCleanupRuns: vi.fn() }));
 vi.mock("@/lib/db", () => ({ prisma: { route: { findFirst } } }));
 
 /** The probe's JSON body. */

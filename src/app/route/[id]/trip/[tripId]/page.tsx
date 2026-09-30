@@ -2,14 +2,13 @@
 // Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
 
 import { ChevronLeft } from "@/components/icons";
-import { MapMarkKey, StopDotKey } from "@/components/MapLegend";
+import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
+import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
-import StopMapWrapper from "@/components/StopMapWrapper";
-import { TripCancellationNote } from "@/components/TripCancellationNote";
-import { TripDetourNote } from "@/components/TripDetourNote";
-import { TripGhostRunNote } from "@/components/TripGhostRunNote";
-import { TripLine } from "@/components/TripLine";
-import { arrivedBeforeFlag, cancellationStage } from "@/lib/cancellation";
+import { TripCancellationNote } from "@/components/trip/TripCancellationNote";
+import { TripDetourNote } from "@/components/trip/TripDetourNote";
+import { TripGhostRunNote } from "@/components/trip/TripGhostRunNote";
+import { TripLine } from "@/components/trip/TripLine";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
@@ -26,8 +25,8 @@ import {
 } from "@/lib/data";
 import { formatGtfsTime } from "@/lib/format";
 import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
-import { routeSlug } from "@/lib/route-slug";
-import { buildRouteView, type MapStop } from "@/lib/route-view";
+import { routeSlug } from "@/lib/route/slug";
+import { buildRouteView, type MapStop } from "@/lib/route/view";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
   afterMidnightNote,
@@ -38,8 +37,9 @@ import {
   nzServiceDayString,
   serviceDayLabel,
 } from "@/lib/time/service-day";
-import { tripBoardView } from "@/lib/trip-board";
-import { buildTripLine } from "@/lib/trip-line";
+import { tripBoardView } from "@/lib/trip/board";
+import { arrivedBeforeFlag, cancellationStage } from "@/lib/trip/cancellation";
+import { buildTripLine } from "@/lib/trip/line";
 import { buildHref } from "@/lib/utils";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
@@ -156,9 +156,9 @@ export default async function TripPage({
   const linkD = d ?? day?.start.toISOString() ?? null;
 
   // Cancellation: the recorded arrivals against AT's flag tell a trip that never
-  // ran from one cut short or reinstated (see lib/cancellation.ts). A trip that
-  // stopped reporting at the flag can leave one predicted arrival past it that
-  // the vehicle never made, so for those stages it is not a served stop.
+  // ran from one cut short or reinstated (see lib/trip/cancellation.ts). A trip
+  // that stopped reporting at the flag can leave one predicted arrival past it
+  // that the vehicle never made, so for those stages it is not a served stop.
   /**
    * When the vehicle reached a recorded stop.
    * @param s - A recorded stop.

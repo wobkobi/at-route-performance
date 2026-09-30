@@ -15,8 +15,8 @@ caps cron jobs at 2/day, and this project needs four — one of them every coupl
 
 ## Auth
 
-Every ingest route checks `Authorization: Bearer <CRON_SECRET>` (see `src/lib/auth.ts`). In each
-cron-job.org job, add a request header:
+Every ingest route checks `Authorization: Bearer <CRON_SECRET>` (see `src/lib/cron/auth.ts`). In
+each cron-job.org job, add a request header:
 
 ```
 Authorization: Bearer <CRON_SECRET>
@@ -78,9 +78,9 @@ irreversible and the rollup reads the events the cleanup then removes.
   `MIN_SIGHTINGS` (2, `src/lib/off-route.ts`) readings off-route - at five minutes a detour has to
   last ten. And three constants are pinned to the 120s cadence: `INGEST_INTERVAL_SEC`
   (`src/lib/feed/ingest-run.ts`), the client `staleTimes.dynamic` (`next.config.ts`) and the
-  footer's `REFRESH_MS` (`src/components/DataFreshness.tsx`). Change the schedule without them and
-  the footer shows "update due now" for most of every gap. If invocations must come down, move those
-  four together and accept the coarser figures.
+  footer's `REFRESH_MS` (`src/components/layout/DataFreshness.tsx`). Change the schedule without
+  them and the footer shows "update due now" for most of every gap. If invocations must come down,
+  move those four together and accept the coarser figures.
 - **A failure notice from cron-job.org on the realtime job is usually not a failure.** Of 8,617
   polls to 22 Sep 2026, none failed server-side, but 337 (3.9%) ran past the scheduler's 30s drop
   and 35 past 60s - the poll finishes and records its `IngestRun` regardless. Check the endpoint's
@@ -91,7 +91,7 @@ irreversible and the rollup reads the events the cleanup then removes.
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
 - The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders
   every page with a day stepper after the response, three at a time (`PAGE_CONCURRENCY`). The list
-  is `DAY_PAGES` in `src/lib/warm.ts` - home, the three shame boards, rankings, vehicles and
+  is `DAY_PAGES` in `src/lib/cron/warm.ts` - home, the three shame boards, rankings, vehicles and
   cancellations - across the last `WARM_DAYS` (7) completed days, never before the archive starts.
   Adding a day-stepper page to the site means adding it there too, or its first reader each day pays
   for the cold render. It records no IngestRun; its outcome is the `[WARM] Pages warmed` or
@@ -111,11 +111,11 @@ irreversible and the rollup reads the events the cleanup then removes.
   geometry does not "rarely change": the nine `IngestRun` rows for 11-19 September record 44,925
   shapes to the 13th, 50,293 on the 14th and 50,269 from the 16th - two changes in nine days, one of
   them 12% - and every run succeeded in 8 to 29 seconds. A weekly schedule would carry stale
-  geometry for up to seven days after each change, and that degrades silently: `route-view.ts` falls
-  back to straight stop-to-stop lines wherever a shape is missing. It also stores each trip's
-  `shapeId`, which the realtime job measures vehicles against to spot detours; until it has run, the
-  realtime job matches a trip to its shape by id prefix instead, which is close but can pick between
-  up to three variants.
+  geometry for up to seven days after each change, and that degrades silently:
+  `src/lib/route/view.ts` falls back to straight stop-to-stop lines wherever a shape is missing. It
+  also stores each trip's `shapeId`, which the realtime job measures vehicles against to spot
+  detours; until it has run, the realtime job matches a trip to its shape by id prefix instead,
+  which is close but can pick between up to three variants.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
 - `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for

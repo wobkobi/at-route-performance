@@ -4,9 +4,9 @@
 import { getOperators } from "@/lib/data/operators";
 import { getRouteOperators } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
+import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { type Operator, operatorOf } from "@/lib/operators";
-import { routeSlug } from "@/lib/route-slug";
-import { getLiveVehicles } from "@/lib/vehicles";
+import { routeSlug } from "@/lib/route/slug";
 import { NextResponse } from "next/server";
 
 /**

@@ -2,9 +2,9 @@
 // A LIVE badge for a vehicle on a run right now. Awaits the live set inside its
 // own Suspense boundary per row, so a board never waits on AT's realtime feed.
 
-import { routeSlug } from "@/lib/route-slug";
-import { liveRunHref } from "@/lib/vehicle-detail";
-import type { LiveVehicle } from "@/lib/vehicles";
+import type { LiveVehicle } from "@/lib/feed/vehicles";
+import { routeSlug } from "@/lib/route/slug";
+import { liveRunHref } from "@/lib/vehicle/detail";
 import Link from "next/link";
 import { type JSX, Suspense } from "react";
 

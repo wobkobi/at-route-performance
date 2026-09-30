@@ -4,11 +4,11 @@
 // lib/operator-stats.ts), so the table adds no query of its own beyond the
 // fleet count the Vehicles page already caches.
 
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
+import { RangeControls } from "@/components/date/RangeControls";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
-import { RangeControls } from "@/components/RangeControls";
 import { SchoolAdded } from "@/components/SchoolAdded";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import { SortHeader } from "@/components/SortHeader";
 import { cn } from "@/lib/cn";
 import {
@@ -26,11 +26,11 @@ import { formatDuration } from "@/lib/format";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
 import { operatorHref, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/range-page";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import { dayRangeNav, parseRangeWindow, periodRangeNav, type RangeNav } from "@/lib/page/range";
+import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
-import { sortRows, tableSort, type SortColumn } from "@/lib/table-sort";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";

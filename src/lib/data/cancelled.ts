@@ -1,12 +1,11 @@
 // src/lib/data/cancelled.ts
 // Cancellations: per-route lists, counts and the most-cancelled board.
-import { cancellationStage, type CancellationStage } from "@/lib/cancellation";
 import { cachedForDay, cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -15,7 +14,8 @@ import {
   serviceDayClockInstant,
   serviceDayScanRange,
 } from "@/lib/time/service-day";
-import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip-id";
+import { cancellationStage, type CancellationStage } from "@/lib/trip/cancellation";
+import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip/id";
 
 /** A trip cancelled on a route for a service day, for the trip board. */
 export interface CancelledTripRow {

@@ -1,9 +1,9 @@
 // src/app/shame/route/page.tsx
 // Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
 
-import { FlameCount } from "@/components/FlameCount";
 import { LoadingBlock } from "@/components/Loading";
 import { ModeIcon } from "@/components/ModeIcon";
+import { FlameCount } from "@/components/shame/FlameCount";
 import {
   ShameBoard,
   ShameDayLabel,
@@ -40,7 +40,7 @@ import {
   resolveShownDay,
   serviceHourSpan,
   type HourSlot,
-} from "@/lib/page-nav";
+} from "@/lib/page/nav";
 import {
   dayRangeNav,
   periodInPhrase,
@@ -48,8 +48,7 @@ import {
   routeLinkQuery,
   weekPeriodOf,
   windowPhrase,
-} from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/range";
 import {
   buildShameHref,
   countById,
@@ -66,7 +65,8 @@ import {
   WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
-} from "@/lib/shame-page";
+} from "@/lib/page/shame";
+import { routeSlug } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";

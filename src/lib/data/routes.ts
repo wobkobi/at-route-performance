@@ -8,8 +8,8 @@ import {
   directoryLineageRows,
   predecessorSlugs,
   successorSlug,
-} from "@/lib/route-lineage";
-import { routeSlug, routeVersion } from "@/lib/route-slug";
+} from "@/lib/route/lineage";
+import { routeSlug, routeVersion } from "@/lib/route/slug";
 
 /**
  * Every AT route id sharing one slug - the same route across feed-version

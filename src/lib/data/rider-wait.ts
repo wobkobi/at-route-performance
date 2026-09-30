@@ -17,7 +17,7 @@ import {
   type Penalty,
   type TripPenalty,
 } from "@/lib/rider-wait";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
 import type { HourRange } from "@/lib/time/time-of-day";
 

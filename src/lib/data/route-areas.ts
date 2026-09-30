@@ -4,13 +4,13 @@
 // come from what each route actually served instead: the (route, stop) pairs in
 // ArrivalEvent over the last week of completed service days. A week catches
 // weekend-only and weekday-only services alike.
-import { type AreaKey, routeAreas } from "@/lib/areas";
 import { cachedForDay } from "@/lib/data/cache";
 import { prisma, runCommand } from "@/lib/db";
-import { routeFareZones } from "@/lib/fare-zone-geo";
-import type { FareZoneKey } from "@/lib/fare-zones";
+import { type AreaKey, routeAreas } from "@/lib/geo/areas";
+import { routeFareZones } from "@/lib/geo/fare-zone-geo";
+import type { FareZoneKey } from "@/lib/geo/fare-zones";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route-slug";
+import { routeSlug } from "@/lib/route/slug";
 import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
 
 /** Completed service days the areas are drawn from. */

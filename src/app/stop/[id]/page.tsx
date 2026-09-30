@@ -10,13 +10,13 @@
 // at once, so the board asks once.
 
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/DayNav";
+import { DayNav } from "@/components/date/DayNav";
 import { ChevronLeft } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
-import { StopDotKey } from "@/components/MapLegend";
+import { StopDotKey } from "@/components/map/MapLegend";
+import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RankBoard } from "@/components/RankBoard";
-import StopMapWrapper from "@/components/StopMapWrapper";
+import { RankBoard } from "@/components/ranking/RankBoard";
 import { StopSchedule } from "@/components/StopSchedule";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
@@ -30,8 +30,6 @@ import {
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
-import { fareZonesOf } from "@/lib/fare-zone-geo";
-import { FARE_ZONE_LABEL } from "@/lib/fare-zones";
 import {
   alertsForStop,
   getServiceAlerts,
@@ -45,10 +43,12 @@ import {
   offScheduleValue,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
+import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/page/range";
 import { serviceClockNow } from "@/lib/stop/departure-board";
 import { dominantStopMode, stopGrain } from "@/lib/stop/grain";
 import {

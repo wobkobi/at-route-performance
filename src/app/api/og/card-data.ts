@@ -3,7 +3,6 @@
 // queries, the same thresholds and the same shown day (see resolveShownDay),
 // so a card never prints a figure its page would not.
 
-import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/cancellation";
 import type { NetworkCancelledTrip } from "@/lib/data";
 import {
   findCanonicalRouteSlug,
@@ -27,14 +26,12 @@ import {
   getWorstStopsOfWeek,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { boundFor } from "@/lib/departure-label";
 import {
   formatDuration,
   formatGtfsTime,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
 } from "@/lib/format";
-import { lineName } from "@/lib/line-name";
 import {
   cardFilterLabel,
   monthLabel,
@@ -46,13 +43,14 @@ import {
   type TripCard,
 } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { filterLiveHours, resolveShownDay } from "@/lib/page-nav";
-import { periodRangeNav } from "@/lib/range-page";
+import { filterLiveHours, resolveShownDay } from "@/lib/page/nav";
+import { periodRangeNav } from "@/lib/page/range";
+import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/page/shame";
 import { summariseRows, visibleRows } from "@/lib/rankings";
-import { routeSlug } from "@/lib/route-slug";
-import { aggregateWeek } from "@/lib/route-week";
+import { lineName } from "@/lib/route/line-name";
+import { routeSlug } from "@/lib/route/slug";
+import { aggregateWeek } from "@/lib/route/week";
 import { schoolAllows } from "@/lib/school-bus";
-import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/shame-page";
 import {
   nzClockTime,
   nzHourLabel,
@@ -65,6 +63,8 @@ import {
   weekRangeLabel,
   type DateRange,
 } from "@/lib/time/service-day";
+import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/trip/cancellation";
+import { boundFor } from "@/lib/trip/departure-label";
 import { dayVerdict } from "@/lib/verdict";
 import type { FleetSummary, ShameRouteRow, ShameTrip } from "@/types/dashboard";
 import type { SubjectBodyProps } from "./card-layout";

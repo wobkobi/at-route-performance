@@ -2,10 +2,10 @@
 // The home page's narrowing filters - time of day, day type and area - as one
 // value: read from the URL, carried on links, and applied to ranking rows and
 // cancellation lists. Mode, school services and delay direction stay where they
-// were (lib/filter-params.ts); these sit beside them.
+// were (lib/page/filter-params.ts); these sit beside them.
 
-import { isAreaKey, type AreaKey } from "@/lib/areas";
-import { routeSlug } from "@/lib/route-slug";
+import { isAreaKey, type AreaKey } from "@/lib/geo/areas";
+import { routeSlug } from "@/lib/route/slug";
 import {
   DAYS_PARAM,
   dayTypeLabel,

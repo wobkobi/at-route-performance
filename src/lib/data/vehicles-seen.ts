@@ -24,7 +24,7 @@ import {
   countVehicles,
   mergeVehicles,
   vehiclesByMode,
-} from "@/lib/vehicle-counts";
+} from "@/lib/vehicle/counts";
 
 /** A completed day's union only changes when a new day completes. */
 const COMPLETED_DAYS_REVALIDATE = 86_400;

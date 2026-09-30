@@ -7,7 +7,7 @@
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { nzClockTime, nzServiceDayRange, serviceDayClockInstant } from "@/lib/time/service-day";
-import { tripIdStartSeconds } from "@/lib/trip-id";
+import { tripIdStartSeconds } from "@/lib/trip/id";
 
 /** One hidden run, for the trip page. */
 export interface GhostRunRow {

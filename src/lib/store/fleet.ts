@@ -4,7 +4,7 @@
 // since arrival rows carry only the feed id.
 
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
-import type { FleetEntry } from "@/lib/vehicles";
+import type { FleetEntry } from "@/lib/feed/vehicles";
 
 /** A vehicle as the register holds it. */
 export interface FleetVehicle {

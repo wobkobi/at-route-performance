@@ -12,10 +12,12 @@
 // streaming it in shoved the whole dashboard down as the reader arrived.
 
 import { AlertBanner } from "@/components/AlertBanner";
-import { DelayFilter } from "@/components/DelayFilter";
-import { FleetSummary } from "@/components/FleetSummary";
+import { RangeControls } from "@/components/date/RangeControls";
+import { DelayFilter } from "@/components/filter/DelayFilter";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
+import { FleetSummary } from "@/components/ranking/FleetSummary";
 import {
   loadPeriodBatch,
   PeriodBoards,
@@ -25,18 +27,16 @@ import {
   PeriodTripCard,
   PeriodVerdict,
   type PeriodView,
-} from "@/components/PeriodOverview";
-import { RangeControls } from "@/components/RangeControls";
-import { RankBoard } from "@/components/RankBoard";
-import { RankingFilterMenus } from "@/components/RankingFilterMenus";
-import { RankingFiltersNote } from "@/components/RankingFiltersNote";
-import { RankingsHeader } from "@/components/RankingsHeader";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
+} from "@/components/ranking/PeriodOverview";
+import { RankBoard } from "@/components/ranking/RankBoard";
+import { RankingFilterMenus } from "@/components/ranking/RankingFilterMenus";
+import { RankingFiltersNote } from "@/components/ranking/RankingFiltersNote";
+import { RankingsHeader } from "@/components/ranking/RankingsHeader";
+import { WorstRouteCard } from "@/components/ranking/WorstRouteCard";
+import { WorstStopCard } from "@/components/ranking/WorstStopCard";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
-import { WorstRouteCard } from "@/components/WorstRouteCard";
-import { WorstStopCard } from "@/components/WorstStopCard";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
@@ -55,9 +55,9 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
-import { preservedFilters } from "@/lib/filter-params";
 import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
-import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { preservedFilters } from "@/lib/page/filter-params";
+import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   overviewHeading,
@@ -66,7 +66,9 @@ import {
   routeLinkQuery,
   weekPeriodOf,
   windowPhrase,
-} from "@/lib/range-page";
+} from "@/lib/page/range";
+import { parseRankingsParams } from "@/lib/page/rankings";
+import { buildShameHref, crownedRow, crownedTop } from "@/lib/page/shame";
 import {
   hasRankingFilters,
   parseRankingFilters,
@@ -81,8 +83,7 @@ import {
   summariseRows,
   type DelayDirection,
 } from "@/lib/rankings";
-import { parseRankingsParams } from "@/lib/rankings-page";
-import { viewQuery } from "@/lib/route-explorer";
+import { viewQuery } from "@/lib/route/explorer";
 import {
   isSchoolBus,
   parseSchoolFilter,
@@ -91,7 +92,6 @@ import {
   schoolFilterParam,
   type SchoolFilter,
 } from "@/lib/school-bus";
-import { buildShameHref, crownedRow, crownedTop } from "@/lib/shame-page";
 import { DATA_START_DAY, DATA_START_LABEL } from "@/lib/time/data-start";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow, requestServiceDay } from "@/lib/time/request-now";

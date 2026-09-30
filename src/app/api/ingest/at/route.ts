@@ -13,7 +13,7 @@
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
-import { requireCronAuth } from "@/lib/auth";
+import { requireCronAuth } from "@/lib/cron/auth";
 import {
   DUPLICATE_KEY,
   isDatabaseUnreachableError,
@@ -32,11 +32,11 @@ import {
   spoolWrites,
   type SpooledWrite,
 } from "@/lib/feed/ingest-spool";
+import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/feed/vehicles";
 import { recordFleet } from "@/lib/store/fleet";
 import { recordOffRouteSightings } from "@/lib/store/off-route";
 import { recordStopClosures } from "@/lib/store/stop-closures";
 import { cancelledServiceDate, runServiceDate } from "@/lib/time/run-day";
-import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 

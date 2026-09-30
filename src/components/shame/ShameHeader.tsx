@@ -3,14 +3,14 @@
 // controls every other range page uses, the Trips/Routes/Stops tabs, and the
 // mode and school chips.
 
-import { DelayFilter } from "@/components/DelayFilter";
+import { RangeControls } from "@/components/date/RangeControls";
+import { DelayFilter } from "@/components/filter/DelayFilter";
+import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronLeft } from "@/components/icons";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
-import { RangeControls } from "@/components/RangeControls";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
 import type { FilterUsage } from "@/lib/data/filter-usage";
-import { preservedFilters } from "@/lib/filter-params";
-import type { RangeNav } from "@/lib/range-page";
+import { preservedFilters } from "@/lib/page/filter-params";
+import type { RangeNav } from "@/lib/page/range";
 import type { DelayDirection } from "@/lib/rankings";
 import { type SchoolFilter } from "@/lib/school-bus";
 import Link from "next/link";
@@ -27,8 +27,8 @@ const TABS: ReadonlyArray<{ key: ShameTab; label: string }> = [
 
 /**
  * The mode and school controls for a shame board. Every shame link carries
- * `mode` and `school` - `site-nav.ts` puts them on the nav and `buildShameHref`
- * keeps them on every internal link - and the subtitle names the active one, so
+ * `mode` and `school` - `lib/page/site-nav.ts` puts them on the nav and
+ * `buildShameHref` keeps them on every internal link - and the subtitle names the active one, so
  * without these a reader arrives filtered with no way to widen back out.
  */
 export interface ShameFilterControls {

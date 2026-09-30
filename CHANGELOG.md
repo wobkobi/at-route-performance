@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.1] - 2026-09-30
+
+### Changed
+
+- More of the code is sorted into folders by job: the nightly and scheduled jobs, vehicles, trips,
+  routes, page and link handling, and regions and fare zones on the helper side, and the layout,
+  filters, date controls, maps, trips, routes, rankings and cancellations on the component side.
+  Nothing on the site changes.
+
 ## [2.41.0] - 2026-09-30
 
 ### Added

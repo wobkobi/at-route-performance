@@ -1,6 +1,6 @@
 // src/app/api/ingest/cleanup/route.ts
 // Cron-only POST that permanently deletes ArrivalEvents, TripDelays and
-// off-route sightings older than the retention window (see lib/cleanup.ts).
+// off-route sightings older than the retention window (see lib/cron/cleanup.ts).
 // Must run after the daily aggregation, since deletion is irreversible.
 //
 // Refusals split by whether they need the database. A missing RETENTION_DAYS or
@@ -10,7 +10,7 @@
 // 30s timeout - so those refusals land on IngestRun with success: false, which
 // is the only field anything alerts on.
 
-import { requireCronAuth } from "@/lib/auth";
+import { requireCronAuth } from "@/lib/cron/auth";
 import {
   buildCleanupPlan,
   checkCleanupPlan,
@@ -23,7 +23,7 @@ import {
   runCleanup,
   type CleanupParams,
   type CleanupRunDetail,
-} from "@/lib/cleanup";
+} from "@/lib/cron/cleanup";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { after, NextResponse } from "next/server";
 

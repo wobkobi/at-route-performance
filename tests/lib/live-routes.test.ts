@@ -1,5 +1,6 @@
 // tests/lib/live-routes.test.ts
 // Unit tests for the fold of the live vehicle feed into routes running now.
+import type { LiveVehicle } from "@/lib/feed/vehicles";
 import {
   liveRouteSlugs,
   liveRoutes,
@@ -7,7 +8,6 @@ import {
   mapVehicles,
   parseLiveSort,
 } from "@/lib/live-routes";
-import type { LiveVehicle } from "@/lib/vehicles";
 import { describe, expect, it } from "vitest";
 
 /**

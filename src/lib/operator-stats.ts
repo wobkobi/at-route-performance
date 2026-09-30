@@ -5,8 +5,8 @@
 // its days.
 import { type Operator, operatorOf } from "@/lib/operators";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { routeSlug } from "@/lib/route-slug";
-import type { VehicleTotal } from "@/lib/vehicle-rank";
+import { routeSlug } from "@/lib/route/slug";
+import type { VehicleTotal } from "@/lib/vehicle/rank";
 import type { TopRouteRow } from "@/types/api";
 
 /** One operator's figures over a window. */

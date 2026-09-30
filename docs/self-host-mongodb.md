@@ -292,7 +292,7 @@ and `refused` - so start there rather than in the logs. Then:
    nightly run refuses again.
 2. **`below the 365-day floor`** (a 400, nothing recorded). Someone set a short window. Correct the
    variable. If the archive really is meant to shrink, move `MIN_SAFE_RETENTION_DAYS` in
-   `src/lib/cleanup.ts` deliberately, in its own commit.
+   `src/lib/cron/cleanup.ts` deliberately, in its own commit.
 3. **`over the 2% ceiling`** (recorded, `success: false`). The window moved, or a large backfill
    landed outside it. Check the `[CLEANUP] plan` log line for `doomedEvents` against `totalEvents`.
    Re-run with `?dryRun=1` first; only pass `?force=1` once the count is one you meant.

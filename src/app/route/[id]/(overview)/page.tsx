@@ -10,19 +10,19 @@
 // everything below it down as the reader arrived.
 // The week view skips the expensive trips query and the live vehicle fetch.
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/DayNav";
-import { DirectionFilter } from "@/components/DirectionFilter";
+import { DayNav } from "@/components/date/DayNav";
+import { StepPending } from "@/components/date/StepPending";
+import { DirectionFilter } from "@/components/filter/DirectionFilter";
+import { TimeOfDayFilter } from "@/components/filter/TimeOfDayFilter";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
+import { RouteMapDiagram } from "@/components/map/RouteMapDiagram";
 import { ModeIcon } from "@/components/ModeIcon";
 import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RouteMapDiagram } from "@/components/RouteMapDiagram";
-import { RouteStrip } from "@/components/RouteStrip";
-import { RouteWeekSummary } from "@/components/RouteWeekSummary";
+import { RouteStrip } from "@/components/route/RouteStrip";
+import { RouteWeekSummary } from "@/components/route/RouteWeekSummary";
 import { SortHeader } from "@/components/SortHeader";
-import { StepPending } from "@/components/StepPending";
-import { TimeOfDayFilter } from "@/components/TimeOfDayFilter";
-import { WorstTripsBoard } from "@/components/WorstTripsBoard";
+import { WorstTripsBoard } from "@/components/trip/WorstTripsBoard";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -50,20 +50,21 @@ import {
   getUpcomingAlerts,
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
+import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
 import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
-import { lineName } from "@/lib/line-name";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page-nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/range-page";
+import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
+import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
+import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { withTripPenalty } from "@/lib/rider-wait";
-import { routeSlug } from "@/lib/route-slug";
-import { buildRouteView, type RouteView } from "@/lib/route-view";
-import { aggregateWeek } from "@/lib/route-week";
+import { lineName } from "@/lib/route/line-name";
+import { routeSlug } from "@/lib/route/slug";
+import { buildRouteView, type RouteView } from "@/lib/route/view";
+import { aggregateWeek } from "@/lib/route/week";
 import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
-import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/table-sort";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time/service-day";
@@ -74,10 +75,9 @@ import {
   TIME_PRESETS,
   type HourRange,
 } from "@/lib/time/time-of-day";
-import { buildTripBoardRows, sortRuns } from "@/lib/trip-board";
+import { buildTripBoardRows, sortRuns } from "@/lib/trip/board";
 import { buildHref } from "@/lib/utils";
 import { routeStatsQuery } from "@/lib/validate";
-import { getLiveVehicles, type LiveVehicle } from "@/lib/vehicles";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";

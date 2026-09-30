@@ -224,7 +224,7 @@ export function serviceDayClockInstant(serviceDayStart: Date, seconds: number): 
  * schedule reads back the seconds its trip id encodes. A post-midnight instant
  * gives a value past 86,400 and is left unwrapped, because the caller decides
  * whether to compare it plainly or circularly (see `anchorGapSec` in
- * ghost-pass.ts).
+ * cron/ghost-pass.ts).
  * @param serviceDayStart - The service day's start instant, as stored.
  * @param at - An instant inside that service day.
  * @returns Seconds since the GTFS reference for that instant.
