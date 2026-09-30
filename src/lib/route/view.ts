@@ -9,6 +9,7 @@
 // diagram shows branches rather than duplicate panels. The static shape depends
 // only on the schedule, so it is cached for 24 h; only the day's delay colouring
 // is recomputed per request.
+import { pushTo } from "@/lib/collections";
 import { getRecentStopIds } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { offsetPath } from "@/lib/map/route-geo";
@@ -275,9 +276,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
     const first = d.variants[0]?.stopIds[0] ?? "";
     const last = d.variants[0]?.stopIds.at(-1) ?? "";
     const tKey = `${first}::${last}`;
-    const group = byTerminals.get(tKey);
-    if (group) group.push(dir);
-    else byTerminals.set(tKey, [dir]);
+    pushTo(byTerminals, tKey, dir);
   }
   for (const group of byTerminals.values()) {
     if (group.length < 2) continue;

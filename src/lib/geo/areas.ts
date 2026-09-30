@@ -9,6 +9,8 @@
 // across a line can land in the neighbouring area), which is why a route needs
 // more than one stop in an area to count as serving it.
 
+import { countBy } from "@/lib/collections";
+
 /** An area key. */
 export type AreaKey =
   "central" | "north" | "west" | "east" | "south" | "hibiscus-rodney" | "waiheke";
@@ -83,11 +85,7 @@ export function areaOf(lat: number, lon: number): AreaKey {
  */
 export function routeAreas(stops: ReadonlyArray<{ lat: number; lon: number }>): AreaKey[] {
   if (stops.length === 0) return [];
-  const counts = new Map<AreaKey, number>();
-  for (const s of stops) {
-    const key = areaOf(s.lat, s.lon);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
+  const counts = countBy(stops, (s) => areaOf(s.lat, s.lon));
   const served = AREAS.map((a) => a.key).filter((key) => {
     const n = counts.get(key) ?? 0;
     return n >= 2 || n / stops.length >= 0.25;

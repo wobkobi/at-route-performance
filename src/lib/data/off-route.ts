@@ -1,6 +1,7 @@
 // src/lib/data/off-route.ts
 // Detours read back: the stored off-route readings, kept only where the trip's
 // own arrivals bracket them (see confirmedDetour in lib/off-route.ts).
+import { pushTo } from "@/lib/collections";
 import { cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
@@ -29,7 +30,7 @@ async function arrivalsByTrip(tripIds: string[], range: DateRange): Promise<Map<
   const out = new Map<string, string[]>();
   for (const e of events) {
     if (e.ghost === true) continue;
-    out.set(e.tripId, [...(out.get(e.tripId) ?? []), e.actualAt.toISOString()]);
+    pushTo(out, e.tripId, e.actualAt.toISOString());
   }
   return out;
 }
@@ -86,7 +87,7 @@ export async function getDetouredTripIds(routeId: string, range: DateRange): Pro
       const byTrip = new Map<string, Sighting[]>();
       for (const r of rows) {
         const s = { at: r.seenAt.toISOString(), lat: r.lat, lon: r.lon, distanceM: r.distanceM };
-        byTrip.set(r.tripId, [...(byTrip.get(r.tripId) ?? []), s]);
+        pushTo(byTrip, r.tripId, s);
       }
       const candidates = [...byTrip].filter(([, s]) => s.length >= MIN_SIGHTINGS).map(([t]) => t);
       if (candidates.length === 0) return [];

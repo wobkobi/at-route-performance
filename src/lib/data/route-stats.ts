@@ -1,5 +1,6 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
+import { groupBy } from "@/lib/collections";
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
@@ -340,8 +341,7 @@ function weightedDayField(
  * @returns One row per date, newest first.
  */
 function mergeRouteDays(rows: readonly RouteDay[]): RouteDay[] {
-  const byDate = new Map<string, RouteDay[]>();
-  for (const row of rows) byDate.set(row.date, [...(byDate.get(row.date) ?? []), row]);
+  const byDate = groupBy(rows, (r) => r.date);
   return [...byDate.entries()]
     .map(([date, group]) => ({
       date,

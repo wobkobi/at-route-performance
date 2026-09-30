@@ -8,6 +8,7 @@
 // nothing. The penalty joins the measured arrivals in every punctuality figure
 // that reads route rows (see applyPenalty).
 
+import { median, pushTo } from "@/lib/collections";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { successorSlug } from "@/lib/route/lineage";
 import { routeSlug } from "@/lib/route/slug";
@@ -75,20 +76,6 @@ export interface FlaggedTripPenalty extends TripPenalty {
 }
 
 /**
- * The median of a list of counts.
- * @param values - The counts.
- * @returns The median rounded to a whole stop, or null for an empty list.
- */
-function medianCount(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const value =
-    sorted.length % 2 === 1 ? sorted[mid] : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
-  return Math.round(value ?? 0);
-}
-
-/**
  * The rider-wait penalty of a day's cancellations, per route and per trip. The
  * next trip is the first run of the same route and direction scheduled after the
  * flagged one (any direction when the flag's is unknown); a trip's stop count is
@@ -106,7 +93,7 @@ export function riderWaitPenalties(
   const groups = new Map<string, DayRun[]>();
   for (const r of runs) {
     for (const key of [`${r.route}|${r.direction ?? "?"}`, `${r.route}|*`]) {
-      groups.set(key, [...(groups.get(key) ?? []), r]);
+      pushTo(groups, key, r);
     }
   }
   const runById = new Map(runs.map((r) => [r.tripId, r]));
@@ -124,8 +111,10 @@ export function riderWaitPenalties(
       (f.direction !== null ? groups.get(`${f.route}|${f.direction}`) : undefined) ??
       groups.get(`${f.route}|*`);
     const others = (group ?? []).filter((r) => !flaggedIds.has(r.tripId));
-    const median = medianCount(others.map((r) => r.stops));
-    if (median === null) continue;
+    const mid = median(others.map((r) => r.stops));
+    if (mid === null) continue;
+    // Rounded to a whole stop.
+    const stopCount = Math.round(mid);
     const next = others
       .map((r) => r.start)
       .filter((s) => s > start)
@@ -133,7 +122,7 @@ export function riderWaitPenalties(
     const waitSec =
       next === undefined ? WAIT_CAP_SEC : Math.min(WAIT_CAP_SEC, (next - start) / 1000);
     const served = f.stage === "mid-trip" ? (runById.get(f.tripId)?.stops ?? 0) : 0;
-    const events = Math.max(0, median - served);
+    const events = Math.max(0, stopCount - served);
     if (events === 0) continue;
     trips[f.tripId] = { waitSec, events, route: f.route, start };
     const p = (routes[f.route] ??= { events: 0, delaySec: 0, lateEvents: 0 });

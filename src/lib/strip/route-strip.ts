@@ -4,6 +4,7 @@
 // on a track beside it. Pure and client-safe, with plain JSON out (no Map or Set), since the diagram
 // is partly a client component. The line's geometry is built here too, once: every piece is drawn
 // exactly once, carries the versions that run along it, and meets its neighbours exactly.
+import { pushTo } from "@/lib/collections";
 import { roundTenth } from "@/lib/stats";
 import type { StripBypass, StripMarks, StripSpan } from "@/lib/strip/marks";
 import type { StopFigure, StopFigures, VersionVariant } from "@/lib/strip/stop-split";
@@ -771,7 +772,7 @@ function assignLanes(
   const claim = (min: number, lo: number, hi: number): number => {
     let lane = Math.max(1, min);
     while (!free(lane, lo, hi)) lane++;
-    occupied.set(lane, [...(occupied.get(lane) ?? []), [lo, hi]]);
+    pushTo(occupied, lane, [lo, hi]);
     return lane;
   };
 
@@ -806,7 +807,7 @@ function assignLanes(
       track = attach;
       if (run.kind === "head") track.top = run.keys[0]!;
       else track.bottom = run.keys.at(-1)!;
-      if (track.lane > 0) occupied.set(track.lane, [...(occupied.get(track.lane) ?? []), [lo, hi]]);
+      if (track.lane > 0) pushTo(occupied, track.lane, [lo, hi]);
     } else {
       track = { lane: claim(1, lo, hi), top: run.keys[0]!, bottom: run.keys.at(-1)! };
     }
@@ -920,7 +921,7 @@ function unionSegments(
     // Every straight segment runs downward: y1 < y2.
     const down = s.y1 < s.y2 ? s : { ...s, x1: s.x2, y1: s.y2, x2: s.x1, y2: s.y1 };
     const key = `${down.mark ?? ""}:${lineKey(down)}`;
-    lines.set(key, [...(lines.get(key) ?? []), down]);
+    pushTo(lines, key, down);
   }
 
   const out: StripSegment[] = [...arcs.values()];
@@ -1529,7 +1530,7 @@ function chainPieces(segs: readonly StripSegment[]): StripPiece[] {
   segs.forEach((_, i) => {
     for (const end of [0, 1] as const) {
       const k = pointKey(...at(i, end));
-      ends.set(k, [...(ends.get(k) ?? []), { seg: i, end }]);
+      pushTo(ends, k, { seg: i, end });
     }
   });
   /**

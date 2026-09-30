@@ -2,6 +2,7 @@
 // The service date one run belongs to. Every reading of a run must carry one
 // day, even when the run crosses the boundary hour, so the day is derived once
 // per run at ingest and stamped on every row. Pure: no database, no clock.
+import { groupBy } from "@/lib/collections";
 import type { Trip } from "@/lib/feed/at";
 import {
   dashedDate,
@@ -88,12 +89,7 @@ export function foldRunDates(
   rows: readonly RunRowDate[],
   tailHours: number = RUN_TAIL_HOURS,
 ): Map<string, string> {
-  const byTrip = new Map<string, RunRowDate[]>();
-  for (const row of rows) {
-    const list = byTrip.get(row.tripId);
-    if (list) list.push(row);
-    else byTrip.set(row.tripId, [row]);
-  }
+  const byTrip = groupBy(rows, (r) => r.tripId);
   const out = new Map<string, string>();
   for (const list of byTrip.values()) {
     const first = list.reduce((a, b) => (a.scheduledAt <= b.scheduledAt ? a : b));

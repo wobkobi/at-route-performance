@@ -3,6 +3,7 @@
 // which side of which row each one marks, the strands that go round them (rules 21-24 and 27), the
 // stretches of line no run uses, and the announced detours no run has shown yet (rule 28). Pure and
 // client-safe; lib/strip/view.ts words the notes.
+import { pushTo } from "@/lib/collections";
 import { bypassSpan, closedRuns, type RouteStrip, type StripSide } from "@/lib/strip/route-strip";
 import type { RouteVariant } from "@/types/api";
 
@@ -184,7 +185,7 @@ export function stripMarks(input: StripMarksInput): StripMarks {
   const rows = strip.rows.map((): StripMarks["rows"][number] => ({ down: null, up: null }));
   const rowsOfStop = new Map<string, number[]>();
   strip.rows.forEach((r, i) => {
-    for (const id of r.stopIds) rowsOfStop.set(id, [...(rowsOfStop.get(id) ?? []), i]);
+    for (const id of r.stopIds) pushTo(rowsOfStop, id, i);
   });
   /**
    * The side a direction reads on the strip.

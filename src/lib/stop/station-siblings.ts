@@ -1,3 +1,4 @@
+import { pushTo } from "@/lib/collections";
 // src/lib/stop/station-siblings.ts
 // Cross-links between the parents AT uses for one place. `station.ts` collapses
 // a parent's platforms into a single stop and deliberately stops there: two
@@ -109,9 +110,7 @@ export function siblingsByStation(places: readonly StationPlace[]): Map<string, 
   for (const p of places) {
     const key = placeOf(p.name).toLowerCase();
     if (key === "") continue;
-    const group = byPlace.get(key);
-    if (group) group.push(p);
-    else byPlace.set(key, [p]);
+    pushTo(byPlace, key, p);
   }
 
   const out = new Map<string, StationSiblings>();

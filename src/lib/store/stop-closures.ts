@@ -5,6 +5,7 @@
 // catches any failure, and each row carries its own evidence, so the next poll
 // makes up a failed one.
 
+import { pushTo } from "@/lib/collections";
 import { prisma } from "@/lib/db";
 import type { AtTripUpdates } from "@/lib/feed/at";
 import { getServiceAlerts } from "@/lib/feed/at-alerts";
@@ -79,8 +80,7 @@ export async function recordStopClosures(feed: AtTripUpdates, now = new Date()):
   // the ends of an open seen detour or the stops of an announced one, which is
   // what clears or disputes them.
   const readingsByTrip = new Map<string, typeof sightings>();
-  for (const s of sightings)
-    readingsByTrip.set(s.tripId, [...(readingsByTrip.get(s.tripId) ?? []), s]);
+  for (const s of sightings) pushTo(readingsByTrip, s.tripId, s);
   const sighted = [...readingsByTrip]
     .filter(([, list]) => list.length >= MIN_SIGHTINGS)
     .map(([tripId]) => tripId);

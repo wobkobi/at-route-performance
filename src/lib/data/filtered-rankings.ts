@@ -6,6 +6,7 @@
 // day's hours from HourlyRouteSummary, or scans the day live when it has no
 // hourly rows yet (today, or a day from before the hourly rollup existed).
 
+import { addTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { getRankings } from "@/lib/data/rankings";
@@ -342,7 +343,7 @@ export async function getFilteredCancellations(
     if (!t.school) withoutSchool++;
     if (!schoolAllows(base.schools, t.school)) continue;
     total++;
-    byRoute.set(t.slug, (byRoute.get(t.slug) ?? 0) + 1);
+    addTo(byRoute, t.slug);
   }
   return { total, withoutSchool, byRoute };
 }

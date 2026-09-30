@@ -5,6 +5,7 @@
 // bays and a reader at one bus pole were told the same thing about figures that
 // mean different things.
 
+import { sumBy } from "@/lib/collections";
 import { isMode, modeWord } from "@/lib/mode";
 import { platformNoun } from "@/lib/stop/station-platforms";
 
@@ -23,8 +24,11 @@ const STOP_NOUN: Record<string, string> = { BUS: "stop", TRAIN: "platform", FERR
 export function dominantStopMode(
   routes: readonly { mode: string; events: number }[],
 ): string | null {
-  const totals = new Map<string, number>();
-  for (const r of routes) totals.set(r.mode, (totals.get(r.mode) ?? 0) + r.events);
+  const totals = sumBy(
+    routes,
+    (r) => r.mode,
+    (r) => r.events,
+  );
   let best: string | null = null;
   let most = -1;
   for (const [mode, events] of totals) {

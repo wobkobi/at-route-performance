@@ -4,6 +4,7 @@
 // Best-effort by design - the caller catches any failure, so a shape load or an
 // alerts outage never costs a poll its arrival events.
 
+import { pushTo } from "@/lib/collections";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import type { AtTripUpdates } from "@/lib/feed/at";
@@ -41,7 +42,7 @@ function shapeIndex(): Promise<{ byId: Map<string, Path>; byPrefix: Map<string, 
       const path = s.points as unknown as Path;
       byId.set(s.id, path);
       const prefix = shapePrefix(s.id);
-      if (prefix) byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), path]);
+      if (prefix) pushTo(byPrefix, prefix, path);
     }
     return { byId, byPrefix };
   });

@@ -18,6 +18,7 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
+import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -47,7 +48,6 @@ import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
-  countById,
   hoursNoun,
   isCrownable,
   notStartedMessage,
@@ -137,7 +137,7 @@ async function TripRangeBoard({
 }): Promise<JSX.Element> {
   const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
-  const routeDayCounts = countById(shame.days, (d) => d.routeId);
+  const routeDayCounts = countBy(shame.days, (d) => d.routeId);
 
   /**
    * Render one range-view day row.
@@ -242,7 +242,7 @@ async function TripDayBoard({
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const routeHourCounts = countById(visibleHours, (h) => h.routeId);
+  const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
     range,

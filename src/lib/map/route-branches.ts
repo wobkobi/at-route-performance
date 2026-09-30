@@ -1,3 +1,4 @@
+import { pushTo } from "@/lib/collections";
 // src/lib/map/route-branches.ts
 // The paths that draw a whole route on the network map. A route publishes a
 // shape per pattern, and no one of them need cover it all: NX1's busiest pattern
@@ -126,9 +127,7 @@ export function routePaths(shapes: readonly RouteShape[]): [number, number][][] 
     for (const p of densify(path)) {
       const [x, y] = metres(p);
       const key = `${Math.floor(x / COVER_M)},${Math.floor(y / COVER_M)}`;
-      const cell = grid.get(key);
-      if (cell) cell.push([x, y]);
-      else grid.set(key, [[x, y]]);
+      pushTo(grid, key, [x, y]);
     }
   };
   /**

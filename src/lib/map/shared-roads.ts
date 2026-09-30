@@ -17,6 +17,7 @@
 // apart, too far for the grid to call them one road, so every colour on it drew
 // twice, once per carriageway.
 
+import { pushTo } from "@/lib/collections";
 import { simplifyPath } from "@/lib/map/route-geo";
 
 /** Metres per degree of latitude, the same flat approximation route-geo uses. */
@@ -300,9 +301,7 @@ function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: numbe
       const [gx, gy] = snapCell(s.lat, s.lon);
       const cell = `${gx},${gy}`;
       const anchor: Anchor = { lat: s.lat, lon: s.lon, ux: s.ux, uy: s.uy, mode: line.mode };
-      const list = anchors.get(cell);
-      if (list) list.push(anchor);
-      else anchors.set(cell, [anchor]);
+      pushTo(anchors, cell, anchor);
     });
   });
 }

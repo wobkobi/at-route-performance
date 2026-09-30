@@ -330,18 +330,3 @@ export function crownedTop<T extends { avg_abs_delay_sec: number }>(rows: T[]): 
   const top = rows[0] ?? null;
   return { row: isCrownable(top) ? top : null, ranked: rows.length > 0 };
 }
-
-/**
- * Count rows by a derived key (e.g. how many hourly slots a route appears in).
- * @param rows - The rows to tally.
- * @param keyOf - Derives the grouping key for a row.
- * @returns A map of key to occurrence count.
- */
-export function countById<T>(rows: T[], keyOf: (row: T) => string): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = keyOf(row);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}

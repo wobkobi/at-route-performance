@@ -7,6 +7,7 @@
 // aggregate a line together with its predecessors, cross-route boards fold a
 // retired line's rows into its successor's, and a retired slug's URL redirects
 // once the successor is running.
+import { pushTo } from "@/lib/collections";
 import { routeSlug, routeVersion } from "@/lib/route/slug";
 import { byEvents, weightedMean } from "@/lib/stats";
 import type { RouteRow } from "@/types/api";
@@ -126,9 +127,7 @@ export function foldLineageRows(rows: readonly RouteRow[]): RouteRow[] {
     const slug = routeSlug(row.routeId);
     const successor = successorSlug(slug);
     const key = successor !== null && slugsPresent.has(successor) ? successor : slug;
-    const group = groups.get(key);
-    if (group) group.push(row);
-    else groups.set(key, [row]);
+    pushTo(groups, key, row);
   }
 
   return [...groups].map(([key, group]) => {

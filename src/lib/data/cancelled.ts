@@ -1,5 +1,6 @@
 // src/lib/data/cancelled.ts
 // Cancellations: per-route lists, counts and the most-cancelled board.
+import { pushTo, sumBy } from "@/lib/collections";
 import { cachedForDay, cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
@@ -68,9 +69,7 @@ async function flagStages(flags: readonly FlagKey[]): Promise<Map<string, Cancel
   for (const e of events) {
     if (e.ghost === true) continue;
     const key = `${e.tripId}|${e.serviceDate}`;
-    const list = arrivalsByRun.get(key);
-    if (list) list.push(e.actualAt.toISOString());
-    else arrivalsByRun.set(key, [e.actualAt.toISOString()]);
+    pushTo(arrivalsByRun, key, e.actualAt.toISOString());
   }
   for (const f of flags) {
     const key = `${f.tripId}|${f.serviceDate}`;
@@ -385,11 +384,11 @@ export async function getCancelledRoutes(
       // Cancellations are keyed by the versioned route id, so fold them onto the
       // slug the rest of the site links by - otherwise one line splits across
       // feed republishes exactly as its stats would.
-      const bySlug = new Map<string, number>();
-      for (const g of grouped) {
-        const slug = routeSlug(g.routeId);
-        bySlug.set(slug, (bySlug.get(slug) ?? 0) + g._count._all);
-      }
+      const bySlug = sumBy(
+        grouped,
+        (g) => routeSlug(g.routeId),
+        (g) => g._count._all,
+      );
 
       const routes = await prisma.route.findMany({
         where: { id: { in: grouped.map((g) => g.routeId) } },

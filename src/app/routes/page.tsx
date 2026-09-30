@@ -9,6 +9,7 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { RouteExplorer } from "@/components/route/RouteExplorer";
+import { addTo } from "@/lib/collections";
 import {
   getCancelledRoutes,
   getEarliestDataDay,
@@ -138,7 +139,7 @@ export default async function RoutesPage({
   for (const c of cancelledRoutes) {
     const successor = successorSlug(c.slug);
     const slug = !rowSlugs.has(c.slug) && successor && rowSlugs.has(successor) ? successor : c.slug;
-    cancelledBySlug.set(slug, (cancelledBySlug.get(slug) ?? 0) + c.cancelled);
+    addTo(cancelledBySlug, slug, c.cancelled);
   }
   /**
    * An explorer row from a route row plus what the filters need.

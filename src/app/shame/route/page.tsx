@@ -18,6 +18,7 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
+import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -53,7 +54,6 @@ import {
 } from "@/lib/page/range";
 import {
   buildShameHref,
-  countById,
   hoursNoun,
   isCrownable,
   isWholeDay,
@@ -139,7 +139,7 @@ async function RouteRangeBoard({
   const shame = await getShameRouteOfWeek(range, filter, WEEK_REVALIDATE);
   const periodNoun = isMonth ? "month" : "week";
   const worstKey = shame.worst?.date ?? null;
-  const routeDayCounts = countById(shame.days, (d) => d.routeId);
+  const routeDayCounts = countBy(shame.days, (d) => d.routeId);
 
   /**
    * Render one range-view day row.
@@ -251,7 +251,7 @@ async function RouteDayBoard({
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const routeHourCounts = countById(visibleHours, (h) => h.routeId);
+  const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
   const routeStreakMap = await getShameRouteStreaksBatch(
     [...routeHourCounts.keys()],
     range,

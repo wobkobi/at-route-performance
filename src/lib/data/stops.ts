@@ -1,5 +1,6 @@
 // src/lib/data/stops.ts
 // Stops and stations: worst-stop boards, station grouping and one stop's stats.
+import { groupBy, pushTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getRouteModeMap, routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
@@ -282,9 +283,7 @@ export async function getWorstStopsOfDay(
 
       const byHour = new Map<number, RankedStopRow[]>();
       for (const { hour, ...row } of res.cursor.firstBatch) {
-        const rows = byHour.get(hour);
-        if (rows) rows.push(row);
-        else byHour.set(hour, [row]);
+        pushTo(byHour, hour, row);
       }
 
       // Direction narrows each hour's candidates, not the board: filtering the
@@ -545,12 +544,7 @@ async function worstStopsForRange(
   // rule in stop/station.ts, and sorting a few thousand rows costs nothing here
   // while a blocking $sort on this collection exceeds the cluster's 32MB
   // in-memory limit (the tier forbids disk spill).
-  const byDate = new Map<string, RankedStopRow[]>();
-  for (const row of res.cursor.firstBatch) {
-    const rows = byDate.get(row.date);
-    if (rows) rows.push(row);
-    else byDate.set(row.date, [row]);
-  }
+  const byDate = groupBy(res.cursor.firstBatch, (r) => r.date);
 
   const modeMap = mode ? null : await getRouteModeMap();
   const days: ShameDayStop[] = [];

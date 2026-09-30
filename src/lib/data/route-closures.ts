@@ -2,6 +2,7 @@
 // route diagram (lib/strip/marks.ts places them) and for rule 26's filter, which keeps arrivals
 // timed at a stop while it was closed out of its figures. The rows are only ever read here; a
 // closure recorded by mistake costs nothing once it is corrected.
+import { pushTo } from "@/lib/collections";
 import { cachedForRange } from "@/lib/data/cache";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
@@ -55,8 +56,7 @@ export function closedArrivalsMatch(
   rawToCanon: ReadonlyMap<string, string>,
 ): Prisma.InputJsonObject | null {
   const platforms = new Map<string, string[]>();
-  for (const [raw, canon] of rawToCanon)
-    platforms.set(canon, [...(platforms.get(canon) ?? []), raw]);
+  for (const [raw, canon] of rawToCanon) pushTo(platforms, canon, raw);
   const nor = closures.filter(closesStops).map((c) => {
     const ids = new Set<string>();
     for (const id of c.stopIds) {

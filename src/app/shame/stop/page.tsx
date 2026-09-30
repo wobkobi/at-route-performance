@@ -16,6 +16,7 @@ import { ShameHeader } from "@/components/shame/ShameHeader";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
 import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
+import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -44,7 +45,6 @@ import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
-  countById,
   hoursNoun,
   isCrownable,
   notStartedMessage,
@@ -161,7 +161,7 @@ async function StopRangeBoard({
   // Crowned by day, not by stop: a stop that tops several days wins one of them,
   // and its other rows are ordinary rows.
   const worstKey = shame.worst?.date ?? null;
-  const stopDayCounts = countById(shame.days, (d) => d.stop_id);
+  const stopDayCounts = countBy(shame.days, (d) => d.stop_id);
 
   /**
    * Render one range-view day row.
@@ -251,7 +251,7 @@ async function StopDayBoard({
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const stopHourCounts = countById(visibleHours, (h) => h.stop_id);
+  const stopHourCounts = countBy(visibleHours, (h) => h.stop_id);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.stop_id}` : null;
