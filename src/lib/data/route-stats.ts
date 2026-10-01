@@ -32,7 +32,6 @@ export interface RouteStatsParams {
   routeId: string;
   from?: Date;
   to?: Date;
-  thresholdSec: number;
   /** Narrow to a part of the day; null or absent covers the whole of it. */
   hours?: HourRange | null;
 }
@@ -259,7 +258,6 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
       p.routeId,
       range.start.toISOString(),
       range.end.toISOString(),
-      String(p.thresholdSec),
       hourRangeParam(p.hours ?? null) ?? "",
     ],
     // The resolved window rather than null for the rolling default, so the key

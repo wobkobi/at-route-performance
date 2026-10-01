@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.38] - 2026-10-02
+
+### Fixed
+
+- API errors share one body ({ error, message }) with one status per failure: 400 bad query, 401
+  auth, 500 misconfigured, 502 AT's feed, 503 database unreachable; exception text stays in the log.
+  Flags read only `1`, route stats take NZ service days and honour `?sort`, `/api/stops` validates
+  its page and reads through the cache, and the dead `thresholdSec` is gone.
+
 ## [2.41.37] - 2026-10-02
 
 ### Fixed

@@ -1,10 +1,9 @@
 // src/lib/data/rankings.ts
 // Per-route rankings over a window: summaries for rolled-up days, live scans for the rest.
-import { cachedForDay, cachedForRange, rangeIsFinal, scheduledAtWindow } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
 import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
-import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
 import {
   earlyTwoCounts,
@@ -31,7 +30,6 @@ export interface TopRoutesParams {
   week?: string;
   limit: number;
   metric: "on_time_rate" | "avg_delay";
-  thresholdSec: number;
   mode?: Mode;
 }
 
@@ -55,11 +53,16 @@ function isoWeekRange(iso?: string): DateRange {
 /**
  * Run the top-routes aggregation against MongoDB.
  * @param p - Validated query parameters.
+ * @param range - The week's window.
+ * @param classified - Whether every arrival in the week has been classified.
  * @returns Ranked route rows.
  */
-async function queryTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
-  const { start, end } = isoWeekRange(p.week);
-  const classified = await rangeIsFinal({ start, end });
+async function queryTopRoutes(
+  p: TopRoutesParams,
+  range: DateRange,
+  classified: boolean,
+): Promise<RouteRow[]> {
+  const { start, end } = range;
 
   const pipeline: object[] = [
     {
@@ -133,18 +136,20 @@ async function queryTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
 }
 
 /**
- * Top routes for an ISO week, ranked by on-time rate or average delay.
- * Cached (weekly aggregates are stable); both the home page and the API route
- * call this so there is no in-process HTTP round-trip.
+ * Top routes for an ISO week, ranked by on-time rate or average delay, for
+ * `/api/routes/top`. Cached by the week's state like every other window: an
+ * hour while the week can still change, then for good.
  * @param p - Validated query parameters.
  * @returns Ranked route rows.
  */
 export async function getTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
-  return unstable_cache(
-    () => queryTopRoutes(p),
-    ["top-routes", p.week ?? "", String(p.limit), p.metric, String(p.thresholdSec), p.mode ?? ""],
-    { revalidate: 3600 },
-  )();
+  const range = isoWeekRange(p.week);
+  return cachedForRange(
+    (classified) => queryTopRoutes(p, range, classified),
+    ["top-routes", String(p.limit), p.metric, p.mode ?? ""],
+    range,
+    3600,
+  );
 }
 
 /**
@@ -348,18 +353,13 @@ async function queryRankings(range: DateRange): Promise<RouteRow[]> {
  * Cached per-route rows for a window, keyed by the window's state so a live
  * window is never served more than one TTL behind (see cachedForRange).
  * @param range - UTC half-open window.
- * @param thresholdSec - On-time threshold in seconds.
  * @param revalidate - Cache TTL in seconds while the window can still change.
  * @returns Per-route rows.
  */
-export async function getRankings(
-  range: DateRange,
-  thresholdSec: number,
-  revalidate: number,
-): Promise<RouteRow[]> {
+export async function getRankings(range: DateRange, revalidate: number): Promise<RouteRow[]> {
   return cachedForRange(
     () => queryRankings(range),
-    ["rankings-v2", range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    ["rankings-v2", range.start.toISOString(), range.end.toISOString()],
     range,
     revalidate,
   );

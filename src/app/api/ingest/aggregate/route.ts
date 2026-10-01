@@ -6,6 +6,7 @@
 // next run rather than lost. Each day is its own unit: it succeeds or fails on
 // its own, records its own IngestRun row, and a failure does not stop the
 // others. The window matches the live dashboard (4am Auckland, half-open).
+import { apiError, readFailed } from "@/lib/api-error";
 import {
   aggregateDay,
   CATCH_UP_EXTRA_DAYS,
@@ -15,8 +16,8 @@ import {
 } from "@/lib/cron/aggregate";
 import { requireCronAuth } from "@/lib/cron/auth";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
-import { resolveRequestedDay } from "@/lib/page/nav";
 import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
+import { aggregateQuery, queryIssues } from "@/lib/validate";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any
@@ -76,32 +77,29 @@ async function runAggregate(startTime: number, dates: readonly string[]): Promis
  * any of the two before it that still lack a summary. Validates the date,
  * acknowledges, then aggregates after the response; each day's outcome is
  * recorded in IngestRun and the function logs.
- * @param req - Request with optional `?date=YYYY-MM-DD` query param (treated as
+ * @param request - Request with optional `?date=YYYY-MM-DD` query param (treated as
  *   the NZ service date).
- * @returns 202 JSON `{ started, dates }`; 400/401 on bad input.
+ * @returns 202 JSON `{ started, dates }`; 400/401 on bad input, 503/500 when the
+ *   catch-up reads fail.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
 
-  const denied = requireCronAuth(req);
+  const denied = requireCronAuth(request);
   if (denied) return denied;
 
-  const url = new URL(req.url);
-  const rawDate = url.searchParams.get("date");
   // Calendar-valid check, not just shape: an impossible date (2026-02-31)
   // would silently normalise onto a different service day.
-  const dateParam = resolveRequestedDay(rawDate ?? undefined);
-
-  if (rawDate && !dateParam) {
-    return NextResponse.json(
-      { error: "Invalid date. Use a real YYYY-MM-DD calendar date" },
-      { status: 400 },
-    );
+  const parsed = aggregateQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!parsed.success) {
+    return apiError(400, "invalid_query", "Use a real YYYY-MM-DD calendar date.", {
+      issues: queryIssues(parsed.error.issues),
+    });
   }
 
   let dates: string[];
-  if (dateParam) {
-    dates = [dateParam];
+  if (parsed.data.date) {
+    dates = [parsed.data.date];
   } else {
     // The most recently completed service day (24 h ago is always done), then
     // the catch-up rule over the two days before it.
@@ -109,10 +107,16 @@ export async function POST(req: Request): Promise<NextResponse> {
     const candidates = Array.from({ length: CATCH_UP_EXTRA_DAYS }, (_, i) =>
       shiftDays(yesterday, -(i + 1)),
     );
-    const [summarised, withEvents] = await Promise.all([
-      Promise.all(candidates.map(daySummarised)),
-      Promise.all(candidates.map(dayHasEvents)),
-    ]);
+    let summarised: boolean[];
+    let withEvents: boolean[];
+    try {
+      [summarised, withEvents] = await Promise.all([
+        Promise.all(candidates.map(daySummarised)),
+        Promise.all(candidates.map(dayHasEvents)),
+      ]);
+    } catch (err) {
+      return readFailed("aggregate-catch-up", err);
+    }
     const summarisedByDate = new Map(candidates.map((d, i) => [d, summarised[i] ?? true]));
     const eventsByDate = new Map(candidates.map((d, i) => [d, withEvents[i] ?? false]));
     dates = catchUpDates(

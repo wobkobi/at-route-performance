@@ -93,3 +93,44 @@ export async function searchStops(q: string, limit = 12): Promise<StopMatch[]> {
     { revalidate: 86400 },
   )();
 }
+
+/** One row of the stop directory. */
+export interface StopListing {
+  id: string;
+  name: string;
+  code: string | null;
+  lat: number;
+  lon: number;
+}
+
+/** One page of the stop directory, with the size of the whole. */
+export interface StopPage {
+  stops: StopListing[];
+  total: number;
+}
+
+/**
+ * One page of the stop directory, ordered by name. Cached for a day like
+ * {@link searchStops}: the directory only changes on the daily GTFS sync.
+ * @param limit - Rows in the page.
+ * @param offset - Rows skipped before it.
+ * @returns The page and the directory's total row count.
+ */
+export function listStops(limit: number, offset: number): Promise<StopPage> {
+  return unstable_cache(
+    async () => {
+      const [stops, total] = await Promise.all([
+        prisma.stop.findMany({
+          orderBy: { name: "asc" },
+          skip: offset,
+          take: limit,
+          select: { id: true, name: true, code: true, lat: true, lon: true },
+        }),
+        prisma.stop.count(),
+      ]);
+      return { stops, total };
+    },
+    ["stop-list", String(limit), String(offset)],
+    { revalidate: 86400 },
+  )();
+}

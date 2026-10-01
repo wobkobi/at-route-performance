@@ -754,14 +754,12 @@ interface StopStatsFacet {
  * window (see {@link onTimePerEventSum}). Cached briefly.
  * @param id - Canonical stop id (raw stop id or `station:` id).
  * @param range - The window to summarise.
- * @param thresholdSec - On-time late bound, for cache-key versioning only.
  * @param revalidate - Cache lifetime in seconds.
  * @returns The stop's stats, or null when the stop id is unknown.
  */
 export async function getStopStats(
   id: string,
   range: DateRange,
-  thresholdSec: number,
   revalidate: number,
 ): Promise<StopStats | null> {
   return cachedForRange(
@@ -935,7 +933,7 @@ export async function getStopStats(
         ),
       };
     },
-    ["stop-stats-v5", id, range.start.toISOString(), range.end.toISOString(), String(thresholdSec)],
+    ["stop-stats-v5", id, range.start.toISOString(), range.end.toISOString()],
     range,
     revalidate,
   );

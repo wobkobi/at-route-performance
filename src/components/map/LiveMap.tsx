@@ -82,7 +82,7 @@ function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operat
   const name = `${MODE_NAME[v.mode]} ${v.label ?? v.id}`;
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
-  const op = operatorOf(v.op, operators);
+  const op = operatorOf(v.operatorCode, operators);
   const runBy = op
     ? `Run by <a href="${escapeHtml(operatorHref(op))}">${escapeHtml(op.name)}</a><br>`
     : "";

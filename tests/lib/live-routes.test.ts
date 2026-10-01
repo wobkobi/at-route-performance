@@ -123,7 +123,7 @@ describe("mapVehicles", () => {
       new Map([["70-202", "BUS"]]),
       { "70": "HE" },
     );
-    expect(out.map((v) => v.op)).toEqual(["HE", null]);
+    expect(out.map((v) => v.operatorCode)).toEqual(["HE", null]);
   });
 
   it("marks a vehicle stored only when its trip has history, and every one when the lookup failed", () => {

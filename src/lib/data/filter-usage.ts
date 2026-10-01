@@ -4,8 +4,8 @@
 
 import { TODAY_REVALIDATE } from "@/lib/data/cache";
 import { getRankings } from "@/lib/data/rankings";
+import { logReadFailure } from "@/lib/db";
 import { MODES } from "@/lib/mode";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import type { DateRange } from "@/lib/time/service-day";
 
 /** Which filter choices would change a window's figures. */
@@ -27,9 +27,10 @@ export interface FilterUsage {
  */
 export async function getFilterUsage(range: DateRange): Promise<FilterUsage> {
   try {
-    const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+    const rows = await getRankings(range, TODAY_REVALIDATE);
     return { modes: new Set(rows.map((r) => r.mode)) };
-  } catch {
+  } catch (err) {
+    logReadFailure("filter-usage", err);
     return { modes: new Set(MODES) };
   }
 }

@@ -3,13 +3,15 @@
 // off-route sightings older than the retention window (see lib/cron/cleanup.ts).
 // Must run after the daily aggregation, since deletion is irreversible.
 //
-// Refusals split by whether they need the database. A missing RETENTION_DAYS or
-// a retention under the floor answers 400 and records nothing. The share and
+// Refusals split by whether they need the database. A missing or broken
+// RETENTION_DAYS answers 500 (the configuration), a bad query or a retention
+// under the floor 400, and neither records anything. The share and
 // cutoff-advance guards need counts, and the request is already acknowledged
 // with 202 by then - a full day's delete can outrun the external scheduler's
 // 30s timeout - so those refusals land on IngestRun with success: false, which
 // is the only field anything alerts on.
 
+import { apiError } from "@/lib/api-error";
 import { requireCronAuth } from "@/lib/cron/auth";
 import {
   buildCleanupPlan,
@@ -164,7 +166,8 @@ async function runAndRecord(startTime: number, params: CleanupParams, now: Date)
  * aggregation. Validates what it can without a query, acknowledges, then plans
  * and runs the deletes after the response.
  * @param req - Request with optional `?retentionDays=N`, `?summaryDays=N`, `?force=1` and `?dryRun=1` params.
- * @returns 202 JSON `{ started, dryRun, retentionDays, olderThan }`; 400/401 on bad input.
+ * @returns 202 JSON `{ started, dryRun, retentionDays, olderThan }`; 400/401/500 on bad
+ *   input, auth or configuration.
  */
 export function POST(req: Request): NextResponse {
   const startTime = Date.now();
@@ -173,7 +176,15 @@ export function POST(req: Request): NextResponse {
   if (denied) return denied;
 
   const parsed = parseCleanupParams(new URL(req.url), process.env.RETENTION_DAYS);
-  if (!parsed.ok) return NextResponse.json(parsed.refusal, { status: 400 });
+  if (!parsed.ok) {
+    const { status, message, hint } = parsed.refusal;
+    return apiError(
+      status,
+      status === 500 ? "misconfigured" : "invalid_query",
+      message,
+      hint ? { hint } : undefined,
+    );
+  }
   const { params } = parsed;
 
   const now = new Date(startTime);

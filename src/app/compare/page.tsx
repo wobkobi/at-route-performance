@@ -32,7 +32,6 @@ import {
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { pageMetadata } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeHref, stopHref } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
@@ -280,7 +279,7 @@ export default async function ComparePage({
 
   if (kind === "routes") {
     const [rows, cancelled, busiest] = await Promise.all([
-      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRankings(range, revalidate),
       getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
       ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
@@ -320,7 +319,7 @@ export default async function ComparePage({
       .slice(0, 6);
   } else {
     const [stats, found] = await Promise.all([
-      Promise.all(ids.map((id) => getStopStats(id, range, ON_TIME_LATE_SEC, revalidate))),
+      Promise.all(ids.map((id) => getStopStats(id, range, revalidate))),
       q ? searchStops(q, SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
     ]);
     // The stop page has a day view only, so a week or month links to today.

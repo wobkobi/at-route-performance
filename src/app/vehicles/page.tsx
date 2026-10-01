@@ -29,7 +29,6 @@ import { getLiveVehicleMap } from "@/lib/feed/vehicles";
 import { formatCount, formatDuration, formatHours } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { pageMetadata } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
 import {
@@ -164,7 +163,7 @@ export default async function VehiclesPage({
   // Which modes ran, so the Mode box only offers a mode that changes the list.
   // The window's route rankings answer it from their cache; the vehicle rows
   // are already filtered.
-  const rankRows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+  const rankRows = await getRankings(range, TODAY_REVALIDATE);
 
   // The operators that ran anything in the window, for the drop-down, counted
   // before the operator filter narrows the list.

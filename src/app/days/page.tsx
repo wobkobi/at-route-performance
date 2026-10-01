@@ -22,7 +22,6 @@ import {
 import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode, type Mode } from "@/lib/mode";
 import { pageMetadata } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
   parseRangeWindow,
   periodForCarriedDay,
@@ -165,9 +164,7 @@ export default async function DaysPage({
   const dates = serviceDatesInRange(range).filter((d) => d >= DATA_START_DAY);
   const dayRows = Promise.all(
     dates.map((date) =>
-      date > today
-        ? Promise.resolve(null)
-        : getRankings(nzServiceDayRange(date), ON_TIME_LATE_SEC, TODAY_REVALIDATE),
+      date > today ? Promise.resolve(null) : getRankings(nzServiceDayRange(date), TODAY_REVALIDATE),
     ),
   );
   // Both readers await it later, in stream order; this keeps an early rejection

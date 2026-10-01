@@ -40,14 +40,7 @@ type RunRow = Extract<TripBoardRow, { kind: "run" }>;
  * narrows which runs are listed, so leaving it out returned the reader to an
  * all-day board and gave the trip page an all-day route to describe.
  */
-export const TRIP_BOARD_VIEW_PARAMS = [
-  "heading",
-  "hours",
-  "thresholdSec",
-  "tsort",
-  "trev",
-  "show",
-] as const;
+export const TRIP_BOARD_VIEW_PARAMS = ["heading", "hours", "tsort", "trev", "show"] as const;
 
 /**
  * The trip board's view params that are set in a query, and nothing else.

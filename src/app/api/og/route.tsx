@@ -12,6 +12,7 @@
 // No maxDuration or runtime here: any route-level config splits this route into
 // its own function bundle, each carrying its own copy of the Prisma engine.
 
+import { logReadFailure } from "@/lib/db";
 import {
   CARD_HEIGHT,
   CARD_WIDTH,
@@ -94,7 +95,8 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
     else if (card.kind === "shame") subject = await shameCardData(card);
     else subject = await listCardData(card);
   } catch (err) {
-    console.error("[og] card data failed, sending the plain card", err);
+    // The plain card still unfurls, so the read degrades rather than failing.
+    logReadFailure(`og-${card.kind}-card`, err);
   }
   if (home && card.kind === "home") {
     const filter = cardFilterLabel(card.mode, card.schools);

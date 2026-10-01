@@ -84,7 +84,6 @@ import {
 } from "@/lib/time/time-of-day";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip/board";
 import { buildHref } from "@/lib/utils";
-import { routeStatsQuery } from "@/lib/validate";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -155,7 +154,6 @@ const TRIPS_FETCH_CAP = 500;
 
 /** Query params for route detail (raw strings). */
 interface StatsSearchParams {
-  thresholdSec?: string;
   day?: string;
   tsort?: string;
   /** Trips the board is showing, in whole steps of the list length. */
@@ -286,8 +284,6 @@ export default async function RoutePage({
     clampDayParam(routePath, sp, today);
     dropTodayParam(routePath, sp, today);
   }
-  const parsed = routeStatsQuery.safeParse(sp);
-  const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
   const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
     ? (sp.tsort as TripSort)
     : "off";
@@ -307,7 +303,6 @@ export default async function RoutePage({
     routeId: slug,
     from: range.start,
     to: range.end,
-    thresholdSec,
     hours,
   });
   const { route, summary, byStop } = stats;
@@ -373,7 +368,6 @@ export default async function RoutePage({
         : getWorstTripsOfDay({
             routeId: slug,
             range,
-            thresholdSec,
             sort: tripSort,
             limit: TRIPS_FETCH_CAP,
           }),
@@ -415,12 +409,11 @@ export default async function RoutePage({
   const activeDir = activeEntry?.[0] ?? null;
   const activeVariants = activeEntry?.[1].variants ?? null;
 
-  // How this page is being read: the direction, threshold and trip sort. The day
+  // How this page is being read: the direction, hours and trip sort. The day
   // stepper keeps the whole set; the direction chips and the trips board each
   // drop the one param they set themselves, so the three cannot drift apart.
   const viewParams: Record<string, string> = {
     ...(activeDir != null ? { heading: String(activeDir) } : {}),
-    ...(sp.thresholdSec ? { thresholdSec: sp.thresholdSec } : {}),
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
     ...(hoursParam ? { hours: hoursParam } : {}),

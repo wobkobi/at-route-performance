@@ -37,7 +37,6 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { pageMetadata } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorCodeOf, operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, type Operator } from "@/lib/operators";
 import { operatorHref, routeHref, vehicleHref } from "@/lib/page/hrefs";
@@ -207,7 +206,7 @@ export default async function OperatorPage({
   const withoutSchool = { mode: null, schools: "exclude" as const };
   const [allRows, [operators, directory], cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
     await Promise.all([
-      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRankings(range, revalidate),
       getOperatorDirectory(),
       getCancelledRoutes(range, filter, 10_000, revalidate),
       getVehicleWork(range, filter, TODAY_REVALIDATE),

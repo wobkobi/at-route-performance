@@ -718,7 +718,7 @@ export default function StopMap({
           setVehiclesFailed(true);
           return;
         }
-        const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: Operator | null };
+        const data = (await res.json()) as { vehicles: LiveVehicle[]; operator?: Operator | null };
         if (signal.aborted) return;
         setVehiclesFailed(false);
 
@@ -728,7 +728,7 @@ export default function StopMap({
           lines: pollLines,
           stops: pollStops,
         });
-        syncVehicles(state, vehicles, pollMode, data.op ?? null);
+        syncVehicles(state, vehicles, pollMode, data.operator ?? null);
       } catch {
         // An abort on cleanup is not a failure; anything else is.
         if (!signal.aborted) setVehiclesFailed(true);

@@ -23,7 +23,7 @@ import {
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { liveRouteSlugs } from "@/lib/live-routes";
 import { listShareCard, pageMetadata, parseListCard } from "@/lib/og";
-import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
 import { operatorOf } from "@/lib/operators";
 import { parseShown } from "@/lib/page/filter-params";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -107,7 +107,7 @@ export default async function RoutesPage({
   if (window === "day") {
     const shown = await resolveShownDay(resolveRequestedDay(sp.day), today);
     ({ range, serviceDate } = shown);
-    rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
+    rows = await getRankings(range, revalidate);
     nav = dayRangeNav(shown, earliest, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -118,7 +118,7 @@ export default async function RoutesPage({
       earliest,
       today,
     ));
-    rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
+    rows = await getRankings(range, revalidate);
   }
 
   // Every mode and school services too: the explorer filters those itself.

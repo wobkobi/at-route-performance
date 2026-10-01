@@ -26,6 +26,7 @@ import {
   getWorstStopsOfWeek,
   TODAY_REVALIDATE,
 } from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import {
   formatCount,
   formatDuration,
@@ -104,7 +105,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
   const filter = { mode: card.mode, schools: card.schools };
   if (card.window === "day") {
     const { range, serviceDate } = await resolveShownDay(card.day, today);
-    const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+    const rows = await getRankings(range, TODAY_REVALIDATE);
     return {
       when: serviceDayLabel(serviceDate),
       summary: summariseRows(visibleRows(rows, filter)),
@@ -112,7 +113,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
     };
   }
   const period = await resolvePeriod(card.window, card.period);
-  const rows = await getRankings(period.range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+  const rows = await getRankings(period.range, TODAY_REVALIDATE);
   return {
     when: period.when,
     summary: summariseRows(visibleRows(rows, filter)),
@@ -179,7 +180,6 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
     routeId: slug,
     from: range.start,
     to: range.end,
-    thresholdSec: ON_TIME_LATE_SEC,
   });
   const route = stats.route;
   const glyph = route
@@ -253,7 +253,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
     getTripCancellation(card.tripId, day),
     // The schedule only names the destination and the start; an AT outage
     // should cost the card those, not the whole card.
-    getTripScheduledStops(card.tripId).catch(() => []),
+    getTripScheduledStops(card.tripId).catch(readFallback("og-trip-scheduled-stops", [])),
   ]);
   const { route, stops } = timeline;
   if (!route && stops.length === 0 && scheduled.length === 0) return null;
@@ -318,7 +318,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
  */
 export async function stopCardData(card: StopCard): Promise<SubjectCardData | null> {
   const { range, serviceDate: date } = await resolveShownDay(card.day);
-  const stats = await getStopStats(card.id, range, ON_TIME_LATE_SEC, STOP_REVALIDATE);
+  const stats = await getStopStats(card.id, range, STOP_REVALIDATE);
   if (!stats) return null;
   const { summary } = stats;
   const abs = summary?.avg_abs_delay_sec;
@@ -581,10 +581,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
     range: DateRange,
   ): Promise<{ routes: FleetSummary | null; count: number; trips: NetworkCancelledTrip[] }> => {
     if (isRoutes) {
-      const rows = visibleRows(
-        await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE),
-        filter,
-      );
+      const rows = visibleRows(await getRankings(range, TODAY_REVALIDATE), filter);
       const ran = rows.filter((r) => r.events > 0);
       return { routes: summariseRows(ran), count: ran.length, trips: [] };
     }

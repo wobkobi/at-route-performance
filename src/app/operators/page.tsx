@@ -26,7 +26,6 @@ import {
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
 import { pageMetadata } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
 import { operatorHref } from "@/lib/operators";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -151,7 +150,7 @@ export default async function OperatorsPage({
   const withoutSchool = { mode, schools: "exclude" as const };
   const [allRows, [operators, directory], cancelled, vehicles, cancelledBase, vehiclesBase] =
     await Promise.all([
-      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRankings(range, revalidate),
       getOperatorDirectory(),
       getCancelledByRoute(range, filter, revalidate),
       getVehicleWork(range, filter, TODAY_REVALIDATE),

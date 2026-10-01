@@ -17,7 +17,6 @@ import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
 import {
   earlyTwoCounts,
   lateSum,
-  ON_TIME_LATE_SEC,
   onTimeTwoCounts,
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
@@ -231,9 +230,7 @@ async function queryFilteredRankings(
 ): Promise<RouteRow[]> {
   const dates = filteredDates(range, days);
   if (!hours) {
-    const sets = await Promise.all(
-      dates.map((d) => getRankings(nzServiceDayRange(d), ON_TIME_LATE_SEC, revalidate)),
-    );
+    const sets = await Promise.all(dates.map((d) => getRankings(nzServiceDayRange(d), revalidate)));
     return foldLineageRows(sets.flat());
   }
   const [penalties, ...sets] = await Promise.all([
@@ -271,7 +268,7 @@ export async function getFilteredRankings(
           range,
           revalidate,
         )
-      : getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      : getRankings(range, revalidate),
     areas.length > 0 ? getRouteGeography() : null,
   ]);
   return geography ? rowsInAreas(rows, areas, geography.areas) : rows;

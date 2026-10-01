@@ -214,7 +214,6 @@ describe("tripBoardView", () => {
       tripBoardView({
         d: "2026-09-20T01:00:00.000Z",
         heading: "1",
-        thresholdSec: "",
         tsort: "late",
         trev: undefined,
         show: "60",

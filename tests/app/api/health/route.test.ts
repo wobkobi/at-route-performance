@@ -13,7 +13,17 @@ import pkg from "../../../../package.json";
 const findFirst = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
 vi.mock("@/lib/cron/cleanup", () => ({ recentCleanupRuns: vi.fn() }));
-vi.mock("@/lib/db", () => ({ prisma: { route: { findFirst } } }));
+/**
+ * The real fallback's behaviour without its log line.
+ * @param _read - Names the read (unused).
+ * @param fallback - What the catch substitutes.
+ * @returns A catch handler returning `fallback`.
+ */
+function readFallback<T>(_read: string, fallback: T): () => T {
+  return () => fallback;
+}
+
+vi.mock("@/lib/db", () => ({ prisma: { route: { findFirst } }, readFallback }));
 
 /** The probe's JSON body. */
 interface HealthBody {

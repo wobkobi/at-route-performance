@@ -33,7 +33,6 @@ import type { PerTripStat, TripStop, TripTimeline } from "@/types/api";
 export interface WorstTripsParams {
   routeId: string;
   range: DateRange;
-  thresholdSec: number;
   limit?: number;
   /** How to order the runs (default "off" = most off-schedule). */
   sort?: TripSort;

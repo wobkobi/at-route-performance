@@ -132,7 +132,7 @@ export interface LiveMapVehicle {
   delaySec: number | null;
   cars: number | null;
   /** The route's operator code, which the popup names from the response's operator list; null when unrecorded. */
-  op: string | null;
+  operatorCode: string | null;
   /** Whether the trip has any history stored; the map never draws a trip with none. */
   stored: boolean;
 }
@@ -165,7 +165,7 @@ export function mapVehicles(
     lon: Math.round(v.lon * 1e5) / 1e5,
     delaySec: v.delaySec,
     cars: v.cars,
-    op: operators[routeSlug(v.routeId)] ?? null,
+    operatorCode: operators[routeSlug(v.routeId)] ?? null,
     stored: stored === null || stored.has(v.tripId as string),
   }));
 }

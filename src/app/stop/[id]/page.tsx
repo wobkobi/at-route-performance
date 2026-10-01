@@ -45,7 +45,6 @@ import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/for
 import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
 import { cardPath, cardWhenSuffix, pageMetadata, parseStopCard } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import { dayRangeNav, routeLinkParams, windowPhrase } from "@/lib/page/range";
@@ -70,8 +69,6 @@ import { Fragment, Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-// Late bound for the on-time window + cache-key versioning; early side is per-mode.
-const THRESHOLD_SEC = ON_TIME_LATE_SEC;
 const REVALIDATE = 300; // 5 minutes
 
 /** Query params for the stop detail page. */
@@ -170,7 +167,7 @@ export default async function StopPage({
     getStationSiblings(id),
   ]);
   const { range, serviceDate } = shown;
-  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
+  const stats = await getStopStats(id, range, REVALIDATE);
   if (!stats) notFound();
 
   const nav = dayRangeNav(shown, earliestDay, today);

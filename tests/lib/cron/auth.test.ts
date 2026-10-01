@@ -29,7 +29,10 @@ describe("requireCronAuth", () => {
     delete process.env.CRON_SECRET;
     const res = requireCronAuth(request("Bearer anything"));
     expect(res?.status).toBe(500);
-    expect(await res?.json()).toEqual({ error: "Server misconfiguration" });
+    expect(await res?.json()).toEqual({
+      error: "misconfigured",
+      message: "Server misconfiguration.",
+    });
   });
 
   it("answers 401 to a missing or wrong token", async () => {
@@ -37,7 +40,10 @@ describe("requireCronAuth", () => {
     expect(requireCronAuth(request())?.status).toBe(401);
     expect(requireCronAuth(request("Bearer nope"))?.status).toBe(401);
     expect(requireCronAuth(request("Bearer s3cre"))?.status).toBe(401);
-    expect(await requireCronAuth(request("s3cret"))?.json()).toEqual({ error: "Unauthorized" });
+    expect(await requireCronAuth(request("s3cret"))?.json()).toEqual({
+      error: "unauthorized",
+      message: "Unauthorized.",
+    });
   });
 
   it("lets the right token through", () => {
