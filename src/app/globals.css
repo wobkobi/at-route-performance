@@ -86,30 +86,74 @@
   line-height: 1;
 }
 
-/* Status badges: solid fill + contrast-checked text for WCAG AA (guide p28). */
-.badge {
-  @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+/*
+  Shared control and label classes. In the components layer, so a utility beside
+  one (a margin, a hover) wins without a specificity fight.
+*/
+@layer components {
+  /*
+    Status badge: square, bold, fill plus contrast-checked text for WCAG AA
+    (guide p28). Always paired with one tone below; the label is written in
+    capitals by the caller rather than through `uppercase`, so a route name in a
+    pill keeps its own casing.
+  */
+  .badge {
+    @apply inline-flex shrink-0 items-center px-1.5 py-0.5 text-xs font-bold tracking-zero;
+  }
+  .badge-ok {
+    @apply bg-at-ontime text-white;
+  }
+  .badge-late {
+    @apply bg-at-late text-white;
+  }
+  .badge-early {
+    @apply bg-at-early text-at-ink;
+  }
+  /* Ink rather than on-time Shore, so LIVE never reads as a punctuality verdict. */
+  .badge-live {
+    @apply bg-at-ink text-white;
+  }
+  .badge-commercial {
+    @apply bg-at-commercial text-at-ink;
+  }
+  .badge-disruption {
+    @apply bg-at-disruption text-white;
+  }
+  .badge-muted {
+    @apply bg-at-border text-at-ink;
+  }
+  .badge-pale {
+    @apply bg-at-shore-pale text-at-shore;
+  }
+  /* An outline for a state that did not happen after all (a reinstated trip). */
+  .badge-outline {
+    @apply border border-at-border text-at-muted;
+  }
+
+  /* The solid Shore action button; pairs with `.at-btn` for its size. */
+  .at-btn-primary {
+    @apply border border-at-shore bg-at-shore text-white hover:bg-at-ocean;
+  }
+
+  /* An in-text Shore link that underlines on hover. */
+  .at-link {
+    @apply text-at-shore hover:underline;
+  }
+
+  /* A select or search box. 44px tall, the site's smallest touch target. */
+  .at-field {
+    @apply min-h-11 border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore;
+  }
+
+  /* A table's header row: small muted capitals, ruled off from the body. */
+  .at-th-row {
+    @apply border-b border-at-border text-left text-xs tracking-zero text-at-muted uppercase;
+  }
 }
-.badge-ok {
-  @apply bg-at-ontime text-white;
-} /* Shore + white = pass */
-.badge-late {
-  @apply bg-at-late text-white;
-} /* Anther Red + white = pass */
-.badge-early {
-  @apply bg-at-early text-at-ink;
-} /* Bright Green + Ocean = pass */
 
 /* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. */
 .chip {
   @apply inline-flex items-center px-3 py-1 text-sm font-semibold transition-colors;
-  /*
-    `transition-colors` covers `outline-color` too, which would fade the focus
-    ring up over 150ms from the chip's own text colour - white on an active
-    chip, against a light page. A ring has to be there the moment the chip takes
-    focus, so it is left out of the list while the rest still eases.
-  */
-  transition-property: color, background-color, border-color;
 }
 .chip-on {
   @apply bg-at-shore text-white;
@@ -157,7 +201,7 @@
    the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
    pairing from the brand guide). */
 .at-btn {
-  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold transition;
+  @apply inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold transition;
 }
 .at-btn-cta {
   @apply bg-at-safety text-at-ocean hover:brightness-95;
@@ -289,20 +333,29 @@
 }
 
 /*
-  Reduced motion: the chip and button hover transitions become instant, and the
-  stepper pulse becomes a still dim, since a waiting click still needs
-  acknowledging.
+  A focused control stops easing. `transition-colors` and `transition` both
+  cover `outline-color`, which would fade the focus ring up over 150ms from the
+  control's own text colour - white on an active chip, against a light page. A
+  ring has to be there the moment focus lands, so every transition on a focused
+  element is instant. Unlayered, so it beats any duration utility.
+*/
+:focus-visible {
+  transition-duration: 0s;
+}
+
+/*
+  Reduced motion: every transition is instant, site-wide, so no hover, chevron or
+  gliding vehicle eases. The stepper pulse becomes a still dim, since a waiting
+  click still needs acknowledging.
 */
 @media (prefers-reduced-motion: reduce) {
-  .chip,
-  .at-btn {
-    transition: none;
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
   }
   .step-pending {
     animation: none;
     opacity: 0.4;
-  }
-  .vehicle-gliding {
-    transition: none;
   }
 }

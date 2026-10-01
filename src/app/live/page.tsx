@@ -303,7 +303,7 @@ async function LiveTable({
       <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+            <tr className="at-th-row">
               <SortHeader {...head("route")} align="left">
                 Route
               </SortHeader>

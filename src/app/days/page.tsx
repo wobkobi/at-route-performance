@@ -192,7 +192,7 @@ export default async function DaysPage({
         </Suspense>
         <Link
           href={buildHref("/", { ...view, ...filters })}
-          className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+          className="at-link ml-auto text-sm font-semibold"
         >
           {window === "week" ? "The week's overview" : "The month's overview"}
         </Link>
@@ -357,7 +357,7 @@ async function DaysBody({
       <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+            <tr className="at-th-row">
               <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
                 Day
               </SortHeader>
@@ -386,7 +386,7 @@ async function DaysBody({
                   scope="row"
                   className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
                 >
-                  <Link href={hrefFor(s.date)} className="text-at-shore hover:underline">
+                  <Link href={hrefFor(s.date)} className="at-link">
                     {serviceDayLabel(s.date)}
                   </Link>
                   {s.date === today && (

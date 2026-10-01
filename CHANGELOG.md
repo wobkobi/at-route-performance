@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.23] - 2026-10-01
+
+### Changed
+
+- Badges share one square style and tone set (LIVE now in ink); links, search boxes, selects and
+  table headers share one class each; focus rings appear instantly and reduced motion turns off
+  every transition
+
 ## [2.41.22] - 2026-10-01
 
 ### Changed

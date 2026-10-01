@@ -212,7 +212,7 @@ export default async function CancellationsPage({
                 cancelled: "1",
                 sort: "cancelled",
               })}
-              className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
+              className="at-link inline-flex items-center gap-1 text-sm font-semibold"
             >
               All {boardRows.length} routes with cancellations
               <ChevronRight className="h-4 w-4" />

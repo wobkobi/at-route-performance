@@ -460,7 +460,7 @@ export default async function ComparePage({
           Nothing recorded {phrase} for {missing.join(", ")}.{" "}
           <Link
             href={idsHref(ids.filter((i) => !missing.includes(i)).join(",") || null)}
-            className="font-semibold text-at-shore hover:underline"
+            className="at-link font-semibold"
           >
             Take {missing.length === 1 ? "it" : "them"} out
           </Link>
@@ -492,12 +492,9 @@ export default async function ComparePage({
                   : "Add a stop: name or the number on the pole"
               }
               aria-label={kind === "routes" ? "Search routes" : "Search stops"}
-              className="min-w-0 flex-1 border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore"
+              className="at-field min-w-0 flex-1"
             />
-            <button
-              type="submit"
-              className="border border-at-shore bg-at-shore px-4 py-2 text-sm font-semibold text-white hover:bg-at-ocean"
-            >
+            <button type="submit" className="at-btn at-btn-primary">
               Search
             </button>
           </form>
@@ -517,10 +514,7 @@ export default async function ComparePage({
           />
         )}
         {ids.length > 0 && (
-          <Link
-            href={idsHref(null)}
-            className="inline-block text-sm font-semibold text-at-shore hover:underline"
-          >
+          <Link href={idsHref(null)} className="at-link inline-block text-sm font-semibold">
             Start again
           </Link>
         )}

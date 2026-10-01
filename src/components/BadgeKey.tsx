@@ -1,7 +1,7 @@
 // src/components/BadgeKey.tsx
 // Key under a board, naming each badge its rows can carry and what it means.
 
-import { cn } from "@/lib/cn";
+import { BadgeLabel, badgeClass, type BadgeTone } from "@/components/ui/Badge";
 import type { JSX } from "react";
 
 /** One entry in a board's badge key. */
@@ -10,8 +10,8 @@ export interface BadgeKeyItem {
   label: string;
   /** The narrower label a row shows below `sm`; omit when the label does not change. */
   shortLabel?: string;
-  /** Tailwind colour classes for the badge; omit for a marker the rows render as plain text. */
-  className?: string;
+  /** The badge's tone; omit for a marker the rows render as plain red text. */
+  tone?: BadgeTone;
   /** What the badge means, in a phrase. */
   meaning: string;
 }
@@ -32,20 +32,8 @@ export function BadgeKey({ items }: { items: BadgeKeyItem[] }): JSX.Element | nu
     <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-at-muted">
       {items.map((i) => (
         <div key={i.label} className="flex items-center gap-1.5">
-          <dt
-            className={cn(
-              "shrink-0 font-bold",
-              i.className ? cn("rounded px-1.5 py-0.5", i.className) : "text-at-late",
-            )}
-          >
-            {i.shortLabel && i.shortLabel !== i.label ? (
-              <>
-                <span className="sm:hidden">{i.shortLabel}</span>
-                <span className="hidden sm:inline">{i.label}</span>
-              </>
-            ) : (
-              i.label
-            )}
+          <dt className={i.tone ? badgeClass(i.tone) : "shrink-0 font-bold text-at-late"}>
+            <BadgeLabel label={i.label} shortLabel={i.shortLabel} />
           </dt>
           <dd>{i.meaning}</dd>
         </div>

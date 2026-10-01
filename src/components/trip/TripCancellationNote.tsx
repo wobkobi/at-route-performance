@@ -42,7 +42,7 @@ export function TripCancellationNote({
   let title: string;
   let body: ReactNode;
   const stop = lastStop && (
-    <Link href={lastStop.href} className="text-at-shore hover:underline">
+    <Link href={lastStop.href} className="at-link">
       {lastStop.name}
     </Link>
   );

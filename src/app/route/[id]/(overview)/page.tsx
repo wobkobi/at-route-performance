@@ -599,7 +599,7 @@ export default async function RoutePage({
                       ? { window: "week", period: periodParam ?? undefined }
                       : { day: requestedDay ?? undefined },
                   )}
-                  className="text-at-shore hover:underline"
+                  className="at-link"
                 >
                   {operator.name}
                 </Link>
@@ -614,7 +614,7 @@ export default async function RoutePage({
                     ? { window: "week", period: periodParam ?? undefined }
                     : { day: requestedDay ?? undefined }),
                 })}
-                className="text-at-shore hover:underline"
+                className="at-link"
               >
                 Compare with other routes
               </Link>
@@ -890,7 +890,7 @@ export default async function RoutePage({
                         <td className="px-3 py-2">
                           <Link
                             href={stopHref(s.stop_id, { day: stopDay })}
-                            className="font-semibold text-at-shore hover:underline"
+                            className="at-link font-semibold"
                           >
                             {s.name}
                           </Link>

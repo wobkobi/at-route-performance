@@ -66,10 +66,7 @@ export function TripGhostRunNote({
         {other && (
           <>
             {" "}
-            <Link
-              href={tripHref(routeSlug, other.trip_id, day)}
-              className="text-at-shore hover:underline"
-            >
+            <Link href={tripHref(routeSlug, other.trip_id, day)} className="at-link">
               See that run
             </Link>
             .

@@ -201,7 +201,7 @@ export default async function StopPage({
           come from a route page or a shared link. */}
       <Link
         href={buildHref("/shame/stop", { day: linkDay })}
-        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+        className="at-link inline-flex items-center gap-1 text-sm"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         The worst stops {windowPhrase(nav, null)}
@@ -227,10 +227,7 @@ export default async function StopPage({
               {zones.map((z, i) => (
                 <Fragment key={z}>
                   {i > 0 && " and "}
-                  <Link
-                    href={buildHref("/routes", { day: linkDay, zone: z })}
-                    className="text-at-shore hover:underline"
-                  >
+                  <Link href={buildHref("/routes", { day: linkDay, zone: z })} className="at-link">
                     {FARE_ZONE_LABEL[z]}
                   </Link>
                 </Fragment>
@@ -248,10 +245,7 @@ export default async function StopPage({
               {siblings.siblings.map((s, i) => (
                 <Fragment key={s.id}>
                   {i > 0 && ", "}
-                  <Link
-                    href={stopHref(s.id, { day: linkDay })}
-                    className="text-at-shore hover:underline"
-                  >
+                  <Link href={stopHref(s.id, { day: linkDay })} className="at-link">
                     {s.name}
                   </Link>
                 </Fragment>
@@ -261,7 +255,7 @@ export default async function StopPage({
           <p className="mt-1 text-sm">
             <Link
               href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
-              className="text-at-shore hover:underline"
+              className="at-link"
             >
               Compare with other stops
             </Link>
@@ -458,10 +452,7 @@ function PlatformTable({
               return (
                 <tr key={p.stop_id} className="border-t border-at-border">
                   <td className="px-3 py-2 font-semibold tabular-nums">
-                    <Link
-                      href={stopHref(p.stop_id, { day: linkDay })}
-                      className="text-at-shore hover:underline"
-                    >
+                    <Link href={stopHref(p.stop_id, { day: linkDay })} className="at-link">
                       {p.label}
                     </Link>
                   </td>
@@ -485,10 +476,7 @@ function PlatformTable({
                         <Fragment key={name}>
                           {i > 0 && ", "}
                           {slug ? (
-                            <Link
-                              href={routeHref(slug, routeParams)}
-                              className="text-at-shore hover:underline"
-                            >
+                            <Link href={routeHref(slug, routeParams)} className="at-link">
                               {name}
                             </Link>
                           ) : (

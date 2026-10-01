@@ -312,7 +312,7 @@ export default async function OperatorPage({
     <main className="space-y-6">
       <Link
         href={buildHref("/operators", { ...view, school })}
-        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+        className="at-link inline-flex items-center gap-1 text-sm"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         All operators
@@ -357,10 +357,7 @@ export default async function OperatorPage({
             <SchoolAdded n={added("vehicles")} />
           </Figure>
           <Figure label="Operators">
-            <Link
-              href={buildHref("/operators", { ...view, school })}
-              className="text-at-shore hover:underline"
-            >
+            <Link href={buildHref("/operators", { ...view, school })} className="at-link">
               #{rank + 1}
             </Link>
             <span className="ml-1 text-sm font-normal text-at-muted">of {table.length}</span>
@@ -378,7 +375,7 @@ export default async function OperatorPage({
             <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its routes</h2>
             <Link
               href={buildHref("/routes", { ...view, school, op: op.slug })}
-              className="text-sm text-at-shore hover:underline"
+              className="at-link text-sm"
             >
               Filter the routes page to {op.name}
             </Link>
@@ -386,7 +383,7 @@ export default async function OperatorPage({
           <div className="overflow-x-auto border border-at-border bg-at-surface">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+                <tr className="at-th-row">
                   <SortHeader {...routeSort.head("route")} align="left">
                     Route
                   </SortHeader>
@@ -414,7 +411,7 @@ export default async function OperatorPage({
                         <span className="min-w-0">
                           <Link
                             href={routeHref(r.slug, routeParams)}
-                            className="font-semibold text-at-shore hover:underline"
+                            className="at-link font-semibold"
                           >
                             {r.name}
                           </Link>
@@ -448,7 +445,7 @@ export default async function OperatorPage({
             <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its vehicles</h2>
             <Link
               href={buildHref("/vehicles", { ...view, school, op: op.slug })}
-              className="text-sm text-at-shore hover:underline"
+              className="at-link text-sm"
             >
               All {formatCount(fleetAll.length)} on the vehicles board
             </Link>
@@ -456,7 +453,7 @@ export default async function OperatorPage({
           <div className="overflow-x-auto border border-at-border bg-at-surface">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+                <tr className="at-th-row">
                   <SortHeader {...fleetSort.head("vehicle")} align="left">
                     Vehicle
                   </SortHeader>
@@ -475,7 +472,7 @@ export default async function OperatorPage({
                         <ModeIcon mode={v.mode} className="h-4 w-4" />
                         <Link
                           href={vehicleHref(v.vehicleId, { ...view, op: op.slug })}
-                          className="text-at-shore hover:underline"
+                          className="at-link"
                         >
                           {fleet.get(v.vehicleId)?.label ?? (
                             <span className="tabular-nums">{v.vehicleId}</span>

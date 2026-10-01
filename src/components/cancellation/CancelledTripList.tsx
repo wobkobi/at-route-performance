@@ -11,7 +11,7 @@ import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
-import { cn } from "@/lib/cn";
+import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
 import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
@@ -22,7 +22,6 @@ import { nzClockTime } from "@/lib/time/format";
 import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
   CANCELLATION_BADGE,
-  CANCELLATION_BADGE_CLASS,
   CANCELLATION_BADGE_MEANING,
   CANCELLATION_BADGE_SHORT,
   CANCELLATION_STAGES,
@@ -122,7 +121,7 @@ export function CancelledTripList({
     return CANCELLATION_STAGES.filter((s) => shownStages.has(s)).map((s) => ({
       label: CANCELLATION_BADGE[s],
       shortLabel: CANCELLATION_BADGE_SHORT[s],
-      className: CANCELLATION_BADGE_CLASS[s],
+      tone: CANCELLATION_TONE[s],
       meaning: CANCELLATION_BADGE_MEANING[s],
     }));
   }, [visible, shown]);
@@ -218,16 +217,7 @@ export function CancelledTripList({
                             : ""}
                         </span>
                       </span>
-                      <span
-                        title={CANCELLATION_BADGE_MEANING[t.stage]}
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                          CANCELLATION_BADGE_CLASS[t.stage],
-                        )}
-                      >
-                        <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
-                        <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
-                      </span>
+                      <CancellationBadge stage={t.stage} />
                     </span>
                     <ChevronRight className="shrink-0 text-at-muted" />
                   </Link>

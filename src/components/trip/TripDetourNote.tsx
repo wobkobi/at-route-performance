@@ -56,7 +56,7 @@ export function TripDetourNote({
         {nearestStop && (
           <>
             , nearest{" "}
-            <Link href={nearestStop.href} className="text-at-shore hover:underline">
+            <Link href={nearestStop.href} className="at-link">
               {nearestStop.name}
             </Link>
           </>

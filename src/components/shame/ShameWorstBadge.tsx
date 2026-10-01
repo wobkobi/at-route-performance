@@ -1,6 +1,7 @@
 // src/components/shame/ShameWorstBadge.tsx
 // Small "Worst" badge shown beside a shame board's crowned row.
 
+import { Badge } from "@/components/ui/Badge";
 import type { JSX } from "react";
 
 /**
@@ -8,9 +9,5 @@ import type { JSX } from "react";
  * @returns The badge element.
  */
 export function ShameWorstBadge(): JSX.Element {
-  return (
-    <span className="bg-at-late px-1.5 py-0.5 text-xs font-bold tracking-zero text-white uppercase">
-      Worst
-    </span>
-  );
+  return <Badge tone="late" label="WORST" />;
 }

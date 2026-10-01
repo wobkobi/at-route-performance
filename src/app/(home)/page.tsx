@@ -266,7 +266,7 @@ async function PeriodHome({
               mode: mode ?? undefined,
               school: schoolFilterParam(schools),
             })}
-            className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+            className="at-link ml-auto text-sm font-semibold"
           >
             Day by day
           </Link>

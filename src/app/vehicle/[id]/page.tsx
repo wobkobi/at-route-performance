@@ -8,6 +8,7 @@ import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
+import { LiveBadge } from "@/components/ui/Badge";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import { cn } from "@/lib/cn";
 import {
@@ -292,7 +293,7 @@ export default async function VehiclePage({
           ...view,
           ...listState,
         })}
-        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+        className="at-link inline-flex items-center gap-1 text-sm"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to hardest-worked vehicles
@@ -314,10 +315,7 @@ export default async function VehiclePage({
                 {runBy.map((op, i) => (
                   <span key={op.code}>
                     {i > 0 && " and "}
-                    <Link
-                      href={buildHref(operatorHref(op), view)}
-                      className="text-at-shore hover:underline"
-                    >
+                    <Link href={buildHref(operatorHref(op), view)} className="at-link">
                       {op.name}
                     </Link>
                   </span>
@@ -371,10 +369,7 @@ export default async function VehiclePage({
             <Figure label="Avg off">{formatDuration(total.avgOffSec)}</Figure>
             {rank && (
               <Figure label="Hardest worked">
-                <Link
-                  href={buildHref("/vehicles", { ...view, school: "1" })}
-                  className="text-at-shore hover:underline"
-                >
+                <Link href={buildHref("/vehicles", { ...view, school: "1" })} className="at-link">
                   #{formatCount(rank.rank)}
                 </Link>
                 <span className="ml-1 text-sm font-normal text-at-muted">
@@ -548,14 +543,12 @@ function LiveCard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <p className="flex items-center gap-2 text-xs font-semibold tracking-zero text-at-muted uppercase">
-            <span className="rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
-              LIVE
-            </span>
+            <LiveBadge />
             On a run now
           </p>
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
-            <Link href={routeHref(now.routeId)} className="text-at-shore hover:underline">
+            <Link href={routeHref(now.routeId)} className="at-link">
               {route}
             </Link>
           </p>
@@ -636,7 +629,7 @@ function RunsTable({
       <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+            <tr className="at-th-row">
               <SortHeader {...head("start")} align="left">
                 Start
               </SortHeader>
@@ -672,7 +665,7 @@ function RunsTable({
                   <td className="p-3">
                     <Link
                       href={routeHref(r.routeId, routeParams)}
-                      className="font-semibold text-at-shore hover:underline"
+                      className="at-link font-semibold"
                     >
                       {r.route}
                     </Link>
@@ -761,7 +754,7 @@ function DaysTable({
       <div className="overflow-x-auto border border-at-border bg-at-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+            <tr className="at-th-row">
               <SortHeader {...head("day")} align="left">
                 Day
               </SortHeader>
@@ -786,7 +779,7 @@ function DaysTable({
                           day: dayLinkParam(date, today),
                           ...listState,
                         })}
-                        className="text-at-shore hover:underline"
+                        className="at-link"
                       >
                         {serviceDayLabel(date)}
                       </Link>

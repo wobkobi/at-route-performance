@@ -2,6 +2,8 @@
 // A LIVE badge for a vehicle on a run right now. Awaits the live set inside its
 // own Suspense boundary per row, so a board never waits on AT's realtime feed.
 
+import { badgeClass } from "@/components/ui/Badge";
+import { cn } from "@/lib/cn";
 import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { routeSlug } from "@/lib/route/slug";
 import { liveRunHref } from "@/lib/vehicle/detail";
@@ -31,7 +33,7 @@ async function LiveBadge({
     <Link
       href={liveRunHref({ routeId: v.routeId, tripId: v.tripId })}
       title={`On a run now, route ${routeSlug(v.routeId)}`}
-      className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white hover:underline"
+      className={cn(badgeClass("live"), "hover:underline")}
     >
       LIVE
     </Link>

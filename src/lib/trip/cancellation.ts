@@ -87,10 +87,3 @@ export const CANCELLATION_BADGE_MEANING: Record<CancellationStage, string> = {
   "mid-trip": "AT cancelled this trip after it set off",
   ran: "AT flagged this trip cancelled, then it ran anyway",
 };
-
-/** Badge styling per stage: reinstated is an outline, an actual cancellation is solid. */
-export const CANCELLATION_BADGE_CLASS: Record<CancellationStage, string> = {
-  before: "bg-at-late text-white",
-  "mid-trip": "bg-at-late text-white",
-  ran: "border border-at-border text-at-muted",
-};

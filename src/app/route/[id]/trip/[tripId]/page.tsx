@@ -256,7 +256,7 @@ export default async function TripPage({
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}
-        className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
+        className={cn("at-link inline-flex items-center gap-1 text-sm")}
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to {title}
@@ -286,10 +286,7 @@ export default async function TripPage({
           {vehicle_id && (
             <>
               {" · "}
-              <Link
-                href={vehicleHref(vehicle_id, { day: linkDay })}
-                className="text-at-shore hover:underline"
-              >
+              <Link href={vehicleHref(vehicle_id, { day: linkDay })} className="at-link">
                 {vehicle_id}
               </Link>
             </>

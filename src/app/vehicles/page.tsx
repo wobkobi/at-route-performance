@@ -232,7 +232,7 @@ export default async function VehiclesPage({
                 Every vehicle that ran {/^[AEIOU]/.test(operator.name) ? "an" : "a"}{" "}
                 <Link
                   href={buildHref(operatorHref(operator), { ...view, school: filters.school })}
-                  className="text-at-shore hover:underline"
+                  className="at-link"
                 >
                   {operator.name}
                 </Link>{" "}
@@ -291,7 +291,7 @@ export default async function VehiclesPage({
         <div className="overflow-x-auto border border-at-border bg-at-surface">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+              <tr className="at-th-row">
                 <th scope="col" className="w-10 p-3 text-right font-semibold">
                   #
                 </th>
@@ -325,7 +325,7 @@ export default async function VehiclesPage({
                       <ModeIcon mode={v.mode} className="h-4 w-4" />
                       <Link
                         href={vehicleHref(v.vehicleId, { ...view, ...listState })}
-                        className="text-at-shore hover:underline"
+                        className="at-link"
                       >
                         {fleet.get(v.vehicleId)?.label ?? (
                           <span className="tabular-nums">{v.vehicleId}</span>
@@ -418,11 +418,7 @@ function RouteLinks({
   return (
     <span className="flex flex-wrap gap-x-2 gap-y-1">
       {[...slugByName].map(([name, slug]) => (
-        <Link
-          key={name}
-          href={routeHref(slug, params)}
-          className="font-semibold text-at-shore hover:underline"
-        >
+        <Link key={name} href={routeHref(slug, params)} className="at-link font-semibold">
           {name}
         </Link>
       ))}

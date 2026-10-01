@@ -50,7 +50,7 @@ export function RouteWeekSummary({
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-at-shore-pale text-left text-xs tracking-zero text-at-muted uppercase">
+            <tr className="at-th-row bg-at-shore-pale">
               <th scope="col" className="px-4 py-2">
                 Date
               </th>
@@ -69,7 +69,7 @@ export function RouteWeekSummary({
             {days.map((day) => (
               <tr key={day.date} className="border-t border-at-border">
                 <td className="px-4 py-2 tabular-nums">
-                  <Link href={dayHref(day.date)} className="text-at-shore hover:underline">
+                  <Link href={dayHref(day.date)} className="at-link">
                     {serviceDayLabel(day.date)}
                   </Link>
                 </td>

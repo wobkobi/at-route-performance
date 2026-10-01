@@ -4,6 +4,7 @@
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
 // identical is a feed people learn to ignore.
+import { Badge, badgeClass } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import {
   alertPeriodToShow,
@@ -135,12 +136,7 @@ export function AlertBanner({
           {heading}
           {pastWindow && <span className="font-normal"> - running now</span>}
         </span>
-        <span
-          className={cn(
-            "px-2 py-0.5 text-xs tabular-nums",
-            severe ? "bg-at-disruption text-white" : "bg-at-border text-at-ink",
-          )}
-        >
+        <span className={cn(badgeClass(severe ? "disruption" : "muted"), "tabular-nums")}>
           {alerts.length}
         </span>
         {/* Chevron rotates when details is open */}
@@ -206,16 +202,10 @@ export function AlertBanner({
               )}
               {periodText && <p className="text-xs text-at-muted">{periodText}</p>}
               {alert.effect && (
-                <span
-                  className={cn(
-                    "inline-block rounded px-1.5 py-0.5 text-xs",
-                    rowSevere
-                      ? "bg-at-disruption/15 text-at-disruption"
-                      : "bg-at-border/60 text-at-muted",
-                  )}
-                >
-                  {alert.effect.replace(/_/g, " ")}
-                </span>
+                <Badge
+                  tone={rowSevere ? "disruption" : "muted"}
+                  label={alert.effect.replace(/_/g, " ")}
+                />
               )}
               {cleanDesc && <p className="text-sm leading-snug text-at-muted">{cleanDesc}</p>}
               {routeIds.length > 0 && (
@@ -224,7 +214,7 @@ export function AlertBanner({
                     <Link
                       key={id}
                       href={routeHref(id)}
-                      className="bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
+                      className={cn(badgeClass("pale"), "hover:underline")}
                     >
                       {routeNames?.[id] ?? routeSlug(id)}
                     </Link>

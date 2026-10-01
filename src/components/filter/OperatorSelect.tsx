@@ -44,11 +44,7 @@ export function OperatorSelect({
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="text-xs font-semibold tracking-zero text-at-muted uppercase">Operator</span>
-      <select
-        value={active ?? ""}
-        onChange={choose}
-        className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
-      >
+      <select value={active ?? ""} onChange={choose} className="at-field">
         <option value="">Any operator</option>
         {options.map((o) => (
           <option key={o.slug} value={o.slug}>

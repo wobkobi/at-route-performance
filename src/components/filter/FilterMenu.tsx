@@ -151,15 +151,11 @@ export function FilterMenu({
                 type="button"
                 onClick={onReset}
                 disabled={!active}
-                className="text-sm font-semibold text-at-shore hover:underline disabled:text-at-muted disabled:no-underline"
+                className="at-link text-sm font-semibold disabled:text-at-muted disabled:no-underline"
               >
                 Reset
               </button>
-              <button
-                type="button"
-                onClick={close}
-                className="bg-at-shore px-3 py-1 text-sm font-semibold text-white hover:bg-at-ocean"
-              >
+              <button type="button" onClick={close} className="at-btn at-btn-primary">
                 Done
               </button>
             </div>

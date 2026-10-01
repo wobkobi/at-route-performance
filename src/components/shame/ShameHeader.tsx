@@ -121,10 +121,7 @@ export function ShameHeader({
   return (
     <header className="space-y-3">
       {allHoursHref && (
-        <Link
-          href={allHoursHref}
-          className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
-        >
+        <Link href={allHoursHref} className="at-link inline-flex items-center gap-1 text-sm">
           <ChevronLeft className="h-3.5 w-3.5" />
           Back to every hour
         </Link>

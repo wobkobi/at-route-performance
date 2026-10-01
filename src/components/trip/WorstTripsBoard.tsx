@@ -16,6 +16,7 @@
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
+import { Badge, CANCELLATION_TONE, CancellationBadge, LiveBadge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
@@ -27,7 +28,6 @@ import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
 import {
   CANCELLATION_BADGE,
-  CANCELLATION_BADGE_CLASS,
   CANCELLATION_BADGE_MEANING,
   CANCELLATION_BADGE_SHORT,
   type CancellationStage,
@@ -56,7 +56,7 @@ import { type JSX, Suspense } from "react";
  * @param props.liveTripIds - Trip ids currently broadcasting a position.
  * @returns The badge, or null when this run is not live.
  */
-async function LiveBadge({
+async function TripLiveBadge({
   tripId,
   liveTripIds,
 }: {
@@ -65,11 +65,7 @@ async function LiveBadge({
 }): Promise<JSX.Element | null> {
   const ids = await liveTripIds;
   if (!ids.has(tripId)) return null;
-  return (
-    <span className="shrink-0 rounded bg-at-ontime px-1.5 py-0.5 text-xs font-bold text-white">
-      LIVE
-    </span>
-  );
+  return <LiveBadge />;
 }
 
 /** Props for {@link WorstTripsBoard}. */
@@ -95,7 +91,7 @@ export interface WorstTripsBoardProps {
   /**
    * Trip ids currently running live; those rows get a LIVE badge. Passed
    * unresolved so the board does not wait on AT's realtime call - see
-   * {@link LiveBadge}.
+   * {@link TripLiveBadge}.
    */
   liveTripIds?: Promise<ReadonlySet<string>>;
   /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
@@ -129,7 +125,7 @@ function badgeKey(
   if (rows.some((r) => r.kind === "run" && detouredTripIds?.has(r.trip.trip_id))) {
     items.push({
       label: "OFF ROUTE",
-      className: "bg-at-commercial text-at-ink",
+      tone: "commercial",
       meaning: "GPS put this vehicle well off its route mid-run",
     });
   }
@@ -141,7 +137,7 @@ function badgeKey(
     items.push({
       label: CANCELLATION_BADGE[stage],
       shortLabel: CANCELLATION_BADGE_SHORT[stage],
-      className: CANCELLATION_BADGE_CLASS[stage],
+      tone: CANCELLATION_TONE[stage],
       meaning: CANCELLATION_BADGE_MEANING[stage],
     });
   }
@@ -278,15 +274,7 @@ export function WorstTripsBoard({
                           )}
                           {boundFor(c.headsign, mode ?? "BUS") ?? `Trip ${c.trip_id}`}
                         </span>
-                        <span
-                          title={CANCELLATION_BADGE_MEANING.before}
-                          className={cn(
-                            "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                            CANCELLATION_BADGE_CLASS.before,
-                          )}
-                        >
-                          {CANCELLATION_BADGE.before}
-                        </span>
+                        <CancellationBadge stage="before" />
                       </span>
                       {row.waitSec !== undefined && (
                         <span
@@ -330,32 +318,16 @@ export function WorstTripsBoard({
                         </span>
                       </span>
                       {detouredTripIds?.has(t.trip_id) && (
-                        <span
+                        <Badge
+                          tone="commercial"
+                          label="OFF ROUTE"
                           title="GPS put this vehicle well off its route mid-run"
-                          className="shrink-0 rounded bg-at-commercial px-1.5 py-0.5 text-xs font-bold text-at-ink"
-                        >
-                          OFF ROUTE
-                        </span>
+                        />
                       )}
-                      {row.cancellation && (
-                        <span
-                          title={CANCELLATION_BADGE_MEANING[row.cancellation]}
-                          className={cn(
-                            "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                            CANCELLATION_BADGE_CLASS[row.cancellation],
-                          )}
-                        >
-                          <span className="sm:hidden">
-                            {CANCELLATION_BADGE_SHORT[row.cancellation]}
-                          </span>
-                          <span className="hidden sm:inline">
-                            {CANCELLATION_BADGE[row.cancellation]}
-                          </span>
-                        </span>
-                      )}
+                      {row.cancellation && <CancellationBadge stage={row.cancellation} />}
                       {liveTripIds && (
                         <Suspense fallback={null}>
-                          <LiveBadge tripId={t.trip_id} liveTripIds={liveTripIds} />
+                          <TripLiveBadge tripId={t.trip_id} liveTripIds={liveTripIds} />
                         </Suspense>
                       )}
                     </span>

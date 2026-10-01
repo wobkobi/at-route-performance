@@ -145,7 +145,7 @@ export function StopSchedule({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-at-border text-left text-xs tracking-zero text-at-muted uppercase">
+              <tr className="at-th-row">
                 <th scope="col" className="pr-4 pb-1 font-semibold">
                   Route
                 </th>
@@ -190,10 +190,7 @@ export function StopSchedule({
                       )}
                     >
                       <td className="py-1.5 pr-4 font-semibold">
-                        <Link
-                          href={routeHref(dep.routeId, routeParams)}
-                          className="text-at-shore hover:underline"
-                        >
+                        <Link href={routeHref(dep.routeId, routeParams)} className="at-link">
                           {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
                         </Link>
                       </td>

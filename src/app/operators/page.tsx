@@ -220,7 +220,7 @@ export default async function OperatorsPage({
         <div className="overflow-x-auto border border-at-border bg-at-surface">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
+              <tr className="at-th-row">
                 <SortHeader {...head("name")} align="left">
                   Operator
                 </SortHeader>
@@ -263,7 +263,7 @@ export default async function OperatorsPage({
                             ...view,
                             school: filters.school,
                           })}
-                          className="text-at-shore hover:underline"
+                          className="at-link"
                         >
                           {o.operator.name}
                         </Link>
@@ -278,7 +278,7 @@ export default async function OperatorsPage({
                     <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                       <Link
                         href={buildHref("/routes", { ...view, ...filters, op: o.operator.slug })}
-                        className="text-at-shore hover:underline"
+                        className="at-link"
                       >
                         {o.routes}
                       </Link>
@@ -294,7 +294,7 @@ export default async function OperatorsPage({
                             ...filters,
                             op: o.operator.slug,
                           })}
-                          className="text-at-shore hover:underline"
+                          className="at-link"
                         >
                           {formatCount(o.vehicles)}
                         </Link>
