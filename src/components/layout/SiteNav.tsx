@@ -41,7 +41,7 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
             // link, since /route/20 > /routes is a real navigation.
             // px-2 below sm keeps each group to one row on a 360px phone.
             const className = cn(
-              "shrink-0 px-2 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
+              "inline-flex min-h-11 shrink-0 items-center px-2 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
               active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
             );
             return pathname === s.href ? (

@@ -139,14 +139,14 @@ export function SplitBar({
 
   return (
     <div className="relative lg:col-span-4">
-      <div className="flex h-3 overflow-hidden bg-at-bg">
+      <div className="flex h-3 bg-at-bg">
         {SPLIT_BANDS.map((b) => (
           <button
             key={b.key}
             type="button"
             aria-label={`${b.label} ${formatPct(shares[b.key])}`}
             className={cn(
-              "h-full cursor-pointer transition-opacity",
+              "hit-44 h-full cursor-pointer transition-opacity",
               b.barClass,
               shown !== null && shown !== b.key && "opacity-40",
             )}

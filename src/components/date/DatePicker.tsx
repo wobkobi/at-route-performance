@@ -38,7 +38,7 @@ const PANEL_WIDTH_PX = 320;
 
 /** A step button in the panel's header. */
 const STEP =
-  "inline-flex h-8 w-8 items-center justify-center border border-at-border text-at-ink hover:border-at-shore disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border";
+  "inline-flex size-11 items-center justify-center border border-at-border text-at-ink hover:border-at-shore disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border";
 
 /**
  * A stepper's date label that opens a calendar. The Day view picks a day, the
@@ -138,7 +138,7 @@ export function DatePicker({
         aria-controls={popover.panelId}
         title={title}
         className={cn(
-          "border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
+          "inline-flex min-h-11 items-center justify-center border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
           popover.open && "border-at-shore",
           className,
         )}
@@ -167,7 +167,7 @@ export function DatePicker({
                   onClick={() =>
                     go({ window: "month", period: monthPickPeriod(ym, today) ?? undefined })
                   }
-                  className={cn("h-10 text-sm font-semibold", cellClass(on))}
+                  className={cn("h-11 text-sm font-semibold", cellClass(on))}
                 >
                   {monthShort(ym)}
                 </button>
@@ -210,7 +210,7 @@ export function DatePicker({
                         aria-label={serviceDayLabel(d)}
                         onClick={() => go({ day: d === today ? undefined : d })}
                         className={cn(
-                          "h-9 text-sm tabular-nums",
+                          "h-11 text-sm tabular-nums",
                           cellClass(on),
                           !on && monthOf(d) !== shown && "text-at-muted",
                           d === today && !on && "font-semibold text-at-shore",
@@ -345,7 +345,7 @@ function WeekRow({
         <span
           key={d}
           className={cn(
-            "flex h-9 items-center justify-center",
+            "flex h-11 items-center justify-center",
             // Inside the rolling week the days that fall in it are filled on
             // their own, since it rarely lines up with a Monday-to-Sunday row.
             !on && d >= from && d <= to && "bg-at-shore text-white",

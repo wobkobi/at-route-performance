@@ -151,9 +151,9 @@
   }
 }
 
-/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. */
+/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. 44px tall, the site's smallest touch target. */
 .chip {
-  @apply inline-flex items-center px-3 py-1 text-sm font-semibold transition-colors;
+  @apply inline-flex min-h-11 items-center px-3 py-1 text-sm font-semibold transition-colors;
 }
 .chip-on {
   @apply bg-at-shore text-white;
@@ -178,6 +178,25 @@
 */
 .step-slot {
   @apply block min-h-11 min-w-11;
+}
+
+/*
+  Grows a control drawn smaller than a fingertip - an info icon, a dotted
+  explanation, a 12px bar segment - to a 44px touch target without moving
+  anything: a transparent box centred on it catches the press. The control's
+  own box keeps the focus ring, so the ring still hugs what the reader sees.
+*/
+.hit-44 {
+  position: relative;
+}
+.hit-44::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 2.75rem);
+  height: max(100%, 2.75rem);
+  transform: translate(-50%, -50%);
 }
 
 /*

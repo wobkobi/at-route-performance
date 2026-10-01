@@ -65,7 +65,7 @@ function HourGrid({
             aria-pressed={o.hour === value}
             onClick={() => onPick(o.hour)}
             className={cn(
-              "h-9 border text-xs font-semibold tabular-nums transition-colors",
+              "h-11 border text-xs font-semibold tabular-nums transition-colors",
               o.hour === value
                 ? "border-at-shore bg-at-shore text-white"
                 : "border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore",

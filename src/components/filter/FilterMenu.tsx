@@ -22,7 +22,7 @@ export function choiceSummary(labels: readonly string[]): string | null {
 }
 
 /** Shape shared by the box and its reset, square-cornered like the search field. */
-const BOX = "inline-flex items-center border py-1.5 text-sm transition-colors";
+const BOX = "inline-flex min-h-11 items-center border py-1.5 text-sm transition-colors";
 
 /**
  * A filter box and the option list it opens. The list anchors under the box

@@ -321,7 +321,7 @@ export function PunctualityInfo({
         aria-expanded={popover.open}
         aria-controls={popover.panelId}
         aria-label={`${label} breakdown`}
-        className="cursor-pointer text-at-muted transition-colors hover:text-at-ink"
+        className="hit-44 cursor-pointer text-at-muted transition-colors hover:text-at-ink"
       >
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
           <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5Zm.8 9.7H7.2V7h1.6Zm0-5.2H7.2V4.8h1.6Z" />

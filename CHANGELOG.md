@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.29] - 2026-10-01
+
+### Fixed
+
+- Every chip, tab, filter box, date-picker button and hour cell is at least 44px tall, and the info
+  icons, dotted explanations and split-bar segments catch a 44px press without growing.
+
 ## [2.41.28] - 2026-10-01
 
 ### Changed

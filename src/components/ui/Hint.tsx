@@ -81,7 +81,7 @@ export function Hint({
           if (e.key === "Escape") setOpen(false);
         }}
         className={cn(
-          "cursor-help underline decoration-at-border decoration-dotted underline-offset-4",
+          "hit-44 cursor-help underline decoration-at-border decoration-dotted underline-offset-4",
           triggerClassName,
         )}
       >
