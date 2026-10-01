@@ -14,6 +14,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { ShowMore } from "@/components/ui/ShowMore";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
 import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
@@ -231,15 +232,11 @@ export function CancelledTripList({
       )}
       <BadgeKey items={keyItems} />
       {visible.length > shown && (
-        <div className="mt-3 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
-            className="chip chip-off"
-          >
-            Show {Math.min(LIST_PAGE_SIZE, visible.length - shown)} more of {visible.length - shown}
-          </button>
-        </div>
+        <ShowMore
+          remaining={visible.length - shown}
+          onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
+          className="mt-3"
+        />
       )}
     </Panel>
   );

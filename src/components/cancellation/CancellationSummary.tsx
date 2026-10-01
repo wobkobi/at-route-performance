@@ -2,8 +2,7 @@
 // KPI strip for the Cancellations page: every trip AT flagged, split by how the
 // flag played out (see lib/trip/cancellation.ts), and how many routes had one.
 
-import { Panel } from "@/components/ui/Panel";
-import { cn } from "@/lib/cn";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
 import { formatCount } from "@/lib/format";
 import type { JSX } from "react";
 
@@ -48,18 +47,12 @@ export function CancellationSummary({
     { label: "Routes", value: routes },
   ];
   return (
-    <Panel as="div">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {cells.map((c) => (
-          <div key={c.label} className="p-3">
-            <div className="text-xs tracking-zero text-at-muted uppercase">{c.label}</div>
-            <div className={cn("text-xl font-ultra tracking-zero tabular-nums", c.className)}>
-              {formatCount(c.value)}
-            </div>
-            {c.note && <div className="text-xs text-at-muted">{c.note}</div>}
-          </div>
-        ))}
-      </div>
-    </Panel>
+    <FigureStrip>
+      {cells.map((c) => (
+        <Figure key={c.label} label={c.label} note={c.note} className={c.className}>
+          {formatCount(c.value)}
+        </Figure>
+      ))}
+    </FigureStrip>
   );
 }

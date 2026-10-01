@@ -13,7 +13,9 @@ import { ChevronRight, SortArrow } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure } from "@/components/ui/FigureStrip";
 import { Panel } from "@/components/ui/Panel";
+import { ShowMore } from "@/components/ui/ShowMore";
 import { cn } from "@/lib/cn";
 import { labelsOf } from "@/lib/collections";
 import {
@@ -114,31 +116,6 @@ function FilterRow({ label, children }: { label: string; children: ReactNode }):
         {label}
       </span>
       <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  );
-}
-
-/**
- * One figure in a route card.
- * @param props - Component props.
- * @param props.label - The figure's label.
- * @param props.children - The value.
- * @param props.className - Classes for the value (colour).
- * @returns The figure.
- */
-function Figure({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}): JSX.Element {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs tracking-zero text-at-muted uppercase">{label}</dt>
-      <dd className={cn("truncate font-semibold tabular-nums", className)}>{children}</dd>
     </div>
   );
 }
@@ -555,19 +532,23 @@ export function RouteExplorer({
                   </div>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
-                  <Figure label="On time">{formatPct(r.on_time_pct)}</Figure>
+                  <Figure size="sm" label="On time">
+                    {formatPct(r.on_time_pct)}
+                  </Figure>
                   <Figure
+                    size="sm"
                     label="Early or late"
                     className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}
                   >
                     {offSchedule.text}
                   </Figure>
-                  <Figure label="Off by">
+                  <Figure size="sm" label="Off by">
                     {r.avg_abs_delay_sec === null
                       ? UNKNOWN_VALUE
                       : formatDuration(r.avg_abs_delay_sec)}
                   </Figure>
                   <Figure
+                    size="sm"
                     label="Cancelled"
                     className={r.cancelled > 0 ? "text-at-late" : undefined}
                   >
@@ -589,15 +570,10 @@ export function RouteExplorer({
       )}
 
       {sorted.length > shown && (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
-            className="chip chip-off"
-          >
-            Show {Math.min(LIST_PAGE_SIZE, sorted.length - shown)} more of {sorted.length - shown}
-          </button>
-        </div>
+        <ShowMore
+          remaining={sorted.length - shown}
+          onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
+        />
       )}
     </div>
   );

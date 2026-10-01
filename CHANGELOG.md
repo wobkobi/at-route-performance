@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.25] - 2026-10-01
+
+### Changed
+
+- Figure strips, tables and show-more buttons share one component each; the cancellations strip now
+  matches the routes strip
+
 ## [2.41.24] - 2026-10-01
 
 ### Changed

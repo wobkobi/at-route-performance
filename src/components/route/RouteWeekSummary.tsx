@@ -1,8 +1,10 @@
 // src/components/route/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { cn } from "@/lib/cn";
 import { formatCount, formatPct, offScheduleValue } from "@/lib/format";
 import { serviceDayLabel } from "@/lib/time/service-day";
 import type { RouteDay } from "@/types/api";
@@ -46,42 +48,44 @@ export function RouteWeekSummary({
   return (
     <Panel>
       <SectionHeading className="border-b border-at-border px-4 py-3">{label}</SectionHeading>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="at-th-row bg-at-shore-pale">
-              <th scope="col" className="px-4 py-2">
-                Date
+      <DataTable caption={`${label}, day by day`} framed={false}>
+        <thead>
+          <tr className="at-th-row">
+            <th scope="col" className={CELL_CLASS}>
+              Date
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Arrivals
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Early or late
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              On time
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((day) => (
+            <tr key={day.date} className={ROW_CLASS}>
+              <th scope="row" className={cn(CELL_CLASS, "text-left font-normal tabular-nums")}>
+                <Link href={dayHref(day.date)} className="at-link">
+                  {serviceDayLabel(day.date)}
+                </Link>
               </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                Arrivals
-              </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                Early or late
-              </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                On time
-              </th>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                {formatCount(day.events)}
+              </td>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                {offScheduleValue(day.avg_delay_sec, null, mode).text}
+              </td>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                {formatPct(day.on_time_pct)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {days.map((day) => (
-              <tr key={day.date} className="border-t border-at-border">
-                <td className="px-4 py-2 tabular-nums">
-                  <Link href={dayHref(day.date)} className="at-link">
-                    {serviceDayLabel(day.date)}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">{formatCount(day.events)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {offScheduleValue(day.avg_delay_sec, null, mode).text}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">{formatPct(day.on_time_pct)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </DataTable>
     </Panel>
   );
 }

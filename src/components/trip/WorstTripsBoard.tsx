@@ -20,6 +20,7 @@ import { Badge, CANCELLATION_TONE, CancellationBadge, LiveBadge } from "@/compon
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { ShowMore } from "@/components/ui/ShowMore";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
@@ -354,19 +355,15 @@ export function WorstTripsBoard({
       )}
       <BadgeKey items={badgeKey(rows, detouredTripIds)} />
       {rows.length < total && (
-        <div className="mt-3 flex justify-center">
-          <Link
-            href={buildHref(basePath, {
-              ...preservedParams,
-              tsort,
-              [SHOWN_PARAM]: String(rows.length + LIST_PAGE_SIZE),
-            })}
-            scroll={false}
-            className="chip chip-off"
-          >
-            Show {Math.min(LIST_PAGE_SIZE, total - rows.length)} more of {total - rows.length}
-          </Link>
-        </div>
+        <ShowMore
+          remaining={total - rows.length}
+          href={buildHref(basePath, {
+            ...preservedParams,
+            tsort,
+            [SHOWN_PARAM]: String(rows.length + LIST_PAGE_SIZE),
+          })}
+          className="mt-3"
+        />
       )}
     </Panel>
   );
