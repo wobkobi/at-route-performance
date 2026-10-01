@@ -27,8 +27,8 @@ import {
   getLatestEventDate,
   getRankings,
   getStopStats,
+  revalidateFor,
   searchStops,
-  TODAY_REVALIDATE,
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { pageMetadata } from "@/lib/og";
@@ -62,9 +62,6 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Line up Auckland routes or stops side by side: on time, early, late, average off schedule and cancellations.",
 });
-
-/** Cache TTL for a week or month's rows (seconds), as on the Routes page. */
-const PERIOD_REVALIDATE = 3600;
 
 /** Search results listed under the picker. */
 const SEARCH_LIMIT = 10;
@@ -268,7 +265,7 @@ export default async function ComparePage({
       today,
     ));
   }
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
   const view = rangeViewParams(window, linkDay, period);
   const phrase = windowPhrase(nav, period);
 

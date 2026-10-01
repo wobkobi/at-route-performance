@@ -11,6 +11,7 @@
 // is recomputed per request.
 import { pushTo } from "@/lib/collections";
 import { getRecentStopIds } from "@/lib/data";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { offsetPath } from "@/lib/map/route-geo";
 import { memCache } from "@/lib/mem-cache";
@@ -467,7 +468,7 @@ export async function buildRouteView(
   let shape: RouteShape;
   let patternFailed = false;
   try {
-    shape = await memCache(`route-shape|${routeId}|${mode}`, 86400, () =>
+    shape = await memCache(`route-shape|${routeId}|${mode}`, DAY_REVALIDATE, () =>
       queryRouteShape(routeId, mode),
     );
   } catch (err) {

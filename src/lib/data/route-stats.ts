@@ -3,6 +3,7 @@
 import { groupBy } from "@/lib/collections";
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
+import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
@@ -295,7 +296,7 @@ export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<s
       return res.map((r) => r._id);
     },
     ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
   return new Set(ids);
 }

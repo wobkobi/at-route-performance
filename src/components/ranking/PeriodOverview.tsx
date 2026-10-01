@@ -19,6 +19,7 @@ import {
   getShameOfWeek,
   getShameRouteOfWeek,
   getWorstStopsOfWeek,
+  PERIOD_REVALIDATE,
 } from "@/lib/data";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
@@ -54,7 +55,6 @@ import type {
 } from "@/types/dashboard";
 import type { JSX } from "react";
 
-const REVALIDATE = 3600; // 1 hour
 /** Routes each board shows; the full ranking is on the Routes page. */
 const BOARD_SIZE = 10;
 
@@ -126,9 +126,9 @@ export function loadPeriodBatch(view: PeriodView): PeriodBatch {
   const { mode, schools, range } = view;
   return {
     core: handled(loadPeriodCore(view)),
-    shame: handled(getShameOfWeek(range, { mode, schools }, REVALIDATE)),
-    shameRoute: handled(getShameRouteOfWeek(range, { mode, schools }, REVALIDATE)),
-    shameStop: handled(getWorstStopsOfWeek(range, { mode, schools }, REVALIDATE)),
+    shame: handled(getShameOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
+    shameRoute: handled(getShameRouteOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
+    shameStop: handled(getWorstStopsOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
   };
 }
 
@@ -144,22 +144,22 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
   const prevRange = resolvePrevRange(window, period, anchor);
   const [rows, prevRows, [cancelled, cancelledByRoute, cancelledWithoutSchool]] = await Promise.all(
     [
-      getFilteredRankings(range, filters, REVALIDATE),
+      getFilteredRankings(range, filters, PERIOD_REVALIDATE),
       // The previous window under the same filters, so a rank arrow compares
       // like with like (last month's Saturdays against this month's).
       rangeIsEmpty(prevRange)
         ? Promise.resolve<RouteRow[]>([])
-        : getFilteredRankings(prevRange, filters, REVALIDATE),
+        : getFilteredRankings(prevRange, filters, PERIOD_REVALIDATE),
       hasRankingFilters(filters)
         ? getFilteredCancellations(range, filters, { mode, schools }).then(
             (c) => [c.total, c.byRoute, schools === "include" ? c.withoutSchool : null] as const,
           )
         : Promise.all([
-            getCancelledCount(range, { mode, schools }, REVALIDATE),
-            getCancelledByRoute(range, { mode, schools }, REVALIDATE),
+            getCancelledCount(range, { mode, schools }, PERIOD_REVALIDATE),
+            getCancelledByRoute(range, { mode, schools }, PERIOD_REVALIDATE),
             // The count school services leave out, for the "+N" beside each figure.
             schools === "include"
-              ? getCancelledCount(range, { mode, schools: "exclude" }, REVALIDATE)
+              ? getCancelledCount(range, { mode, schools: "exclude" }, PERIOD_REVALIDATE)
               : null,
           ]),
     ],

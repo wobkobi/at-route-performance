@@ -27,6 +27,7 @@ import {
   getShameRoutesInHours,
   getShameRouteStreaksBatch,
   MIN_ROUTE_EVENTS_HOUR,
+  PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -62,7 +63,6 @@ import {
   shameHourHref,
   shameHoursLabel,
   shameHoursParam,
-  WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
@@ -144,7 +144,7 @@ async function RouteRangeBoard({
   isMonth: boolean;
   periodParam: string | null;
 }): Promise<JSX.Element> {
-  const shame = await getShameRouteOfWeek(range, filter, WEEK_REVALIDATE);
+  const shame = await getShameRouteOfWeek(range, filter, PERIOD_REVALIDATE);
   const periodNoun = isMonth ? "month" : "week";
   const worstKey = shame.worst?.date ?? null;
   const routeDayCounts = countBy(shame.days, (d) => d.routeId);

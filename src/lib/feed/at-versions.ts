@@ -4,6 +4,7 @@
 // `version`) and ships no `is_current` flag, so the live feed is identified by
 // the `feed_start_date`/`feed_end_date` window that covers the service day.
 
+import { SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { getJson } from "@/lib/feed/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
 import { dashedDate, nzServiceDayString } from "@/lib/time/service-day";
@@ -153,7 +154,7 @@ export async function getFeedWindow(): Promise<FeedWindow | null> {
         );
       },
       ["at-feed-window-v1", today],
-      { revalidate: 21_600 },
+      { revalidate: SIX_HOUR_REVALIDATE },
     )();
   } catch {
     // Caught outside the cache, so a refused call is retried on the next render

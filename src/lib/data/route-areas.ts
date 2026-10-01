@@ -6,6 +6,7 @@
 // weekend-only and weekday-only services alike.
 import { cachedForDay } from "@/lib/data/cache";
 import { aggregateRows, dateWindow } from "@/lib/data/raw";
+import { SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { type AreaKey, routeAreas } from "@/lib/geo/areas";
 import { routeFareZones } from "@/lib/geo/fare-zone-geo";
@@ -94,6 +95,6 @@ export async function getRouteGeography(): Promise<RouteGeography> {
       return out;
     },
     ["route-geography", yesterday],
-    { revalidate: 6 * 3600 },
+    { revalidate: SIX_HOUR_REVALIDATE },
   )();
 }

@@ -21,6 +21,7 @@ import {
   getOperatorDirectory,
   getRankings,
   getVehicleWork,
+  revalidateFor,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
@@ -62,9 +63,6 @@ export const metadata: Metadata = pageMetadata({
   description:
     "The companies that run Auckland's buses, trains and ferries for AT, compared on punctuality, cancellations and fleet.",
 });
-
-/** Cache TTL for a week or month's rows (seconds), as on the Routes page. */
-const PERIOD_REVALIDATE = 3600;
 
 /** Query params for the operators page. */
 interface OperatorsSearchParams {
@@ -143,7 +141,7 @@ export default async function OperatorsPage({
       today,
     ));
   }
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
 
   // With school services included, the same reads without them too, so each
   // count can show the "+N" they add.

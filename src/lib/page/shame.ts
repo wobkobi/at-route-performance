@@ -21,8 +21,6 @@ import {
 } from "@/lib/time/time-of-day";
 import { buildHref } from "@/lib/utils";
 
-/** Cache TTL for the week boards (seconds). */
-export const WEEK_REVALIDATE = 3600;
 /**
  * Rows per column the day-board skeleton draws. The real board lists every
  * started hour of the service day, so a past day fills 12 rows per column.

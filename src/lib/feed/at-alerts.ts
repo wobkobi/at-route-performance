@@ -4,6 +4,7 @@
 // single-trip alert is about, then selects the ones relevant to a given route, a
 // given stop, a given trip, or the whole network, and grades how loudly each
 // should be presented.
+import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
@@ -481,7 +482,7 @@ function getAlertSnapshot(): Promise<AlertSnapshot> {
       };
     },
     ["service-alerts-v2"],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 

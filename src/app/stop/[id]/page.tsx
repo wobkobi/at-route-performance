@@ -31,6 +31,7 @@ import {
   getStationSiblings,
   getStopIdentity,
   getStopStats,
+  LIVE_DAY_REVALIDATE,
 } from "@/lib/data";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
@@ -68,8 +69,6 @@ import { Fragment, Suspense, type JSX } from "react";
 // search params and its data above any Suspense boundary, so it is allowed to
 // block. Removing this line is what converts the route.
 export const instant = false;
-
-const REVALIDATE = 300; // 5 minutes
 
 /** Query params for the stop detail page. */
 interface StopSearchParams {
@@ -167,7 +166,7 @@ export default async function StopPage({
     getStationSiblings(id),
   ]);
   const { range, serviceDate } = shown;
-  const stats = await getStopStats(id, range, REVALIDATE);
+  const stats = await getStopStats(id, range, LIVE_DAY_REVALIDATE);
   if (!stats) notFound();
 
   const nav = dayRangeNav(shown, earliestDay, today);

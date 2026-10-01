@@ -1,6 +1,7 @@
 // src/lib/data/data-days.ts
 // The edges of the archive: the earliest and latest days with enough data to show.
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
@@ -80,7 +81,7 @@ export async function getLatestEventDate(): Promise<Date | null> {
   const iso = await unstable_cache(
     async () => (await endpointEventTime(-1))?.toISOString() ?? null,
     ["latest-event-date"],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return iso ? new Date(iso) : null;
 }
@@ -97,7 +98,7 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   const day = await unstable_cache(
     () => findQualifyingDataDay(-1, minEvents),
     ["most-recent-data-day", String(minEvents)],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return day ? serviceDayNoon(day) : null;
 }
@@ -155,7 +156,7 @@ export async function getEarliestDataDay(minEvents: number): Promise<Date | null
     // Moves when the nightly cleanup prunes the oldest day; ten minutes, like
     // the latest/most-recent markers, so the day stepper cannot offer a day
     // that was just deleted for hours.
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return day ? serviceDayNoon(day) : null;
 }

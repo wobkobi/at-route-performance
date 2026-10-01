@@ -2,20 +2,16 @@
 // Cache policy for the date-scoped aggregations: when a window is final, how long it holds,
 // and the live-day clip on scheduledAt.
 import { type BsonWindow, dateWindow } from "@/lib/data/raw";
+import { COMPLETED_DAY_REVALIDATE, FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { INGEST_INTERVAL_SEC } from "@/lib/feed/ingest-run";
 import { unstable_cache } from "@/lib/mem-cache";
 import {
   type DateRange,
   nzServiceDayRange,
   nzServiceDayString,
-  SEC_PER_DAY,
   serviceDatesInRange,
 } from "@/lib/time/service-day";
-
-/** Cache TTL for a completed, classified service day's aggregation (seconds). */
-const COMPLETED_DAY_REVALIDATE = 7 * SEC_PER_DAY;
 
 /**
  * Bumped whenever the ghost classification changes what a completed day's boards
@@ -35,15 +31,6 @@ const PASS_VERSION = "g2";
 export function cacheKey(keyParts: readonly string[], state: string): string[] {
   return [PASS_VERSION, ...keyParts, state];
 }
-
-/**
- * Cache TTL for a window that can still change - anything touching the live
- * service day. One ingest cycle: the readings only move when a run lands, so a
- * shorter hold re-runs the aggregation over figures that have not changed. The
- * entry is refreshed in the background once it expires (see {@link cacheState}),
- * so a reader sees figures at most this far behind the latest run.
- */
-export const TODAY_REVALIDATE = INGEST_INTERVAL_SEC;
 
 /**
  * Whether the nightly aggregate has written a `DailyRouteSummary` for a
@@ -68,7 +55,7 @@ async function summaryExistsFor(date: string): Promise<boolean> {
       return row !== null;
     },
     ["summary-exists", date],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 

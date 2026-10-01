@@ -3,6 +3,7 @@
 // window and since the archive began.
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { realDeviationMatchFor } from "@/lib/deviation";
@@ -25,9 +26,6 @@ import {
   mergeVehicles,
   vehiclesByMode,
 } from "@/lib/vehicle/counts";
-
-/** A completed day's union only changes when a new day completes. */
-const COMPLETED_DAYS_REVALIDATE = 86_400;
 
 /**
  * One service day's distinct vehicles per mode, cached per day so a week, a
@@ -144,7 +142,7 @@ export async function getVehicleCountsAllTime(
       schools,
       ...(hours ? [hourRangeParam(hours) ?? ""] : []),
     ],
-    { revalidate: COMPLETED_DAYS_REVALIDATE },
+    { revalidate: DAY_REVALIDATE },
   )();
   const [past, current] = await Promise.all([
     before,

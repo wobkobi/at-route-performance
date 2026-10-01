@@ -1,6 +1,7 @@
 // src/lib/data/operators.ts
 // The stored operator list, as the nightly shapes sync last wrote it.
 
+import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteOperators } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import { AGENCIES_SETTING, parseStoredAgencies } from "@/lib/feed/gtfs-agencies";
@@ -18,7 +19,7 @@ export async function getOperators(): Promise<Operator[]> {
   return unstable_cache(
     async () => parseStoredAgencies(await getSetting(AGENCIES_SETTING)),
     ["operators"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 

@@ -11,6 +11,7 @@
 // road are set side by side (src/lib/map/shared-roads.ts).
 
 import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getDirectoryRoutes } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import { type RouteShape, routePaths } from "@/lib/map/route-branches";
@@ -203,6 +204,6 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         .sort((a, b) => MODE_ORDER[a.mode] - MODE_ORDER[b.mode]);
     },
     ["network-lines-v11"],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }

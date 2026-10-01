@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.39] - 2026-10-02
+
+### Changed
+
+- Every Data Cache TTL is a named constant in `lib/data/revalidate.ts`, pages pick theirs with
+  `revalidateFor(window)`, and the filtered hour readings honour the caller's TTL instead of a fixed
+  five minutes.
+
 ## [2.41.38] - 2026-10-02
 
 ### Fixed

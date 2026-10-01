@@ -10,15 +10,10 @@
 // reads the last run to key a live window, and the barrel pulls in the modules
 // that import that policy.
 import { getLatestEventDate } from "@/lib/data/data-days";
+import { INGEST_INTERVAL_SEC } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { memCache } from "@/lib/mem-cache";
 import type { Prisma } from "@prisma/client";
-
-/**
- * Realtime ingest cadence in seconds (cron-job.org posts to /api/ingest/at every
- * ~2 minutes). Used to project the footer's "next update" time from the last run.
- */
-export const INGEST_INTERVAL_SEC = 120;
 
 /** Truncate an error message so a single failure can't bloat a row. */
 const MAX_ERROR_LEN = 500;

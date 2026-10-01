@@ -5,6 +5,7 @@
 // trip page empty, so the map does not draw it.
 
 import { aggregateRows } from "@/lib/data/raw";
+import { INGEST_INTERVAL_SEC } from "@/lib/data/revalidate";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { onARun } from "@/lib/live-routes";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -30,7 +31,7 @@ export async function getRecordedLiveTrips(): Promise<Set<string>> {
       return res.map((r) => r._id);
     },
     ["live-recorded-trips"],
-    { revalidate: 120 },
+    { revalidate: INGEST_INTERVAL_SEC },
   )();
   return new Set(ids);
 }

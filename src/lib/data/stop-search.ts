@@ -3,6 +3,7 @@
 // canonical ids, so a station's platforms come back as the one station the
 // stop page and the worst-stop boards already treat it as.
 
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { STATION_PREFIX, isLegacyStationId, stationId, stationName } from "@/lib/stop/station";
@@ -90,7 +91,7 @@ export async function searchStops(q: string, limit = 12): Promise<StopMatch[]> {
         .map((m) => ({ id: m.id, name: m.name, code: m.code }));
     },
     ["stop-search-v2", text.toLowerCase(), String(limit)],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 
@@ -131,6 +132,6 @@ export function listStops(limit: number, offset: number): Promise<StopPage> {
       return { stops, total };
     },
     ["stop-list", String(limit), String(offset)],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }

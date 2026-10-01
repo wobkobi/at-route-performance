@@ -2,8 +2,8 @@
 // Which modes ran in a window, so the Mode box only offers a mode that changes
 // the figures.
 
-import { TODAY_REVALIDATE } from "@/lib/data/cache";
 import { getRankings } from "@/lib/data/rankings";
+import { TODAY_REVALIDATE } from "@/lib/data/revalidate";
 import { logReadFailure } from "@/lib/db";
 import { MODES } from "@/lib/mode";
 import type { DateRange } from "@/lib/time/service-day";

@@ -24,6 +24,7 @@ import {
   getOperatorDirectory,
   getRankings,
   getVehicleWork,
+  revalidateFor,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
@@ -78,9 +79,6 @@ import type { JSX } from "react";
 // Not yet converted to a prerendered shell: this segment reads its search
 // params and its data above any Suspense boundary, so it is allowed to block.
 export const instant = false;
-
-/** Cache TTL for a week or month's rows (seconds), as on the Operators page. */
-const PERIOD_REVALIDATE = 3600;
 
 /** Vehicles listed before the link to the full, filtered Vehicles page. */
 const FLEET_SHOWN = 10;
@@ -199,7 +197,7 @@ export default async function OperatorPage({
       today,
     ));
   }
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
 
   // With school services included, the same reads without them too, so each
   // figure can show the "+N" they add.

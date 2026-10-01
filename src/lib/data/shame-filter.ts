@@ -1,5 +1,6 @@
 // src/lib/data/shame-filter.ts
 // The mode and school-service filter every shame, stop and cancellation read shares.
+import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
@@ -65,6 +66,6 @@ export async function worstStopRouteIds(
       return routes.filter((r) => rowAllowedBySchool(r, schools)).map((r) => r.id);
     },
     ["worst-stop-route-ids", mode ?? "all", schools],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }

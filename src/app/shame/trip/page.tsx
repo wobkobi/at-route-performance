@@ -26,6 +26,7 @@ import {
   getShameOfWeek,
   getShameRouteStreaksBatch,
   getShameTripsInHours,
+  PERIOD_REVALIDATE,
   SHAME_MIN_STOPS,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
@@ -54,7 +55,6 @@ import {
   shameHourHref,
   shameHoursLabel,
   shameHoursParam,
-  WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
@@ -156,7 +156,7 @@ async function TripRangeBoard({
   filter: ShameFilter;
   periodWhen: string;
 }): Promise<JSX.Element> {
-  const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
+  const shame = await getShameOfWeek(range, filter, PERIOD_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
   const routeDayCounts = countBy(shame.days, (d) => d.routeId);
 

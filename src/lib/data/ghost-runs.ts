@@ -4,6 +4,7 @@
 // under someone else's number. Every clock label is derived from the trip id's
 // start seconds against the run's own service day, so nothing here depends on a
 // stored instant.
+import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { nzClockTime } from "@/lib/time/format";
@@ -119,7 +120,7 @@ export async function getGhostRun(
       return row === null ? null : toRow(row);
     },
     ["ghost-run", tripId, serviceDate ?? "latest"],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 
@@ -145,6 +146,6 @@ export async function getGhostRunFor(
       return row === null ? null : toRow(row);
     },
     ["ghost-run-for", belongsToTripId, serviceDate],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }

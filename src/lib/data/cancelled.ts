@@ -2,6 +2,7 @@
 // Cancellations: per-route lists, counts and the most-cancelled board.
 import { pushTo, sumBy } from "@/lib/collections";
 import { cachedForDay, cachedForRange } from "@/lib/data/cache";
+import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
@@ -279,7 +280,7 @@ export async function getTripCancellation(
         : null;
     },
     ["trip-cancellation", tripId, range?.start.toISOString() ?? "latest"],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 

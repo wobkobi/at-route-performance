@@ -2,6 +2,7 @@
 // Runs of a route: the day's worst trips board, one trip's timeline and its schedule.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { DAY_REVALIDATE, SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import {
@@ -233,7 +234,7 @@ export async function getLatestTripDay(tripId: string): Promise<DateRange | null
       return row?.max ? nzServiceDayString(new Date(toIso(row.max))) : null;
     },
     ["latest-trip-day-v2", tripId],
-    { revalidate: 21600 },
+    { revalidate: SIX_HOUR_REVALIDATE },
   )();
   return date ? nzServiceDayRange(date) : null;
 }
@@ -406,7 +407,7 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
       return out;
     },
     ["trip-scheduled-stops-v2", tripId],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 
@@ -442,6 +443,6 @@ export async function getTripShape(tripId: string): Promise<Array<[number, numbe
       return points.map(([lon, lat]): [number, number] => [lat, lon]);
     },
     ["trip-shape", tripId],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }

@@ -36,9 +36,6 @@ import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/ti
 import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { RouteRow } from "@/types/api";
 
-/** How long a live day's filtered rows are served before a fresh read, in seconds. */
-const LIVE_DAY_REVALIDATE = 300;
-
 /**
  * Round a pipeline value to one decimal, as every ranking row is.
  * @param expr - The value's expression.
@@ -180,9 +177,10 @@ function liveHourRows(range: DateRange, hours: number[], classified: boolean): P
  * A classified day with hourly rows reads them; any other day is scanned.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param hours - The part of the day.
+ * @param revalidate - Cache TTL while the day is still under way, in seconds.
  * @returns Per-route rows, measured arrivals only.
  */
-function hourRowsOfDay(date: string, hours: HourRange): Promise<RouteRow[]> {
+function hourRowsOfDay(date: string, hours: HourRange, revalidate: number): Promise<RouteRow[]> {
   const range = nzServiceDayRange(date);
   const hourSet = hoursInRange(hours);
   return cachedForDay(
@@ -192,7 +190,7 @@ function hourRowsOfDay(date: string, hours: HourRange): Promise<RouteRow[]> {
         : liveHourRows(range, hourSet, classified),
     ["hour-rankings-day", date, hourRangeParam(hours) ?? "all"],
     date,
-    LIVE_DAY_REVALIDATE,
+    revalidate,
   );
 }
 
@@ -235,7 +233,7 @@ async function queryFilteredRankings(
   }
   const [penalties, ...sets] = await Promise.all([
     getRiderWaitOfDates(dates, hours),
-    ...dates.map((d) => hourRowsOfDay(d, hours)),
+    ...dates.map((d) => hourRowsOfDay(d, hours, revalidate)),
   ]);
   return applyRoutePenalties(foldLineageRows(sets.flat()), penalties);
 }

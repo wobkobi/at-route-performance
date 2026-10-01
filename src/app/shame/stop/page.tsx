@@ -24,6 +24,7 @@ import {
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
   MIN_STOP_EVENTS_HOUR,
+  PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
@@ -52,7 +53,6 @@ import {
   shameHoursLabel,
   shameHoursParam,
   subtitleWithDirection,
-  WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
@@ -159,7 +159,7 @@ async function StopRangeBoard({
   filter: ShameFilter;
   periodWhen: string;
 }): Promise<JSX.Element> {
-  const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);
+  const shame = await getWorstStopsOfWeek(range, filter, PERIOD_REVALIDATE);
   // Crowned by day, not by stop: a stop that tops several days wins one of them,
   // and its other rows are ordinary rows.
   const worstKey = shame.worst?.date ?? null;

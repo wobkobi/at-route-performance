@@ -18,7 +18,7 @@ import {
   getOperatorDirectory,
   getRankings,
   getRouteGeography,
-  TODAY_REVALIDATE,
+  revalidateFor,
 } from "@/lib/data";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { liveRouteSlugs } from "@/lib/live-routes";
@@ -70,9 +70,6 @@ export async function generateMetadata({
   const card = parseListCard("routes", (await searchParams) ?? {});
   return pageMetadata({ title: "Routes", description: DESCRIPTION, card: listShareCard(card) });
 }
-
-/** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
-const PERIOD_REVALIDATE = 3600;
 /** Row cap that returns every route with a cancellation. */
 const ALL_ROUTES = 10_000;
 
@@ -103,7 +100,7 @@ export default async function RoutesPage({
   let nav: RangeNav;
   let serviceDate: string | null = null;
   let period: string | null = null;
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
   if (window === "day") {
     const shown = await resolveShownDay(resolveRequestedDay(sp.day), today);
     ({ range, serviceDate } = shown);

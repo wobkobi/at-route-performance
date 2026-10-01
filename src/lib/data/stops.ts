@@ -3,6 +3,7 @@
 import { groupBy, pushTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap, routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
@@ -592,7 +593,7 @@ export async function getStationSiblings(id: string): Promise<StationSiblings | 
       }));
     },
     ["station-places-v1"],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
   )();
   // Cheap enough to redo per request (144 parents, 25 of them sharing a place),
   // and it keeps the cached value the feed's own parents rather than a Map,
@@ -711,7 +712,7 @@ async function resolveStopGroup(id: string): Promise<StopGroup | null> {
       };
     },
     ["resolve-stop-group-v4", id],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 

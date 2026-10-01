@@ -5,6 +5,7 @@
 // alerts outage never costs a poll its arrival events.
 
 import { pushTo } from "@/lib/collections";
+import { SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { DUPLICATE_KEY, prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import type { AtTripUpdates } from "@/lib/feed/at";
@@ -34,7 +35,7 @@ type Path = [number, number][];
  * @returns The shape indexes.
  */
 function shapeIndex(): Promise<{ byId: Map<string, Path>; byPrefix: Map<string, Path[]> }> {
-  return memCache("off-route-shapes", 6 * 3600, async () => {
+  return memCache("off-route-shapes", SIX_HOUR_REVALIDATE, async () => {
     const shapes = await prisma.shape.findMany({ select: { id: true, points: true } });
     const byId = new Map<string, Path>();
     const byPrefix = new Map<string, Path[]>();

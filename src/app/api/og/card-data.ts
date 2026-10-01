@@ -24,6 +24,8 @@ import {
   getTripTimeline,
   getWorstStopsOfDay,
   getWorstStopsOfWeek,
+  LIVE_DAY_REVALIDATE,
+  PERIOD_REVALIDATE,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
@@ -48,7 +50,7 @@ import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveShownDay } from "@/lib/page/nav";
 import type { PeriodWindow } from "@/lib/page/range";
 import { periodRangeNav } from "@/lib/page/range";
-import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/page/shame";
+import { isCrownable, pickWorst } from "@/lib/page/shame";
 import { summariseRows, visibleRows } from "@/lib/rankings";
 import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { aggregateWeek } from "@/lib/route/week";
@@ -72,9 +74,6 @@ import { boundFor } from "@/lib/trip/departure-label";
 import { dayVerdict } from "@/lib/verdict";
 import type { FleetSummary, ShameRouteRow, ShameTrip } from "@/types/dashboard";
 import type { SubjectBodyProps } from "./card-layout";
-
-/** The stop page's cache lifetime, shared so the card reads the same entries. */
-const STOP_REVALIDATE = 300;
 
 /** What the home card shows once its view is resolved. */
 export interface HomeCardData {
@@ -318,7 +317,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
  */
 export async function stopCardData(card: StopCard): Promise<SubjectCardData | null> {
   const { range, serviceDate: date } = await resolveShownDay(card.day);
-  const stats = await getStopStats(card.id, range, STOP_REVALIDATE);
+  const stats = await getStopStats(card.id, range, LIVE_DAY_REVALIDATE);
   if (!stats) return null;
   const { summary } = stats;
   const abs = summary?.avg_abs_delay_sec;
@@ -466,10 +465,10 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     const period = await resolvePeriod(card.window, card.period);
     let body: SubjectBodyProps = NOTHING_RANKED;
     if (card.board === "trip") {
-      const t = (await getShameOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const t = (await getShameOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (t) body = runBody(t, true);
     } else if (card.board === "route") {
-      const r = (await getShameRouteOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const r = (await getShameRouteOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (r)
         body = {
           route: glyphOf(r),
@@ -482,7 +481,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
           ],
         };
     } else {
-      const s = (await getWorstStopsOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const s = (await getWorstStopsOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (s)
         body = {
           route: null,

@@ -2,7 +2,6 @@
 // Barrel over src/lib/data/*.ts: the server-side data-access layer, split by
 // concern. Import sites use this path; each module below owns one concern.
 
-export { TODAY_REVALIDATE } from "@/lib/data/cache";
 export {
   getCancelledByRoute,
   getCancelledCount,
@@ -32,6 +31,13 @@ export type { TripDetour } from "@/lib/data/off-route";
 export { getOperatorDirectory, getOperators, type OperatorDirectory } from "@/lib/data/operators";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
+export {
+  DAY_REVALIDATE,
+  LIVE_DAY_REVALIDATE,
+  PERIOD_REVALIDATE,
+  TODAY_REVALIDATE,
+  revalidateFor,
+} from "@/lib/data/revalidate";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
 export type { DayRiderWait } from "@/lib/data/rider-wait";
 export { getRouteGeography } from "@/lib/data/route-areas";

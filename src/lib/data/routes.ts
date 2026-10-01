@@ -1,6 +1,7 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
 import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE, HOUR_REVALIDATE, TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
@@ -33,7 +34,7 @@ async function routeIdsMatching(slug: string): Promise<string[]> {
         .sort((a, b) => routeVersion(b) - routeVersion(a));
     },
     ["route-ids-matching", slug],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -92,7 +93,7 @@ export async function routeHasTraffic(slug: string): Promise<boolean> {
       return hit !== null;
     },
     ["route-has-traffic", slug],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
 }
 
@@ -127,7 +128,7 @@ export async function findCanonicalRouteSlug(slug: string): Promise<string | nul
       return ci ? routeSlug(ci.id) : null;
     },
     ["canonical-route-slug", slug.toLowerCase()],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -193,7 +194,7 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
       return routes.map(({ id, ...route }) => ({ routeId: id, ...route }));
     },
     ["directory-routes"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
   const successors = allSuccessorSlugs();
   const traffic = await Promise.all(successors.map(routeHasTraffic));
@@ -225,7 +226,7 @@ export async function getRouteLabel(
         select: { shortName: true, longName: true, mode: true },
       }),
     ["route-label", newest],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -241,7 +242,7 @@ export async function getRouteModeMap(): Promise<Map<string, Mode>> {
       return rows.map((r) => [r.id, r.mode] as const);
     },
     ["route-mode-map"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
   return new Map(pairs as [string, Mode][]);
 }
@@ -273,7 +274,7 @@ export async function getRouteOperators(): Promise<Record<string, string>> {
       return out;
     },
     ["route-operators"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -311,7 +312,7 @@ async function allRouteNames(): Promise<Record<string, string>> {
       return Object.fromEntries(rows.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]));
     },
     ["route-names-all"],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 
@@ -355,6 +356,6 @@ export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
       return slugs;
     },
     ["busiest-route-slugs", String(limit)],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
