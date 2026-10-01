@@ -58,12 +58,7 @@ export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
                   <span className="w-5 shrink-0 text-sm text-at-muted tabular-nums">{i + 1}</span>
-                  <ModeIcon
-                    mode={r.mode}
-                    shortName={r.shortName}
-                    longName={r.longName}
-                    colour={r.colour}
-                  />
+                  <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold text-at-ink">{label}</span>
                     {subtitle && <span className="block text-xs text-at-muted">{subtitle}</span>}

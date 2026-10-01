@@ -235,12 +235,7 @@ export function RankBoard({
                     ) : (
                       <span className="w-5 text-right text-at-muted tabular-nums">{i + 1}</span>
                     )}
-                    <ModeIcon
-                      mode={r.mode}
-                      shortName={r.shortName}
-                      longName={r.longName}
-                      colour={r.colour}
-                    />
+                    <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
                     <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
                       {routeDisplayName(r)}
                       {cancelledCount > 0 && (

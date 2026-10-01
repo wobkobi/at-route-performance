@@ -299,7 +299,6 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
             mode: route.mode,
             shortName: route.shortName,
             longName: route.longName,
-            colour: route.colour,
           }
         : null,
       name: route ? routeDisplayName({ ...route, slug: card.id }) : card.id,
@@ -357,7 +356,7 @@ function eyebrowOf(...parts: (string | null)[]): string {
  * @returns The glyph route.
  */
 function glyphOf(r: ShameTrip | ShameRouteRow): SubjectBodyProps["route"] {
-  return { mode: r.mode, shortName: r.shortName, longName: r.longName, colour: r.colour ?? null };
+  return { mode: r.mode, shortName: r.shortName, longName: r.longName };
 }
 
 /**

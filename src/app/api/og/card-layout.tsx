@@ -1,11 +1,12 @@
 // src/app/api/og/card-layout.tsx
 // The card's drawing: the shared frame and the two body layouts. Satori reads
-// no CSS and no Tailwind, so every colour here is the hex its token stands for
-// in globals.css, and every box is an inline-styled flex container.
+// no CSS and no Tailwind, so every colour comes from the script-side palette,
+// and every box is an inline-styled flex container.
 
-import { brandColour, modeGlyph } from "@/components/ModeIcon";
+import { modeGlyph } from "@/components/ModeIcon";
 import { SITE_NAME } from "@/lib/copy";
 import { formatCount, formatDuration, formatPct } from "@/lib/format";
+import { isPaletteKey, PALETTE } from "@/lib/palette";
 import type { RouteDisplay } from "@/lib/route/slug";
 import {
   dayVerdict,
@@ -18,44 +19,12 @@ import {
 import type { FleetSummary } from "@/types/dashboard";
 import type { JSX, ReactElement, ReactNode } from "react";
 
-/** The brand palette, as hex. */
-const INK = "#001930";
-export const MUTED = "#667583";
-const BORDER = "#d1d6da";
-const SURFACE = "#ffffff";
-const OCEAN = "#001930";
-const SHORE = "#0073bd";
-
-/**
- * Each text or fill class a card figure can carry, as the hex it stands for.
- * Early is darkened from the site's `#95c11f`, which is about 2.1:1 on white, to the site's text green;
- * the figure always carries its word ("2m early"), so the colour only adds.
- */
-const TONE_HEX: Record<string, string> = {
-  "text-at-ontime": "#0073bd",
-  "text-at-ink": INK,
-  "text-at-late": "#de0a2b",
-  "text-at-early-strong": "#5b7a12",
-  "text-at-muted": MUTED,
-  "bg-at-ontime": "#0073bd",
-  "bg-at-ink": INK,
-  "bg-at-late": "#de0a2b",
-};
-
-/** Each {@link modeGlyph} fallback colour class as its hex. */
-const GLYPH_HEX: Record<string, string> = {
-  "text-at-disruption": "#ca0076",
-  "text-at-cosmic": "#773581",
-  "text-at-greeny-bluey": "#009985",
-  "text-at-shore": SHORE,
-  "text-at-shore-light": "#00a7e5",
-  "text-link-city": "#ff0328",
-  "text-link-inner": "#6cbe54",
-  "text-link-outer": "#f9a22e",
-  "text-link-airport": "#fdbb2a",
-  "text-link-tamaki": "#0095cd",
-  "text-link-waiheke": "#7fcfd6",
-};
+/** The palette colours the frame draws with. */
+const INK = PALETTE.ink;
+export const MUTED = PALETTE.muted;
+const BORDER = PALETTE.border;
+const SURFACE = PALETTE.surface;
+const OCEAN = PALETTE.ocean;
 
 /**
  * The smallest text on a card, in card px. A phone's feed draws the 1200px card
@@ -71,12 +40,16 @@ const MIN_TEXT = 40;
 const ONE_LINE = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;
 
 /**
- * A tone class as hex, falling back to ink for one the card does not know.
+ * A tone class as hex, falling back to ink for one the card does not know. A
+ * figure's early tone is the darker `text-at-early-strong`, since the brand
+ * green is about 2.1:1 on white; the figure always carries its word ("2m
+ * early"), so the colour only adds.
  * @param cls - A `text-at-*` or `bg-at-*` class.
  * @returns The hex colour.
  */
 export function toneHex(cls: string): string {
-  return TONE_HEX[cls] ?? INK;
+  const key = cls.replace(/^(text|bg)-at-/, "");
+  return isPaletteKey(key) ? PALETTE[key] : INK;
 }
 
 /**
@@ -225,7 +198,7 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
 }
 
 /** The route a subject card's badge is drawn for. */
-export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName" | "colour">;
+export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName">;
 
 /**
  * A route's mode glyph as inline SVG, in the colour the site's icon uses. The
@@ -237,11 +210,10 @@ export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName" | 
  * @returns The glyph.
  */
 function Glyph({ route, size }: { route: GlyphRoute; size: number }): JSX.Element {
-  const { Icon, colourClass } = modeGlyph(route.mode, route.shortName, route.longName);
-  const fill = brandColour(route.colour) ?? GLYPH_HEX[colourClass] ?? SHORE;
+  const { Icon, hex } = modeGlyph(route.mode, route.shortName, route.longName);
   const el = Icon({}) as ReactElement<{ attr?: { viewBox?: string }; children?: ReactNode }>;
   return (
-    <svg viewBox={el.props.attr?.viewBox ?? "0 0 512 512"} width={size} height={size} fill={fill}>
+    <svg viewBox={el.props.attr?.viewBox ?? "0 0 512 512"} width={size} height={size} fill={hex}>
       {el.props.children}
     </svg>
   );

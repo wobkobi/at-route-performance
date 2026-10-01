@@ -20,6 +20,8 @@ export interface RouteMapDiagramProps {
   live: boolean;
   /** Route mode (live-vehicle glyph + delay colour banding). */
   mode: string;
+  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
+  colour: string | null;
   /**
    * When set, only live vehicles whose `directionId` is in this list are shown.
    * Pass all raw GTFS direction ids that alias to the active direction.
@@ -38,6 +40,7 @@ export interface RouteMapDiagramProps {
  * @param props.routeId - Route id for the saved viewport and live vehicles.
  * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
+ * @param props.colour - The route's GTFS colour, for its lines.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
  * @param props.stopDay - The day a stop's popup link opens on.
  * @returns The map section.
@@ -48,6 +51,7 @@ export function RouteMapDiagram({
   routeId,
   live,
   mode,
+  colour,
   filterDirectionIds,
   stopDay,
 }: RouteMapDiagramProps): JSX.Element {
@@ -73,6 +77,7 @@ export function RouteMapDiagram({
         routeId={routeId}
         live={live}
         mode={modeOrBus(mode)}
+        colour={colour}
         filterDirectionIds={filterDirectionIds}
         stopLinks
         stopDay={stopDay}

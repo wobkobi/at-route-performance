@@ -51,14 +51,6 @@
      this is about 5:1, level with late and on time. Fills and swatches keep
      the brand green. */
   --color-at-early-strong: #5b7a12;
-
-  /* Link bus service colours (sampled from bus-services guide p8 swatches) */
-  --color-link-city: #ff0328;
-  --color-link-inner: #6cbe54;
-  --color-link-outer: #f9a22e;
-  --color-link-airport: #fdbb2a;
-  --color-link-tamaki: #0095cd;
-  --color-link-waiheke: #7fcfd6;
 }
 
 /* Family utilities */

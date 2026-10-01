@@ -169,7 +169,6 @@ async function TripRangeBoard({
           mode={t.mode}
           shortName={t.shortName}
           longName={t.longName}
-          colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
@@ -285,7 +284,6 @@ async function TripDayBoard({
           mode={t.mode}
           shortName={t.shortName}
           longName={t.longName}
-          colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
@@ -405,7 +403,6 @@ async function TripHoursBoard({
           mode={t.mode}
           shortName={t.shortName}
           longName={t.longName}
-          colour={t.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">

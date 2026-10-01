@@ -3,12 +3,12 @@
 // vertical line in the route's colour, with the stops it made off its timetable
 // on a spur beside it and the stops it went around bypassed.
 
-import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
 import { stopHref } from "@/lib/page/hrefs";
+import { routeColour } from "@/lib/route/colour";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
@@ -108,7 +108,7 @@ export interface TripLineProps {
   line: TripLineData;
   /** The route's mode, for the on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
+  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
   colour: string | null;
   /** The day each stop's link opens on (the run's day), or undefined for today. */
   stopDay?: string;
@@ -214,7 +214,7 @@ function LineSvg({
   const bowed = legs.map((g) => jumpsSkipped(stops, g));
   const hasSpur = stops.some((s) => s.offTimetable) || bowed.some(Boolean);
   const textX = hasSpur ? TEXT_X_SPUR : TEXT_X;
-  const lineHex = brandColour(colour);
+  const lineHex = routeColour(mode, colour);
   /**
    * A stop's circle centre, down the drawing.
    * @param i - Line index.
@@ -297,8 +297,7 @@ function LineSvg({
             fill="none"
             strokeWidth={6}
             strokeLinecap="round"
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
+            style={{ stroke: lineHex }}
           />
         );
       })}

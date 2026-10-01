@@ -336,7 +336,6 @@ async function LiveTable({
                         mode={r.mode}
                         shortName={route?.shortName ?? r.slug}
                         longName={route?.longName}
-                        colour={route?.colour}
                         className="h-4 w-4 shrink-0"
                       />
                       <span className="font-semibold text-at-shore">{r.slug}</span>

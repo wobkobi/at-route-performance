@@ -21,6 +21,7 @@ import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
 import { routeHref, vehicleHref } from "@/lib/page/hrefs";
+import { PALETTE } from "@/lib/palette";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
 import type { NetworkLine } from "@/types/api";
@@ -123,19 +124,19 @@ function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operat
  * A tapped road's popup: every route drawn within reach of the tap, nearest
  * first, each with its colour, name and how many of the dots are on it, so a
  * reader can pick one route out of a shared road.
- * @param hits - The routes under the tap and the colour each is drawn in.
+ * @param hits - The routes under the tap.
  * @param vehicles - The last poll's vehicles, or null before the first lands.
  * @returns Popup HTML.
  */
 function linePopupHtml(
-  hits: readonly { line: NetworkLine; colour: string }[],
+  hits: readonly NetworkLine[],
   vehicles: readonly LiveMapVehicle[] | null,
 ): string {
-  const rows = hits.map(({ line, colour }) => {
+  const rows = hits.map((line) => {
     const running = vehicles?.filter((v) => v.slug === line.slug).length ?? 0;
     const count = vehicles === null ? "" : ` &middot; ${running === 0 ? "none" : running} on a run`;
     // A square of the line's own colour, so a reader can match the row to the road.
-    const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${esc(colour)}"></span>`;
+    const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${esc(line.colour)}"></span>`;
     return (
       `${swatch}<a href="${esc(routeHref(line.slug))}"><strong>Route ${esc(line.slug)}</strong></a>` +
       (line.name ? ` ${esc(line.name)}` : "") +
@@ -345,23 +346,6 @@ export default function LiveMap({
     const { L, map, lineLayer, renderer } = m;
     lineLayer.clearLayers();
     if (!showLines) return;
-    const resolved = new Map<string, string>();
-    /**
-     * A line's stroke colour. Each line takes its route icon's colour, and a
-     * route AT gives no colour arrives as a custom property name, resolved once
-     * per name since the canvas renderer takes no `var()`.
-     * @param c - `#rrggbb`, or a `--color-*` custom property name.
-     * @returns A colour the canvas can stroke with.
-     */
-    const colourOf = (c: string): string => {
-      if (!c.startsWith("--")) return c;
-      let hex = resolved.get(c);
-      if (hex === undefined) {
-        hex = cssVar(c) || cssVar("--color-at-muted");
-        resolved.set(c, hex);
-      }
-      return hex;
-    };
     // One polyline per stretch, keyed back to its route so a hover lights the
     // whole route and a tap can name it.
     const drawn: {
@@ -424,8 +408,7 @@ export default function LiveMap({
       const hits = [...nearest]
         .sort((a, b) => a[1] - b[1])
         .map(([slug]) => lines.find((l) => l.slug === slug))
-        .filter((l): l is NetworkLine => l !== undefined)
-        .map((line) => ({ line, colour: colourOf(line.colour) }));
+        .filter((l): l is NetworkLine => l !== undefined);
       if (hits.length === 0) return;
       // Built on the tap, so the counts read the latest poll.
       L.popup()
@@ -446,7 +429,7 @@ export default function LiveMap({
           at.push(L.latLng(lat, lon));
         }
         if (at.length < 2) continue;
-        const path = L.polyline(at, { renderer, color: colourOf(line.colour) });
+        const path = L.polyline(at, { renderer, color: line.colour });
         path.on("click", pick);
         path.on("mouseover", () => light(line.slug, true));
         path.on("mouseout", () => light(line.slug, false));
@@ -508,7 +491,7 @@ export default function LiveMap({
             renderer,
             radius: v.mode === "BUS" ? 4 : 6,
             weight: 1,
-            color: "#ffffff",
+            color: PALETTE.surface,
             fillColor: colour[status.band],
             fillOpacity: 0.9,
           })
@@ -584,7 +567,7 @@ export default function LiveMap({
         L.circleMarker(here, {
           radius: 7,
           weight: 3,
-          color: "#ffffff",
+          color: PALETTE.surface,
           fillColor: ink,
           fillOpacity: 1,
           interactive: false,
@@ -619,7 +602,7 @@ export default function LiveMap({
       <div ref={glyphRef} hidden>
         {MODES.map((md) => {
           const { Icon } = modeGlyph(md);
-          return <Icon key={md} data-mode={md} aria-hidden />;
+          return <Icon key={md} data-mode={md} />;
         })}
       </div>
       {/* Clear of Leaflet's attribution in the corner below it. */}

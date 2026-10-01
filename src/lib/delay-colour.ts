@@ -3,11 +3,12 @@
 // shared by the Leaflet map markers and the line-diagram nodes so the two always
 // agree. Strength floors at a minimum so a near-on-time stop stays legibly
 // coloured rather than washing out to grey against the light basemap. Hues are
-// hard-coded RGB triples (not `color-mix`) so the result is a concrete `rgb(...)`
-// valid in both an SVG attribute and a Leaflet marker.
+// mixed in script from the palette (not `color-mix`) so the result is a concrete
+// `rgb(...)` valid in both an SVG attribute and a Leaflet marker.
 
 import type { DelayBand } from "@/lib/on-time";
 import { delayBand } from "@/lib/on-time";
+import { hexRgb, PALETTE } from "@/lib/palette";
 
 /** Deviation in minutes at which a stop's colour reaches full strength. */
 const FULL_AT_MIN = 8;
@@ -46,20 +47,16 @@ export function delayBandToken(delaySec: number | null, mode: string): DelayBand
   return band === "late" ? "late" : band === "early" ? "early" : "ontime";
 }
 
-/**
- * The AT status palette as RGB triples (mirrors globals.css; there is no dark
- * theme). Hard-coded so the colour is a concrete `rgb(...)` - valid in both an
- * SVG `stroke`/`fill` attribute and a Leaflet marker, unlike `color-mix(...)`.
- */
+/** Each band's hue as RGB, for mixing towards the surface. */
 const HUE: Record<DelayBand, [number, number, number]> = {
-  late: [222, 10, 43], // #de0a2b
-  early: [149, 193, 31], // #95c11f
-  ontime: [0, 115, 189], // #0073bd
+  late: hexRgb(PALETTE.late),
+  early: hexRgb(PALETTE.early),
+  ontime: hexRgb(PALETTE.ontime),
 };
-/** Page surface the hue fades towards (#ffffff). */
-const SURFACE: [number, number, number] = [255, 255, 255];
-/** Neutral colour for a stop with no data (#d1d6da). */
-const NO_DATA = "rgb(209, 214, 218)";
+/** Page surface the hue fades towards. */
+const SURFACE = hexRgb(PALETTE.surface);
+/** Neutral colour for a stop with no data: the border grey. */
+const NO_DATA = `rgb(${hexRgb(PALETTE.border).join(", ")})`;
 
 /**
  * A faded colour for a stop: its band hue mixed towards the page surface by how

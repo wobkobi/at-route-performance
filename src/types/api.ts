@@ -12,7 +12,7 @@ export interface NetworkLine {
   name: string | null;
   /** The mode that drives it, so the map's mode filter can hide the rest. */
   mode: Mode;
-  /** The route icon's colour: `#rrggbb`, or a `--color-*` custom property to resolve. */
+  /** The route's line colour, `#rrggbb` (see `routeColour`). */
   colour: string;
   /**
    * The path in stretches, each at the lane its colour takes on that road (see

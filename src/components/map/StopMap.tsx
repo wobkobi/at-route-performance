@@ -12,6 +12,8 @@ import { wheelZoomOnHover } from "@/lib/map/wheel";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { operatorHref, type Operator } from "@/lib/operators";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
+import { PALETTE } from "@/lib/palette";
+import { routeColour } from "@/lib/route/colour";
 import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
 import { liveRunHref } from "@/lib/vehicle/detail";
@@ -183,7 +185,6 @@ interface MapColours {
   /** A vehicle with no live delay, so it never reads as on time. */
   muted: string;
   ink: string;
-  shore: string;
   border: string;
   surface: string;
   /** Off-route readings (AT Commercial orange). */
@@ -196,17 +197,16 @@ interface MapColours {
  */
 function readColours(): MapColours {
   return {
-    late: cssVar("--color-at-late") || "#de0a2b",
+    late: cssVar("--color-at-late") || PALETTE.late,
     // The vehicle ring, glyph and arrow are thin marks on white, so they take
     // the darker early; the brand green is about 2.1:1 there.
-    early: cssVar("--color-at-early-strong") || "#5b7a12",
-    ontime: cssVar("--color-at-ontime") || "#0073bd",
-    muted: cssVar("--color-at-muted") || "#667583",
-    ink: cssVar("--color-at-ink") || "#001930",
-    shore: cssVar("--color-at-shore") || "#0073bd",
-    border: cssVar("--color-at-border") || "#c7ced6",
-    surface: cssVar("--color-at-surface") || "#ffffff",
-    offRoute: cssVar("--color-at-commercial") || "#f7941f",
+    early: cssVar("--color-at-early-strong") || PALETTE["early-strong"],
+    ontime: cssVar("--color-at-ontime") || PALETTE.ontime,
+    muted: cssVar("--color-at-muted") || PALETTE.muted,
+    ink: cssVar("--color-at-ink") || PALETTE.ink,
+    border: cssVar("--color-at-border") || PALETTE.border,
+    surface: cssVar("--color-at-surface") || PALETTE.surface,
+    offRoute: cssVar("--color-at-commercial") || PALETTE.commercial,
   };
 }
 
@@ -218,8 +218,8 @@ interface MapState {
   routeLayer: Leaflet.LayerGroup;
   /** Direction arrows, redrawn on every zoom so they stay evenly spaced on screen. */
   arrowLayer: Leaflet.LayerGroup;
-  /** The lines and stops the arrows were last placed from. */
-  arrowSource: { lines: RouteLine[]; stops: MapStop[] };
+  /** The lines, their colour and the stops the arrows were last placed from. */
+  arrowSource: { lines: RouteLine[]; colour: string; stops: MapStop[] };
   offRouteLayer: Leaflet.LayerGroup;
   stopLayer: Leaflet.LayerGroup;
   vehicleLayer: Leaflet.LayerGroup;
@@ -362,21 +362,27 @@ function clearVehicles(state: MapState): void {
  * update one without touching the other.
  * @param state - Live map state (L, layer, colours).
  * @param routeLines - Per-variant coordinate sequences.
+ * @param colour - The line colour, `#rrggbb`.
  * @param stops - Stops to keep arrows clear of.
  */
-function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: MapStop[]): void {
-  const { L, routeLayer, colours } = state;
+function drawRouteLayer(
+  state: MapState,
+  routeLines: RouteLine[],
+  colour: string,
+  stops: MapStop[],
+): void {
+  const { L, routeLayer } = state;
   routeLayer.clearLayers();
   for (const line of routeLines) {
     if (line.length < 2) continue;
     L.polyline(line, {
-      color: colours.shore,
+      color: colour,
       weight: 4,
       opacity: 0.8,
       smoothFactor: 1.5,
     }).addTo(routeLayer);
   }
-  state.arrowSource = { lines: routeLines, stops };
+  state.arrowSource = { lines: routeLines, colour, stops };
   drawArrowLayer(state);
 }
 
@@ -389,8 +395,8 @@ function drawRouteLayer(state: MapState, routeLines: RouteLine[], stops: MapStop
  * @param state - Live map state.
  */
 function drawArrowLayer(state: MapState): void {
-  const { L, map, arrowLayer, colours } = state;
-  const { lines, stops } = state.arrowSource;
+  const { L, map, arrowLayer } = state;
+  const { lines, colour, stops } = state.arrowSource;
   arrowLayer.clearLayers();
   const zoom = map.getZoom();
   const avoid = stops.map((s) => map.project([s.lat, s.lon], zoom));
@@ -406,7 +412,7 @@ function drawArrowLayer(state: MapState): void {
   // one road leave one arrow per spacing rather than one each.
   for (const a of dropRepeatArrows(placed, ARROW_SPACING_PX * 0.6)) {
     L.marker(map.unproject([a.x, a.y], zoom), {
-      icon: arrowIcon(L, colours.shore, a.angle),
+      icon: arrowIcon(L, colour, a.angle),
       interactive: false,
       keyboard: false,
     }).addTo(arrowLayer);
@@ -534,6 +540,7 @@ function setInitialViewport(state: MapState, stops: MapStop[], routeLines: Route
  * @param root0.routeId - Route id, keying the live-vehicle poll.
  * @param root0.live - Poll and plot live vehicles; only for a view that covers now.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
+ * @param root0.colour - The route's GTFS colour (hex, no hash), for its lines.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
@@ -549,6 +556,7 @@ export default function StopMap({
   routeId,
   live = false,
   mode = "BUS",
+  colour = null,
   selectedStopId,
   filterTripId,
   filterDirectionIds,
@@ -562,6 +570,7 @@ export default function StopMap({
   routeId?: string;
   live?: boolean;
   mode?: Mode;
+  colour?: string | null;
   selectedStopId?: string;
   filterTripId?: string;
   filterDirectionIds?: number[];
@@ -589,6 +598,7 @@ export default function StopMap({
     routeId,
     live,
     mode,
+    colour,
     selectedStopId,
     filterTripId,
     filterDirectionIds,
@@ -603,6 +613,7 @@ export default function StopMap({
       routeId,
       live,
       mode,
+      colour,
       selectedStopId,
       filterTripId,
       filterDirectionIds,
@@ -659,7 +670,7 @@ export default function StopMap({
         colours,
         routeLayer: L.layerGroup().addTo(map),
         arrowLayer: L.layerGroup().addTo(map),
-        arrowSource: { lines: [], stops: [] },
+        arrowSource: { lines: [], colour: PALETTE.shore, stops: [] },
         offRouteLayer: L.layerGroup().addTo(map),
         stopLayer: L.layerGroup().addTo(map),
         vehicleLayer: L.layerGroup().addTo(map),
@@ -669,8 +680,8 @@ export default function StopMap({
       stateRef.current = state;
 
       // Draw initial content from the current prop values.
-      const { stops: s0, routeLines: rl0, mode: m0 } = latestRef.current;
-      drawRouteLayer(state, rl0, s0);
+      const { stops: s0, routeLines: rl0, mode: m0, colour: c0 } = latestRef.current;
+      drawRouteLayer(state, rl0, routeColour(m0, c0), s0);
       drawOffRouteLayer(state, latestRef.current.offRoute);
       drawStopLayer(state, s0, m0, latestRef.current.stopLinks, latestRef.current.stopDay);
 
@@ -717,10 +728,10 @@ export default function StopMap({
     modeRef.current = mode;
     const state = stateRef.current;
     if (!state) return;
-    drawRouteLayer(state, routeLines, stops);
+    drawRouteLayer(state, routeLines, routeColour(mode, colour), stops);
     drawOffRouteLayer(state, offRoute);
     drawStopLayer(state, stops, mode, stopLinks, stopDay);
-  }, [stops, routeLines, mode, offRoute, stopLinks, stopDay]);
+  }, [stops, routeLines, mode, colour, offRoute, stopLinks, stopDay]);
 
   // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
   // page afresh. A plain click on a same-site link goes through the router instead; one with a

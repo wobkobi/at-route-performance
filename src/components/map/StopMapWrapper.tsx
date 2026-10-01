@@ -35,6 +35,8 @@ interface StopMapWrapperProps {
   live?: boolean;
   /** Route transport mode, selecting the live-vehicle glyph. */
   mode?: Mode;
+  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
+  colour?: string | null;
   /** When set, the map centres on this stop and opens its popup. */
   selectedStopId?: string;
   /** When set, only the live vehicle whose tripId matches is shown. */

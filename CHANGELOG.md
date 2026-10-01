@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.22] - 2026-10-01
+
+### Changed
+
+- Mode icons use one colour per mode (school and Link buses included), and route lines on the maps,
+  route strip and trip line draw in AT's route colour, falling back to the mode colour
+
 ## [2.41.21] - 2026-10-01
 
 ### Changed

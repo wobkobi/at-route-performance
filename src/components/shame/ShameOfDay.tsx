@@ -96,7 +96,6 @@ export function ShameOfDay({
           mode={trip.mode}
           shortName={trip.shortName}
           longName={trip.longName}
-          colour={trip.colour}
           className="h-6 w-6"
         />
         <span className="text-2xl font-ultra tracking-zero text-at-ink">{name}</span>

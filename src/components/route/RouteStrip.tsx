@@ -7,10 +7,10 @@
 // the figure columns size to their widest figure.
 
 import { ChipToggle } from "@/components/Chip";
-import { brandColour } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
+import { routeColour } from "@/lib/route/colour";
 import type { StripMarks } from "@/lib/strip/marks";
 import {
   BYPASS_OFF,
@@ -77,11 +77,10 @@ const DETOUR_HUE = 32;
  * that orange (the Outer Link), where an orange strand beside an orange line reads as the line.
  * Near means a hue within 25 degrees of it on a colour that isn't washed out, so a red line keeps
  * the orange.
- * @param hex - The route's colour as `#rrggbb`, or null for the site's blue.
+ * @param hex - The route's line colour as `#rrggbb`.
  * @returns The class.
  */
-function detourClass(hex: string | null): string {
-  if (!hex) return "stroke-at-commercial";
+function detourClass(hex: string): string {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
     number,
     number,
@@ -126,7 +125,7 @@ export interface RouteStripProps {
   split: StopSplit | null;
   /** The route's mode, for its on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
+  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
   colour: string | null;
   /** The side the page's direction chip picked, or null for both. */
   side: StripSide | null;
@@ -168,6 +167,7 @@ export function RouteStrip({
   stopDay,
 }: RouteStripProps): JSX.Element {
   const router = useRouter();
+  const lineHex = routeColour(mode, colour);
   const searchParams = useSearchParams();
   // Seeded from the live URL, since Back restores a page rendered before `ver` was written.
   // Only a key with a chip on screen counts: a minor version has none, and neither does a route
@@ -284,7 +284,7 @@ export function RouteStrip({
         twoWay={twoWay}
         figures={split != null}
         nameX={nameX}
-        colour={colour}
+        lineHex={lineHex}
         alerts={alerts}
         active={active}
         setRef={(i, el) => {
@@ -329,7 +329,7 @@ export function RouteStrip({
           twoWay={twoWay}
           perStop={split != null}
           alert={hasAlert}
-          colour={colour}
+          lineHex={lineHex}
         />
       </div>
       {view.notes.length > 0 && (
@@ -366,7 +366,7 @@ export function RouteStrip({
  * @param props.twoWay - Whether the route runs both ways.
  * @param props.figures - Whether there are figures per stop to show.
  * @param props.nameX - Where the names start (px).
- * @param props.colour - The route's colour.
+ * @param props.lineHex - The route's line colour.
  * @param props.alerts - Keys of the rows an alert names.
  * @param props.active - The row in the tab order.
  * @param props.setRef - Keeps each row's element, for moving focus.
@@ -383,7 +383,7 @@ function Column({
   twoWay,
   figures,
   nameX,
-  colour,
+  lineHex,
   alerts,
   active,
   setRef,
@@ -398,7 +398,7 @@ function Column({
   twoWay: boolean;
   figures: boolean;
   nameX: number;
-  colour: string | null;
+  lineHex: string;
   alerts: ReadonlySet<string>;
   active: number;
   setRef: (i: number, el: HTMLLIElement | null) => void;
@@ -406,7 +406,6 @@ function Column({
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
   hrefOf: (i: number) => string | null;
 }): JSX.Element {
-  const lineHex = brandColour(colour);
   const detour = detourClass(lineHex);
   const rowsH = col.rows.length * STRIP_ROW;
   const drawH = Math.max(rowsH, col.bottom + TERMINUS_R + RING_W);
@@ -474,10 +473,8 @@ function Column({
                 strokeDasharray={stroke.dash}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={
-                  !on ? "stroke-at-border" : (own ?? (lineHex ? undefined : "stroke-at-shore"))
-                }
-                style={on && !own && lineHex ? { stroke: lineHex } : undefined}
+                className={!on ? "stroke-at-border" : (own ?? undefined)}
+                style={on && !own ? { stroke: lineHex } : undefined}
               />
             );
           })}
@@ -670,7 +667,7 @@ function Ring({
  * @param props.twoWay - Whether the rings are split.
  * @param props.perStop - Whether figures are shown per stop.
  * @param props.alert - Whether a stop is named in an alert.
- * @param props.colour - The route's colour, for the line swatch.
+ * @param props.lineHex - The route's line colour, for the line swatch.
  * @returns The key, or null when there is nothing to explain.
  */
 function StripKey({
@@ -678,15 +675,14 @@ function StripKey({
   twoWay,
   perStop,
   alert,
-  colour,
+  lineHex,
 }: {
   view: StripView;
   twoWay: boolean;
   perStop: boolean;
   alert: boolean;
-  colour: string | null;
+  lineHex: string;
 }): JSX.Element | null {
-  const lineHex = brandColour(colour);
   const detour = detourClass(lineHex);
   const entries: Array<{ key: string; swatch: JSX.Element; label: string }> = [];
   /**
@@ -773,15 +769,7 @@ function StripKey({
       key: "pass",
       swatch: (
         <>
-          <line
-            x1={10}
-            x2={10}
-            y1={1}
-            y2={19}
-            strokeWidth={5}
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
-          />
+          <line x1={10} x2={10} y1={1} y2={19} strokeWidth={5} style={{ stroke: lineHex }} />
           <circle cx={10} cy={10} r={5} strokeWidth={3} className="fill-none stroke-at-border" />
         </>
       ),
@@ -804,8 +792,8 @@ function StripKey({
       strokeWidth={w}
       strokeDasharray={dash}
       strokeLinecap="round"
-      className={cls ?? (lineHex ? undefined : "stroke-at-shore")}
-      style={!cls && lineHex ? { stroke: lineHex } : undefined}
+      className={cls ?? undefined}
+      style={cls ? undefined : { stroke: lineHex }}
     />
   );
   if (view.present.closed) {
@@ -818,8 +806,7 @@ function StripKey({
             fill="none"
             strokeWidth={2.5}
             strokeLinejoin="round"
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
+            style={{ stroke: lineHex }}
           />
           <circle
             cx={7}

@@ -56,7 +56,7 @@ function VehicleCard({
         {modes.map((m) => (
           <div key={m} className="flex flex-col gap-1">
             <dt className="flex items-center gap-1.5 text-xs tracking-zero text-at-muted uppercase">
-              <ModeIcon mode={m} className="h-4 w-4" />
+              <ModeIcon mode={m} className="h-4 w-4" decorative />
               {modeWord(m, counts[m] !== 1)}
             </dt>
             <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums sm:text-3xl">

@@ -1,6 +1,8 @@
 // src/lib/mode.ts
 // Transport modes: the one list, parser and set of labels every page reads.
 
+import { PALETTE } from "@/lib/palette";
+
 /** Every transport mode, in the order the site lists them. */
 export const MODES = ["BUS", "TRAIN", "FERRY"] as const;
 
@@ -50,3 +52,21 @@ export const MODE_NOUN: Record<Mode, string> = { BUS: "Buses", TRAIN: "Trains", 
 export function modeWord(mode: Mode, plural = false): string {
   return (plural ? MODE_NOUN : MODE_NAME)[mode].toLowerCase();
 }
+
+/**
+ * Each mode's icon colour as a text class: one colour per mode, whatever the
+ * route. Bus and train share AT Shore blue and are told apart by their glyphs;
+ * ferry takes greeny-bluey.
+ */
+export const MODE_ICON_CLASS: Record<Mode, string> = {
+  BUS: "text-at-shore",
+  TRAIN: "text-at-shore",
+  FERRY: "text-at-greeny-bluey",
+};
+
+/** {@link MODE_ICON_CLASS} as hex, for the shared-link card and map lines. */
+export const MODE_ICON_HEX: Record<Mode, string> = {
+  BUS: PALETTE.shore,
+  TRAIN: PALETTE.shore,
+  FERRY: PALETTE["greeny-bluey"],
+};

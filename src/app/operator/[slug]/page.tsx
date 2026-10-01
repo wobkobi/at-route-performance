@@ -322,7 +322,7 @@ export default async function OperatorPage({
         <div>
           <h1 className="flex flex-wrap items-center gap-2 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
             {mine?.modes.map((m) => (
-              <ModeIcon key={m} mode={m} className="h-7 w-7" />
+              <ModeIcon key={m} mode={m} className="h-7 w-7" decorative />
             ))}
             {op.name}
           </h1>
@@ -407,7 +407,6 @@ export default async function OperatorPage({
                       <span className="flex items-center gap-2">
                         <ModeIcon
                           mode={r.mode}
-                          colour={r.colour}
                           shortName={r.name}
                           longName={r.long}
                           className="h-4 w-4 shrink-0"

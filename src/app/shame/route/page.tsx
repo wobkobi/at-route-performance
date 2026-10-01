@@ -177,7 +177,6 @@ async function RouteRangeBoard({
           mode={r.mode}
           shortName={r.shortName}
           longName={r.longName}
-          colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
@@ -300,7 +299,6 @@ async function RouteDayBoard({
           mode={r.mode}
           shortName={r.shortName}
           longName={r.longName}
-          colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">
@@ -430,7 +428,6 @@ async function RouteHoursBoard({
           mode={r.mode}
           shortName={r.shortName}
           longName={r.longName}
-          colour={r.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
         <span className="min-w-0 flex-1">

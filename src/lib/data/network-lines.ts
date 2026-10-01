@@ -10,13 +10,13 @@
 // once (src/lib/map/route-branches.ts), and routes of different colours on one
 // road are set side by side (src/lib/map/shared-roads.ts).
 
-import { routeColour } from "@/components/ModeIcon";
 import { aggregateRows } from "@/lib/data/raw";
 import { getDirectoryRoutes } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import { type RouteShape, routePaths } from "@/lib/map/route-branches";
 import { laneRuns } from "@/lib/map/shared-roads";
 import { unstable_cache } from "@/lib/mem-cache";
+import { routeColour } from "@/lib/route/colour";
 import { lineName } from "@/lib/route/line-name";
 import { routeSlug } from "@/lib/route/slug";
 import type { NetworkLine } from "@/types/api";
@@ -91,7 +91,7 @@ async function routesWithHistory(ids: string[]): Promise<Set<string>> {
 
 /**
  * Every route's road paths, thinned for a whole-network overlay and tagged with
- * its mode and its icon's colour. Cached for a day: shapes and trip metadata
+ * its mode and its line colour. Cached for a day: shapes and trip metadata
  * only change when the GTFS sync runs.
  *
  * Feed-version republishes are folded to one line per slug - both versions of a
@@ -139,7 +139,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
             top: trips,
             name: name && name !== slug ? name : null,
             mode: route.mode,
-            colour: routeColour(route.mode, route.shortName, route.longName, route.colour),
+            colour: routeColour(route.mode, route.colour),
           };
           bySlug.set(slug, held);
         }

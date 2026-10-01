@@ -208,12 +208,7 @@ export function CancelledTripList({
                         {t.scheduled_start ? nzClockTime(t.scheduled_start) : UNKNOWN_VALUE}
                       </span>
                     </span>
-                    <ModeIcon
-                      mode={t.mode}
-                      shortName={t.shortName}
-                      longName={t.longName}
-                      colour={t.colour}
-                    />
+                    <ModeIcon mode={t.mode} shortName={t.shortName} longName={t.longName} />
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
                         <span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>

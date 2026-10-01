@@ -17,7 +17,7 @@ import { unstable_cache as nextCache } from "next/cache";
  * whenever a cached value's fields are renamed or restructured, or a deploy
  * serves the old shape until each entry expires.
  */
-const SHAPE_VERSION = "s1";
+const SHAPE_VERSION = "s2";
 
 /**
  * The Next.js Data Cache (file-backed, shared across Turbopack worker threads),

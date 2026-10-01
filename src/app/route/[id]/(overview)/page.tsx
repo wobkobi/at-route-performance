@@ -581,8 +581,7 @@ export default async function RoutePage({
                   mode={route.mode}
                   shortName={route.shortName}
                   longName={route.longName}
-                  colour={route.colour}
-                  className="h-6 w-6"
+                  className="h-7 w-7"
                 />
               )}
               {title}
@@ -721,6 +720,7 @@ export default async function RoutePage({
             routeId={slug}
             live={isLiveView}
             mode={routeMode}
+            colour={route?.colour ?? null}
             filterDirectionIds={activeDirIds ?? undefined}
           />
           {/* Hidden rather than empty when the pattern failed to load: the
@@ -823,6 +823,7 @@ export default async function RoutePage({
               routeId={slug}
               live={isLiveView}
               mode={routeMode}
+              colour={route?.colour ?? null}
               filterDirectionIds={activeDirIds ?? undefined}
               stopDay={stopDay}
             />
