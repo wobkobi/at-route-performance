@@ -44,7 +44,6 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page/nav";
-import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
@@ -120,19 +119,16 @@ function shamedTripHref(t: ShameTrip): string {
  * @param root0 - Props.
  * @param root0.range - The active window.
  * @param root0.filter - Active mode/school filter.
- * @param root0.periodNoun - Copy noun for the period ("week" / "month").
  * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function TripRangeBoard({
   range,
   filter,
-  periodNoun,
   periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
-  periodNoun: PeriodWindow;
   periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
@@ -204,7 +200,7 @@ async function TripRangeBoard({
       layout="week"
       items={shame.days}
       keyOf={(t, i) => t.date ?? String(i)}
-      emptyMessage={`No runs recorded for this ${periodNoun}.`}
+      emptyMessage={`No trips recorded in ${periodWhen}.`}
       renderRow={renderWeekRow}
     />
   );
@@ -353,7 +349,7 @@ async function TripDayBoard({
       layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
-      emptyMessage="No runs recorded for this day."
+      emptyMessage={`No trips recorded ${dayWhen}.`}
       footerMessage="No runs were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
@@ -502,7 +498,6 @@ export default async function TripShamePage({
           <TripRangeBoard
             range={activeRange}
             filter={filter}
-            periodNoun={periodNoun}
             periodWhen={periodInPhrase(periodNoun, periodParam)}
           />
         </Suspense>

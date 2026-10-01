@@ -9,6 +9,7 @@ import { DelayFilter } from "@/components/filter/DelayFilter";
 import { ModeUsageFilter } from "@/components/filter/ModeUsageFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { FilterUsage } from "@/lib/data/filter-usage";
 import type { Mode } from "@/lib/mode";
 import type { ShameBoard } from "@/lib/og";
@@ -56,7 +57,7 @@ export interface ShameFilterControls {
 export interface ShameHeaderProps {
   /** Heading text (e.g. "Worst trips of the day"). */
   title: string;
-  /** Sub-heading text, already composed and naming the active filter. */
+  /** Sub-heading text, already composed and naming the active filter; the full stop is added here. */
   subtitle: string;
   /** The board this header is on. */
   activeTab: ShameBoard;
@@ -97,7 +98,7 @@ export interface ShameHeaderProps {
  * @param props.nav - The day or period stepper.
  * @param props.filter - The mode and school chips.
  * @param props.allHoursHref - The link back to the hourly board, on an hour's list.
- * @returns The header element.
+ * @returns The header and its control rows.
  */
 export function ShameHeader({
   title,
@@ -119,15 +120,14 @@ export function ShameHeader({
     filter.nav,
   );
   return (
-    <header className="space-y-3">
+    <div className="space-y-3">
       {allHoursHref && <BackLink href={allHoursHref} to="every hour" />}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">{title}</h1>
-          <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
-        </div>
-        <RangeControls basePath={basePath} nav={nav} />
-      </div>
+      <PageHeader
+        title={title}
+        tone="late"
+        subtitle={`${subtitle}.`}
+        actions={<RangeControls basePath={basePath} nav={nav} />}
+      />
       <nav aria-label="Shame boards" className="flex flex-wrap items-center gap-1">
         {TABS.map((t) => (
           <ChipTab key={t.key} href={tabHrefs[t.key]} active={t.key === activeTab}>
@@ -157,6 +157,6 @@ export function ShameHeader({
           preservedParams={preserved.dir}
         />
       )}
-    </header>
+    </div>
   );
 }

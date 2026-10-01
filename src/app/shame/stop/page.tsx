@@ -41,7 +41,6 @@ import {
   serviceHourSpan,
   type HourSlot,
 } from "@/lib/page/nav";
-import type { PeriodWindow } from "@/lib/page/range";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
@@ -113,13 +112,11 @@ function badTimes(count: number): string {
  * ordinary result rather than missing data, so it says which direction found
  * nothing instead of claiming nothing was recorded.
  * @param direction - The active direction, or null for both.
- * @param period - What the board covers: "day", "week" or "month".
+ * @param when - The window as the words after "recorded" ("today", "in the last 7 days").
  * @returns The message under an empty board.
  */
-function emptyBoardMessage(direction: DelayDirection, period: string): string {
-  return direction
-    ? `No stop ran ${direction} on average this ${period}.`
-    : `No stop data recorded for this ${period}.`;
+function emptyBoardMessage(direction: DelayDirection, when: string): string {
+  return direction ? `No stop ran ${direction} on average ${when}.` : `No stops recorded ${when}.`;
 }
 
 /**
@@ -142,19 +139,16 @@ function emptyHourReason(direction: DelayDirection): string {
  * @param root0 - Props.
  * @param root0.range - The active window.
  * @param root0.filter - Active mode, school and direction filter.
- * @param root0.periodNoun - Copy noun for the period ("week" / "month").
  * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function StopRangeBoard({
   range,
   filter,
-  periodNoun,
   periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
-  periodNoun: PeriodWindow;
   periodWhen: string;
 }): Promise<JSX.Element> {
   const shame = await getWorstStopsOfWeek(range, filter, WEEK_REVALIDATE);
@@ -211,7 +205,7 @@ async function StopRangeBoard({
       layout="week"
       items={shame.days}
       keyOf={(s) => s.date}
-      emptyMessage={emptyBoardMessage(filter.direction, periodNoun)}
+      emptyMessage={emptyBoardMessage(filter.direction, `in ${periodWhen}`)}
       renderRow={renderWeekRow}
     />
   );
@@ -329,7 +323,7 @@ async function StopDayBoard({
       layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
-      emptyMessage={emptyBoardMessage(filter.direction, "day")}
+      emptyMessage={emptyBoardMessage(filter.direction, dayWhen)}
       footerMessage="No stops were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
@@ -478,7 +472,6 @@ export default async function StopShamePage({
           <StopRangeBoard
             range={activeRange}
             filter={filter}
-            periodNoun={periodNoun}
             periodWhen={periodInPhrase(periodNoun, periodParam)}
           />
         </Suspense>

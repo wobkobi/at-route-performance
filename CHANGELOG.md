@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.33] - 2026-10-02
+
+### Changed
+
+- The worst trips, routes and stops pages use the shared page header, their subtitles end with a
+  full stop, and their empty boards read "No trips recorded in this week." like the rest of the
+  site.
+
 ## [2.41.32] - 2026-10-02
 
 ### Changed

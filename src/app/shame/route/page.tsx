@@ -213,7 +213,7 @@ async function RouteRangeBoard({
       layout="week"
       items={shame.days}
       keyOf={(r, i) => r.date ?? String(i)}
-      emptyMessage={`No route data recorded for this ${periodNoun}.`}
+      emptyMessage={`No routes recorded in ${periodInPhrase(periodNoun, periodParam)}.`}
       renderRow={renderWeekRow}
     />
   );
@@ -370,7 +370,7 @@ async function RouteDayBoard({
       layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
-      emptyMessage="No route data recorded for this day."
+      emptyMessage={`No routes recorded ${dayWhen}.`}
       footerMessage="No routes were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
