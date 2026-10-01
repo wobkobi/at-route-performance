@@ -15,9 +15,14 @@ import { ChevronLeft } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
 import { StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
-import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
+import { PunctualityStat, StatCell, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RankBoard } from "@/components/ranking/RankBoard";
 import { StopSchedule } from "@/components/StopSchedule";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
@@ -36,14 +41,7 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getStopDepartures } from "@/lib/feed/at-stop-trips";
-import {
-  formatCount,
-  formatDuration,
-  formatPct,
-  OFF_SCHEDULE_TONE_CLASS,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
@@ -207,72 +205,71 @@ export default async function StopPage({
         The worst stops {windowPhrase(nav, null)}
       </Link>
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          {/* What the figures below cover: one pole, or every pole of a place
-              averaged together. A grouped page says how many, because its single
-              on-time figure is their average and nothing else on the page says
-              so unless the per-platform table earned its space. */}
-          <p className="text-xs tracking-zero text-at-muted uppercase">
-            {stopGrain(
-              dominantStopMode(stats.routes),
-              stats.platform_labels,
-              stats.platform_ids.length,
-            )}
+      <PageHeader
+        // What the figures below cover: one pole, or every pole of a place
+        // averaged together. A grouped page says how many, because its single
+        // on-time figure is their average and nothing else on the page says so
+        // unless the per-platform table earned its space.
+        eyebrow={stopGrain(
+          dominantStopMode(stats.routes),
+          stats.platform_labels,
+          stats.platform_ids.length,
+        )}
+        title={stop.name}
+        actions={
+          <DayNav
+            basePath={stopPath}
+            serviceDate={serviceDate}
+            preservedParams={{}}
+            hasPrev={nav.hasPrev}
+            atFloor={nav.atFloor}
+            hasNext={nav.hasNext}
+            nextHref={nav.nextIsToday ? stopPath : undefined}
+            nextPending={nav.nextPending}
+            calendar={nav.calendar}
+          />
+        }
+      >
+        {zones.length > 0 && (
+          <p className="mt-0.5 text-sm text-at-muted">
+            {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
+            {zones.map((z, i) => (
+              <Fragment key={z}>
+                {i > 0 && " and "}
+                <Link href={buildHref("/routes", { day: linkDay, zone: z })} className="at-link">
+                  {FARE_ZONE_LABEL[z]}
+                </Link>
+              </Fragment>
+            ))}
           </p>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
-          {zones.length > 0 && (
-            <p className="mt-0.5 text-sm text-at-muted">
-              {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
-              {zones.map((z, i) => (
-                <Fragment key={z}>
-                  {i > 0 && " and "}
-                  <Link href={buildHref("/routes", { day: linkDay, zone: z })} className="at-link">
-                    {FARE_ZONE_LABEL[z]}
-                  </Link>
-                </Fragment>
-              ))}
-            </p>
-          )}
-          {/* AT models an interchange as two or more parent stations and this page
+        )}
+        {/* AT models an interchange as two or more parent stations and this page
               stands for one of them, so without these links a reader at Manukau's
               bus station has no way to its trains. The names are AT's own, which
               is why a link is only offered when it reads differently from the
               title above it (see siblingsByStation). */}
-          {siblings && (
-            <p className="mt-1 text-sm text-at-muted">
-              Also at {siblings.place}:{" "}
-              {siblings.siblings.map((s, i) => (
-                <Fragment key={s.id}>
-                  {i > 0 && ", "}
-                  <Link href={stopHref(s.id, { day: linkDay })} className="at-link">
-                    {s.name}
-                  </Link>
-                </Fragment>
-              ))}
-            </p>
-          )}
-          <p className="mt-1 text-sm">
-            <Link
-              href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
-              className="at-link"
-            >
-              Compare with other stops
-            </Link>
+        {siblings && (
+          <p className="mt-1 text-sm text-at-muted">
+            Also at {siblings.place}:{" "}
+            {siblings.siblings.map((s, i) => (
+              <Fragment key={s.id}>
+                {i > 0 && ", "}
+                <Link href={stopHref(s.id, { day: linkDay })} className="at-link">
+                  {s.name}
+                </Link>
+              </Fragment>
+            ))}
           </p>
-        </div>
-        <DayNav
-          basePath={stopPath}
-          serviceDate={serviceDate}
-          preservedParams={{}}
-          hasPrev={nav.hasPrev}
-          atFloor={nav.atFloor}
-          hasNext={nav.hasNext}
-          nextHref={nav.nextIsToday ? stopPath : undefined}
-          nextPending={nav.nextPending}
-          calendar={nav.calendar}
-        />
-      </header>
+        )}
+        <p className="mt-1 text-sm">
+          <Link
+            href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
+            className="at-link"
+          >
+            Compare with other stops
+          </Link>
+        </p>
+      </PageHeader>
 
       <StopAlertBanner
         alertsPromise={alertsPromise}
@@ -280,18 +277,10 @@ export default async function StopPage({
         pastWindow={linkDay !== undefined}
       />
 
-      <section className="border border-at-border bg-at-surface">
+      <Panel>
         <div className="grid grid-cols-2 sm:grid-cols-4">
-          <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-            <p className="text-2xl font-ultra tracking-zero tabular-nums">{summary?.events ?? 0}</p>
-          </div>
-          <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Routes</p>
-            <p className="text-2xl font-ultra tracking-zero tabular-nums">
-              {formatCount(routes_count)}
-            </p>
-          </div>
+          <StatCell label="Arrivals">{formatCount(summary?.events ?? 0)}</StatCell>
+          <StatCell label="Routes">{formatCount(routes_count)}</StatCell>
           <PunctualityStat
             bare
             variant="average"
@@ -321,7 +310,7 @@ export default async function StopPage({
             No arrivals were recorded at this stop on this day, so there is nothing to average.
           </p>
         )}
-      </section>
+      </Panel>
 
       {/* Empty unless the platforms earn the space - the gate is in
           platformBreakdown. It sits straight under the strip because what it
@@ -335,9 +324,9 @@ export default async function StopPage({
           stop's dot in a full-width strip is mostly empty street. The map takes
           the board's height. */}
       <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
-        <section className="border border-at-border bg-at-surface p-4 lg:flex lg:flex-col">
+        <Panel pad="sm" className="lg:flex lg:flex-col">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero">Where it is</h2>
+            <SectionHeading>Where it is</SectionHeading>
             <StopDotKey noReading={summary?.avg_delay_sec == null} lone />
           </div>
           <StopMapWrapper
@@ -359,7 +348,7 @@ export default async function StopPage({
             The dot is this stop, coloured by how early or late arrivals here were on average over
             the day shown.
           </p>
-        </section>
+        </Panel>
 
         <RankBoard
           title="Worst routes here"
@@ -412,9 +401,9 @@ function PlatformTable({
   // only in which routes leave from them.
   const differ = platformsDiffer(rows);
   return (
-    <section className="border border-at-border bg-at-surface">
-      <div className="px-4 py-3">
-        <h2 className="font-semibold">By {noun}</h2>
+    <Panel>
+      <div className="border-b border-at-border px-4 py-3">
+        <SectionHeading>By {noun}</SectionHeading>
         {/* One template string rather than several expressions, so the sentence
             is a single text node: React separates adjacent ones with a comment
             marker, which reads as a stray space to anything parsing the page. */}
@@ -426,77 +415,77 @@ function PlatformTable({
           }`}
         </p>
       </div>
-      <div className="overflow-x-auto px-4 pb-4">
-        <table className="min-w-full text-sm">
-          <thead className="bg-at-shore-pale text-at-muted">
-            <tr>
-              <th scope="col" className="px-3 py-2 text-left">
-                {noun.replace(/^./, (c) => c.toUpperCase())}
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                Arrivals
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                On time
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                Early or late
-              </th>
-              <th scope="col" className="px-3 py-2 text-left">
-                Only from here
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => {
-              const value = offScheduleValue(p.avg_delay_sec, p.avg_abs_delay_sec, p.mode);
-              return (
-                <tr key={p.stop_id} className="border-t border-at-border">
-                  <td className="px-3 py-2 font-semibold tabular-nums">
-                    <Link href={stopHref(p.stop_id, { day: linkDay })} className="at-link">
-                      {p.label}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCount(p.events)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatPct(p.on_time_pct)}</td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right font-semibold tabular-nums",
-                      OFF_SCHEDULE_TONE_CLASS[value.tone],
-                    )}
-                  >
-                    {value.text}
-                  </td>
-                  {/* Blank rather than a dash: no route being exclusive to a
+      <DataTable caption={`${stopName} by ${noun}`} framed={false}>
+        <thead>
+          <tr className="at-th-row">
+            <th scope="col" className={CELL_CLASS}>
+              {noun.replace(/^./, (c) => c.toUpperCase())}
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Arrivals
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              On time
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Early or late
+            </th>
+            <th scope="col" className={CELL_CLASS}>
+              Only from here
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            return (
+              <tr key={p.stop_id} className={ROW_CLASS}>
+                <th scope="row" className={cn(CELL_CLASS, "text-left font-semibold tabular-nums")}>
+                  <Link href={stopHref(p.stop_id, { day: linkDay })} className="at-link">
+                    {p.label}
+                  </Link>
+                </th>
+                <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                  {formatCount(p.events)}
+                </td>
+                <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                  {formatPct(p.on_time_pct)}
+                </td>
+                <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
+                  <OffScheduleValue
+                    signedSec={p.avg_delay_sec}
+                    absSec={p.avg_abs_delay_sec}
+                    mode={p.mode}
+                  />
+                </td>
+                {/* Blank rather than a dash: no route being exclusive to a
                       platform is a fact about it, where the dash elsewhere on the
                       site means a figure the site does not have. */}
-                  <td className="px-3 py-2">
-                    {p.only_routes.map((name, i) => {
-                      const slug = p.route_slugs?.[name];
-                      return (
-                        <Fragment key={name}>
-                          {i > 0 && ", "}
-                          {slug ? (
-                            <Link href={routeHref(slug, routeParams)} className="at-link">
-                              {name}
-                            </Link>
-                          ) : (
-                            name
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-at-muted">
-          {`${MIN_PLATFORM_EVENTS} arrivals needed to be listed, so a ${noun} used a handful of times that day is not shown.`}
-        </p>
-      </div>
-    </section>
+                <td className={CELL_CLASS}>
+                  {p.only_routes.map((name, i) => {
+                    const slug = p.route_slugs?.[name];
+                    return (
+                      <Fragment key={name}>
+                        {i > 0 && ", "}
+                        {slug ? (
+                          <Link href={routeHref(slug, routeParams)} className="at-link">
+                            {name}
+                          </Link>
+                        ) : (
+                          name
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
+      <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
+        {`${MIN_PLATFORM_EVENTS} arrivals needed to be listed, so a ${noun} used a handful of times that day is not shown.`}
+      </p>
+    </Panel>
   );
 }
 

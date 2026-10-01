@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.32] - 2026-10-02
+
+### Changed
+
+- Route, trip, stop, vehicle and operator pages share the page header, back link, figure strips,
+  tables and section headings; the route's stop list gets a real heading
+
 ## [2.41.31] - 2026-10-01
 
 ### Changed

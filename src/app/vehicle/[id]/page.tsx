@@ -3,12 +3,19 @@
 // day, week or month - its runs on a day, or its days across a week or month.
 
 import { RangeControls } from "@/components/date/RangeControls";
-import { ChevronLeft } from "@/components/icons";
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
+import { BackLink } from "@/components/ui/BackLink";
 import { LiveBadge } from "@/components/ui/Badge";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import { cn } from "@/lib/cn";
 import {
@@ -27,14 +34,7 @@ import {
 import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap, type LiveVehicle } from "@/lib/feed/vehicles";
-import {
-  formatCount,
-  formatDuration,
-  formatHours,
-  OFF_SCHEDULE_TONE_CLASS,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
+import { formatCount, formatDuration, formatHours, UNKNOWN_VALUE } from "@/lib/format";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf } from "@/lib/operators";
@@ -47,6 +47,7 @@ import {
   periodRangeNav,
   rangeViewParams,
   routeLinkParams,
+  windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
@@ -77,7 +78,7 @@ import { vehicleStatus } from "@/lib/vehicle/status";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { JSX, ReactNode } from "react";
+import type { JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
 // search params and its data above any Suspense boundary, so it is allowed to
@@ -288,55 +289,46 @@ export default async function VehiclePage({
 
   return (
     <main className="space-y-6">
-      <Link
-        href={buildHref("/vehicles", {
-          ...view,
-          ...listState,
-        })}
-        className="at-link inline-flex items-center gap-1 text-sm"
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        Back to hardest-worked vehicles
-      </Link>
+      <BackLink
+        href={buildHref("/vehicles", { ...view, ...listState })}
+        to="hardest-worked vehicles"
+      />
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {mode && <ModeIcon mode={mode} className="h-7 w-7" />}
-            {name}
-          </h1>
-          <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-at-muted">
-            {mode && <span>{MODE_NAME[mode]}</span>}
-            <span className="tabular-nums">Feed id {id}</span>
-            {plate && <span>Plate {plate}</span>}
-            {runBy.length > 0 && (
-              <span>
-                Run by{" "}
-                {runBy.map((op, i) => (
-                  <span key={op.code}>
-                    {i > 0 && " and "}
-                    <Link href={buildHref(operatorHref(op), view)} className="at-link">
-                      {op.name}
-                    </Link>
-                  </span>
-                ))}
-              </span>
-            )}
-          </p>
-        </div>
-        <RangeControls basePath={basePath} nav={nav} />
-      </header>
+      <PageHeader
+        title={name}
+        icon={mode && <ModeIcon mode={mode} className="h-7 w-7" />}
+        actions={<RangeControls basePath={basePath} nav={nav} />}
+      >
+        <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-at-muted">
+          {mode && <span>{MODE_NAME[mode]}</span>}
+          <span className="tabular-nums">Feed id {id}</span>
+          {plate && <span>Plate {plate}</span>}
+          {runBy.length > 0 && (
+            <span>
+              Run by{" "}
+              {runBy.map((op, i) => (
+                <span key={op.code}>
+                  {i > 0 && " and "}
+                  <Link href={buildHref(operatorHref(op), view)} className="at-link">
+                    {op.name}
+                  </Link>
+                </span>
+              ))}
+            </span>
+          )}
+        </p>
+      </PageHeader>
 
       <LiveCard now={now} register={register} mode={mode} names={names} today={today} />
 
       {map && (
-        <section className="border border-at-border bg-at-surface p-4">
+        <Panel pad="sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero">
+            <SectionHeading>
               {serviceDate === today
                 ? "Where it ran today"
                 : `Where it ran on ${serviceDayLabel(serviceDate)}`}
-            </h2>
+            </SectionHeading>
             <StopDotKey noReading={liveMap !== null} />
           </div>
           <StopMapWrapper
@@ -356,13 +348,13 @@ export default async function VehiclePage({
             {liveMap && " Stops still ahead on its current run have no reading yet."}
           </p>
           <MapMarkKey live={liveOnMap !== null} offRoute={false} />
-        </section>
+        </Panel>
       )}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its record</h2>
+        <SectionHeading>Its record</SectionHeading>
         {total ? (
-          <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-3 lg:grid-cols-5">
+          <FigureStrip>
             <Figure label="In service">{formatHours(total.serviceSec)}</Figure>
             <Figure label="Runs">{formatCount(total.runs)}</Figure>
             <Figure label="Arrivals">{formatCount(total.arrivals)}</Figure>
@@ -377,11 +369,9 @@ export default async function VehiclePage({
                 </span>
               </Figure>
             )}
-          </dl>
+          </FigureStrip>
         ) : (
-          <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-            No runs recorded for this vehicle in this period.
-          </div>
+          <EmptyState>No runs recorded for this vehicle {windowPhrase(nav, period)}.</EmptyState>
         )}
         {total && (
           <p className="text-xs text-at-muted">
@@ -480,22 +470,6 @@ function dayRunMap(
 }
 
 /**
- * One figure in the record strip.
- * @param root0 - Props.
- * @param root0.label - What it counts.
- * @param root0.children - The value.
- * @returns The term and its value.
- */
-function Figure({ label, children }: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-zero text-at-muted uppercase">{label}</dt>
-      <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums">{children}</dd>
-    </div>
-  );
-}
-
-/**
  * Where the vehicle is now: its run, how late, how full, how fast, or when it
  * was last seen when it is not on a run.
  * @param root0 - Props.
@@ -522,10 +496,10 @@ function LiveCard({
   if (!now?.tripId) {
     const last = now?.seenAt ? new Date(now.seenAt * 1000) : register?.lastSeenAt;
     return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
+      <EmptyState>
         Not on a run right now.
         {last && ` Last seen ${lastSeenLabel(last, today)}.`}
-      </div>
+      </EmptyState>
     );
   }
   const status = vehicleStatus(now.delaySec, mode ?? "BUS");
@@ -539,7 +513,7 @@ function LiveCard({
   if (now.seenAt)
     facts.push(["Position at", nzClockTime(new Date(now.seenAt * 1000).toISOString())]);
   return (
-    <section className="space-y-4 border border-at-border bg-at-surface px-6 py-5">
+    <Panel pad="lg" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <p className="at-eyebrow flex items-center gap-2 text-at-muted">
@@ -564,14 +538,13 @@ function LiveCard({
       {facts.length > 0 && (
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           {facts.map(([label, value]) => (
-            <div key={label} className="flex flex-col gap-0.5">
-              <dt className="text-xs tracking-zero text-at-muted uppercase">{label}</dt>
-              <dd className="text-sm font-semibold text-at-ink tabular-nums">{value}</dd>
-            </div>
+            <Figure key={label} label={label} size="sm" className="text-at-ink">
+              {value}
+            </Figure>
           ))}
         </dl>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -625,74 +598,63 @@ function RunsTable({
   );
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its runs</h2>
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="at-th-row">
-              <SortHeader {...head("start")} align="left">
-                Start
+      <SectionHeading>Its runs</SectionHeading>
+      <DataTable caption="Each run that day">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("start")} align="left">
+              Start
+            </SortHeader>
+            <SortHeader {...head("route")} align="left">
+              Route
+            </SortHeader>
+            <SortHeader {...head("length")}>Length</SortHeader>
+            <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
+              Arrivals
+            </SortHeader>
+            {showCars && (
+              <SortHeader {...head("cars")} className="hidden sm:table-cell">
+                Cars
               </SortHeader>
-              <SortHeader {...head("route")} align="left">
-                Route
-              </SortHeader>
-              <SortHeader {...head("length")}>Length</SortHeader>
-              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
-                Arrivals
-              </SortHeader>
-              {showCars && (
-                <SortHeader {...head("cars")} className="hidden sm:table-cell">
-                  Cars
-                </SortHeader>
-              )}
-              <SortHeader {...head("off")}>Off schedule</SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((r) => {
-              const off = offScheduleValue(r.avgSec, r.avgAbsSec, mode);
-              const start = new Date(r.startMs).toISOString();
-              return (
-                <tr key={r.tripId} className="border-b border-at-border last:border-b-0">
-                  <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
-                    <Link
-                      href={tripHref(r.routeId, r.tripId, start)}
-                      className="text-at-shore tabular-nums hover:underline"
-                    >
-                      {nzClockTime(start)}
-                    </Link>
-                  </th>
-                  <td className="p-3">
-                    <Link
-                      href={routeHref(r.routeId, routeParams)}
-                      className="at-link font-semibold"
-                    >
-                      {r.route}
-                    </Link>
-                  </td>
-                  <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                    {formatHours(r.durationSec)}
-                  </td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.e}</td>
-                  {showCars && (
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {r.cars ?? UNKNOWN_VALUE}
-                    </td>
-                  )}
-                  <td
-                    className={cn(
-                      "p-3 text-right whitespace-nowrap tabular-nums",
-                      OFF_SCHEDULE_TONE_CLASS[off.tone],
-                    )}
+            )}
+            <SortHeader {...head("off")}>Off schedule</SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((r) => {
+            const start = new Date(r.startMs).toISOString();
+            return (
+              <tr key={r.tripId} className={ROW_CLASS}>
+                <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
+                  <Link
+                    href={tripHref(r.routeId, r.tripId, start)}
+                    className="text-at-shore tabular-nums hover:underline"
                   >
-                    {off.text}
+                    {nzClockTime(start)}
+                  </Link>
+                </th>
+                <td className="p-3">
+                  <Link href={routeHref(r.routeId, routeParams)} className="at-link font-semibold">
+                    {r.route}
+                  </Link>
+                </td>
+                <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                  {formatHours(r.durationSec)}
+                </td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.e}</td>
+                {showCars && (
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {r.cars ?? UNKNOWN_VALUE}
                   </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                )}
+                <td className="p-3 text-right whitespace-nowrap">
+                  <OffScheduleValue signedSec={r.avgSec} absSec={r.avgAbsSec} mode={mode} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
       <p className="text-xs text-at-muted">
         Length runs from the first recorded stop to the last. Off schedule is the average over the
         run&apos;s recorded stops.
@@ -750,69 +712,67 @@ function DaysTable({
   );
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-ultra tracking-zero text-at-ink">Day by day</h2>
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="at-th-row">
-              <SortHeader {...head("day")} align="left">
-                Day
-              </SortHeader>
-              <SortHeader {...head("hours")}>In service</SortHeader>
-              <SortHeader {...head("runs")}>Runs</SortHeader>
-              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
-                Arrivals
-              </SortHeader>
-              <SortHeader {...head("off")} className="hidden sm:table-cell">
-                Avg off
-              </SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map(({ date, ran, serviceSec, runs, arrivals, offSec }) => {
-              return (
-                <tr key={date} className="border-b border-at-border last:border-b-0">
-                  <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
-                    {ran ? (
-                      <Link
-                        href={buildHref(basePath, {
-                          day: dayLinkParam(date, today),
-                          ...listState,
-                        })}
-                        className="at-link"
-                      >
-                        {serviceDayLabel(date)}
-                      </Link>
-                    ) : (
-                      <span className="text-at-muted">{serviceDayLabel(date)}</span>
-                    )}
-                  </th>
+      <SectionHeading>Day by day</SectionHeading>
+      <DataTable caption="Each day's time in service">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("day")} align="left">
+              Day
+            </SortHeader>
+            <SortHeader {...head("hours")}>In service</SortHeader>
+            <SortHeader {...head("runs")}>Runs</SortHeader>
+            <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
+              Arrivals
+            </SortHeader>
+            <SortHeader {...head("off")} className="hidden sm:table-cell">
+              Avg off
+            </SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map(({ date, ran, serviceSec, runs, arrivals, offSec }) => {
+            return (
+              <tr key={date} className={ROW_CLASS}>
+                <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
                   {ran ? (
-                    <>
-                      <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                        {formatHours(serviceSec ?? 0)}
-                      </td>
-                      <td className="p-3 text-right tabular-nums">
-                        {runs == null ? UNKNOWN_VALUE : formatCount(runs)}
-                      </td>
-                      <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                        {arrivals == null ? UNKNOWN_VALUE : formatCount(arrivals)}
-                      </td>
-                      <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
-                        {formatDuration(offSec ?? 0)}
-                      </td>
-                    </>
+                    <Link
+                      href={buildHref(basePath, {
+                        day: dayLinkParam(date, today),
+                        ...listState,
+                      })}
+                      className="at-link"
+                    >
+                      {serviceDayLabel(date)}
+                    </Link>
                   ) : (
-                    <td colSpan={4} className="p-3 text-right text-at-muted">
-                      Did not run
-                    </td>
+                    <span className="text-at-muted">{serviceDayLabel(date)}</span>
                   )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                </th>
+                {ran ? (
+                  <>
+                    <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                      {formatHours(serviceSec ?? 0)}
+                    </td>
+                    <td className="p-3 text-right tabular-nums">
+                      {runs == null ? UNKNOWN_VALUE : formatCount(runs)}
+                    </td>
+                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                      {arrivals == null ? UNKNOWN_VALUE : formatCount(arrivals)}
+                    </td>
+                    <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
+                      {formatDuration(offSec ?? 0)}
+                    </td>
+                  </>
+                ) : (
+                  <td colSpan={4} className="p-3 text-right text-at-muted">
+                    Did not run
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
     </section>
   );
 }

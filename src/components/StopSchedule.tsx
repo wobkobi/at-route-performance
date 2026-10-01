@@ -5,7 +5,10 @@
 // reader told "no departures" for a day whose timetable has simply been retired
 // would read it as a quiet stop.
 
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import type { StopDepartures } from "@/lib/feed/at-stop-trips";
 import { UNKNOWN_VALUE } from "@/lib/format";
@@ -122,11 +125,11 @@ export function StopSchedule({
   );
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-zero text-at-muted uppercase">{heading}</h2>
+        <SectionHeading>{heading}</SectionHeading>
         {nowSeconds !== null && all.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
+          <ChipGroup label="Departures shown">
             {/* One template string per label, so each chip is a single text
                 node: React separates adjacent ones with a comment marker, which
                 reads as a stray space to anything parsing the page. */}
@@ -136,89 +139,84 @@ export function StopSchedule({
             <ChipLink href={allHref} active={showingAll}>
               {`Whole day (${all.length})`}
             </ChipLink>
-          </div>
+          </ChipGroup>
         )}
       </div>
       {notice !== null ? (
-        <p className="text-sm text-at-muted">{notice}</p>
+        <EmptyState>{notice}</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="at-th-row">
-                <th scope="col" className="pr-4 pb-1 font-semibold">
-                  Route
-                </th>
-                <th scope="col" className="pr-4 pb-1 font-semibold">
-                  Destination
-                </th>
-                <th scope="col" className="pb-1 font-semibold tabular-nums">
-                  Departs
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {departures.map((dep, i) => {
-                const bound = departureLabel(
-                  dep.headsign,
-                  dep.stopHeadsign,
-                  routeModes.get(dep.routeId) ?? "BUS",
-                );
-                return (
-                  <Fragment key={dep.tripId || i}>
-                    {i === firstUpcoming && i > 0 && (
-                      <tr className="no-stripe border-b border-at-shore">
-                        <td
-                          colSpan={3}
-                          className="pt-3 pb-1 text-xs font-semibold tracking-zero text-at-shore uppercase"
-                        >
-                          Now
-                        </td>
-                      </tr>
-                    )}
-                    {i === firstAfterMidnight && (
-                      <tr className="no-stripe border-b border-at-border/40">
-                        <td colSpan={3} className="pt-3 pb-1 text-xs text-at-muted">
-                          {afterMidnightNote(serviceDate)}
-                        </td>
-                      </tr>
-                    )}
-                    <tr
-                      className={cn(
-                        "border-b border-at-border/40 last:border-0",
-                        firstUpcoming > 0 && i < firstUpcoming && "opacity-60",
-                      )}
-                    >
-                      <td className="py-1.5 pr-4 font-semibold">
-                        <Link href={routeHref(dep.routeId, routeParams)} className="at-link">
-                          {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
-                        </Link>
-                      </td>
-                      <td className="py-1.5 pr-4 text-at-ink">
-                        {dep.tripId ? (
-                          <Link
-                            href={tripHref(dep.routeId, dep.tripId, serviceDate)}
-                            className="hover:text-at-shore hover:underline"
-                          >
-                            {bound.destination ?? UNKNOWN_VALUE}
-                          </Link>
-                        ) : (
-                          (bound.destination ?? UNKNOWN_VALUE)
-                        )}
-                        {bound.via !== null && (
-                          <span className="block text-xs text-at-muted">via {bound.via}</span>
-                        )}
-                      </td>
-                      <td className="py-1.5 text-at-ink tabular-nums">
-                        {formatGtfsTime(dep.departureTime) ?? UNKNOWN_VALUE}
+        <DataTable caption={heading}>
+          <thead>
+            <tr className="at-th-row">
+              <th scope="col" className={CELL_CLASS}>
+                Route
+              </th>
+              <th scope="col" className={CELL_CLASS}>
+                Destination
+              </th>
+              <th scope="col" className={CELL_CLASS}>
+                Departs
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {departures.map((dep, i) => {
+              const bound = departureLabel(
+                dep.headsign,
+                dep.stopHeadsign,
+                routeModes.get(dep.routeId) ?? "BUS",
+              );
+              return (
+                <Fragment key={dep.tripId || i}>
+                  {i === firstUpcoming && i > 0 && (
+                    <tr className="no-stripe border-b border-at-shore">
+                      <td colSpan={3} className="at-eyebrow px-3 pt-3 pb-1 text-at-shore">
+                        Now
                       </td>
                     </tr>
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                  {i === firstAfterMidnight && (
+                    <tr className="no-stripe border-b border-at-border/40">
+                      <td colSpan={3} className="px-3 pt-3 pb-1 text-xs text-at-muted">
+                        {afterMidnightNote(serviceDate)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr
+                    className={cn(
+                      ROW_CLASS,
+                      firstUpcoming > 0 && i < firstUpcoming && "opacity-60",
+                    )}
+                  >
+                    <th scope="row" className={cn(CELL_CLASS, "text-left font-semibold")}>
+                      <Link href={routeHref(dep.routeId, routeParams)} className="at-link">
+                        {routeNames.get(dep.routeId) ?? routeSlug(dep.routeId)}
+                      </Link>
+                    </th>
+                    <td className={cn(CELL_CLASS, "text-at-ink")}>
+                      {dep.tripId ? (
+                        <Link
+                          href={tripHref(dep.routeId, dep.tripId, serviceDate)}
+                          className="hover:text-at-shore hover:underline"
+                        >
+                          {bound.destination ?? UNKNOWN_VALUE}
+                        </Link>
+                      ) : (
+                        (bound.destination ?? UNKNOWN_VALUE)
+                      )}
+                      {bound.via !== null && (
+                        <span className="block text-xs text-at-muted">via {bound.via}</span>
+                      )}
+                    </td>
+                    <td className={cn(CELL_CLASS, "text-at-ink tabular-nums")}>
+                      {formatGtfsTime(dep.departureTime) ?? UNKNOWN_VALUE}
+                    </td>
+                  </tr>
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
     </section>
   );

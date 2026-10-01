@@ -251,7 +251,7 @@ export function PunctualityStat({
       className={cn(
         "relative bg-at-surface",
         bare ? "" : "border border-at-border",
-        size === "lg" ? "p-4" : size === "md" ? "" : "p-3",
+        STAT_PAD[size],
       )}
     >
       {/* Card text stays plain (selectable); only the info button opens the popover. */}
@@ -259,14 +259,43 @@ export function PunctualityStat({
         {label}
         <PunctualityInfo label={label} breakdown={breakdown} variant={variant} />
       </div>
-      <span
-        className={cn(
-          "at-figure block",
-          size === "lg" ? "text-2xl" : size === "md" ? "text-2xl sm:text-3xl" : "text-xl",
-        )}
-      >
-        {value}
-      </span>
+      <span className={cn("at-figure block", STAT_TEXT[size])}>{value}</span>
+    </div>
+  );
+}
+
+/** Cell padding per {@link PunctualityStatProps.size}. */
+const STAT_PAD = { lg: "p-4", md: "", sm: "p-3" } as const;
+
+/** Figure size per {@link PunctualityStatProps.size}. */
+const STAT_TEXT = { lg: "text-2xl", md: "text-2xl sm:text-3xl", sm: "text-xl" } as const;
+
+/**
+ * A plain figure with no breakdown behind it, padded and sized like a bare
+ * {@link PunctualityStat} so the two sit side by side in one strip.
+ * @param props - Component props.
+ * @param props.label - What it counts.
+ * @param props.size - Cell size, matching the stats beside it.
+ * @param props.note - A line under the value, such as what it covers.
+ * @param props.children - The value.
+ * @returns The cell.
+ */
+export function StatCell({
+  label,
+  size = "lg",
+  note,
+  children,
+}: {
+  label: string;
+  note?: ReactNode;
+  size?: NonNullable<PunctualityStatProps["size"]>;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <div className={STAT_PAD[size]}>
+      <div className="at-eyebrow text-at-muted">{label}</div>
+      <span className={cn("at-figure block", STAT_TEXT[size])}>{children}</span>
+      {note && <p className="mt-0.5 text-xs text-at-muted">{note}</p>}
     </div>
   );
 }

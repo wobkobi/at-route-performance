@@ -12,7 +12,7 @@ import { CancelledTripList } from "@/components/cancellation/CancelledTripList";
 import { RangeControls } from "@/components/date/RangeControls";
 import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
-import { ChevronRight } from "@/components/icons";
+import { MoreLink } from "@/components/ui/MoreLink";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   getEarliestDataDay,
@@ -40,7 +40,6 @@ import { nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import { CANCELLATION_STAGES } from "@/lib/trip/cancellation";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -205,7 +204,7 @@ export default async function CancellationsPage({
             routeParams={routeLinkParams(window, linkDay, period)}
           />
           {boardRows.length > BOARD_ROUTES && (
-            <Link
+            <MoreLink
               href={buildHref("/routes", {
                 ...windowParams,
                 mode: mode ?? undefined,
@@ -213,11 +212,9 @@ export default async function CancellationsPage({
                 cancelled: "1",
                 sort: "cancelled",
               })}
-              className="at-link inline-flex items-center gap-1 text-sm font-semibold"
             >
               All {boardRows.length} routes with cancellations
-              <ChevronRight className="h-4 w-4" />
-            </Link>
+            </MoreLink>
           )}
         </div>
         {/* Keyed by what the list shows, so a new window or filter opens it at the first page. */}

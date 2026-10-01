@@ -13,14 +13,22 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DirectionFilter } from "@/components/filter/DirectionFilter";
 import { TimeOfDayFilter } from "@/components/filter/TimeOfDayFilter";
+import { ChevronDown } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
 import { RouteMapDiagram } from "@/components/map/RouteMapDiagram";
 import { ModeIcon } from "@/components/ModeIcon";
-import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
+import { PunctualityStat, StatCell, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteStrip } from "@/components/route/RouteStrip";
 import { RouteWeekSummary } from "@/components/route/RouteWeekSummary";
 import { SortHeader } from "@/components/SortHeader";
 import { WorstTripsBoard } from "@/components/trip/WorstTripsBoard";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -48,13 +56,7 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
-import {
-  formatCount,
-  formatDuration,
-  formatPct,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
+import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
 import { parseShown } from "@/lib/page/filter-params";
@@ -572,56 +574,53 @@ export default async function RoutePage({
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-              {route && (
-                <ModeIcon
-                  mode={route.mode}
-                  shortName={route.shortName}
-                  longName={route.longName}
-                  className="h-7 w-7"
-                />
-              )}
-              {title}
-            </h1>
-            {subtitle && subtitle !== title && (
-              <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
-            )}
-            {operator && (
-              <p className="mt-0.5 text-sm text-at-muted">
-                Run by{" "}
-                <Link
-                  href={buildHref(
-                    operatorHref(operator),
-                    isWeekView
-                      ? { window: "week", period: periodParam ?? undefined }
-                      : { day: requestedDay ?? undefined },
-                  )}
-                  className="at-link"
-                >
-                  {operator.name}
-                </Link>
-              </p>
-            )}
-            <p className="mt-0.5 text-sm">
+      <div className="flex flex-col gap-3">
+        <PageHeader
+          title={title}
+          icon={
+            route && (
+              <ModeIcon
+                mode={route.mode}
+                shortName={route.shortName}
+                longName={route.longName}
+                className="h-7 w-7"
+              />
+            )
+          }
+          subtitle={subtitle !== title ? subtitle : undefined}
+          actions={<RangeControls basePath={routePath} nav={rangeNav} windows={ROUTE_WINDOWS} />}
+        >
+          {operator && (
+            <p className="mt-0.5 text-sm text-at-muted">
+              Run by{" "}
               <Link
-                href={buildHref("/compare", {
-                  kind: "routes",
-                  ids: slug,
-                  ...(isWeekView
+                href={buildHref(
+                  operatorHref(operator),
+                  isWeekView
                     ? { window: "week", period: periodParam ?? undefined }
-                    : { day: requestedDay ?? undefined }),
-                })}
+                    : { day: requestedDay ?? undefined },
+                )}
                 className="at-link"
               >
-                Compare with other routes
+                {operator.name}
               </Link>
             </p>
-          </div>
-          <RangeControls basePath={routePath} nav={rangeNav} windows={ROUTE_WINDOWS} />
-        </div>
+          )}
+          <p className="mt-0.5 text-sm">
+            <Link
+              href={buildHref("/compare", {
+                kind: "routes",
+                ids: slug,
+                ...(isWeekView
+                  ? { window: "week", period: periodParam ?? undefined }
+                  : { day: requestedDay ?? undefined }),
+              })}
+              className="at-link"
+            >
+              Compare with other routes
+            </Link>
+          </p>
+        </PageHeader>
         {/* An outage reads as a route with no schedule otherwise: the chips and
             the diagram simply would not be there, with nothing to say why. */}
         {view.patternFailed && (
@@ -650,22 +649,18 @@ export default async function RoutePage({
             ...Object.fromEntries(TIME_PRESETS.map((p) => [p.key, hoursHref(p.range)])),
           }}
         />
-      </header>
+      </div>
 
       <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} live={isLiveView} />
 
       {isWeekView ? (
         <>
           {/* Week stats summary */}
-          <section className="border border-at-border bg-at-surface">
+          <Panel>
             <div className="grid grid-cols-2 sm:grid-cols-3">
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">
-                  {formatCount(weekSummary?.events ?? 0)}
-                </p>
-                <p className="mt-0.5 text-xs text-at-muted">{weekFigureNote}</p>
-              </div>
+              <StatCell label="Arrivals" note={weekFigureNote}>
+                {formatCount(weekSummary?.events ?? 0)}
+              </StatCell>
               <PunctualityStat
                 bare
                 variant="average"
@@ -685,7 +680,7 @@ export default async function RoutePage({
                 breakdown={weekPunctuality}
               />
             </div>
-          </section>
+          </Panel>
 
           {/* The week figures come from per-route daily summaries, which split by
               neither direction nor part of day, so say so rather than imply they
@@ -744,18 +739,10 @@ export default async function RoutePage({
       ) : (
         <>
           {/* Day stats summary */}
-          <section className="border border-at-border bg-at-surface">
+          <Panel>
             <div className="grid grid-cols-2 sm:grid-cols-4">
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">
-                  {summary?.events ?? 0}
-                </p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Trips</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">{totalTrips}</p>
-              </div>
+              <StatCell label="Arrivals">{formatCount(summary?.events ?? 0)}</StatCell>
+              <StatCell label="Trips">{formatCount(totalTrips)}</StatCell>
               <PunctualityStat
                 bare
                 variant="average"
@@ -785,7 +772,7 @@ export default async function RoutePage({
                 to average.
               </p>
             )}
-          </section>
+          </Panel>
 
           {/* What the direction chips do not reach. Both figures come from one
               getRouteStats call, which takes no direction at all, so "Trips"
@@ -846,79 +833,76 @@ export default async function RoutePage({
             </Suspense>
           )}
 
-          {byStop.length === 0 ? (
-            <section className="border border-at-border bg-at-surface px-4 py-3">
-              <h2 className="font-semibold">Stops</h2>
-              <p className="mt-1 text-sm text-at-muted">
-                No stop-level arrivals recorded for this route on this day.
-              </p>
-            </section>
-          ) : (
-            // Opened by a sort, which reloads the page and would otherwise fold
-            // the table the reader just sorted away.
-            <details
-              className="border border-at-border bg-at-surface"
-              open={sp.ssort !== undefined || sp.srev !== undefined}
-            >
-              {/* The heading goes inside the summary, which `summary` allows: as
-                  bare text it was the one section on the page with no heading in
-                  the outline, and only in the state that has something to say. */}
-              <summary className="cursor-pointer px-4 py-3">
-                <h2 className="inline font-semibold">Stops</h2>
-              </summary>
-              <div className="overflow-x-auto px-4 pb-4">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-at-shore-pale text-at-muted">
-                    <tr>
-                      <SortHeader {...stopSort.head("stop")} align="left" className="px-3 py-2">
+          <section aria-labelledby="route-stops" className="space-y-3">
+            <SectionHeading id="route-stops">Stops</SectionHeading>
+            {byStop.length === 0 ? (
+              <EmptyState>No stop-level arrivals recorded for this route on this day.</EmptyState>
+            ) : (
+              // Opened by a sort, which reloads the page and would otherwise fold
+              // the table the reader just sorted away. The heading sits outside
+              // the summary, which is a button to assistive tech and drops any
+              // heading inside it from the outline.
+              <details
+                className="group at-card"
+                open={sp.ssort !== undefined || sp.srev !== undefined}
+              >
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-at-shore select-none">
+                  {plural(byStop.length, "stop")} with arrivals
+                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <DataTable
+                  caption="Arrivals and delay at each stop"
+                  framed={false}
+                  className="border-t border-at-border"
+                >
+                  <thead>
+                    <tr className="at-th-row">
+                      <SortHeader {...stopSort.head("stop")} align="left">
                         Stop
                       </SortHeader>
-                      <SortHeader {...stopSort.head("arrivals")} className="px-3 py-2">
-                        Arrivals
-                      </SortHeader>
-                      <SortHeader {...stopSort.head("delay")} className="px-3 py-2">
-                        Early or late
-                      </SortHeader>
+                      <SortHeader {...stopSort.head("arrivals")}>Arrivals</SortHeader>
+                      <SortHeader {...stopSort.head("delay")}>Early or late</SortHeader>
                     </tr>
                   </thead>
                   <tbody>
                     {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
-                      <tr
-                        key={s.stop_id}
-                        className="border-t border-at-border hover:bg-at-shore-pale"
-                      >
-                        <td className="px-3 py-2">
+                      <tr key={s.stop_id} className={ROW_CLASS}>
+                        <th scope="row" className={cn(CELL_CLASS, "text-left font-normal")}>
                           <Link
                             href={stopHref(s.stop_id, { day: stopDay })}
                             className="at-link font-semibold"
                           >
                             {s.name}
                           </Link>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        </th>
+                        <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
                           {formatCount(s.events)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {offScheduleValue(s.avg_delay_sec, null, routeMode).text}
+                        <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
+                          <OffScheduleValue
+                            signedSec={s.avg_delay_sec}
+                            absSec={null}
+                            mode={routeMode}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </DataTable>
                 {/* These rows and the strip above them are computed over
                     different populations: applyPenalty adds a visit per missed
                     stop to the strip's Arrivals, and no per-stop row takes a
                     share of it, so the column genuinely does not add up to the
                     figure above. Only worth saying when a penalty was applied. */}
                 {punctuality.cancellations === "counted" && (
-                  <p className="mt-2 text-xs text-at-muted">
+                  <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
                     Stop rows count measured arrivals only, so on a day with cancellations they add
                     up to less than Arrivals above, which counts each missed stop as a rider wait.
                   </p>
                 )}
-              </div>
-            </details>
-          )}
+              </details>
+            )}
+          </section>
         </>
       )}
     </main>

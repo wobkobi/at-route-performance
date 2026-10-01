@@ -1,7 +1,6 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
 // Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
 
-import { ChevronLeft } from "@/components/icons";
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -9,7 +8,12 @@ import { TripCancellationNote } from "@/components/trip/TripCancellationNote";
 import { TripDetourNote } from "@/components/trip/TripDetourNote";
 import { TripGhostRunNote } from "@/components/trip/TripGhostRunNote";
 import { TripLine } from "@/components/trip/TripLine";
+import { BackLink } from "@/components/ui/BackLink";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Hint } from "@/components/ui/Hint";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
@@ -249,33 +253,31 @@ export default async function TripPage({
   );
 
   return (
-    <main className={cn("space-y-6")}>
-      <Link
+    <main className="space-y-6">
+      <BackLink
         href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
           day: linkDay,
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}
-        className={cn("at-link inline-flex items-center gap-1 text-sm")}
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        Back to {title}
-      </Link>
+        to={title}
+      />
 
-      <header className="space-y-1">
-        <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
-          {route && (
+      <PageHeader
+        title={title}
+        icon={
+          route && (
             <ModeIcon
               mode={route.mode}
               shortName={route.shortName}
               longName={route.longName}
               className="h-7 w-7"
             />
-          )}
-          {title}
-        </h1>
-        <p className="text-at-muted">
+          )
+        }
+      >
+        <p className="mt-0.5 text-sm text-at-muted">
           {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
           {departing ? `Trip departing ${departing}` : "Trip"}
           {departing && departsAfterMidnight && serviceDate && (
@@ -293,7 +295,7 @@ export default async function TripPage({
             </>
           )}
         </p>
-      </header>
+      </PageHeader>
 
       {detour && (
         <TripDetourNote
@@ -355,9 +357,9 @@ export default async function TripPage({
         )}
       >
         {hasTripMap && (
-          <section className="border border-at-border bg-at-surface p-4 lg:sticky lg:top-6">
+          <Panel pad="sm" className="lg:sticky lg:top-6">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
+              <SectionHeading>Trip map</SectionHeading>
               <StopDotKey />
             </div>
             <StopMapWrapper
@@ -378,29 +380,24 @@ export default async function TripPage({
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
             <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
-          </section>
+          </Panel>
         )}
 
         {line.stops.length === 0 ? (
-          <p
-            className={cn(
-              "border border-at-border bg-at-surface p-4",
-              scheduleFailed ? "text-at-late" : "text-at-muted",
-            )}
-          >
+          <EmptyState className={scheduleFailed ? "text-at-late" : undefined}>
             {scheduleFailed
               ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
               : "No stop records found for this trip."}
-          </p>
+          </EmptyState>
         ) : (
-          <section className="border border-at-border bg-at-surface p-4">
+          <Panel pad="sm">
             <TripLine
               line={line}
               mode={routeMode}
               colour={route?.colour ?? null}
               stopDay={linkDay}
             />
-          </section>
+          </Panel>
         )}
       </div>
     </main>
