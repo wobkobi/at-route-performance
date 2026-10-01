@@ -2,10 +2,11 @@
 // Render a route's per-day on-time summary for a week window.
 import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
-import { formatCount, formatPct, offScheduleValue } from "@/lib/format";
+import { formatCount, formatPct } from "@/lib/format";
 import { serviceDayLabel } from "@/lib/time/service-day";
 import type { RouteDay } from "@/types/api";
 import Link from "next/link";
@@ -77,7 +78,7 @@ export function RouteWeekSummary({
                 {formatCount(day.events)}
               </td>
               <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
-                {offScheduleValue(day.avg_delay_sec, null, mode).text}
+                <OffScheduleValue signedSec={day.avg_delay_sec} absSec={null} mode={mode} />
               </td>
               <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
                 {formatPct(day.on_time_pct)}

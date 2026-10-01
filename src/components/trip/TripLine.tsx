@@ -3,6 +3,7 @@
 // vertical line in the route's colour, with the stops it made off its timetable
 // on a spur beside it and the stops it went around bypassed.
 
+import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
 import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
@@ -470,19 +471,17 @@ function LineKey({
     });
   if (present.ahead)
     entries.push({ key: "ahead", swatch: leg("stroke-at-border", 4), label: "Not reached yet" });
-  if (entries.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-at-muted">
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-1.5">
-          <dt>
-            <svg width={18} height={14} aria-hidden="true" focusable="false">
-              {e.swatch}
-            </svg>
-          </dt>
-          <dd>{e.label}</dd>
-        </div>
-      ))}
-    </dl>
+    <SwatchKey
+      className="mt-3"
+      items={entries.map((e) => ({
+        ...e,
+        swatch: (
+          <SvgSwatch width={18} height={14}>
+            {e.swatch}
+          </SvgSwatch>
+        ),
+      }))}
+    />
   );
 }

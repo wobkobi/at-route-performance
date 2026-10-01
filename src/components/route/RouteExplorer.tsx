@@ -14,18 +14,12 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Figure } from "@/components/ui/FigureStrip";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { ShowMore } from "@/components/ui/ShowMore";
 import { cn } from "@/lib/cn";
 import { labelsOf } from "@/lib/collections";
-import {
-  formatCount,
-  formatDuration,
-  formatPct,
-  OFF_SCHEDULE_TONE_CLASS,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
@@ -480,7 +474,6 @@ export function RouteExplorer({
             // Always a distance, never the words "on time": this sits beside an
             // on-time percentage, and a delay figure reading "on time" under an
             // "Early or late" label read as the two figures disagreeing.
-            const offSchedule = offScheduleValue(r.avg_delay_sec, null, r.mode);
             return (
               <Panel
                 as="li"
@@ -535,12 +528,8 @@ export function RouteExplorer({
                   <Figure size="sm" label="On time">
                     {formatPct(r.on_time_pct)}
                   </Figure>
-                  <Figure
-                    size="sm"
-                    label="Early or late"
-                    className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}
-                  >
-                    {offSchedule.text}
+                  <Figure size="sm" label="Early or late">
+                    <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
                   </Figure>
                   <Figure size="sm" label="Off by">
                     {r.avg_abs_delay_sec === null

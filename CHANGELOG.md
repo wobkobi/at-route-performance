@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.26] - 2026-10-01
+
+### Changed
+
+- Trip notes, worst cards, off-schedule values and every colour key now share one component each;
+  the route week table colours its early or late column.
+
 ## [2.41.25] - 2026-10-01
 
 ### Changed

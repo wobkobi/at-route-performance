@@ -1,8 +1,8 @@
 // src/components/OffScheduleLine.tsx
 // The "Ran ... on average" sentence under the worst-trip and worst-route cards.
 
-import { cn } from "@/lib/cn";
-import { OFF_SCHEDULE_TONE_CLASS, formatDelay, offScheduleValue } from "@/lib/format";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { formatDelay, offScheduleValue } from "@/lib/format";
 import type { JSX } from "react";
 
 /** Props for {@link OffScheduleLine}. */
@@ -36,9 +36,7 @@ export function OffScheduleLine({
   lead,
 }: OffScheduleLineProps): JSX.Element {
   const value = offScheduleValue(signedSec, absSec, mode);
-  const figure = (
-    <span className={cn("font-semibold", OFF_SCHEDULE_TONE_CLASS[value.tone])}>{value.text}</span>
-  );
+  const figure = <OffScheduleValue signedSec={signedSec} absSec={absSec} mode={mode} />;
   return (
     <p className="text-sm text-at-muted">
       {lead && <span className="tabular-nums">{lead} · </span>}

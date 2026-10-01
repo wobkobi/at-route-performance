@@ -11,6 +11,7 @@ import { ChevronDown } from "@/components/icons";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
@@ -886,19 +887,17 @@ function StripKey({
       label: "Named in a service alert",
     });
   }
-  if (entries.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-at-muted">
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-1.5">
-          <dt>
-            <svg width={20} height={20} aria-hidden="true" focusable="false">
-              {e.swatch}
-            </svg>
-          </dt>
-          <dd>{e.label}</dd>
-        </div>
-      ))}
-    </dl>
+    <SwatchKey
+      className="mt-3"
+      items={entries.map((e) => ({
+        ...e,
+        swatch: (
+          <SvgSwatch width={20} height={20}>
+            {e.swatch}
+          </SvgSwatch>
+        ),
+      }))}
+    />
   );
 }

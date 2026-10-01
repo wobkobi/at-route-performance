@@ -5,6 +5,7 @@ import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { DotSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
 import {
   barPct,
@@ -75,14 +76,10 @@ function DelayColourKey(): JSX.Element {
     { swatch: "bg-at-ink", label: "Mixed" },
   ];
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-at-muted">
-      {keys.map((k) => (
-        <span key={k.label} className="flex items-center gap-1">
-          <span aria-hidden className={cn("size-2 rounded-full", k.swatch)} />
-          {k.label}
-        </span>
-      ))}
-    </p>
+    <SwatchKey
+      className="mt-1"
+      items={keys.map((k) => ({ swatch: <DotSwatch className={k.swatch} />, label: k.label }))}
+    />
   );
 }
 

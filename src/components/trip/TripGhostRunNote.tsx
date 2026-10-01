@@ -4,6 +4,7 @@
 // this one's number. Written for a rider, who knows a run by when it departs and
 // has never heard of a trip id.
 
+import { TripNote } from "@/components/ui/TripNote";
 import { tripHref } from "@/lib/page/hrefs";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -59,9 +60,8 @@ export function TripGhostRunNote({
         : `Auckland Transport reported it under the ${named} run's number, so nothing was recorded against this trip.`;
 
   return (
-    <section className="border border-l-4 border-at-border border-l-at-muted bg-at-surface p-4">
-      <h2 className="text-lg font-ultra tracking-zero">{title}</h2>
-      <p className="mt-1 text-sm text-at-muted">
+    <TripNote tone="muted" title={title}>
+      <p>
         {body}
         {other && (
           <>
@@ -73,6 +73,6 @@ export function TripGhostRunNote({
           </>
         )}
       </p>
-    </section>
+    </TripNote>
   );
 }

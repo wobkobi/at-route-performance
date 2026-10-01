@@ -18,12 +18,13 @@ import { ChipLink } from "@/components/Chip";
 import { ChevronRight, SortArrow } from "@/components/icons";
 import { Badge, CANCELLATION_TONE, CancellationBadge, LiveBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ShowMore } from "@/components/ui/ShowMore";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
+import { formatDuration, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
 import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
@@ -296,7 +297,6 @@ export function WorstTripsBoard({
                 );
               }
               const t = row.trip;
-              const value = offScheduleValue(t.avg_delay_sec, t.avg_abs_delay_sec, mode ?? "BUS");
               const bound = boundFor(t.headsign, mode ?? "BUS");
               return (
                 <li key={t.trip_id} className={TRIP_ROW_CLASS}>
@@ -337,14 +337,12 @@ export function WorstTripsBoard({
                         </Suspense>
                       )}
                     </span>
-                    <span
-                      className={cn(
-                        "shrink-0 font-semibold tabular-nums",
-                        OFF_SCHEDULE_TONE_CLASS[value.tone],
-                      )}
-                    >
-                      {value.text}
-                    </span>
+                    <OffScheduleValue
+                      signedSec={t.avg_delay_sec}
+                      absSec={t.avg_abs_delay_sec}
+                      mode={mode ?? "BUS"}
+                      className="shrink-0"
+                    />
                     <ChevronRight className="shrink-0 text-at-muted" />
                   </Link>
                 </li>

@@ -2,7 +2,7 @@
 // Note on the trip page explaining a cancellation flag: whether the trip never
 // ran, was cut short, or ran anyway after AT reversed the flag.
 
-import { cn } from "@/lib/cn";
+import { TripNote } from "@/components/ui/TripNote";
 import { plural } from "@/lib/format";
 import { nzClockTime } from "@/lib/time/format";
 import type { CancellationStage } from "@/lib/trip/cancellation";
@@ -80,21 +80,8 @@ export function TripCancellationNote({
   }
 
   return (
-    <section
-      className={cn(
-        "border border-l-4 border-at-border bg-at-surface p-4",
-        stage === "ran" ? "border-l-at-muted" : "border-l-at-late",
-      )}
-    >
-      <h2
-        className={cn(
-          "text-lg font-ultra tracking-zero",
-          stage === "ran" ? "text-at-ink" : "text-at-late",
-        )}
-      >
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-at-muted">{body}</p>
-    </section>
+    <TripNote tone={stage === "ran" ? "muted" : "late"} title={title}>
+      <p>{body}</p>
+    </TripNote>
   );
 }

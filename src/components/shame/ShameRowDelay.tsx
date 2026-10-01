@@ -1,8 +1,9 @@
 // src/components/shame/ShameRowDelay.tsx
 // Delay summary line for a shame board row, wording the average deviation by mode.
 
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { cn } from "@/lib/cn";
-import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { offScheduleValue } from "@/lib/format";
 import type { JSX } from "react";
 
 /** Props for {@link ShameRowDelay}. */
@@ -30,23 +31,18 @@ export function ShameRowDelay({
   avgAbsDelaySec,
   mode,
 }: ShameRowDelayProps): JSX.Element {
-  const value = offScheduleValue(avgDelaySec, avgAbsDelaySec, mode);
-  const mixed = value.tone === "mixed";
+  const mixed = offScheduleValue(avgDelaySec, avgAbsDelaySec, mode).tone === "mixed";
   return (
     <span className="shrink-0 pt-px text-right">
       <span
-        className={cn(
-          "block font-semibold tabular-nums",
-          OFF_SCHEDULE_TONE_CLASS[value.tone],
-          mixed && "cursor-help",
-        )}
+        className={cn("block", mixed && "cursor-help")}
         title={
           mixed
             ? "Some services ran early, some ran late - this is the average distance from schedule, ignoring direction"
             : undefined
         }
       >
-        {value.text}
+        <OffScheduleValue signedSec={avgDelaySec} absSec={avgAbsDelaySec} mode={mode} />
       </span>
     </span>
   );

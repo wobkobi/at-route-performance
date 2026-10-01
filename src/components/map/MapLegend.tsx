@@ -1,6 +1,7 @@
 // src/components/map/MapLegend.tsx
 // The keys for the stop, route and trip maps: stop dot colours beside the
 // heading, and under the map what a live vehicle marker and an off-route line mean.
+import { DotSwatch, SwatchKey, type SwatchKeyItem } from "@/components/ui/SwatchKey";
 import type { JSX } from "react";
 
 /**
@@ -20,31 +21,26 @@ export function StopDotKey({
   noReading?: boolean;
   lone?: boolean;
 }): JSX.Element {
-  return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-at-muted">
-      <span className="flex items-center gap-1">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-late" /> late
-      </span>
-      <span className="flex items-center gap-1">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-early" /> early
-      </span>
-      <span className="flex items-center gap-1">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-at-ontime" /> on time
-      </span>
-      {noReading && (
-        <span className="flex items-center gap-1">
-          <span
-            className={
-              lone
-                ? "inline-block h-2.5 w-2.5 rounded-full border-2 border-at-ink bg-at-surface"
-                : "inline-block h-2 w-2 rounded-full border border-at-border bg-at-surface"
-            }
-          />{" "}
-          no reading
-        </span>
-      )}
-    </span>
-  );
+  const items: SwatchKeyItem[] = [
+    { swatch: <DotSwatch className="bg-at-late" />, label: "late" },
+    { swatch: <DotSwatch className="bg-at-early" />, label: "early" },
+    { swatch: <DotSwatch className="bg-at-ontime" />, label: "on time" },
+  ];
+  if (noReading) {
+    items.push({
+      swatch: (
+        <DotSwatch
+          className={
+            lone
+              ? "border-2 border-at-ink bg-at-surface"
+              : "size-2 border border-at-border bg-at-surface"
+          }
+        />
+      ),
+      label: "no reading",
+    });
+  }
+  return <SwatchKey items={items} />;
 }
 
 /**
@@ -63,44 +59,49 @@ export function MapMarkKey({
   live: boolean;
   offRoute?: boolean;
 }): JSX.Element | null {
-  if (!live && !offRoute) return null;
-  return (
-    <ul className="mt-2 space-y-1 text-xs text-at-muted">
-      {live && (
-        <li className="flex items-start gap-2">
-          <svg viewBox="0 0 40 40" className="-mt-1 h-8 w-8 shrink-0" aria-hidden="true">
-            <circle
-              cx="20"
-              cy="20"
-              r="14"
-              className="fill-at-surface stroke-at-late"
-              strokeWidth="3"
-            />
-            <path
-              d="M20 0.75 L27.5 10 L20 7 L12.5 10 Z"
-              transform="rotate(45 20 20)"
-              className="fill-at-late stroke-at-surface"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-              paintOrder="stroke"
-            />
-          </svg>
-          <span>
-            A vehicle on the route now, ringed in its delay colour (grey when the feed gives no
-            delay). The point shows which way it is heading, and a label beside it says how far off
-            schedule it is once it is outside the on-time window.
-          </span>
-        </li>
-      )}
-      {offRoute && (
-        <li className="flex items-start gap-2">
-          <span
-            className="mt-2 inline-block w-4 shrink-0 border-t-2 border-dashed border-at-commercial"
-            aria-hidden="true"
+  const items: SwatchKeyItem[] = [];
+  if (live) {
+    items.push({
+      key: "live",
+      swatch: (
+        <svg viewBox="0 0 40 40" className="-mt-1 h-8 w-8 shrink-0" aria-hidden="true">
+          <circle
+            cx="20"
+            cy="20"
+            r="14"
+            className="fill-at-surface stroke-at-late"
+            strokeWidth="3"
           />
-          <span>Where the vehicle was seen off its route.</span>
-        </li>
-      )}
-    </ul>
-  );
+          <path
+            d="M20 0.75 L27.5 10 L20 7 L12.5 10 Z"
+            transform="rotate(45 20 20)"
+            className="fill-at-late stroke-at-surface"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            paintOrder="stroke"
+          />
+        </svg>
+      ),
+      label: (
+        <>
+          A vehicle on the route now, ringed in its delay colour (grey when the feed gives no
+          delay). The point shows which way it is heading, and a label beside it says how far off
+          schedule it is once it is outside the on-time window.
+        </>
+      ),
+    });
+  }
+  if (offRoute) {
+    items.push({
+      key: "off-route",
+      swatch: (
+        <span
+          className="mt-2 inline-block w-4 shrink-0 border-t-2 border-dashed border-at-commercial"
+          aria-hidden="true"
+        />
+      ),
+      label: "Where the vehicle was seen off its route.",
+    });
+  }
+  return <SwatchKey items={items} layout="list" className="mt-2" />;
 }
