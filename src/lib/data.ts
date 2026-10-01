@@ -76,7 +76,6 @@ export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
   MIN_STOP_EVENTS_HOUR,
   cachedWorstStopsOfDay,
-  findCurrentStationId,
   getShameStopsInHours,
   getStationSiblings,
   getStopIdentity,

@@ -68,7 +68,6 @@ const PAGE_OVERRIDES: Record<
   Pick<PageSpec, "name" | "ignoreErrors" | "expectFinalPath">
 > = {
   "/": { name: "Home" },
-  "/rankings": { name: "Rankings (redirects home)", expectFinalPath: "/?window=week" },
   "/routes": { name: "Routes" },
   "/cancellations": { name: "Cancellations" },
   "/shame": { name: "Shame (redirects to trips)", expectFinalPath: "/shame/trip" },

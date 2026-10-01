@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.21] - 2026-10-01
+
+### Changed
+
+- Removed the old-URL redirects for /rankings, versioned route ids, the route page's month window
+  and name-keyed station links. Trip links and retired train lines still resolve.
+
 ## [2.41.20] - 2026-10-01
 
 ### Changed

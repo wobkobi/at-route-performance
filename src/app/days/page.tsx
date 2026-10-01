@@ -107,7 +107,7 @@ export default async function DaysPage({
   const sp = (await searchParams) ?? {};
   // An explicit window is read the way every range page reads it, so this page
   // cannot disagree with the rest about what a value means; only an absent one
-  // takes the week default, as `/rankings` does. A bare `/days` stays bare rather
+  // takes the week default. A bare `/days` stays bare rather
   // than redirecting to `?window=week`: it is the URL the sitemap advertises, and
   // robots.txt disallows every query string, so the redirect would send a crawler
   // from the canonical page to one it may not fetch.

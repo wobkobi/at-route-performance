@@ -172,7 +172,7 @@ export function stationId(stopId: string, name: string, parts?: StationParts): s
 
 /**
  * The name-derived station id used before AT's `parent_station` was stored.
- * Still minted as a fallback, and still resolved so old links keep working.
+ * Still minted as the fallback for stop rows stored without a parent.
  * @param name - The stop's display name (numbered or not).
  * @returns `station:<lowercased station name>`.
  */

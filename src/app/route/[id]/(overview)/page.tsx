@@ -223,9 +223,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StatsSearchParams>;
 }): Promise<Metadata> {
-  const { id } = await params;
-  const slug = routeSlug(id);
-  const card = parseRouteCard(id, (await searchParams) ?? {});
+  const { id: slug } = await params;
+  const card = parseRouteCard(slug, (await searchParams) ?? {});
   // The line's own two fields, not a summary of its week: a title names the
   // route, and reading it this way keeps the head clear of both the aggregation
   // and the clock a default window would need.
@@ -257,19 +256,10 @@ export default async function RoutePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StatsSearchParams>;
 }): Promise<JSX.Element> {
-  const { id } = await params;
+  const { id: slug } = await params;
   const sp = (await searchParams) ?? {};
-  // Any window but the day means the week view: this page has no month, so a
-  // `window=month` link kept from before routeLinkParams mapped it - or typed by
-  // hand - lands on a period view that names its own range rather than silently
-  // showing today. Its `?period` is a month key, which the week parse rejects,
-  // so it falls back to the rolling last 7 days.
-  const isWeekView = sp.window !== undefined && sp.window !== "day";
-
-  // URLs use the version-stripped slug ("501", not "501-217"). next.config.ts
-  // answers old links with a real 308 before this renders; this stays as the backstop.
-  const slug = routeSlug(id);
-  if (id !== slug) redirectKeepingQuery(routeHref(slug), sp);
+  // The page has a day and a week view; any other window reads as the day.
+  const isWeekView = sp.window === "week";
 
   // Case-insensitive lookup: /route/nx1 > /route/NX1; unknown slug > 404.
   const canonSlug = await findCanonicalRouteSlug(slug);

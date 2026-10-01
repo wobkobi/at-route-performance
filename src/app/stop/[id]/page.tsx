@@ -21,7 +21,6 @@ import { StopSchedule } from "@/components/StopSchedule";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
-  findCurrentStationId,
   getEarliestDataDay,
   getRouteNames,
   getStationSiblings,
@@ -49,7 +48,7 @@ import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
 import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
+import { routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import { dayRangeNav, routeLinkParams, windowPhrase } from "@/lib/page/range";
 import { serviceClockNow } from "@/lib/stop/departure-board";
@@ -150,12 +149,6 @@ export default async function StopPage({
 }): Promise<JSX.Element> {
   const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
-
-  // Stations used to be keyed by name ("station:newmarket train station"); they
-  // are keyed by AT's parent_station now so a rename can't fork them. Send the
-  // old form to the current one rather than 404ing a shared link.
-  const currentStationId = await findCurrentStationId(id);
-  if (currentStationId) redirectKeepingQuery(stopHref(currentStationId), sp);
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).

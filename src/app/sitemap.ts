@@ -14,8 +14,8 @@ import type { MetadataRoute } from "next";
 /**
  * The sections, with priority relative to each other.
  *
- * `/shame` and `/rankings` are left out on purpose: both only redirect, so
- * listing them would advertise a URL that answers 307 rather than a page. Stops
+ * `/shame` is left out on purpose: it only redirects, so listing it would
+ * advertise a URL that answers 307 rather than a page. Stops
  * are left out too - there are some 6,800 of them, and listing every one would
  * invite exactly the crawl this is meant to avoid. They stay reachable from a
  * route page, and allowed in robots.txt, just not advertised.

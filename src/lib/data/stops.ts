@@ -18,7 +18,6 @@ import {
   STATION_PREFIX,
   type StationParts,
   isLegacyStationId,
-  isPlatformStop,
   legacyStationId,
   platformLabelOf,
   stationId,
@@ -538,34 +537,6 @@ async function worstStopsForRange(
     days.push({ date, ...row, mode: mode ?? dominantMode(stationRouteIds, modeMap!) });
   }
   return days.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/**
- * The parent-keyed station id replacing a legacy name-keyed one, so links minted
- * before stations moved off stop names keep resolving. Returns null when the id
- * is not a legacy one, names no known station, or has no parent in the feed - in
- * all three cases the id the caller holds is already the current one.
- * @param id - A canonical stop id from a link.
- * @returns The current station id to redirect to, or null to stay put.
- */
-export async function findCurrentStationId(id: string): Promise<string | null> {
-  if (!isLegacyStationId(id)) return null;
-  return unstable_cache(
-    async () => {
-      const platforms = await prisma.stop.findMany({
-        where: { name: { contains: "Train Station" } },
-        select: { id: true, name: true, parentStation: true, platformCode: true },
-      });
-      const member = platforms.find(
-        (s) => isPlatformStop(s.name, s) && legacyStationId(s.name) === id,
-      );
-      if (!member) return null;
-      const current = stationId(member.id, member.name, member);
-      return current === id ? null : current;
-    },
-    ["current-station-id-v2", id],
-    { revalidate: 86_400 },
-  )();
 }
 
 /**

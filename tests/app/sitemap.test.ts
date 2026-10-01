@@ -46,9 +46,8 @@ describe("sitemap", () => {
     for (const path of ["/", "/routes", "/live", "/cancellations", "/days", "/vehicles"]) {
       expect(urls).toContain(`${ORIGIN}${path}`);
     }
-    // Both only redirect, so listing them advertises a 307 rather than a page.
+    // It only redirects, so listing it advertises a 307 rather than a page.
     expect(urls).not.toContain(`${ORIGIN}/shame`);
-    expect(urls).not.toContain(`${ORIGIN}/rankings`);
   });
 
   it("advertises nothing robots.txt disallows", async () => {

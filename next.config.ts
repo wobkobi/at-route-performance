@@ -168,13 +168,6 @@ const nextConfig: NextConfig = {
       { source: "/route/EAST", destination: "/route/E-W", permanent: true },
       { source: "/route/WEST", destination: "/route/E-W", permanent: true },
       { source: "/route/ONE", destination: "/route/O-W", permanent: true },
-      // A full route id to its slug, the rule in routeSlug: "NX1-203" > "NX1", "S-C-201" > "S-C".
-      // The lazy slug keeps its own dashes and gives up only the trailing "-digits".
-      {
-        source: "/route/:slug([^/]+?)-:version(\\d+)",
-        destination: "/route/:slug",
-        permanent: true,
-      },
     ];
   },
 
