@@ -8,10 +8,12 @@ describe("pageWarmPaths", () => {
     const paths = pageWarmPaths("2026-09-30");
     expect(paths).toHaveLength(WARM_DAYS * DAY_PAGES.length);
     expect(paths[0]).toBe("/?day=2026-09-30");
-    expect(paths.at(-1)).toBe("/cancellations?day=2026-09-24");
+    expect(paths.at(-1)).toBe("/compare?day=2026-09-24");
     expect(paths).toContain("/shame/stop?day=2026-09-27");
-    // Every page with a day stepper belongs here, /vehicles included.
+    // Every page with a day stepper belongs here, and nothing without one.
     expect(paths).toContain("/vehicles?day=2026-09-27");
+    expect(paths).toContain("/operators?day=2026-09-27");
+    expect(paths.some((p) => p.startsWith("/days?") || p.startsWith("/live?"))).toBe(false);
   });
 
   it("stops at the archive's first day", () => {

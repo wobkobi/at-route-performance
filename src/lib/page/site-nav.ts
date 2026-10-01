@@ -64,26 +64,28 @@ export interface SitePage {
   label: string;
   /** As {@link NavSection.carries}: the params the link carries, when not the usual ones. */
   carries?: readonly string[];
+  /** Whether the page has a day stepper (`?day=`), so the nightly warm renders its past days. */
+  takesDay?: boolean;
 }
 
 /**
- * Every page a reader can go to, in top-bar order: the footer's Explore list and
- * the 404 page's directory. It differs from {@link NAV_SECTIONS} only in giving
+ * Every page a reader can go to, in top-bar order: the footer's Explore list,
+ * the 404 page's directory, the sitemap's sections and the nightly warm's pages. It differs from {@link NAV_SECTIONS} only in giving
  * the three worst-of boards one entry each where the top bar has a single Shame
  * tab, and in spelling out the two short tab labels.
  */
 export const SITE_PAGES = [
-  { href: "/", label: "Overview" },
+  { href: "/", label: "Overview", takesDay: true },
   { href: "/days", label: "Day by day" },
   { href: "/live", label: "Live now", carries: ["mode"] },
-  { href: "/routes", label: "Routes" },
-  { href: "/operators", label: "Operators" },
-  { href: "/vehicles", label: "Vehicles" },
-  { href: "/shame/trip", label: "Worst trips" },
-  { href: "/shame/route", label: "Worst routes" },
-  { href: "/shame/stop", label: "Worst stops" },
-  { href: "/cancellations", label: "Cancellations" },
-  { href: "/compare", label: "Compare" },
+  { href: "/routes", label: "Routes", takesDay: true },
+  { href: "/operators", label: "Operators", takesDay: true },
+  { href: "/vehicles", label: "Vehicles", takesDay: true },
+  { href: "/shame/trip", label: "Worst trips", takesDay: true },
+  { href: "/shame/route", label: "Worst routes", takesDay: true },
+  { href: "/shame/stop", label: "Worst stops", takesDay: true },
+  { href: "/cancellations", label: "Cancellations", takesDay: true },
+  { href: "/compare", label: "Compare", takesDay: true },
 ] as const satisfies readonly SitePage[];
 
 /**

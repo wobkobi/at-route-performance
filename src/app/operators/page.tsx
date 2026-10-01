@@ -25,6 +25,7 @@ import {
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorRows, type OperatorRow } from "@/lib/operator-stats";
 import { operatorHref } from "@/lib/operators";
@@ -57,11 +58,11 @@ import type { JSX } from "react";
 // params and its data above any Suspense boundary, so it is allowed to block.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Operators",
   description:
     "The companies that run Auckland's buses, trains and ferries for AT, compared on punctuality, cancellations and fleet.",
-};
+});
 
 /** Cache TTL for a week or month's rows (seconds), as on the Routes page. */
 const PERIOD_REVALIDATE = 3600;

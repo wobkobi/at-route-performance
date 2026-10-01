@@ -43,7 +43,15 @@ describe("sitemap", () => {
   it("advertises the canonical sections and no redirect-only page", async () => {
     mockedRoutes.mockResolvedValue([]);
     const urls = (await sitemap()).map((e) => e.url);
-    for (const path of ["/", "/routes", "/live", "/cancellations", "/days", "/vehicles"]) {
+    for (const path of [
+      "/",
+      "/routes",
+      "/live",
+      "/cancellations",
+      "/days",
+      "/vehicles",
+      "/compare",
+    ]) {
       expect(urls).toContain(`${ORIGIN}${path}`);
     }
     // It only redirects, so listing it advertises a 307 rather than a page.

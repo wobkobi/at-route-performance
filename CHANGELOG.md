@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.37] - 2026-10-02
+
+### Fixed
+
+- Every page builds its title, description and share card through one helper; pages with no card of
+  their own share the home card, missing routes and stops say so in the tab, the sitemap lists
+  Compare, and the nightly warm covers Operators and Compare.
+
 ## [2.41.36] - 2026-10-02
 
 ### Changed

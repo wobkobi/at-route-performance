@@ -57,7 +57,7 @@ import {
 } from "@/lib/feed/at-alerts";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
 import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
-import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
+import { cardPath, cardWhenSuffix, pageMetadata, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
 import { parseShown } from "@/lib/page/filter-params";
 import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
@@ -230,16 +230,18 @@ export async function generateMetadata({
   // The line's own two fields, not a summary of its week: a title names the
   // route, and reading it this way keeps the head clear of both the aggregation
   // and the clock a default window would need.
-  const route = await getRouteLabel(slug).catch(readFallback("route-label", null));
+  // Undefined when the read failed, which is an outage rather than a missing route.
+  const route = await getRouteLabel(slug).catch(readFallback("route-label", undefined));
+  if (route === null) return { title: "Route not found" };
   const name = route ? routeSubtitle({ ...route, slug }) : null;
   const label = route ? routeDisplayName({ ...route, slug }) : slug;
   const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
   const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
-  return {
+  return pageMetadata({
     title,
     description,
-    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, cardPath(card)),
-  };
+    card: { title: `${title}${cardWhenSuffix(card)}`, path: cardPath(card) },
+  });
 }
 
 /**

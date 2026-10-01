@@ -23,6 +23,7 @@ import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { formatCount, formatPct } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
 import { parseMode, type Mode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import { routeHref } from "@/lib/page/hrefs";
 import {
   sortRows,
@@ -43,11 +44,11 @@ import { Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Live now",
   description:
     "Every Auckland bus, train and ferry on a run right now, on a map and by route, with how many are running late.",
-};
+});
 
 /** Query params for the live page. */
 interface LiveSearchParams {

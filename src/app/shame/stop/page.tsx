@@ -29,7 +29,7 @@ import {
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
-import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
+import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
 import { stopHref } from "@/lib/page/hrefs";
 import {
   fillServiceHours,
@@ -72,6 +72,15 @@ import { Suspense, type JSX } from "react";
 export const instant = false;
 
 /**
+ * The ranked board's heading, for the tab and the page alike.
+ * @param hours - The picked hours.
+ * @returns The heading.
+ */
+function rankedTitle(hours: HourRange): string {
+  return `Worst ${SHAME_RANKED_LIMIT} stops · ${shameHoursLabel(hours)}`;
+}
+
+/**
  * Title and shared-link card, built from the query alone so the metadata
  * never waits on the database.
  * @param root0 - Page props.
@@ -85,13 +94,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const sp = (await searchParams) ?? {};
   const card = parseShameCard("stop", sp);
-  const { hours } = parseShameParams(sp);
-  const title = hours
-    ? `Worst ${SHAME_RANKED_LIMIT} stops · ${shameHoursLabel(hours)}`
-    : listCardTitle(card);
+  const { hours, view } = parseShameParams(sp);
   const description =
     "The most off-schedule stop of each hour or day on Auckland's buses, trains and ferries.";
-  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+  return pageMetadata({
+    title: hours ? rankedTitle(hours) : shameHeading("stop", view),
+    description,
+    card: hours ? { title: rankedTitle(hours), path: cardPath(card) } : listShareCard(card),
+  });
 }
 
 const BASE = "/shame/stop";
@@ -412,7 +422,7 @@ export default async function StopShamePage({
     return (
       <main className="space-y-6">
         <ShameHeader
-          title={`Worst stops of the ${periodNoun}`}
+          title={shameHeading("stop", view)}
           subtitle={`The most off-schedule stop of each day · ${subtitle}`}
           activeTab="stop"
           tabHrefs={{
@@ -453,11 +463,7 @@ export default async function StopShamePage({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title={
-          hours
-            ? `Worst ${SHAME_RANKED_LIMIT} stops · ${shameHoursLabel(hours)}`
-            : "Worst stops of the day"
-        }
+        title={hours ? rankedTitle(hours) : shameHeading("stop", "day")}
         subtitle={
           hours
             ? `The most off-schedule stops ${hoursNoun(hours)} · ${subtitle}`

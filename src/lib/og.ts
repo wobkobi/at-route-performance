@@ -382,9 +382,28 @@ const SHAME_HEADS: Record<ShameBoard, string> = {
 export function listCardTitle(card: ShameCard | ListCard): string {
   const filter = cardFilterLabel(card.mode, card.schools);
   let head: string;
-  if (card.kind === "shame") head = `${SHAME_HEADS[card.board]} ${card.window}`;
+  if (card.kind === "shame") head = shameHeading(card.board, card.window);
   else head = card.page === "routes" ? "Routes" : "Cancellations";
   return `${head}${cardWhenSuffix(card)}${filter ? ` (${filter})` : ""}`;
+}
+
+/**
+ * A shame or list page's shared-link card.
+ * @param card - The card state.
+ * @returns The card's title and image path.
+ */
+export function listShareCard(card: ShameCard | ListCard): ShareCard {
+  return { title: listCardTitle(card), path: cardPath(card) };
+}
+
+/**
+ * A shame page's plain heading for its window, without the period or filter.
+ * @param board - The board.
+ * @param window - The page's window.
+ * @returns The heading, e.g. "Worst routes of the week".
+ */
+export function shameHeading(board: ShameBoard, window: RangeWindow): string {
+  return `${SHAME_HEADS[board]} ${window}`;
 }
 
 /**
@@ -399,28 +418,51 @@ export function cardCacheControl(complete: boolean): string {
     : "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
 }
 
+/** A shared link's card: its title and its `/api/og` image path. */
+export interface ShareCard {
+  title: string;
+  path: string;
+}
+
 /**
- * The Open Graph and Twitter halves of a page's metadata, pointing both at
- * one card image.
- * @param title - The shared link's title.
- * @param description - The shared link's description.
- * @param path - The card's `/api/og` path.
- * @returns The `openGraph` and `twitter` metadata.
+ * The card a page with no card of its own shares: the home page's default
+ * (today, every mode), so no link goes out without an image.
+ * @returns The default card.
  */
-export function cardMetadata(
-  title: string,
-  description: string,
-  path: string,
-): Pick<Metadata, "openGraph" | "twitter"> {
-  const image = { url: path, width: CARD_WIDTH, height: CARD_HEIGHT, alt: title };
+export function defaultShareCard(): ShareCard {
+  return { title: homeCardTitle(parseHomeCard({})), path: homeCardPath({}) };
+}
+
+/**
+ * A page's metadata: the plain tab title and description, and the Open Graph
+ * and Twitter halves pointing at one card image. The tab keeps the page's own
+ * name; the shared link takes the card's title, which may add the period and
+ * filter. A page with no card shares {@link defaultShareCard} under its own
+ * title, and the image's alt text names what the image shows.
+ * @param page - The page's metadata.
+ * @param page.title - The tab title; left out on the home page, which takes the
+ *   layout's default (a template does not reach its own segment).
+ * @param page.description - The tab and shared-link description.
+ * @param page.card - The page's own card, when it has one.
+ * @returns The metadata.
+ */
+export function pageMetadata({
+  title,
+  description,
+  card,
+}: {
+  title?: string;
+  description: string;
+  card?: ShareCard;
+}): Metadata {
+  const image = card ?? defaultShareCard();
+  const shared = card?.title ?? title ?? SITE_NAME;
+  const images = [{ url: image.path, width: CARD_WIDTH, height: CARD_HEIGHT, alt: image.title }];
   return {
-    openGraph: {
-      title,
-      description,
-      siteName: SITE_NAME,
-      type: "website",
-      images: [image],
-    },
-    twitter: { card: "summary_large_image", title, description, images: [image] },
+    // A title key set to undefined would still replace the layout's default.
+    ...(title === undefined ? {} : { title }),
+    description,
+    openGraph: { title: shared, description, siteName: SITE_NAME, type: "website", images },
+    twitter: { card: "summary_large_image", title: shared, description, images },
   };
 }

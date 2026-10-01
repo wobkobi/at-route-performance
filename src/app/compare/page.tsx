@@ -31,6 +31,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
+import { pageMetadata } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeHref, stopHref } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -57,11 +58,11 @@ import type { JSX, ReactNode } from "react";
 // Operators page, so it is allowed to block.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Compare",
   description:
     "Line up Auckland routes or stops side by side: on time, early, late, average off schedule and cancellations.",
-};
+});
 
 /** Cache TTL for a week or month's rows (seconds), as on the Routes page. */
 const PERIOD_REVALIDATE = 3600;

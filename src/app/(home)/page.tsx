@@ -37,7 +37,7 @@ import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
-import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, SITE_DESCRIPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
   getCancelledCount,
@@ -56,7 +56,7 @@ import {
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
 import { MODE_NAME, parseMode, type Mode } from "@/lib/mode";
-import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
+import { homeCardPath, homeCardTitle, pageMetadata, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import type { PeriodWindow } from "@/lib/page/range";
@@ -152,11 +152,10 @@ export async function generateMetadata({
     const { serviceDate } = await resolveShownDay(null, today);
     if (serviceDate !== today) card.day = serviceDate;
   }
-  return cardMetadata(
-    homeCardTitle(card),
-    "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
-    homeCardPath(sp),
-  );
+  return pageMetadata({
+    description: SITE_DESCRIPTION,
+    card: { title: homeCardTitle(card), path: homeCardPath(sp) },
+  });
 }
 
 /**

@@ -7,7 +7,8 @@ import { FooterNav } from "@/components/layout/FooterNav";
 import { SiteNav } from "@/components/layout/SiteNav";
 import { LoadingLine } from "@/components/Loading";
 import { cn } from "@/lib/cn";
-import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
+import { SERVICE_DAY_NOTE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/copy";
+import { pageMetadata } from "@/lib/og";
 import { productionOrigin } from "@/lib/site-url";
 import { DATA_START_LABEL } from "@/lib/time/data-start";
 import { Analytics } from "@vercel/analytics/next";
@@ -32,8 +33,9 @@ export const metadata: Metadata = {
   // It does not reach a title set in this same segment, which is why the home
   // page sets none and takes the default.
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description:
-    "How close Auckland's buses, trains and ferries run to their timetable, measured every day.",
+  // The share fields are the fallback for a page that sets none (the 404), so
+  // its link still unfurls with the default card.
+  ...pageMetadata({ description: SITE_DESCRIPTION }),
 };
 
 /**

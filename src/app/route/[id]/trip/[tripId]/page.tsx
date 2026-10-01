@@ -31,7 +31,7 @@ import {
 import { formatCount } from "@/lib/format";
 import { metresBetween } from "@/lib/geo/distance";
 import { modeOrBus, modeWord } from "@/lib/mode";
-import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
+import { cardPath, pageMetadata, parseTripCard } from "@/lib/og";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
@@ -91,11 +91,11 @@ export async function generateMetadata({
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
   const title = `${routeSlug(id)} trip${dayPart}`;
   const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run ${MEASURED_AGAINST}`;
-  return {
+  return pageMetadata({
     title,
     description,
-    ...cardMetadata(title, description, cardPath(parseTripCard(id, tripId, d))),
-  };
+    card: { title, path: cardPath(parseTripCard(id, tripId, d)) },
+  });
 }
 
 /**

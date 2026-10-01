@@ -36,6 +36,7 @@ import {
   plural,
   UNKNOWN_VALUE,
 } from "@/lib/format";
+import { pageMetadata } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorCodeOf, operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, type Operator } from "@/lib/operators";
@@ -143,10 +144,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const op = await resolveOperator((await params).slug);
   if (!op) return { title: "Operator not found" };
-  return {
+  return pageMetadata({
     title: op.name,
     description: `How the Auckland routes ${op.name} runs for AT kept to the timetable, and the vehicles that ran them.`,
-  };
+  });
 }
 
 /**

@@ -42,6 +42,7 @@ import {
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { MODE_NAME, type Mode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf } from "@/lib/operators";
 import { pickParams, VEHICLE_LIST_PARAMS } from "@/lib/page/filter-params";
@@ -167,10 +168,10 @@ export async function generateMetadata({
     getLiveVehicleMap(),
   ]);
   const name = vehicleName(fleet.get(id)?.label ?? live.get(id)?.label, id);
-  return {
+  return pageMetadata({
     title: name,
     description: `${name}: where it is now and how hard it was worked, run by run.`,
-  };
+  });
 }
 
 /**

@@ -22,7 +22,7 @@ import {
 } from "@/lib/data";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { liveRouteSlugs } from "@/lib/live-routes";
-import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
+import { listShareCard, pageMetadata, parseListCard } from "@/lib/og";
 import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { operatorOf } from "@/lib/operators";
 import { parseShown } from "@/lib/page/filter-params";
@@ -68,11 +68,7 @@ export async function generateMetadata({
   searchParams?: Promise<Record<string, string | undefined>>;
 }): Promise<Metadata> {
   const card = parseListCard("routes", (await searchParams) ?? {});
-  return {
-    title: "Routes",
-    description: DESCRIPTION,
-    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
-  };
+  return pageMetadata({ title: "Routes", description: DESCRIPTION, card: listShareCard(card) });
 }
 
 /** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */

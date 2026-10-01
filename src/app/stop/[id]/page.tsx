@@ -44,7 +44,7 @@ import { getStopDepartures } from "@/lib/feed/at-stop-trips";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
-import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
+import { cardPath, cardWhenSuffix, pageMetadata, parseStopCard } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -117,15 +117,18 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
-  const name = (await getStopIdentity(id).catch(readFallback("stop-identity", null)))?.name;
-  if (!name) return { title: "Stop" };
+  // Undefined when the read failed, which is an outage rather than a missing stop.
+  const identity = await getStopIdentity(id).catch(readFallback("stop-identity", undefined));
+  if (identity === null) return { title: "Stop not found" };
+  if (!identity) return { title: "Stop" };
+  const { name } = identity;
   const card = parseStopCard(id, sp);
   const description = `On-time performance at ${name} ${MEASURED_AGAINST}`;
-  return {
+  return pageMetadata({
     title: name,
     description,
-    ...cardMetadata(`${name}${cardWhenSuffix(card)}`, description, cardPath(card)),
-  };
+    card: { title: `${name}${cardWhenSuffix(card)}`, path: cardPath(card) },
+  });
 }
 
 /**

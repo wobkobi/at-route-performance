@@ -22,7 +22,7 @@ import {
   type NetworkCancelledTrip,
 } from "@/lib/data";
 import { parseMode } from "@/lib/mode";
-import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
+import { listShareCard, pageMetadata, parseListCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
@@ -65,11 +65,11 @@ export async function generateMetadata({
   searchParams?: Promise<CancellationsSearchParams>;
 }): Promise<Metadata> {
   const card = parseListCard("cancellations", (await searchParams) ?? {});
-  return {
+  return pageMetadata({
     title: "Cancellations",
     description: DESCRIPTION,
-    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
-  };
+    card: listShareCard(card),
+  });
 }
 
 /** Routes listed on the Most cancelled board before the link to the Routes page. */

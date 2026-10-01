@@ -32,7 +32,7 @@ import {
 } from "@/lib/data";
 import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
-import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
+import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
 import { routeHref } from "@/lib/page/hrefs";
 import {
   fillServiceHours,
@@ -88,6 +88,15 @@ import { Suspense, type JSX } from "react";
 export const instant = false;
 
 /**
+ * The ranked board's heading, for the tab and the page alike.
+ * @param hours - The picked hours.
+ * @returns The heading.
+ */
+function rankedTitle(hours: HourRange): string {
+  return `Worst ${SHAME_RANKED_LIMIT} routes · ${shameHoursLabel(hours)}`;
+}
+
+/**
  * Title and shared-link card, built from the query alone so the metadata
  * never waits on the database.
  * @param root0 - Page props.
@@ -101,13 +110,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const sp = (await searchParams) ?? {};
   const card = parseShameCard("route", sp);
-  const { hours } = parseShameParams(sp);
-  const title = hours
-    ? `Worst ${SHAME_RANKED_LIMIT} routes · ${shameHoursLabel(hours)}`
-    : listCardTitle(card);
+  const { hours, view } = parseShameParams(sp);
   const description =
     "The most off-schedule route of each hour or day on Auckland's buses, trains and ferries.";
-  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+  return pageMetadata({
+    title: hours ? rankedTitle(hours) : shameHeading("route", view),
+    description,
+    card: hours ? { title: rankedTitle(hours), path: cardPath(card) } : listShareCard(card),
+  });
 }
 
 const BASE = "/shame/route";
@@ -428,13 +438,12 @@ export default async function RoutesShamePage({
       nav: rangeControls,
     } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay, today);
     const isMonth = view === "month";
-    const periodNoun = view;
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
       <main className="space-y-6">
         <ShameHeader
-          title={`Worst routes of the ${periodNoun}`}
+          title={shameHeading("route", view)}
           subtitle={`The most off-schedule route of each day · ${subtitle}`}
           activeTab="route"
           tabHrefs={{
@@ -475,11 +484,7 @@ export default async function RoutesShamePage({
   return (
     <main className="space-y-6">
       <ShameHeader
-        title={
-          hours
-            ? `Worst ${SHAME_RANKED_LIMIT} routes · ${shameHoursLabel(hours)}`
-            : "Worst routes of the day"
-        }
+        title={hours ? rankedTitle(hours) : shameHeading("route", "day")}
         subtitle={
           hours
             ? `The most off-schedule routes over runs starting ${hoursNoun(hours)} · ${subtitle}`

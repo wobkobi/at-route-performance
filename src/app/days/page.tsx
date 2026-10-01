@@ -21,6 +21,7 @@ import {
 } from "@/lib/data";
 import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode, type Mode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import {
   parseRangeWindow,
@@ -54,11 +55,11 @@ import { Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Day by day",
   description:
     "How each day of the week or month went on Auckland's buses, trains and ferries, one verdict per day.",
-};
+});
 
 /** One day is one column, so the page offers no Day tab. */
 const WINDOWS: readonly RangeWindow[] = ["week", "month"];

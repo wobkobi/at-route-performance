@@ -28,6 +28,7 @@ import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap } from "@/lib/feed/vehicles";
 import { formatCount, formatDuration, formatHours } from "@/lib/format";
 import { parseMode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, operatorHref, operatorOf } from "@/lib/operators";
@@ -67,11 +68,11 @@ import type { JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Hardest-worked vehicles",
   description:
     "Auckland's buses, trains and ferries ranked by how hard they were worked: hours in service, runs and stops.",
-};
+});
 
 /** The table's sortable columns; the chips above offer the four figures too. */
 const COLUMNS: SortColumn<VehicleTotal>[] = [

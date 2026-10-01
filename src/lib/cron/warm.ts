@@ -1,5 +1,6 @@
 // src/lib/cron/warm.ts
 // What the nightly warm renders, and the small worker pool it renders them with.
+import { SITE_PAGES, type SitePage } from "@/lib/page/site-nav";
 import { isBeforeDataStart } from "@/lib/time/data-start";
 import { shiftDays } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
@@ -8,15 +9,9 @@ import { buildHref } from "@/lib/utils";
  * Pages with a day stepper. Each is warmed on its default filters, the variant
  * a reader lands on and steps through.
  */
-export const DAY_PAGES = [
-  "/",
-  "/shame/trip",
-  "/shame/route",
-  "/shame/stop",
-  "/routes",
-  "/vehicles",
-  "/cancellations",
-] as const;
+export const DAY_PAGES: readonly string[] = SITE_PAGES.filter(
+  (p: SitePage) => p.takesDay === true,
+).map((p) => p.href);
 
 /** Completed service days the page warm covers, counting back from yesterday. */
 export const WARM_DAYS = 7;

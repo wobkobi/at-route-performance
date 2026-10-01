@@ -14,6 +14,10 @@ import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
  */
 export const SITE_NAME = "AT Route Performance";
 
+/** The site's one-line description: the layout's default and the home page's tab and card. */
+export const SITE_DESCRIPTION =
+  "How close Auckland's buses, trains and ferries run to their timetable, measured every day.";
+
 /**
  * Who chose the on-time window, for every surface that states its bounds.
  *
