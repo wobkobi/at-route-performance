@@ -1,5 +1,8 @@
 // src/components/route/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { formatCount, formatPct, offScheduleValue } from "@/lib/format";
 import { serviceDayLabel } from "@/lib/time/service-day";
 import type { RouteDay } from "@/types/api";
@@ -31,22 +34,18 @@ export function RouteWeekSummary({
 }): JSX.Element {
   if (days.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface">
-        <h2 className="border-b border-at-border px-4 py-3 text-lg font-ultra tracking-zero">
-          {label}
-        </h2>
-        <p className="px-4 py-6 text-sm text-at-muted">
+      <Panel>
+        <SectionHeading className="border-b border-at-border px-4 py-3">{label}</SectionHeading>
+        <EmptyState inset className="px-4 py-6">
           No arrivals were recorded for this route in this period.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
 
   return (
-    <section className="border border-at-border bg-at-surface">
-      <h2 className="border-b border-at-border px-4 py-3 text-lg font-ultra tracking-zero">
-        {label}
-      </h2>
+    <Panel>
+      <SectionHeading className="border-b border-at-border px-4 py-3">{label}</SectionHeading>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
@@ -83,6 +82,6 @@ export function RouteWeekSummary({
           </tbody>
         </table>
       </div>
-    </section>
+    </Panel>
   );
 }

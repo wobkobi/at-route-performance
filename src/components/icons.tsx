@@ -47,3 +47,53 @@ export function LocateArrow({ className }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/**
+ * Down-pointing chevron, for a menu or disclosure that opens below (uses
+ * `currentColor`). Rotate it for an open state.
+ * @param props - Component props.
+ * @param props.className - Extra classes; overrides the default `h-4 w-4` size.
+ * @returns The chevron SVG.
+ */
+export function ChevronDown({ className }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={cn("h-4 w-4", className)}>
+      <path d="M5.5 7.5 10 12l4.5-4.5 1.06 1.06L10 14.12 4.44 8.56 5.5 7.5Z" />
+    </svg>
+  );
+}
+
+/**
+ * A small triangle for a sorted list or column: down for high to low, up for low
+ * to high. A faint down one marks a column that can be sorted but is not, so the
+ * headings read as pressable; it is left off phones, where its width pushes a
+ * narrow table's last column out of view. Always beside text that names the
+ * order, so it is hidden from assistive tech.
+ * @param props - Component props.
+ * @param props.dir - The order, or null for a sortable column that is not the sorted one.
+ * @param props.className - Extra classes.
+ * @returns The arrow SVG.
+ */
+export function SortArrow({
+  dir,
+  className,
+}: {
+  dir: "asc" | "desc" | null;
+  className?: string;
+}): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 10 10"
+      fill="currentColor"
+      aria-hidden
+      className={cn(
+        "h-2 w-2 shrink-0",
+        dir === null && "hidden opacity-30 sm:block",
+        dir === "asc" && "rotate-180",
+        className,
+      )}
+    >
+      <path d="M1 3h8L5 8z" />
+    </svg>
+  );
+}

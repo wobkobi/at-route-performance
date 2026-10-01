@@ -5,6 +5,7 @@
 // the list. Folds a chip row that wraps to three lines on a phone into one
 // button, so a panel of filters reads as a single row.
 
+import { ChevronDown } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import {
   useEffect,
@@ -108,9 +109,7 @@ export function FilterMenu({
         )}
       >
         <span>{active ? `${label}: ${summary}` : label}</span>
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className="h-4 w-4">
-          <path d="M5.5 7.5 10 12l4.5-4.5 1.06 1.06L10 14.12 4.44 8.56 5.5 7.5Z" />
-        </svg>
+        <ChevronDown />
       </button>
       {active && (
         <button

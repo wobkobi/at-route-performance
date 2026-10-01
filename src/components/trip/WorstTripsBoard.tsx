@@ -15,8 +15,11 @@
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChipLink } from "@/components/Chip";
-import { ChevronRight } from "@/components/icons";
+import { ChevronRight, SortArrow } from "@/components/icons";
 import { Badge, CANCELLATION_TONE, CancellationBadge, LiveBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
 import { formatDuration, OFF_SCHEDULE_TONE_CLASS, offScheduleValue, plural } from "@/lib/format";
@@ -218,9 +221,9 @@ export function WorstTripsBoard({
    */
   const runHref = (tripId: string, at: string): string => tripHref(routeId, tripId, at, view);
   return (
-    <section className="min-w-0 border border-at-border bg-at-surface p-4">
+    <Panel pad="sm" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-ultra tracking-zero text-at-ink">{noun} of the day</h2>
+        <SectionHeading>{noun} of the day</SectionHeading>
         <div className="flex flex-wrap gap-1">
           {SORTS.map((s) => {
             const isActive = s.key === sort;
@@ -234,14 +237,16 @@ export function WorstTripsBoard({
             return (
               <ChipLink key={s.key} href={href} active={isActive} className="text-xs">
                 {s.label}
-                {isActive && <span className="ml-0.5 opacity-60">{isReversed ? "↑" : "↓"}</span>}
+                {isActive && (
+                  <SortArrow dir={isReversed ? "asc" : "desc"} className="ml-1 opacity-60" />
+                )}
               </ChipLink>
             );
           })}
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="text-sm text-at-muted">No trips recorded for this day yet.</p>
+        <EmptyState inset>No trips recorded for this day yet.</EmptyState>
       ) : (
         <>
           <p className="mb-2 text-xs text-at-muted">{SORT_NOTE[sort]}</p>
@@ -363,6 +368,6 @@ export function WorstTripsBoard({
           </Link>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }

@@ -201,7 +201,7 @@ export function FleetSummary({
   // scale so its cells stay level with PunctualityStat's `sm` siblings.
   const valueClass = cn("at-figure", verdict ? "text-2xl sm:text-3xl" : "text-xl");
   return (
-    <div className={verdict ? undefined : "border border-at-border bg-at-surface"}>
+    <div className={verdict ? undefined : "at-card"}>
       {verdict && <VerdictPanel data={data} breakdown={breakdown} />}
       <div
         className={cn(

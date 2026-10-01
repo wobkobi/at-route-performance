@@ -5,6 +5,9 @@
 // themselves.
 
 import { ModeIcon } from "@/components/ModeIcon";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import type { CancelledRouteRow } from "@/lib/data";
 import { plural } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
@@ -35,17 +38,17 @@ export interface CancelledBoardProps {
  */
 export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps): JSX.Element {
   return (
-    <section className="border border-at-border bg-at-surface">
+    <Panel>
       <header className="flex items-baseline justify-between gap-3 border-b border-at-border px-4 py-3">
-        <h2 className="font-ultra tracking-zero text-at-ink">Most cancelled</h2>
+        <SectionHeading>Most cancelled</SectionHeading>
         <p className="text-sm text-at-muted tabular-nums">{plural(total, "trip")}</p>
       </header>
 
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-at-muted">
+        <EmptyState inset className="px-4 py-6">
           No cancellations recorded. Only trips AT flagged as cancelled in the realtime feed are
           counted, and only from when capture began.
-        </p>
+        </EmptyState>
       ) : (
         <ol className="striped divide-y divide-at-border">
           {rows.map((r, i) => {
@@ -72,6 +75,6 @@ export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps
           })}
         </ol>
       )}
-    </section>
+    </Panel>
   );
 }

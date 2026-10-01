@@ -4,6 +4,9 @@
 
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { modeOrBus } from "@/lib/mode";
 import type { MapStop } from "@/lib/route/view";
 import type { JSX } from "react";
@@ -57,18 +60,18 @@ export function RouteMapDiagram({
 }: RouteMapDiagramProps): JSX.Element {
   if (stops.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
-        <p className="mt-2 text-sm text-at-muted">
+      <Panel pad="sm">
+        <SectionHeading>Route map</SectionHeading>
+        <EmptyState inset className="mt-2">
           No stops to plot yet. The map fills in once this route records arrivals.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
   return (
-    <section className="border border-at-border bg-at-surface p-4">
+    <Panel pad="sm">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
+        <SectionHeading>Route map</SectionHeading>
         <StopDotKey />
       </div>
       <StopMapWrapper
@@ -84,6 +87,6 @@ export function RouteMapDiagram({
         className="h-[min(31.25rem,60svh)]"
       />
       <MapMarkKey live={live} />
-    </section>
+    </Panel>
   );
 }

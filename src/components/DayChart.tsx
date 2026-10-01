@@ -4,6 +4,7 @@
 // lines at the band floors so each day's word reads straight off the chart.
 // Plain HTML boxes rather than SVG or a chart library, rendered on the server.
 
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import { barPct, formatPct } from "@/lib/format";
 import type { DaySlot } from "@/lib/time/day-series";
@@ -95,7 +96,7 @@ export function DayChart({
 }): JSX.Element {
   const guides = VERDICT_BANDS.filter((b) => b.floor > CHART_FLOOR);
   return (
-    <div aria-hidden className="border border-at-border bg-at-surface p-3 sm:p-4">
+    <Panel as="div" aria-hidden pad="sm">
       <div className="flex">
         {/* Guide labels: each band's word at its floor, plus the baseline. */}
         <div className="relative h-48 w-20 shrink-0 sm:h-64">
@@ -164,6 +165,6 @@ export function DayChart({
           </div>
         </div>
       </div>
-    </div>
+    </Panel>
   );
 }

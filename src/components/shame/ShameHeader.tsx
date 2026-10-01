@@ -7,7 +7,7 @@ import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
 import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
-import { ChevronLeft } from "@/components/icons";
+import { BackLink } from "@/components/ui/BackLink";
 import type { FilterUsage } from "@/lib/data/filter-usage";
 import type { Mode } from "@/lib/mode";
 import type { ShameBoard } from "@/lib/og";
@@ -120,12 +120,7 @@ export function ShameHeader({
   );
   return (
     <header className="space-y-3">
-      {allHoursHref && (
-        <Link href={allHoursHref} className="at-link inline-flex items-center gap-1 text-sm">
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Back to every hour
-        </Link>
-      )}
+      {allHoursHref && <BackLink href={allHoursHref} to="every hour" />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">{title}</h1>

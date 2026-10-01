@@ -7,6 +7,10 @@
 // the figure columns size to their widest figure.
 
 import { ChipToggle } from "@/components/Chip";
+import { ChevronDown } from "@/components/icons";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
@@ -205,12 +209,12 @@ export function RouteStrip({
 
   if (strip.rows.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="text-lg font-ultra tracking-zero">Line diagram</h2>
-        <p className="mt-2 text-sm text-at-muted">
+      <Panel pad="sm">
+        <SectionHeading>Line diagram</SectionHeading>
+        <EmptyState inset className="mt-2">
           No stopping pattern yet. The diagram fills in once this route records a full run.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
 
@@ -297,8 +301,8 @@ export function RouteStrip({
     ));
 
   return (
-    <section className="border border-at-border bg-at-surface p-4">
-      <h2 className="mb-3 text-lg font-ultra tracking-zero">Line diagram</h2>
+    <Panel pad="sm">
+      <SectionHeading className="mb-3">Line diagram</SectionHeading>
       {chips.length > 1 && (
         <div role="group" aria-label="Version" className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-at-muted">Version</span>
@@ -350,7 +354,7 @@ export function RouteStrip({
           {minor.map((v) => `${v.from} to ${v.to}`).join(" · ")}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -440,11 +444,13 @@ function Column({
         >
           <span />
           <span className={cn("text-right text-balance", DIM_TEXT.down)}>
-            {view.downHeading}&nbsp;▾
+            {view.downHeading}&nbsp;
+            <ChevronDown className="inline h-3.5 w-3.5 align-text-bottom" />
           </span>
           {twoWay && (
             <span className={cn("text-right text-balance", DIM_TEXT.up)}>
-              {view.upHeading}&nbsp;▴
+              {view.upHeading}&nbsp;
+              <ChevronDown className="inline h-3.5 w-3.5 rotate-180 align-text-bottom" />
             </span>
           )}
         </div>

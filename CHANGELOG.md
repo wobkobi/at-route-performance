@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.24] - 2026-10-01
+
+### Changed
+
+- Boards, maps and strips share one panel, heading size and empty-state style; chevrons and sort
+  arrows come from shared icons
+
 ## [2.41.23] - 2026-10-01
 
 ### Changed

@@ -3,6 +3,8 @@
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import {
   barPct,
@@ -122,6 +124,8 @@ export interface RankBoardProps {
    * window recorded nothing rather than that something was not enough.
    */
   minEvents?: number;
+  /** The heading level: `h3` under a band heading (the default), `h2` where the board is a page section itself. */
+  headingLevel?: "h2" | "h3";
 }
 
 /**
@@ -142,6 +146,7 @@ export interface RankBoardProps {
  * @param props.seeAllHref - Link to the full ranking (optional).
  * @param props.total - How many routes the full ranking holds (optional).
  * @param props.minEvents - The arrivals bar a route had to clear to be ranked (optional).
+ * @param props.headingLevel - The heading level.
  * @returns The board element.
  */
 export function RankBoard({
@@ -156,6 +161,7 @@ export function RankBoard({
   seeAllHref,
   total,
   minEvents,
+  headingLevel = "h3",
 }: RankBoardProps): JSX.Element {
   // Off-schedule bars are scaled to the worst row on this board, so the top row
   // always fills its track and the ten rows read as a shape rather than as ten
@@ -163,7 +169,7 @@ export function RankBoard({
   const worst = Math.max(0, ...rows.map(rowMagnitude));
   return (
     <section className="bg-at-surface">
-      <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>
+      <SectionHeading as={headingLevel} className={cn("mb-1", accentClass)}>
         {seeAllHref ? (
           <Link
             href={seeAllHref}
@@ -178,7 +184,7 @@ export function RankBoard({
         ) : (
           title
         )}
-      </h2>
+      </SectionHeading>
       {/* Both boards reserve the same block, caption plus key, so the two row
           lists start level. The key only has something to say on the signed
           board, where the colour varies. */}
@@ -187,11 +193,11 @@ export function RankBoard({
         {metric === "delay" && <DelayColourKey />}
       </div>
       {rows.length === 0 ? (
-        <p className="text-base text-at-muted">
+        <EmptyState inset>
           {minEvents === undefined
             ? "No arrivals were recorded in this window, so there is nothing to rank."
             : `No route reached ${minEvents} arrivals in this window, so there is nothing to rank.`}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="striped border-t border-at-border">
           {rows.map((r, i) => {

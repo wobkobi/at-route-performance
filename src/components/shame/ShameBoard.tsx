@@ -1,6 +1,8 @@
 // src/components/shame/ShameBoard.tsx
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import {
   afterMidnightNote,
@@ -255,21 +257,19 @@ export function ShameBoard<T>({
   renderRow,
 }: ShameBoardProps<T>): JSX.Element {
   if (items.length === 0) {
-    return (
-      <p className="border border-at-border bg-at-surface p-4 text-at-muted">{emptyMessage}</p>
-    );
+    return <EmptyState>{emptyMessage}</EmptyState>;
   }
 
   const footer = showFooter && footerMessage && (
-    <p className="border border-at-border bg-at-surface px-4 py-3 text-sm text-at-muted">
+    <Panel as="p" className="px-4 py-3 text-sm text-at-muted">
       {footerMessage}
-    </p>
+    </Panel>
   );
 
   if (layout === "week") {
     return (
       <>
-        <div className="border border-at-border bg-at-surface">
+        <Panel as="div">
           <ul className="striped">
             {items.map((item, i) => (
               <li key={keyOf(item, i)}>
@@ -277,7 +277,7 @@ export function ShameBoard<T>({
               </li>
             ))}
           </ul>
-        </div>
+        </Panel>
         {footer}
       </>
     );
@@ -285,7 +285,7 @@ export function ShameBoard<T>({
 
   return (
     <>
-      <div className="border border-at-border bg-at-surface">
+      <Panel as="div">
         {/* Mobile: sequential single-column list */}
         <ul className="striped md:hidden">
           {items.map((item, i) => (
@@ -327,7 +327,7 @@ export function ShameBoard<T>({
             );
           })}
         </ul>
-      </div>
+      </Panel>
       {footer}
     </>
   );

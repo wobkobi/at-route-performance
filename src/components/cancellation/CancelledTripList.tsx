@@ -12,6 +12,8 @@ import { ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
 import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
 import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
@@ -132,9 +134,9 @@ export function CancelledTripList({
   }, [trips]);
 
   return (
-    <section className="min-w-0 border border-at-border bg-at-surface p-4">
+    <Panel pad="sm" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-ultra tracking-zero text-at-ink">Cancelled trips</h2>
+        <SectionHeading>Cancelled trips</SectionHeading>
         <div className="flex flex-wrap gap-1">
           {STAGES.map((s) => (
             <ChipLink
@@ -239,6 +241,6 @@ export function CancelledTripList({
           </button>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }

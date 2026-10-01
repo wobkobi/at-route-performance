@@ -9,9 +9,11 @@
 // can be shared without a navigation.
 
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
-import { ChevronRight } from "@/components/icons";
+import { ChevronRight, SortArrow } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import { labelsOf } from "@/lib/collections";
 import {
@@ -266,10 +268,7 @@ export function RouteExplorer({
     <div className="space-y-6">
       <FleetSummary data={hero} />
 
-      <section
-        aria-label="Filter and sort routes"
-        className="space-y-3 border border-at-border bg-at-surface p-4"
-      >
+      <Panel aria-label="Filter and sort routes" pad="sm" className="space-y-3">
         <input
           type="search"
           value={filters.q}
@@ -470,7 +469,8 @@ export function RouteExplorer({
             aria-label={filters.dir === "asc" ? "Sorted low to high" : "Sorted high to low"}
             className={cn(BOX, BOX_OFF)}
           >
-            {filters.dir === "asc" ? "Low to high ↑" : "High to low ↓"}
+            {filters.dir === "asc" ? "Low to high" : "High to low"}
+            <SortArrow dir={filters.dir} className="ml-1.5" />
           </button>
           <span className="ml-auto text-sm text-at-muted tabular-nums">
             {sorted.length === baseCount
@@ -487,14 +487,14 @@ export function RouteExplorer({
             </button>
           )}
         </div>
-      </section>
+      </Panel>
 
       {sorted.length === 0 ? (
-        <p className="border border-at-border bg-at-surface p-4 text-sm text-at-muted">
+        <EmptyState>
           {rows.length === 0
             ? "No routes have recorded arrivals in this window yet."
             : "No routes match these filters."}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="space-y-2">
           {sorted.slice(0, shown).map((r, i) => {
@@ -505,9 +505,11 @@ export function RouteExplorer({
             // "Early or late" label read as the two figures disagreeing.
             const offSchedule = offScheduleValue(r.avg_delay_sec, null, r.mode);
             return (
-              <li
+              <Panel
+                as="li"
                 key={r.slug}
-                className="flex flex-col gap-3 border border-at-border bg-at-surface p-4 md:flex-row md:items-center md:gap-6"
+                pad="sm"
+                className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6"
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   {ranked && (
@@ -580,7 +582,7 @@ export function RouteExplorer({
                   More details
                   <ChevronRight className="h-4 w-4" />
                 </Link>
-              </li>
+              </Panel>
             );
           })}
         </ol>

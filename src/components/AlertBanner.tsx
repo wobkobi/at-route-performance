@@ -4,6 +4,7 @@
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
 // identical is a feed people learn to ignore.
+import { ChevronDown } from "@/components/icons";
 import { Badge, badgeClass } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import {
@@ -139,21 +140,12 @@ export function AlertBanner({
         <span className={cn(badgeClass(severe ? "disruption" : "muted"), "tabular-nums")}>
           {alerts.length}
         </span>
-        {/* Chevron rotates when details is open */}
-        <svg
-          aria-hidden="true"
+        <ChevronDown
           className={cn(
             "size-4 shrink-0 transition-transform group-open:rotate-180",
             severe ? "text-at-disruption" : "text-at-muted",
           )}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-          />
-        </svg>
+        />
       </summary>
 
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>

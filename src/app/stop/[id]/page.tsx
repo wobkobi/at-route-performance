@@ -363,6 +363,7 @@ export default async function StopPage({
 
         <RankBoard
           title="Worst routes here"
+          headingLevel="h2"
           accentClass="text-at-ink"
           rows={routes}
           metric="delay"
