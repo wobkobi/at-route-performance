@@ -16,7 +16,13 @@ import { useState, type JSX } from "react";
  * @returns A pulsing box.
  */
 function MapPlaceholder(): JSX.Element {
-  return <div className="h-full w-full animate-pulse bg-at-bg motion-reduce:animate-none" />;
+  return (
+    <div
+      role="status"
+      aria-label="Loading the live map"
+      className="h-full w-full animate-pulse bg-at-bg motion-reduce:animate-none"
+    />
+  );
 }
 
 // ssr: false defers the Leaflet chunk to the client.

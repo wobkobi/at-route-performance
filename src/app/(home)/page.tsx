@@ -31,11 +31,11 @@ import {
 import { RankBoard } from "@/components/ranking/RankBoard";
 import { RankingFilterMenus } from "@/components/ranking/RankingFilterMenus";
 import { RankingFiltersNote } from "@/components/ranking/RankingFiltersNote";
-import { RankingsHeader } from "@/components/ranking/RankingsHeader";
 import { WorstRouteCard } from "@/components/ranking/WorstRouteCard";
 import { WorstStopCard } from "@/components/ranking/WorstStopCard";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
 import {
@@ -236,9 +236,7 @@ async function PeriodHome({
   return (
     <main className="space-y-10">
       <section className="space-y-5">
-        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
-          {overviewHeading(nav, period)}
-        </h1>
+        <PageHeader size="hero" title={overviewHeading(nav, period)} />
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-at-border py-3">
           <RangeControls basePath="/" nav={nav} />
@@ -297,9 +295,16 @@ async function PeriodHome({
       </section>
 
       <section className="space-y-4">
-        <RankingsHeader>
+        <SectionLink
+          title="Route rankings"
+          href={buildHref("/routes", {
+            window,
+            period: view.period,
+            ...viewQuery("all", { mode, school: schools, areas: filters.areas }),
+          })}
+        >
           <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-        </RankingsHeader>
+        </SectionLink>
         <Suspense fallback={<LoadingBlock label="Loading the route rankings" />}>
           <PeriodBoards batch={batch} view={view} />
         </Suspense>
@@ -433,9 +438,7 @@ export default async function Home({
   return (
     <main className="space-y-10">
       <section className="space-y-5">
-        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
-          {overviewHeading(nav, null)}
-        </h1>
+        <PageHeader size="hero" title={overviewHeading(nav, null)} />
 
         {/* Every control the page has, on one rule-bounded row. Stacked - window
             tabs, then the day stepper, then the mode chips, then the school
@@ -509,9 +512,15 @@ export default async function Home({
       </section>
 
       <section className="space-y-4">
-        <RankingsHeader>
+        <SectionLink
+          title="Route rankings"
+          href={buildHref("/routes", {
+            day: linkDay,
+            ...viewQuery("all", { mode, school: schools, areas: filters.areas }),
+          })}
+        >
           <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-        </RankingsHeader>
+        </SectionLink>
 
         {mode && visible.every((r) => r.events < boardMin) && (
           <p className="text-sm text-at-muted">
@@ -525,7 +534,7 @@ export default async function Home({
                 school: schoolFilterParam(schools),
                 dir,
               })}
-              className="underline"
+              className="at-link"
             >
               week
             </Link>{" "}

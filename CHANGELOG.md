@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.30] - 2026-10-01
+
+### Changed
+
+- Home, error and 404 pages share one page header, the route rankings heading links to the Routes
+  page like the bands around it, and loading placeholders announce themselves.
+
 ## [2.41.29] - 2026-10-01
 
 ### Fixed

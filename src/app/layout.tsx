@@ -5,6 +5,7 @@ import { DevHostRedirect } from "@/components/layout/DevHostRedirect";
 import { FooterFreshness } from "@/components/layout/FooterFreshness";
 import { FooterNav } from "@/components/layout/FooterNav";
 import { SiteNav } from "@/components/layout/SiteNav";
+import { LoadingLine } from "@/components/Loading";
 import { cn } from "@/lib/cn";
 import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
 import { productionOrigin } from "@/lib/site-url";
@@ -137,7 +138,7 @@ export default function RootLayout({
               {/* The 4am boundary decides which day a 1am run is counted in, and the
                   day stepper could only say so on hover. */}
               <p className="text-xs text-white/50">{SERVICE_DAY_NOTE}</p>
-              <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
+              <Suspense fallback={<LoadingLine className="text-white/50" />}>
                 <FooterFreshness />
               </Suspense>
             </div>

@@ -53,6 +53,28 @@ export function LoadingBlock({
 }
 
 /**
+ * A line of text still loading, for a fallback that holds one line of a page's
+ * furniture (the footer's freshness note) where a wheel would be out of scale.
+ * @param props - Component props.
+ * @param props.className - Text colour, for a dark band.
+ * @param props.label - What to say while it loads.
+ * @returns The line.
+ */
+export function LoadingLine({
+  className,
+  label = "Loading",
+}: {
+  className?: string;
+  label?: string;
+}): JSX.Element {
+  return (
+    <p role="status" className={cn("text-xs text-at-muted", className)}>
+      {label}
+    </p>
+  );
+}
+
+/**
  * A whole page still loading, for a route's `loading.tsx`. Taller than an
  * in-page block because it stands for everything below the masthead.
  * @returns The page-level loading state.
