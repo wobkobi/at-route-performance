@@ -313,7 +313,8 @@ function discoverPages(): PageSpec[] {
         const normalised = route === "/" ? "/" : route.replace(/\/$/, "");
         if (!SKIP_PATHS.has(normalised) && !seen.has(normalised)) {
           seen.add(normalised);
-          const override = PAGE_OVERRIDES[normalised] ?? {};
+          const override: Partial<(typeof PAGE_OVERRIDES)[string]> =
+            PAGE_OVERRIDES[normalised] ?? {};
           pages.push({
             path: normalised,
             name: override.name ?? routeToName(normalised),
@@ -492,21 +493,6 @@ function parseArgs(): { skipBuild: boolean; port: number; baseUrl: string | null
     }
   }
   return { skipBuild, port, baseUrl };
-}
-
-/**
- * Load `.env.local` into `process.env` so the standalone server can reach Mongo
- * (Next loads it automatically in dev, but the spawned production server inherits
- * only what it is passed). Node's own parser handles quoting, comments and
- * multi-line values the way Next does, minus `$` expansion, which the file does
- * not use. Existing env vars win, so CI's environment is never overwritten.
- */
-function loadEnvLocal(): void {
-  try {
-    process.loadEnvFile(".env.local");
-  } catch {
-    // No .env.local: the environment already carries the variables (CI).
-  }
 }
 
 /**
@@ -846,7 +832,6 @@ async function main(): Promise<void> {
     // --base-url points at a server that is already running (a deployment, or
     // a local `next start`), so nothing is built or started here.
     if (!liveUrl) {
-      loadEnvLocal();
       if (!skipBuild) runBuild();
       copyStandaloneAssets();
 

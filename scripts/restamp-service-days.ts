@@ -32,14 +32,12 @@
  * Usage:
  *   npx tsx --env-file=.env.local scripts/restamp-service-days.ts [--dry-run] [--from=5] [--to=4]
  */
+import { prisma } from "@/lib/db";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { restampedSummaryDate } from "@/lib/time/restamp";
 import { cancelledServiceDate } from "@/lib/time/run-day";
 import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
-import { PrismaClient } from "@prisma/client";
 import fs from "node:fs";
-
-const p = new PrismaClient();
 
 const dryRun = process.argv.includes("--dry-run");
 const tag = dryRun ? "[DRY RUN] " : "";
@@ -84,7 +82,7 @@ async function applyUpdates(
 ): Promise<number> {
   let modified = 0;
   for (let i = 0; i < updates.length; i += WRITE_BATCH) {
-    const res = (await p.$runCommandRaw({
+    const res = (await prisma.$runCommandRaw({
       update: collection,
       updates: updates.slice(i, i + WRITE_BATCH) as never,
       ordered: false,
@@ -103,7 +101,7 @@ async function applyUpdates(
 async function deleteByIds(collection: string, ids: string[]): Promise<number> {
   let removed = 0;
   for (let i = 0; i < ids.length; i += WRITE_BATCH) {
-    const res = (await p.$runCommandRaw({
+    const res = (await prisma.$runCommandRaw({
       delete: collection,
       deletes: [
         { q: { _id: { $in: ids.slice(i, i + WRITE_BATCH).map(($oid) => ({ $oid })) } }, limit: 0 },
@@ -129,7 +127,7 @@ interface SummaryRow {
 }
 
 const summaries = (
-  (await p.$runCommandRaw({
+  (await prisma.$runCommandRaw({
     aggregate: "DailyRouteSummary",
     pipeline: [
       { $match: { $expr: { $eq: [{ $hour: { date: "$date", timezone: NZ_TZ } }, fromHour] } } },
@@ -184,7 +182,7 @@ interface FlagRow {
 }
 
 const flags = (
-  (await p.$runCommandRaw({
+  (await prisma.$runCommandRaw({
     find: "CancelledTrip",
     filter: { serviceDate: { $type: "date" } },
     projection: { _id: 1, tripId: 1, startTime: 1, detectedAt: 1 },
@@ -246,7 +244,7 @@ if (!dryRun) {
 // 3) OffRouteSighting. The field is written by ingest and read by nothing, and
 // its stamp is a derived day-start instant, so it goes rather than moves.
 const sightings = (
-  (await p.$runCommandRaw({
+  (await prisma.$runCommandRaw({
     count: "OffRouteSighting",
     query: { serviceDate: { $exists: true } },
   })) as unknown as { n?: number }
@@ -267,4 +265,4 @@ console.log(
     (dryRun ? " Dry run - nothing was written." : ""),
 );
 
-await p.$disconnect();
+await prisma.$disconnect();

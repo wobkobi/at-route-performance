@@ -8,9 +8,9 @@
 //
 // Usage:
 //   npx tsx --env-file=.env.local scripts/migrate-last-seen-at.ts [--dry-run]
-import { PrismaClient } from "@prisma/client";
 
-const p = new PrismaClient();
+import { prisma } from "@/lib/db";
+
 const dryRun = process.argv.includes("--dry-run");
 
 /**
@@ -18,7 +18,7 @@ const dryRun = process.argv.includes("--dry-run");
  * @returns Row count per BSON type name ("date", "string", "missing", ...).
  */
 async function typeCounts(): Promise<Record<string, number>> {
-  const res = (await p.$runCommandRaw({
+  const res = (await prisma.$runCommandRaw({
     aggregate: "Route",
     pipeline: [{ $group: { _id: { $type: "$lastSeenAt" }, n: { $sum: 1 } } }],
     cursor: {},
@@ -35,7 +35,7 @@ if (strings === 0) {
 } else if (dryRun) {
   console.log(`Would convert ${strings} row(s) in place with $toDate.`);
 } else {
-  const res = (await p.$runCommandRaw({
+  const res = (await prisma.$runCommandRaw({
     update: "Route",
     updates: [
       {
@@ -53,4 +53,4 @@ if (strings === 0) {
   console.log("lastSeenAt types after:", await typeCounts());
 }
 
-await p.$disconnect();
+await prisma.$disconnect();

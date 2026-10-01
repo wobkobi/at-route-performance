@@ -3,37 +3,14 @@
 // DailyRouteSummary is populated for days the cron job missed.
 //
 // Usage:
-//   npx tsx scripts/backfill-aggregate.ts --from=2026-06-22 --to=2026-06-24
-//   npx tsx scripts/backfill-aggregate.ts --days=7   # last 7 completed days
-//   npx tsx scripts/backfill-aggregate.ts --url=https://my-app.vercel.app --days=3
+//   npx tsx --env-file-if-exists=.env.local scripts/backfill-aggregate.ts --from=2026-06-22 --to=2026-06-24
+//   npx tsx --env-file-if-exists=.env.local scripts/backfill-aggregate.ts --days=7   # last 7 completed days
+//   npx tsx --env-file-if-exists=.env.local scripts/backfill-aggregate.ts --url=https://my-app.vercel.app --days=3
 //
-// CRON_SECRET is read from .env.local (or the environment). The --url flag
+// CRON_SECRET comes from .env.local through the flag, or from the environment. The --url flag
 // overrides the default http://localhost:3000.
 
 import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
-import fs from "node:fs";
-
-/* ---------------------------------------------------------------- env load */
-
-/**
- * Load `.env.local` into `process.env` so the script can read CRON_SECRET and
- * NEXT_PUBLIC_APP_URL without requiring them to be set in the shell.
- */
-function loadEnvLocal(): void {
-  if (!fs.existsSync(".env.local")) return;
-  for (const raw of fs.readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
-    const val = line
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "");
-    if (!(key in process.env)) process.env[key] = val;
-  }
-}
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -66,8 +43,6 @@ function parseArgs(): { from?: string; to?: string; days?: number; baseUrl: stri
  * @returns Resolves once all days are processed.
  */
 async function main(): Promise<void> {
-  loadEnvLocal();
-
   const { from, to, days, baseUrl } = parseArgs();
   const secret = process.env.CRON_SECRET;
 

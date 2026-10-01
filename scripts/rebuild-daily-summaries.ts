@@ -8,12 +8,9 @@
 //   npx tsx --env-file=.env.local scripts/rebuild-daily-summaries.ts 2026-06-19 2026-06-20 ...
 //   (no args = last 7 completed NZ service days)
 import { dailySummaryPipeline, summaryUpsertOps, type DailyStats } from "@/lib/cron/aggregate";
-import { throwOnWriteErrors } from "@/lib/db";
+import { prisma, throwOnWriteErrors } from "@/lib/db";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
-import { PrismaClient } from "@prisma/client";
-
-const p = new PrismaClient();
 
 // Parse date args or fall back to the last 7 completed service days, stepped by
 // service date so a DST switch inside the range cannot skip or repeat a day.
@@ -33,7 +30,7 @@ for (const dateStr of dates) {
   const range = nzServiceDayRange(dateStr);
 
   try {
-    const result = (await p.$runCommandRaw({
+    const result = (await prisma.$runCommandRaw({
       aggregate: "ArrivalEvent",
       pipeline: dailySummaryPipeline(range, false),
       // Large batch size so all routes fit in the first batch (default of 101
@@ -48,7 +45,7 @@ for (const dateStr of dates) {
       continue;
     }
 
-    const reply = await p.$runCommandRaw({
+    const reply = await prisma.$runCommandRaw({
       update: "DailyRouteSummary",
       updates: summaryUpsertOps(stats, range.start, ON_TIME_LATE_SEC),
       ordered: false,
@@ -68,4 +65,4 @@ for (const dateStr of dates) {
 }
 
 console.log(`\n${ok} succeeded, ${failed} failed`);
-await p.$disconnect();
+await prisma.$disconnect();
