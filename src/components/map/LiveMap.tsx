@@ -15,8 +15,9 @@ import type { LiveMapVehicle } from "@/lib/live-routes";
 import { coreBounds } from "@/lib/map/frame";
 import { nearbyFrame } from "@/lib/map/near-frame";
 import { shiftPixels } from "@/lib/map/shared-roads";
-import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
-import { wheelZoomOnHover } from "@/lib/map/wheel";
+import { bandColours, cssVar, escapeHtml } from "@/lib/map/style";
+import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap } from "@/lib/map/tiles";
+import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
 import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
@@ -24,16 +25,10 @@ import { routeHref, vehicleHref } from "@/lib/page/hrefs";
 import { PALETTE } from "@/lib/palette";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
+import { startVisiblePoll } from "@/lib/visible-poll";
 import type { NetworkLine } from "@/types/api";
 import type * as Leaflet from "leaflet";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type JSX } from "react";
-
-/** How often to refresh while the tab is visible; the server caches the feed for as long. */
-const POLL_MS = 120_000;
-
-/** Central Auckland, for the view before the first poll lands. */
-const AUCKLAND: [number, number] = [-36.8485, 174.7633];
 
 /**
  * Roughly the region AT serves, Wellsford to Pukekohe and out to Great Barrier.
@@ -76,29 +71,6 @@ function lineStyle(mode: Mode, zoom: number, hover = false): { weight: number; o
 }
 
 /**
- * Escape HTML special characters in feed strings before they go into popup HTML.
- * @param s - Raw string.
- * @returns HTML-safe string.
- */
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/**
- * Resolve an AT colour token from globals.css, since canvas paths take a colour
- * value rather than a class.
- * @param name - The custom property.
- * @returns Its computed value.
- */
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
-/**
  * A vehicle's popup: its route and name, its delay in the words the route maps
  * use, its operator, and links to its run and its own page.
  * @param v - The vehicle.
@@ -111,12 +83,14 @@ function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operat
   const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
   const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
   const op = operatorOf(v.op, operators);
-  const runBy = op ? `Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a><br>` : "";
+  const runBy = op
+    ? `Run by <a href="${escapeHtml(operatorHref(op))}">${escapeHtml(op.name)}</a><br>`
+    : "";
   return (
-    `<a href="${esc(routeHref(v.slug))}"><strong>Route ${esc(v.slug)}</strong></a><br>` +
-    `${esc(name)}${cars}<br>${esc(detail)}<br>${runBy}` +
-    `<a href="${esc(run)}">Open this run</a> &middot; ` +
-    `<a href="${esc(vehicleHref(v.id))}">This vehicle</a>`
+    `<a href="${escapeHtml(routeHref(v.slug))}"><strong>Route ${escapeHtml(v.slug)}</strong></a><br>` +
+    `${escapeHtml(name)}${cars}<br>${escapeHtml(detail)}<br>${runBy}` +
+    `<a href="${escapeHtml(run)}">Open this run</a> &middot; ` +
+    `<a href="${escapeHtml(vehicleHref(v.id))}">This vehicle</a>`
   );
 }
 
@@ -136,10 +110,10 @@ function linePopupHtml(
     const running = vehicles?.filter((v) => v.slug === line.slug).length ?? 0;
     const count = vehicles === null ? "" : ` &middot; ${running === 0 ? "none" : running} on a run`;
     // A square of the line's own colour, so a reader can match the row to the road.
-    const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${esc(line.colour)}"></span>`;
+    const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${escapeHtml(line.colour)}"></span>`;
     return (
-      `${swatch}<a href="${esc(routeHref(line.slug))}"><strong>Route ${esc(line.slug)}</strong></a>` +
-      (line.name ? ` ${esc(line.name)}` : "") +
+      `${swatch}<a href="${escapeHtml(routeHref(line.slug))}"><strong>Route ${escapeHtml(line.slug)}</strong></a>` +
+      (line.name ? ` ${escapeHtml(line.name)}` : "") +
       count
     );
   });
@@ -167,7 +141,6 @@ export default function LiveMap({
   showLines: boolean;
   className?: string;
 }): JSX.Element {
-  const router = useRouter();
   const divRef = useRef<HTMLDivElement | null>(null);
   // The mode icons rendered once, hidden, so a marker can copy their SVG.
   const glyphRef = useRef<HTMLDivElement | null>(null);
@@ -204,25 +177,8 @@ export default function LiveMap({
     void (async () => {
       const L = (await import("leaflet")) as typeof import("leaflet");
       if (dead || !divRef.current) return;
-      // The wheel zooms only on a settled mouse, as on the route maps. One-finger
-      // drag stays on for touch: the page caps the map below the screen's height,
-      // so there is always page above or below it to scroll by.
-      // Quarter-step zoom so the opening frame fits the city, not the next level out.
-      const map = L.map(divRef.current, {
-        scrollWheelZoom: false,
-        zoomSnap: 0.25,
-      });
-      wheelZoomOnHover(map);
-      map.setView(AUCKLAND, 11);
-      L.tileLayer(
-        cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),
-        {
-          maxZoom: 19,
-          subdomains: "abcd",
-          attribution: "© OpenStreetMap contributors © CARTO",
-          referrerPolicy: "strict-origin-when-cross-origin",
-        },
-      ).addTo(map);
+      const map = createBaseMap(L, divRef.current);
+      map.setView(AUCKLAND_CENTRE, BASE_ZOOM);
       // One canvas for the dots and the road paths both. A canvas only hears
       // clicks on its own element, so paths on a second canvas under the dots'
       // could never be tapped; here the paths are sent to the back of the draw
@@ -247,41 +203,19 @@ export default function LiveMap({
     };
   }, []);
 
-  // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
-  // page afresh. A plain click on a same-site link goes through the router instead; one with a
-  // modifier (new tab, new window) is left to the browser. Listening in the capture phase keeps
-  // it working even if Leaflet stops a click inside a popup from bubbling.
-  useEffect(() => {
-    const div = divRef.current;
-    if (!div) return;
-    /**
-     * Send a plain click on a same-site popup link through the router.
-     * @param e - The click.
-     */
-    const onClick = (e: MouseEvent): void => {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = e.target instanceof Element ? e.target.closest("a") : null;
-      if (!a || a.target || a.origin !== window.location.origin) return;
-      e.preventDefault();
-      router.push(`${a.pathname}${a.search}${a.hash}`);
-    };
-    div.addEventListener("click", onClick, true);
-    return () => div.removeEventListener("click", onClick, true);
-  }, [router]);
+  usePopupLinkRouting(divRef);
 
-  // Poll while the tab is visible; a return to the tab polls straight away when
-  // the last positions are a full poll old.
+  // Poll while the tab is visible.
   useEffect(() => {
     if (!ready) return;
-    let dead = false;
-    const ctrl = new AbortController();
-    let lastPoll = 0;
-    /** Fetch every vehicle on a run and hand them to the redraw. */
-    const poll = async (): Promise<void> => {
-      lastPoll = Date.now();
+    /**
+     * Fetch every vehicle on a trip and hand them to the redraw.
+     * @param signal - Aborted when the effect cleans up.
+     */
+    const poll = async (signal: AbortSignal): Promise<void> => {
       try {
-        const res = await fetch("/api/live", { cache: "no-store", signal: ctrl.signal });
-        if (dead) return;
+        const res = await fetch("/api/live", { cache: "no-store", signal });
+        if (signal.aborted) return;
         if (!res.ok) {
           setFailed(true);
           return;
@@ -290,29 +224,15 @@ export default function LiveMap({
           vehicles: LiveMapVehicle[];
           operators?: Operator[];
         };
-        if (dead) return;
+        if (signal.aborted) return;
         setFailed(false);
         operatorsRef.current = data.operators ?? [];
         setVehicles(data.vehicles);
       } catch {
-        if (!dead) setFailed(true);
+        if (!signal.aborted) setFailed(true);
       }
     };
-    /** Poll on returning to the tab, when the last positions are a full poll old. */
-    const onVisible = (): void => {
-      if (document.visibilityState === "visible" && Date.now() - lastPoll >= POLL_MS) void poll();
-    };
-    void poll();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void poll();
-    }, POLL_MS);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      dead = true;
-      ctrl.abort();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return startVisiblePoll(poll, MAP_POLL_MS);
   }, [ready]);
 
   // The road paths, fetched once the map exists. A failure costs the underlay
@@ -451,13 +371,7 @@ export default function LiveMap({
     const m = mapRef.current;
     if (!m || !vehicles) return;
     const { L, map, layer, renderer } = m;
-    const colour = {
-      late: cssVar("--color-at-late"),
-      // Small dots over a pale basemap, so early takes the darker green.
-      early: cssVar("--color-at-early-strong"),
-      ontime: cssVar("--color-at-ontime"),
-      none: cssVar("--color-at-muted"),
-    };
+    const colour = bandColours();
     const glyph = Object.fromEntries(
       MODES.map((md) => [
         md,

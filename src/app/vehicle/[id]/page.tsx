@@ -34,7 +34,13 @@ import {
 import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap, type LiveVehicle } from "@/lib/feed/vehicles";
-import { formatCount, formatDuration, formatHours, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  formatCount,
+  formatDuration,
+  formatHours,
+  OFF_SCHEDULE_TONE_CLASS,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { MODE_NAME, type Mode } from "@/lib/mode";
 import { vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorHref, operatorOf } from "@/lib/operators";
@@ -84,14 +90,6 @@ import type { JSX } from "react";
 // search params and its data above any Suspense boundary, so it is allowed to
 // block. Removing this line is what converts the route.
 export const instant = false;
-
-/** Text colour for a live status band; no live delay stays muted. */
-const STATUS_CLASS = {
-  late: "text-at-late",
-  early: "text-at-early-strong",
-  ontime: "text-at-ontime",
-  none: "text-at-muted",
-} as const;
 
 /** Query params for a vehicle page. */
 interface VehicleSearchParams {
@@ -526,7 +524,9 @@ function LiveCard({
               {route}
             </Link>
           </p>
-          <p className={cn("text-sm font-semibold", STATUS_CLASS[status.band])}>{status.detail}</p>
+          <p className={cn("text-sm font-semibold", OFF_SCHEDULE_TONE_CLASS[status.band])}>
+            {status.detail}
+          </p>
         </div>
         <Link
           href={liveRunHref({ routeId: now.routeId, tripId: now.tripId })}

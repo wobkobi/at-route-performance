@@ -7,9 +7,11 @@ import { delayColour } from "@/lib/delay-colour";
 import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/map/line-arrows";
-import { VERCEL_KEY_HOSTS, cartoTileUrl } from "@/lib/map/tiles";
-import { wheelZoomOnHover } from "@/lib/map/wheel";
+import { bandColours, cssVar, escapeHtml } from "@/lib/map/style";
+import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap } from "@/lib/map/tiles";
+import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
 import { MODE_NAME, type Mode } from "@/lib/mode";
+import type { ReadingBand } from "@/lib/on-time";
 import { operatorHref, type Operator } from "@/lib/operators";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { PALETTE } from "@/lib/palette";
@@ -18,8 +20,8 @@ import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
 import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle/status";
+import { startVisiblePoll } from "@/lib/visible-poll";
 import type * as Leaflet from "leaflet";
-import { useRouter } from "next/navigation";
 import type { JSX } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -36,12 +38,6 @@ export interface OffRoutePoint {
 
 /** Stable empty default for `offRoute`, so the redraw effect does not rerun on every render. */
 const NO_OFF_ROUTE: OffRoutePoint[] = [];
-
-/**
- * How often to refresh live vehicle positions while the tab is visible. The
- * server caches the AT feed for 120s, so polling faster only re-reads the cache.
- */
-const POLL_MS = 120_000;
 
 /** How long a vehicle takes to glide from its last polled position to its new one. */
 const GLIDE_MS = 1000;
@@ -60,29 +56,8 @@ const VEHICLE_TOOLTIP: Leaflet.TooltipOptions = {
  */
 const STOP_FOCUS_ZOOM = 14;
 
-/**
- * Resolve a CSS custom property on the document root to its concrete value.
- * Leaflet draws on canvas/SVG rather than via classes, so markers read the AT
- * palette tokens from globals.css this way.
- * @param name - Custom property name, e.g. "--color-at-late".
- * @returns The trimmed computed value.
- */
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
-/**
- * Escape HTML special characters in external strings before inserting into popup HTML.
- * @param s - Raw string from external data.
- * @returns HTML-safe string.
- */
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+/** Zoom for a map with nothing to frame: the city around its centre. */
+const OVERVIEW_ZOOM = 12;
 
 /**
  * Inner SVG markup for each mode's vehicle glyph, scaled to fit the 20x20 glyph
@@ -177,13 +152,8 @@ const ARROW_SPACING_PX = 140;
  */
 const ARROW_STOP_CLEARANCE_PX = 14;
 
-/** AT palette colours resolved once from CSS custom properties. */
-interface MapColours {
-  late: string;
-  early: string;
-  ontime: string;
-  /** A vehicle with no live delay, so it never reads as on time. */
-  muted: string;
+/** AT palette colours resolved once from CSS custom properties: each reading band's, then the rest. */
+interface MapColours extends Record<ReadingBand, string> {
   ink: string;
   border: string;
   surface: string;
@@ -197,12 +167,7 @@ interface MapColours {
  */
 function readColours(): MapColours {
   return {
-    late: cssVar("--color-at-late") || PALETTE.late,
-    // The vehicle ring, glyph and arrow are thin marks on white, so they take
-    // the darker early; the brand green is about 2.1:1 there.
-    early: cssVar("--color-at-early-strong") || PALETTE["early-strong"],
-    ontime: cssVar("--color-at-ontime") || PALETTE.ontime,
-    muted: cssVar("--color-at-muted") || PALETTE.muted,
+    ...bandColours(),
     ink: cssVar("--color-at-ink") || PALETTE.ink,
     border: cssVar("--color-at-border") || PALETTE.border,
     surface: cssVar("--color-at-surface") || PALETTE.surface,
@@ -269,7 +234,9 @@ function syncVehicles(
   mode: Mode,
   op: Operator | null,
 ): void {
-  const runBy = op ? `<br>Run by <a href="${esc(operatorHref(op))}">${esc(op.name)}</a>` : "";
+  const runBy = op
+    ? `<br>Run by <a href="${escapeHtml(operatorHref(op))}">${escapeHtml(op.name)}</a>`
+    : "";
   const { L, colours } = state;
   const seen = new Set<string>();
   for (const veh of vehicles) {
@@ -277,7 +244,7 @@ function syncVehicles(
     // One verdict for the ring, the label and the popup, on the same mode-aware
     // window as every figure on the page.
     const status = vehicleStatus(veh.delaySec, mode);
-    const colour = status.band === "none" ? colours.muted : colours[status.band];
+    const colour = colours[status.band];
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
     const iconKey = `${colour}|${mode}|${bearing}`;
     const cars = veh.cars ? `${veh.cars} cars` : null;
@@ -286,16 +253,16 @@ function syncVehicles(
     // three may point back at the page it is on; that costs a line, not a wrong turn.
     const slug = routeSlug(veh.routeId);
     const links = [
-      `<a href="${esc(routeHref(slug))}">Route ${esc(slug)}</a>`,
+      `<a href="${escapeHtml(routeHref(slug))}">Route ${escapeHtml(slug)}</a>`,
       veh.tripId
-        ? `<a href="${esc(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
+        ? `<a href="${escapeHtml(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
         : null,
-      `<a href="${esc(vehicleHref(veh.vehicleId))}">This vehicle</a>`,
+      `<a href="${escapeHtml(vehicleHref(veh.vehicleId))}">This vehicle</a>`,
     ].filter(Boolean);
     const popup =
-      `<strong>${esc(veh.label ?? veh.vehicleId)}</strong>` +
+      `<strong>${escapeHtml(veh.label ?? veh.vehicleId)}</strong>` +
       (cars ? ` &middot; ${cars}` : "") +
-      `<br>${esc(status.detail)}` +
+      `<br>${escapeHtml(status.detail)}` +
       runBy +
       `<br>${links.join(" &middot; ")}`;
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
@@ -442,7 +409,7 @@ function drawOffRouteLayer(state: MapState, points: OffRoutePoint[]): void {
       fillOpacity: 1,
       weight: 1.5,
     })
-      .bindTooltip(esc(p.label))
+      .bindTooltip(escapeHtml(p.label))
       .addTo(offRouteLayer);
   }
 }
@@ -494,8 +461,8 @@ function drawStopLayer(
     const net =
       s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { thresholdSec: 0 });
     const name = stopLinks
-      ? `<a href="${esc(stopHref(s.stop_id, { day: stopDay }))}"><strong>${esc(s.name)}</strong></a>`
-      : `<strong>${esc(s.name)}</strong>`;
+      ? `<a href="${escapeHtml(stopHref(s.stop_id, { day: stopDay }))}"><strong>${escapeHtml(s.name)}</strong></a>`
+      : `<strong>${escapeHtml(s.name)}</strong>`;
     const popup =
       s.avg_abs_delay_sec != null
         ? `${name}<br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
@@ -525,7 +492,7 @@ function setInitialViewport(state: MapState, stops: MapStop[], routeLines: Route
   } else if (pts.length > 1) {
     map.fitBounds(L.latLngBounds(pts).pad(0.1));
   } else {
-    map.setView([-36.8485, 174.7633], 12);
+    map.setView(AUCKLAND_CENTRE, OVERVIEW_ZOOM);
   }
 }
 
@@ -579,7 +546,6 @@ export default function StopMap({
   stopDay?: string;
   className?: string;
 }): JSX.Element {
-  const router = useRouter();
   const divRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
   // Set once the async map setup has finished, so the vehicle poll can start.
@@ -634,35 +600,7 @@ export default function StopMap({
       if (dead || !divRef.current) return;
 
       const colours = readColours();
-      /*
-        Leaflet's always-on wheel zoom would take a scroll the reader meant for the
-        page, so the wheel zooms only once the mouse has settled on the map.
-        One-finger drag stays on for touch, since a map that only pinches cannot
-        be moved about; every page caps its map below the screen's height
-        (60svh), so a swipe above or below it still scrolls the page.
-      */
-      // Quarter-step zoom so a fitted route fills its box: whole steps round the
-      // fit down a level, which can leave half the map empty around the line.
-      const map = L.map(divRef.current, {
-        scrollWheelZoom: false,
-        zoomSnap: 0.25,
-      });
-      wheelZoomOnHover(map);
-      // The key goes out only where CARTO accepts it (see cartoTileUrl).
-      const tiles = cartoTileUrl(
-        window.location.host,
-        process.env.NEXT_PUBLIC_CARTO_API_KEY,
-        VERCEL_KEY_HOSTS,
-      );
-      L.tileLayer(tiles, {
-        maxZoom: 19,
-        subdomains: "abcd",
-        attribution: "© OpenStreetMap contributors © CARTO",
-        // The site-wide Referrer-Policy is same-origin, which strips the Referer
-        // from tile requests and fails a host-restricted CARTO key. Send the
-        // origin only (no page path) to the tile host.
-        referrerPolicy: "strict-origin-when-cross-origin",
-      }).addTo(map);
+      const map = createBaseMap(L, divRef.current);
 
       const state: MapState = {
         L,
@@ -733,26 +671,7 @@ export default function StopMap({
     drawStopLayer(state, stops, mode, stopLinks, stopDay);
   }, [stops, routeLines, mode, colour, offRoute, stopLinks, stopDay]);
 
-  // Popup links are HTML that Leaflet writes outside React, so a plain click would load the
-  // page afresh. A plain click on a same-site link goes through the router instead; one with a
-  // modifier (new tab, new window) is left to the browser.
-  useEffect(() => {
-    const div = divRef.current;
-    if (!div) return;
-    /**
-     * Send a plain click on a same-site popup link through the router.
-     * @param e - The click.
-     */
-    const onClick = (e: MouseEvent): void => {
-      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = e.target instanceof Element ? e.target.closest("a") : null;
-      if (!a || a.target || a.origin !== window.location.origin) return;
-      e.preventDefault();
-      router.push(`${a.pathname}${a.search}${a.hash}`);
-    };
-    div.addEventListener("click", onClick, true);
-    return () => div.removeEventListener("click", onClick, true);
-  }, [router]);
+  usePopupLinkRouting(divRef);
 
   // --- Effect 3: smooth-pan to the selected stop (no map rebuild) ---------------
   // A flyTo with a short duration keeps the context visible while centring.
@@ -772,18 +691,16 @@ export default function StopMap({
   // A past day's map shows where vehicles are right now, not where they were, so
   // only a live view polls. Keyed on `live` and `routeId`, so a view that turns
   // live after mount starts polling, and one that stops being live clears its
-  // vehicles. A hidden tab skips its polls, so returning to it polls straight away
-  // when the last positions are a full poll old.
+  // vehicles.
   useEffect(() => {
     const state = stateRef.current;
     if (!ready || !state || !live || !routeId) return;
-    let dead = false;
-    const ctrl = new AbortController();
-    let lastPoll = 0;
 
-    /** Fetch the route's vehicles and move the markers, reading current props. */
-    const poll = async (): Promise<void> => {
-      lastPoll = Date.now();
+    /**
+     * Fetch the route's vehicles and move the markers, reading current props.
+     * @param signal - Aborted when the effect cleans up.
+     */
+    const poll = async (signal: AbortSignal): Promise<void> => {
       const {
         stops: pollStops,
         routeLines: pollLines,
@@ -794,15 +711,15 @@ export default function StopMap({
       try {
         const res = await fetch(`/api/routes/${encodeURIComponent(routeId)}/vehicles`, {
           cache: "no-store",
-          signal: ctrl.signal,
+          signal,
         });
-        if (dead) return;
+        if (signal.aborted) return;
         if (!res.ok) {
           setVehiclesFailed(true);
           return;
         }
         const data = (await res.json()) as { vehicles: LiveVehicle[]; op?: Operator | null };
-        if (dead) return;
+        if (signal.aborted) return;
         setVehiclesFailed(false);
 
         const vehicles = vehiclesOnMap(data.vehicles, {
@@ -814,16 +731,10 @@ export default function StopMap({
         syncVehicles(state, vehicles, pollMode, data.op ?? null);
       } catch {
         // An abort on cleanup is not a failure; anything else is.
-        if (!dead) setVehiclesFailed(true);
+        if (!signal.aborted) setVehiclesFailed(true);
       }
     };
 
-    /** Poll on returning to the tab, when the last positions are a full poll old. */
-    const onVisible = (): void => {
-      if (document.visibilityState === "visible" && Date.now() - lastPoll >= POLL_MS) {
-        void poll();
-      }
-    };
     /** End any running glide, which would otherwise drag its marker behind a zoom. */
     const stopGlides = (): void => {
       for (const el of state.map.getContainer().querySelectorAll(".vehicle-gliding")) {
@@ -831,18 +742,11 @@ export default function StopMap({
       }
     };
 
-    void poll();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void poll();
-    }, POLL_MS);
-    document.addEventListener("visibilitychange", onVisible);
+    const stopPoll = startVisiblePoll(poll, MAP_POLL_MS);
     state.map.on("zoomstart", stopGlides);
 
     return () => {
-      dead = true;
-      ctrl.abort();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      stopPoll();
       state.map.off("zoomstart", stopGlides);
       clearVehicles(state);
       setVehiclesFailed(false);

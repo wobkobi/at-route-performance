@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.36] - 2026-10-02
+
+### Changed
+
+- The live and route maps share one base map, colour lookup, popup link routing and visible-tab
+  poll; the footer freshness line uses the same poll.
+
 ## [2.41.35] - 2026-10-02
 
 ### Changed

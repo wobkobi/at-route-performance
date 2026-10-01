@@ -6,6 +6,7 @@
 import { viewIncludesToday } from "@/lib/live-view";
 import { formatRelative, nzClockTime } from "@/lib/time/format";
 import { nzServiceDayString } from "@/lib/time/service-day";
+import { startVisiblePoll } from "@/lib/visible-poll";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 
@@ -79,7 +80,7 @@ function getServerClockSnapshot(): number | null {
  *
  * The server-rendered instants go stale the moment the ingest cadence laps the
  * page view, so an open tab re-polls `/api/freshness` every {@link REFRESH_MS}
- * and on returning to a hidden tab - otherwise a tab left open reads
+ * and on returning to a tab once a poll is overdue - otherwise a tab left open reads
  * "update due now" forever while ingest is in fact running. The newest instant
  * wins between the props and the poll, so a client-side navigation with a
  * fresher server render is never downgraded.
@@ -121,16 +122,16 @@ export function DataFreshness({
   }, [lastUpdatedIso]);
 
   useEffect(() => {
-    let cancelled = false;
-    /** Poll `/api/freshness` and adopt the result, skipping hidden tabs. */
-    const refresh = async (): Promise<void> => {
-      // Skip hidden tabs; the visibilitychange listener catches up on return.
-      if (document.visibilityState !== "visible") return;
+    /**
+     * Poll `/api/freshness` and adopt the result.
+     * @param signal - Aborted when the effect cleans up.
+     */
+    const refresh = async (signal: AbortSignal): Promise<void> => {
       try {
-        const res = await fetch("/api/freshness");
+        const res = await fetch("/api/freshness", { signal });
         if (!res.ok) return;
         const data = (await res.json()) as Partial<FreshnessTimes>;
-        if (!cancelled && data.lastUpdated && data.nextUpdate) {
+        if (!signal.aborted && data.lastUpdated && data.nextUpdate) {
           setPolled({
             lastUpdated: data.lastUpdated,
             nextUpdate: data.nextUpdate,
@@ -152,17 +153,8 @@ export function DataFreshness({
         // Keep showing the last known instants; the next tick retries.
       }
     };
-    const id = setInterval(() => void refresh(), REFRESH_MS);
-    /** Catch up immediately when a hidden tab becomes visible again. */
-    const onVisible = (): void => {
-      void refresh();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    // The server render is fresh, so the first poll waits a full interval.
+    return startVisiblePoll(refresh, REFRESH_MS, { immediate: false });
   }, [router]);
 
   // Newest instant wins (ISO UTC strings compare lexicographically).
