@@ -1,6 +1,6 @@
 // src/components/filter/DirectionFilter.tsx
 // Chip row linking between a route's directions, with a "both" option for the unfiltered view.
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import type { JSX } from "react";
 
 /** Props for {@link DirectionFilter}. */
@@ -32,8 +32,7 @@ export function DirectionFilter({
   hrefs,
 }: DirectionFilterProps): JSX.Element {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs tracking-zero text-at-muted uppercase">Direction</span>
+    <ChipGroup label="Direction" showLabel>
       <ChipLink href={hrefs.both} active={activeDir == null}>
         Both
       </ChipLink>
@@ -42,6 +41,6 @@ export function DirectionFilter({
           {labels[d]}
         </ChipLink>
       ))}
-    </div>
+    </ChipGroup>
   );
 }

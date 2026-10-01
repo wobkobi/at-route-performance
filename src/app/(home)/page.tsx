@@ -15,13 +15,13 @@ import { AlertBanner } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
 import { ModeFilter } from "@/components/filter/ModeFilter";
+import { ModeUsageFilter } from "@/components/filter/ModeUsageFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import {
   loadPeriodBatch,
   PeriodBoards,
-  PeriodModeFilter,
   PeriodRouteCard,
   PeriodStopCard,
   PeriodTripCard,
@@ -243,11 +243,12 @@ async function PeriodHome({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-at-border py-3">
           <RangeControls basePath="/" nav={nav} />
           <div className="flex flex-wrap items-center gap-3">
-            <Suspense
-              fallback={<ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />}
-            >
-              <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
-            </Suspense>
+            <ModeUsageFilter
+              active={mode}
+              basePath="/"
+              preservedParams={modePreserved}
+              modes={batch.core.then((c) => c.availableModes)}
+            />
             <SchoolBusToggle value={schools} basePath="/" preservedParams={schoolPreserved} />
             <RankingFilterMenus
               basePath="/"

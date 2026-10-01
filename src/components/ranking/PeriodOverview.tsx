@@ -5,7 +5,6 @@
 // A cold month fans out to ~30 per-day aggregations, which is why none of it
 // blocks the page shell.
 
-import { ModeFilter } from "@/components/filter/ModeFilter";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { RankBoard } from "@/components/ranking/RankBoard";
 import { WorstRouteCard } from "@/components/ranking/WorstRouteCard";
@@ -219,34 +218,6 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
 export async function PeriodVerdict({ batch }: { batch: PeriodBatch }): Promise<JSX.Element> {
   const core = await batch.core;
   return <FleetSummary data={core.heroData} verdict schoolAdded={core.schoolAdded} />;
-}
-
-/**
- * The mode chips once the rankings know which modes have data. Until then the
- * page shows every chip, which is this element minus the hidden ones.
- * @param props - Component props.
- * @param props.batch - The period's reads.
- * @param props.active - The active mode, or null for "All".
- * @param props.preservedParams - Query params the chips keep.
- * @returns The chips.
- */
-export async function PeriodModeFilter({
-  batch,
-  active,
-  preservedParams,
-}: {
-  batch: PeriodBatch;
-  active: Mode | null;
-  preservedParams: Record<string, string>;
-}): Promise<JSX.Element> {
-  return (
-    <ModeFilter
-      active={active}
-      basePath="/"
-      preservedParams={preservedParams}
-      availableModes={(await batch.core).availableModes}
-    />
-  );
 }
 
 /**

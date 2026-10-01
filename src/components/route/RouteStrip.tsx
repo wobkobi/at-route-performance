@@ -6,7 +6,7 @@
 // figures are the rows of a list on the same 32px pitch, so CSS wraps or cuts a name to fit and
 // the figure columns size to their widest figure.
 
-import { ChipToggle } from "@/components/Chip";
+import { ChipGroup, ChipToggle } from "@/components/Chip";
 import { ChevronDown } from "@/components/icons";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
@@ -305,8 +305,7 @@ export function RouteStrip({
     <Panel pad="sm">
       <SectionHeading className="mb-3">Line diagram</SectionHeading>
       {chips.length > 1 && (
-        <div role="group" aria-label="Version" className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-at-muted">Version</span>
+        <ChipGroup label="Version" showLabel className="mb-4">
           <ChipToggle on={version == null} onClick={() => setVersion(null)}>
             {chips.length === 2 ? "Both" : "All"}
           </ChipToggle>
@@ -315,7 +314,7 @@ export function RouteStrip({
               {v.from} to {v.to}
             </ChipToggle>
           ))}
-        </div>
+        </ChipGroup>
       )}
       {!split && (
         <p className="mb-3 text-xs text-at-muted">

@@ -7,15 +7,13 @@
 // carried too, from the tab periods the server put on the nav, so switching
 // window stays on the day being read rather than resetting to the present.
 
+import { ChipTab, StepperLink } from "@/components/Chip";
 import { DatePicker } from "@/components/date/DatePicker";
 import { DayNav } from "@/components/date/DayNav";
-import { StepPending } from "@/components/date/StepPending";
-import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { omitParams, SHOWN_PARAM, VIEW_PARAMS } from "@/lib/page/filter-params";
 import type { RangeNav, RangeWindow } from "@/lib/page/range";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { JSX } from "react";
 
@@ -68,33 +66,22 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
-        {TABS.filter((t) => !windows || windows.includes(t.key)).map((t) =>
-          // The active tab is a span, as the nav tabs are: its href resets the
-          // window's own params, so clicking the tab already highlighted moved
-          // the reader off the period they were reading and, on a list page,
-          // back to its first page.
-          nav.window === t.key ? (
-            <span key={t.key} aria-current="page" className="chip chip-on">
-              {t.label}
-            </span>
-          ) : (
-            <Link
-              key={t.key}
-              href={buildHref(basePath, {
-                ...carried,
-                window: t.key === "day" ? undefined : t.key,
-                // Each tab carries the date being read across, so switching
-                // window keeps the day/week/month instead of jumping to now.
-                day: t.key === "day" ? nav.tabs.day : undefined,
-                period: t.key === "day" ? undefined : nav.tabs[t.key],
-              })}
-              scroll={false}
-              className="chip chip-off"
-            >
-              {t.label}
-            </Link>
-          ),
-        )}
+        {TABS.filter((t) => !windows || windows.includes(t.key)).map((t) => (
+          <ChipTab
+            key={t.key}
+            active={nav.window === t.key}
+            href={buildHref(basePath, {
+              ...carried,
+              window: t.key === "day" ? undefined : t.key,
+              // Each tab carries the date being read across, so switching
+              // window keeps the day/week/month instead of jumping to now.
+              day: t.key === "day" ? nav.tabs.day : undefined,
+              period: t.key === "day" ? undefined : nav.tabs[t.key],
+            })}
+          >
+            {t.label}
+          </ChipTab>
+        ))}
       </div>
       {nav.window === "day" ? (
         <DayNav
@@ -111,23 +98,13 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
       ) : (
         <div className="flex items-center gap-1">
           {/* Step links are omitted (not disabled) at the edges of the data range,
-              a `.step-slot` holds the gap so the newest period does not shift the
-              tabs, and both prefetch in full for the reason DayNav's do. */}
-          {nav.prevHref ? (
-            <Link
-              href={withCarried(nav.prevHref, carried)}
-              prefetch
-              scroll={false}
-              className="chip chip-icon chip-off"
-              aria-label={`Previous ${nav.window}`}
-            >
-              <StepPending>
-                <ChevronLeft />
-              </StepPending>
-            </Link>
-          ) : (
-            <span className="step-slot" aria-hidden />
-          )}
+              and the empty slot holds the gap so the newest period does not
+              shift the tabs. */}
+          <StepperLink
+            href={nav.prevHref && withCarried(nav.prevHref, carried)}
+            dir="prev"
+            label={`Previous ${nav.window}`}
+          />
           <DatePicker
             mode={nav.window}
             calendar={nav.calendar}
@@ -139,21 +116,11 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             {nav.label}
             {nav.partial ? ` (from ${DATA_START_SHORT})` : ""}
           </DatePicker>
-          {nav.nextHref ? (
-            <Link
-              href={withCarried(nav.nextHref, carried)}
-              prefetch
-              scroll={false}
-              className="chip chip-icon chip-off"
-              aria-label={`Next ${nav.window}`}
-            >
-              <StepPending>
-                <ChevronRight />
-              </StepPending>
-            </Link>
-          ) : (
-            <span className="step-slot" aria-hidden />
-          )}
+          <StepperLink
+            href={nav.nextHref && withCarried(nav.nextHref, carried)}
+            dir="next"
+            label={`Next ${nav.window}`}
+          />
         </div>
       )}
     </div>

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.28] - 2026-10-01
+
+### Changed
+
+- Window and board tabs, date steppers and chip rows share one set of chip components, and every
+  one-choice filter box (mode, school buses, running, operator) is built from one radio filter.
+
 ## [2.41.27] - 2026-10-01
 
 ### Changed

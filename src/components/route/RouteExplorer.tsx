@@ -8,7 +8,11 @@
 // back to the query string with useUrlParams, so the view survives a reload and
 // can be shared without a navigation.
 
+import { ChipToggle } from "@/components/Chip";
+import { DELAY_OPTIONS } from "@/components/filter/DelayFilter";
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
+import { MODE_OPTIONS } from "@/components/filter/ModeFilter";
+import { RadioFilter } from "@/components/filter/RadioFilter";
 import { ChevronRight, SortArrow } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
@@ -17,12 +21,10 @@ import { Figure } from "@/components/ui/FigureStrip";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { ShowMore } from "@/components/ui/ShowMore";
-import { cn } from "@/lib/cn";
 import { labelsOf } from "@/lib/collections";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
-import { MODE_NAME, MODES, type Mode } from "@/lib/mode";
 import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
 import { useUrlParams } from "@/lib/page/use-url-param";
@@ -44,7 +46,7 @@ import {
 import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type JSX, type ReactNode } from "react";
 
 /** The params the explorer's client state writes: its filters and the row count. */
 const OWNED_PARAMS = [...EXPLORER_PARAMS, SHOWN_PARAM];
@@ -68,27 +70,6 @@ export interface RouteExplorerProps {
   running: Promise<string[] | null>;
 }
 
-/** A square button in the filter panel, matching the search field and selects. */
-const BOX =
-  "inline-flex items-center gap-1 border px-3 py-1.5 text-sm font-semibold transition-colors";
-
-/** {@link BOX} when not chosen. */
-const BOX_OFF =
-  "border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore";
-
-/** The Mode filter's choices, null for every mode. */
-const MODE_OPTIONS: [Mode | null, string][] = [
-  [null, "All"],
-  ...MODES.map((mode): [Mode, string] => [mode, MODE_NAME[mode]]),
-];
-
-/** The Running filter's choices, null for either way. */
-const DIRECTIONS = [
-  [null, "Either way"],
-  ["late", "Late"],
-  ["early", "Early"],
-] as const;
-
 /** The on/off filters gathered under More. */
 const TOGGLES = [
   ["enoughData", "Enough data to rank"],
@@ -104,10 +85,15 @@ const TOGGLES = [
  * @returns The row.
  */
 function FilterRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  const id = useId();
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-      <span className="at-eyebrow w-20 shrink-0 text-at-muted">{label}</span>
-      <div className="flex flex-wrap gap-2">{children}</div>
+      <span id={id} className="at-eyebrow w-20 shrink-0 text-at-muted">
+        {label}
+      </span>
+      <div role="group" aria-labelledby={id} className="flex flex-wrap gap-2">
+        {children}
+      </div>
     </div>
   );
 }
@@ -248,40 +234,19 @@ export function RouteExplorer({
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              aria-pressed={view === v.key}
-              onClick={() => update(v.filters)}
-              className={cn(
-                BOX,
-                view === v.key ? "border-at-shore bg-at-shore text-white" : BOX_OFF,
-              )}
-            >
+            <ChipToggle key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
               {v.label}
-            </button>
+            </ChipToggle>
           ))}
         </FilterRow>
         <FilterRow label="Filter">
-          <FilterMenu
+          <RadioFilter
             label="Mode"
-            summary={
-              MODE_OPTIONS.find(([key]) => key !== null && key === filters.mode)?.[1] ?? null
-            }
-            onReset={() => update({ mode: null })}
-          >
-            {MODE_OPTIONS.map(([key, label]) => (
-              <FilterOption
-                key={label}
-                type="radio"
-                name="explorer-mode"
-                checked={filters.mode === key}
-                onChange={() => update({ mode: key })}
-              >
-                {label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
+            options={MODE_OPTIONS}
+            value={filters.mode}
+            defaultKey={null}
+            onChange={(mode) => update({ mode })}
+          />
           <FilterMenu
             label="Area"
             summary={choiceSummary(labelsOf(AREAS, filters.areas))}
@@ -315,77 +280,33 @@ export function RouteExplorer({
             ))}
           </FilterMenu>
           {operatorOptions.length > 1 && (
-            <FilterMenu
+            <RadioFilter
               label="Operator"
-              summary={
-                filters.op === null
-                  ? null
-                  : (operatorOptions.find((o) => o.slug === filters.op)?.name ?? filters.op)
-              }
-              onReset={() => update({ op: null })}
-            >
-              <FilterOption
-                type="radio"
-                name="explorer-op"
-                checked={filters.op === null}
-                onChange={() => update({ op: null })}
-              >
-                Any operator
-              </FilterOption>
-              {operatorOptions.map((o) => (
-                <FilterOption
-                  key={o.slug}
-                  type="radio"
-                  name="explorer-op"
-                  checked={filters.op === o.slug}
-                  onChange={() => update({ op: o.slug })}
-                >
-                  {o.name}
-                </FilterOption>
-              ))}
-            </FilterMenu>
+              options={[
+                { key: null, label: "Any operator" },
+                ...operatorOptions.map((o) => ({ key: o.slug, label: o.name })),
+              ]}
+              value={filters.op}
+              defaultKey={null}
+              onChange={(op) => update({ op })}
+              summary={(op) => operatorOptions.find((o) => o.slug === op)?.name ?? op}
+            />
           )}
-          <FilterMenu
+          <RadioFilter
             label="School buses"
-            summary={schoolFilterSummary(filters.school)}
-            onReset={() => update({ school: "exclude" })}
-          >
-            {SCHOOL_FILTERS.map((f) => (
-              <FilterOption
-                key={f.key}
-                type="radio"
-                name="explorer-school"
-                checked={filters.school === f.key}
-                onChange={() => update({ school: f.key })}
-              >
-                {f.label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
-          <FilterMenu
+            options={SCHOOL_FILTERS}
+            value={filters.school}
+            defaultKey="exclude"
+            onChange={(school) => update({ school })}
+            summary={schoolFilterSummary}
+          />
+          <RadioFilter
             label="Running"
-            summary={
-              DIRECTIONS.find(([key]) => key !== null && key === filters.direction)?.[1] ?? null
-            }
-            onReset={() => update({ direction: null })}
-            activeClass={
-              filters.direction === "late"
-                ? "border-at-late bg-at-surface text-at-late"
-                : "border-at-early-strong bg-at-surface text-at-early-strong"
-            }
-          >
-            {DIRECTIONS.map(([key, label]) => (
-              <FilterOption
-                key={label}
-                type="radio"
-                name="explorer-direction"
-                checked={filters.direction === key}
-                onChange={() => update({ direction: key })}
-              >
-                {label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
+            options={DELAY_OPTIONS}
+            value={filters.direction}
+            defaultKey={null}
+            onChange={(direction) => update({ direction })}
+          />
           <FilterMenu
             label="More"
             summary={choiceSummary(
@@ -434,7 +355,7 @@ export function RouteExplorer({
             type="button"
             onClick={() => update({ dir: filters.dir === "asc" ? "desc" : "asc" })}
             aria-label={filters.dir === "asc" ? "Sorted low to high" : "Sorted high to low"}
-            className={cn(BOX, BOX_OFF)}
+            className="chip chip-off"
           >
             {filters.dir === "asc" ? "Low to high" : "High to low"}
             <SortArrow dir={filters.dir} className="ml-1.5" />
@@ -448,7 +369,7 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={() => update(DEFAULT_FILTERS)}
-              className={cn(BOX, BOX_OFF)}
+              className="chip chip-off gap-1"
             >
               <span aria-hidden>×</span> Reset all
             </button>

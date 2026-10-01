@@ -6,14 +6,16 @@
 // classes, `scroll={false}` and `aria-current`/`aria-pressed`. Copies had left out
 // all three at various times.
 //
-// A tab for a view the reader is *on* is a third contract and deliberately not
-// here: SiteNav, ShameHeader and RangeControls render the active one as a plain
-// `<span aria-current="page">` rather than a link, so clicking where you already
-// are cannot rebuild the page and drop the board sort with it.
+// A tab for a view the reader is *on* is a third contract, ChipTab: the active
+// one renders as a plain `<span aria-current="page">` rather than a link, so
+// clicking where you already are cannot rebuild the page and drop the board
+// sort with it. StepperLink is the fourth, the chevron either side of a date.
 
+import { StepPending } from "@/components/date/StepPending";
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import Link from "next/link";
-import type { JSX, ReactNode } from "react";
+import { useId, type JSX, type ReactNode } from "react";
 
 /**
  * A chip that links: one option of a filter or sort row.
@@ -74,6 +76,9 @@ export function ChipLink({
  * @param root0.on - Whether the chip is active.
  * @param root0.onClick - Toggle handler.
  * @param root0.activeClass - Classes for the active state.
+ * @param root0.offClass - Classes for the inactive state, for a row whose off
+ *   chips say more than "not chosen" (the live map's struck-through layers).
+ * @param root0.disabled - Whether the chip can be pressed.
  * @param root0.className - Extra classes.
  * @param root0.children - The label.
  * @returns The chip button.
@@ -82,12 +87,16 @@ export function ChipToggle({
   on,
   onClick,
   activeClass = "chip-on",
+  offClass = "chip-off",
+  disabled,
   className,
   children,
 }: {
   on: boolean;
   onClick: () => void;
   activeClass?: string;
+  offClass?: string;
+  disabled?: boolean;
   className?: string;
   children: ReactNode;
 }): JSX.Element {
@@ -96,9 +105,124 @@ export function ChipToggle({
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={cn("chip", on ? activeClass : "chip-off", className)}
+      disabled={disabled}
+      className={cn("chip", on ? activeClass : offClass, className)}
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * A tab that switches the view: the board, the window. The active tab is a
+ * span, not a link, because its href would reset the view's own params and move
+ * the reader off what they were reading.
+ * @param root0 - Props.
+ * @param root0.href - The tab's view.
+ * @param root0.active - Whether the reader is on this view.
+ * @param root0.children - The label.
+ * @returns The tab.
+ */
+export function ChipTab({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  if (active) {
+    return (
+      <span aria-current="page" className="chip chip-on">
+        {children}
+      </span>
+    );
+  }
+  return (
+    <Link href={href} scroll={false} className="chip chip-off">
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * The chevron either side of a date that steps to the previous or next day,
+ * week or month. With no step to take, a `.step-slot` holds its 44px so the
+ * date and the tabs beside it do not slide when the reader reaches either end.
+ * Both directions prefetch in full: the stepper is how the archive is read, so
+ * the next click is nearly always one of these. The chevron pulses while the
+ * click waits on the server.
+ * @param root0 - Props.
+ * @param root0.href - The neighbouring period, or null when there is none.
+ * @param root0.dir - Which way it steps.
+ * @param root0.label - Accessible name, such as "Previous day".
+ * @param root0.fallback - What stands in with no step, when not the empty slot.
+ * @returns The link or its placeholder.
+ */
+export function StepperLink({
+  href,
+  dir,
+  label,
+  fallback,
+}: {
+  href: string | null | undefined;
+  dir: "prev" | "next";
+  label: string;
+  fallback?: ReactNode;
+}): JSX.Element {
+  if (!href) return <>{fallback ?? <span className="step-slot" aria-hidden />}</>;
+  const Chevron = dir === "prev" ? ChevronLeft : ChevronRight;
+  return (
+    <Link
+      href={href}
+      prefetch
+      scroll={false}
+      className="chip chip-icon chip-off"
+      aria-label={label}
+    >
+      <StepPending>
+        <Chevron />
+      </StepPending>
+    </Link>
+  );
+}
+
+/**
+ * A row of chips that pick one thing, named for assistive tech as a group. With
+ * `showLabel` the name also leads the row as an eyebrow.
+ * @param root0 - Props.
+ * @param root0.label - What the chips pick, such as "Direction".
+ * @param root0.showLabel - Show the label at the head of the row.
+ * @param root0.className - Extra classes, usually the gap.
+ * @param root0.children - The chips.
+ * @returns The group.
+ */
+export function ChipGroup({
+  label,
+  showLabel = false,
+  className,
+  children,
+}: {
+  label: string;
+  showLabel?: boolean;
+  className?: string;
+  children: ReactNode;
+}): JSX.Element {
+  const id = useId();
+  return (
+    <div
+      role="group"
+      aria-label={showLabel ? undefined : label}
+      aria-labelledby={showLabel ? id : undefined}
+      className={cn("flex flex-wrap items-center gap-2", className)}
+    >
+      {showLabel && (
+        <span id={id} className="at-eyebrow text-at-muted">
+          {label}
+        </span>
+      )}
+      {children}
+    </div>
   );
 }

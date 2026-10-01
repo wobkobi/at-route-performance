@@ -1,13 +1,12 @@
 // src/components/date/DayNav.tsx
 // Date label with previous/next day stepper links for the shame views.
+import { StepperLink } from "@/components/Chip";
 import { DatePicker } from "@/components/date/DatePicker";
 import { StepPending } from "@/components/date/StepPending";
-import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { Hint } from "@/components/ui/Hint";
 import type { PickerState } from "@/lib/time/calendar";
 import { serviceDayLabel, serviceDayWindowText, shiftDays } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link DayNav}. */
@@ -92,23 +91,14 @@ export function DayNav({
           change the row's width. `scroll` is held because the stepper is how the
           archive is read: stepping from halfway down a board threw the reader
           back to the top of the next day, while a mode chip beside it did not. */}
-      {hasPrev ? (
-        <Link
-          href={dayHref(basePath, preservedParams, shiftDays(serviceDate, -1))}
-          prefetch
-          scroll={false}
-          className="chip chip-icon chip-off"
-          aria-label="Previous day"
-        >
-          <StepPending>
-            <ChevronLeft />
-          </StepPending>
-        </Link>
-      ) : atFloor ? (
-        <span className="px-1 text-xs text-at-muted">first day</span>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
+      <StepperLink
+        href={hasPrev ? dayHref(basePath, preservedParams, shiftDays(serviceDate, -1)) : null}
+        dir="prev"
+        label="Previous day"
+        fallback={
+          atFloor ? <span className="px-1 text-xs text-at-muted">first day</span> : undefined
+        }
+      />
       {/* Every day page shows a day through this label, so the window it covers
           is said here once rather than on each page. The width is reserved for a
           two-digit day, so stepping from the 1st to the 2nd of a month does not
@@ -132,28 +122,25 @@ export function DayNav({
           {serviceDayLabel(serviceDate)}
         </Hint>
       )}
-      {hasNext ? (
-        <Link
-          href={nextHref ?? dayHref(basePath, preservedParams, shiftDays(serviceDate, 1))}
-          prefetch
-          scroll={false}
-          className="chip chip-icon chip-off"
-          aria-label="Next day"
-        >
-          <StepPending>
-            <ChevronRight />
-          </StepPending>
-        </Link>
-      ) : nextPending ? (
-        <Hint
-          hint="Today began at 4am but has too few arrivals so far, so this shows the day before"
-          triggerClassName="px-1 text-xs text-at-muted"
-        >
-          today still starting
-        </Hint>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
+      <StepperLink
+        href={
+          hasNext
+            ? (nextHref ?? dayHref(basePath, preservedParams, shiftDays(serviceDate, 1)))
+            : null
+        }
+        dir="next"
+        label="Next day"
+        fallback={
+          nextPending ? (
+            <Hint
+              hint="Today began at 4am but has too few arrivals so far, so this shows the day before"
+              triggerClassName="px-1 text-xs text-at-muted"
+            >
+              today still starting
+            </Hint>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

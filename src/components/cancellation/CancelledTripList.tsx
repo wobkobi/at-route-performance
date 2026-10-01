@@ -8,7 +8,7 @@
 // from a trip returns to the same stretch of the list.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
@@ -138,7 +138,7 @@ export function CancelledTripList({
     <Panel pad="sm" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <SectionHeading>Cancelled trips</SectionHeading>
-        <div className="flex flex-wrap gap-1">
+        <ChipGroup label="Stage" className="gap-1">
           {STAGES.map((s) => (
             <ChipLink
               key={s.label}
@@ -152,7 +152,7 @@ export function CancelledTripList({
               </span>
             </ChipLink>
           ))}
-        </div>
+        </ChipGroup>
       </div>
       {visible.length === 0 ? (
         // An empty list under a chosen stage is the chip's doing, not the
