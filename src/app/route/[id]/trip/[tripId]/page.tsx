@@ -9,6 +9,7 @@ import { TripCancellationNote } from "@/components/trip/TripCancellationNote";
 import { TripDetourNote } from "@/components/trip/TripDetourNote";
 import { TripGhostRunNote } from "@/components/trip/TripGhostRunNote";
 import { TripLine } from "@/components/trip/TripLine";
+import { Hint } from "@/components/ui/Hint";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
@@ -278,10 +279,10 @@ export default async function TripPage({
           {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
           {departing ? `Trip departing ${departing}` : "Trip"}
           {departing && departsAfterMidnight && serviceDate && (
-            <span className="cursor-help" title={afterMidnightNote(serviceDate)}>
+            <>
               {" "}
-              (after midnight)
-            </span>
+              <Hint hint={afterMidnightNote(serviceDate)}>(after midnight)</Hint>
+            </>
           )}
           {vehicle_id && (
             <>

@@ -542,7 +542,7 @@ function LiveCard({
     <section className="space-y-4 border border-at-border bg-at-surface px-6 py-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <p className="flex items-center gap-2 text-xs font-semibold tracking-zero text-at-muted uppercase">
+          <p className="at-eyebrow flex items-center gap-2 text-at-muted">
             <LiveBadge />
             On a run now
           </p>

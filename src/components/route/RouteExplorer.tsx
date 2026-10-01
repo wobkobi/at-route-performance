@@ -106,9 +106,7 @@ const TOGGLES = [
 function FilterRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-      <span className="w-20 shrink-0 text-xs font-semibold tracking-zero text-at-muted uppercase">
-        {label}
-      </span>
+      <span className="at-eyebrow w-20 shrink-0 text-at-muted">{label}</span>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
@@ -416,9 +414,7 @@ export function RouteExplorer({
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-at-border pt-3">
           <label className="flex items-center gap-2 text-sm">
-            <span className="text-xs font-semibold tracking-zero text-at-muted uppercase">
-              Sort by
-            </span>
+            <span className="at-eyebrow text-at-muted">Sort by</span>
             <select
               value={filters.sort}
               onChange={(e) => {

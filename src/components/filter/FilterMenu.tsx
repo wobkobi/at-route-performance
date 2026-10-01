@@ -6,16 +6,9 @@
 // button, so a panel of filters reads as a single row.
 
 import { ChevronDown } from "@/components/icons";
+import { PopoverPanel, usePopover } from "@/components/ui/Popover";
 import { cn } from "@/lib/cn";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useRef, type JSX, type ReactNode } from "react";
 
 /**
  * What a filter box says for a multi-choice filter: the first choice by name
@@ -61,45 +54,19 @@ export function FilterMenu({
   wide?: boolean;
   children: ReactNode;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popover = usePopover(buttonRef);
   const active = summary !== null;
-
-  /** Close the list and hand focus back to the box that opened it. */
-  const close = (): void => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
-
-  // A page navigated away from is held hidden rather than unmounted, so an
-  // open list would still be open on the way back; effects are torn down when
-  // the route hides, so closing from a cleanup catches it.
-  useEffect(() => {
-    if (!open) return;
-    return () => setOpen(false);
-  }, [open]);
-
-  /**
-   * Close on Escape from the box or from inside the list.
-   * @param e - The key event.
-   */
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (open && e.key === "Escape") {
-      e.stopPropagation();
-      close();
-    }
-  };
 
   return (
     <div className="relative inline-flex">
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        onKeyDown={onKeyDown}
-        aria-expanded={open}
-        aria-controls={listId}
+        onClick={popover.toggle}
+        onKeyDown={popover.onKeyDown}
+        aria-expanded={popover.open}
+        aria-controls={popover.panelId}
         className={cn(
           BOX,
           "gap-1.5 px-3",
@@ -123,44 +90,30 @@ export function FilterMenu({
         </button>
       )}
 
-      {open && (
-        <>
-          {/* `pointerdown`, not `click`: a tap on a plain div does not reliably
-              raise a click on iOS Safari. Sits under the list and over the
-              sticky header, which is `z-40`. */}
-          <div className="fixed inset-0 z-40" onPointerDown={close} aria-hidden />
-          <div
-            id={listId}
-            role="group"
-            aria-label={label}
-            onKeyDown={onKeyDown}
-            className={cn(
-              "fixed inset-x-3 bottom-3 z-50 border border-at-border bg-at-surface text-at-ink shadow-lg sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:left-0 sm:mt-1",
-              wide ? "sm:w-96" : "sm:w-64",
-            )}
+      <PopoverPanel
+        popover={popover}
+        role="group"
+        label={label}
+        className={wide ? "sm:w-96" : "sm:w-64"}
+      >
+        <p className="at-eyebrow px-3 pt-3 text-at-muted">{label}</p>
+        <div className={cn("max-h-[60vh] overflow-y-auto p-1.5", !wide && "sm:max-h-72")}>
+          {children}
+        </div>
+        <div className="flex items-center justify-between border-t border-at-border px-3 py-2">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!active}
+            className="at-link text-sm font-semibold disabled:text-at-muted disabled:no-underline"
           >
-            <p className="px-3 pt-3 text-xs font-semibold tracking-zero text-at-muted uppercase">
-              {label}
-            </p>
-            <div className={cn("max-h-[60vh] overflow-y-auto p-1.5", !wide && "sm:max-h-72")}>
-              {children}
-            </div>
-            <div className="flex items-center justify-between border-t border-at-border px-3 py-2">
-              <button
-                type="button"
-                onClick={onReset}
-                disabled={!active}
-                className="at-link text-sm font-semibold disabled:text-at-muted disabled:no-underline"
-              >
-                Reset
-              </button>
-              <button type="button" onClick={close} className="at-btn at-btn-primary">
-                Done
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+            Reset
+          </button>
+          <button type="button" onClick={popover.close} className="at-btn at-btn-primary">
+            Done
+          </button>
+        </div>
+      </PopoverPanel>
     </div>
   );
 }

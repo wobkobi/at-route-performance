@@ -429,10 +429,7 @@ export default async function ComparePage({
                 const best = row.better ? bestColumns(values, row.better) : new Set<number>();
                 return (
                   <tr key={row.label} className="border-b border-at-border last:border-b-0">
-                    <th
-                      scope="row"
-                      className="p-2 text-left text-xs font-semibold tracking-zero text-at-muted uppercase sm:p-3"
-                    >
+                    <th scope="row" className="at-eyebrow p-2 text-left text-at-muted sm:p-3">
                       {row.label}
                     </th>
                     {values.map((v, i) => (
@@ -549,7 +546,7 @@ function CandidateList({
 }): JSX.Element {
   return (
     <div>
-      <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">{heading}</p>
+      <p className="at-eyebrow text-at-muted">{heading}</p>
       <ul className="striped mt-1 divide-y divide-at-border">
         {items.map((c) => (
           <li key={c.id}>

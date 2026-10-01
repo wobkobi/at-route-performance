@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.27] - 2026-10-01
+
+### Changed
+
+- Filter menus, the date picker and the punctuality breakdown share one popover that moves focus in
+  and back; explanations that lived only in a tooltip title now show on tap and focus too.
+
 ## [2.41.26] - 2026-10-01
 
 ### Changed

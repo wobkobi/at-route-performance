@@ -4,6 +4,7 @@
 // so a reader can jump straight to a date instead of stepping one at a time.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { PopoverPanel, usePopover } from "@/components/ui/Popover";
 import { cn } from "@/lib/cn";
 import type { RangeWindow } from "@/lib/page/range";
 import {
@@ -25,15 +26,7 @@ import {
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useRef, useState, type JSX, type ReactNode } from "react";
 
 /** Weekday initials over the grid, Monday first, read off a known Monday's week. */
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
@@ -81,10 +74,8 @@ export function DatePicker({
   children: ReactNode;
 }): JSX.Element {
   const router = useRouter();
-  const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const popover = usePopover(buttonRef);
   const [alignEnd, setAlignEnd] = useState(false);
   const { today, minDay, maxDay, from, to } = calendar;
   // The month (or, on the Month view, the year) the panel shows; opens on the
@@ -92,14 +83,6 @@ export function DatePicker({
   const [shown, setShown] = useState(monthOf(to));
   const minMonth = monthOf(minDay);
   const maxMonth = monthOf(maxDay);
-
-  // A page navigated away from is held hidden rather than unmounted; close
-  // from a cleanup so the panel is not still open on the way back.
-  useEffect(() => {
-    if (!open) return;
-    panelRef.current?.focus();
-    return () => setOpen(false);
-  }, [open]);
 
   /**
    * Open on the shown window's month, anchored to the label's right edge
@@ -110,24 +93,7 @@ export function DatePicker({
     const box = buttonRef.current?.getBoundingClientRect();
     setAlignEnd(box ? box.left + PANEL_WIDTH_PX > window.innerWidth - 16 : false);
     setShown(monthOf(to));
-    setOpen(true);
-  };
-
-  /** Close and hand focus back to the label. */
-  const close = (): void => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
-
-  /**
-   * Close on Escape from the label or the panel.
-   * @param e - The key event.
-   */
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (open && e.key === "Escape") {
-      e.stopPropagation();
-      close();
-    }
+    popover.show();
   };
 
   /**
@@ -135,7 +101,7 @@ export function DatePicker({
    * @param set - The window params the pick sets.
    */
   const go = (set: Record<string, string | undefined>): void => {
-    setOpen(false);
+    popover.hide();
     router.push(buildHref(basePath, { ...preservedParams, ...set }), { scroll: false });
   };
 
@@ -162,115 +128,104 @@ export function DatePicker({
     );
 
   return (
-    <div className="relative inline-flex" onKeyDown={onKeyDown}>
+    <div className="relative inline-flex" onKeyDown={popover.onKeyDown}>
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => (open ? close() : openPanel())}
+        onClick={() => (popover.open ? popover.close() : openPanel())}
         aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={panelId}
+        aria-expanded={popover.open}
+        aria-controls={popover.panelId}
         title={title}
         className={cn(
           "border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
-          open && "border-at-shore",
+          popover.open && "border-at-shore",
           className,
         )}
       >
         {children}
       </button>
-      {open && (
-        <>
-          {/* `pointerdown`, not `click`, as FilterMenu's backdrop: iOS Safari does
-              not reliably raise a click on a plain div. */}
-          <div className="fixed inset-0 z-40" onPointerDown={close} aria-hidden />
-          <div
-            ref={panelRef}
-            id={panelId}
-            role="dialog"
-            aria-label={mode === "day" ? "Choose a day" : `Choose a ${mode}`}
-            tabIndex={-1}
-            className={cn(
-              "fixed inset-x-3 bottom-3 z-50 border border-at-border bg-at-surface p-3 text-at-ink shadow-lg outline-none sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:mt-1 sm:w-80",
-              alignEnd ? "sm:right-0" : "sm:left-0",
-            )}
-          >
-            {header}
-            {mode === "month" ? (
-              <div className="mt-3 grid grid-cols-3 gap-1">
-                {Array.from({ length: 12 }, (_, i) => {
-                  const ym = ymKey(Number(year), i + 1);
-                  const on = ym === monthOf(from);
-                  return (
-                    <button
-                      key={ym}
-                      type="button"
-                      disabled={ym < minMonth || ym > maxMonth}
-                      aria-pressed={on}
-                      onClick={() =>
-                        go({ window: "month", period: monthPickPeriod(ym, today) ?? undefined })
-                      }
-                      className={cn("h-10 text-sm font-semibold", cellClass(on))}
-                    >
-                      {monthShort(ym)}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mt-3">
-                <div className="grid grid-cols-7 pb-1 text-center text-xs text-at-muted">
-                  {WEEKDAYS.map((d, i) => (
-                    <span key={i} aria-hidden>
-                      {d}
-                    </span>
-                  ))}
+      <PopoverPanel
+        popover={popover}
+        role="dialog"
+        label={mode === "day" ? "Choose a day" : `Choose a ${mode}`}
+        align={alignEnd ? "end" : "start"}
+        className="p-3 sm:w-80"
+      >
+        {header}
+        {mode === "month" ? (
+          <div className="mt-3 grid grid-cols-3 gap-1">
+            {Array.from({ length: 12 }, (_, i) => {
+              const ym = ymKey(Number(year), i + 1);
+              const on = ym === monthOf(from);
+              return (
+                <button
+                  key={ym}
+                  type="button"
+                  disabled={ym < minMonth || ym > maxMonth}
+                  aria-pressed={on}
+                  onClick={() =>
+                    go({ window: "month", period: monthPickPeriod(ym, today) ?? undefined })
+                  }
+                  className={cn("h-10 text-sm font-semibold", cellClass(on))}
+                >
+                  {monthShort(ym)}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <div className="grid grid-cols-7 pb-1 text-center text-xs text-at-muted">
+              {WEEKDAYS.map((d, i) => (
+                <span key={i} aria-hidden>
+                  {d}
+                </span>
+              ))}
+            </div>
+            {monthWeeks(shown).map((week) =>
+              mode === "week" ? (
+                <WeekRow
+                  key={week[0]}
+                  week={week}
+                  month={shown}
+                  calendar={calendar}
+                  onPick={() =>
+                    go({
+                      window: "week",
+                      period: weekPickPeriod(week[0]!, today) ?? undefined,
+                    })
+                  }
+                />
+              ) : (
+                <div key={week[0]} className="grid grid-cols-7 gap-0.5 pb-0.5">
+                  {week.map((d) => {
+                    const on = d >= from && d <= to;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        disabled={d < minDay || d > maxDay}
+                        aria-pressed={on}
+                        aria-label={serviceDayLabel(d)}
+                        onClick={() => go({ day: d === today ? undefined : d })}
+                        className={cn(
+                          "h-9 text-sm tabular-nums",
+                          cellClass(on),
+                          !on && monthOf(d) !== shown && "text-at-muted",
+                          d === today && !on && "font-semibold text-at-shore",
+                        )}
+                      >
+                        {Number(d.slice(8))}
+                      </button>
+                    );
+                  })}
                 </div>
-                {monthWeeks(shown).map((week) =>
-                  mode === "week" ? (
-                    <WeekRow
-                      key={week[0]}
-                      week={week}
-                      month={shown}
-                      calendar={calendar}
-                      onPick={() =>
-                        go({
-                          window: "week",
-                          period: weekPickPeriod(week[0]!, today) ?? undefined,
-                        })
-                      }
-                    />
-                  ) : (
-                    <div key={week[0]} className="grid grid-cols-7 gap-0.5 pb-0.5">
-                      {week.map((d) => {
-                        const on = d >= from && d <= to;
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            disabled={d < minDay || d > maxDay}
-                            aria-pressed={on}
-                            aria-label={serviceDayLabel(d)}
-                            onClick={() => go({ day: d === today ? undefined : d })}
-                            className={cn(
-                              "h-9 text-sm tabular-nums",
-                              cellClass(on),
-                              !on && monthOf(d) !== shown && "text-at-muted",
-                              d === today && !on && "font-semibold text-at-shore",
-                            )}
-                          >
-                            {Number(d.slice(8))}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ),
-                )}
-              </div>
+              ),
             )}
           </div>
-        </>
-      )}
+        )}
+      </PopoverPanel>
     </div>
   );
 }

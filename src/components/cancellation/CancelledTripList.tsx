@@ -190,7 +190,7 @@ export function CancelledTripList({
             return (
               <Fragment key={`${t.service_date}-${t.trip_id}`}>
                 {label && (
-                  <li className="no-stripe pt-3 pb-1 text-xs font-semibold tracking-zero text-at-muted uppercase first:pt-0">
+                  <li className="no-stripe at-eyebrow pt-3 pb-1 text-at-muted first:pt-0">
                     {label}
                   </li>
                 )}

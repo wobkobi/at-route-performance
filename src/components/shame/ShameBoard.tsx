@@ -2,6 +2,7 @@
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Hint } from "@/components/ui/Hint";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import {
@@ -71,11 +72,14 @@ export function ShameHourLabel({
       </Link>
     );
   }
-  return (
-    <span className={cn(LABEL, "text-at-muted", afterMidnight && "cursor-help")} title={note}>
-      {nzHourLabel(hour)}
-    </span>
-  );
+  if (note) {
+    return (
+      <Hint align="start" hint={note} className={cn(LABEL, "relative z-10 text-at-muted")}>
+        {nzHourLabel(hour)}
+      </Hint>
+    );
+  }
+  return <span className={cn(LABEL, "text-at-muted")}>{nzHourLabel(hour)}</span>;
 }
 
 /**

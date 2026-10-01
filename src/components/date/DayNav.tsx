@@ -3,6 +3,7 @@
 import { DatePicker } from "@/components/date/DatePicker";
 import { StepPending } from "@/components/date/StepPending";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { Hint } from "@/components/ui/Hint";
 import type { PickerState } from "@/lib/time/calendar";
 import { serviceDayLabel, serviceDayWindowText, shiftDays } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
@@ -124,12 +125,12 @@ export function DayNav({
           {serviceDayLabel(serviceDate)}
         </DatePicker>
       ) : (
-        <span
-          className="min-w-24 cursor-help px-2 text-center text-sm font-semibold tabular-nums"
-          title={serviceDayWindowText(serviceDate)}
+        <Hint
+          hint={serviceDayWindowText(serviceDate)}
+          triggerClassName="min-w-24 px-2 text-center text-sm font-semibold tabular-nums"
         >
           {serviceDayLabel(serviceDate)}
-        </span>
+        </Hint>
       )}
       {hasNext ? (
         <Link
@@ -144,12 +145,12 @@ export function DayNav({
           </StepPending>
         </Link>
       ) : nextPending ? (
-        <span
-          className="px-1 text-xs text-at-muted"
-          title="Today began at 4am but has too few arrivals so far, so this shows the day before"
+        <Hint
+          hint="Today began at 4am but has too few arrivals so far, so this shows the day before"
+          triggerClassName="px-1 text-xs text-at-muted"
         >
           today still starting
-        </span>
+        </Hint>
       ) : (
         <span className="step-slot" aria-hidden />
       )}
