@@ -16,9 +16,9 @@ import {
   getCancelledCount,
   getFilteredCancellations,
   getFilteredRankings,
-  getShameOfWeek,
-  getShameRouteOfWeek,
-  getWorstStopsOfWeek,
+  getRouteBoardOfWeek,
+  getStopBoardOfWeek,
+  getTripBoardOfWeek,
   PERIOD_REVALIDATE,
 } from "@/lib/data";
 import { MODE_NAME, type Mode } from "@/lib/mode";
@@ -126,9 +126,9 @@ export function loadPeriodBatch(view: PeriodView): PeriodBatch {
   const { mode, schools, range } = view;
   return {
     core: handled(loadPeriodCore(view)),
-    shame: handled(getShameOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
-    shameRoute: handled(getShameRouteOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
-    shameStop: handled(getWorstStopsOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
+    shame: handled(getTripBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
+    shameRoute: handled(getRouteBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
+    shameStop: handled(getStopBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
   };
 }
 

@@ -44,8 +44,8 @@ import {
   getRouteNames,
   getRouteStats,
   getRouteStopSplit,
+  getRouteTripStats,
   getTripRiderWait,
-  getWorstTripsOfDay,
   type TripSort,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
@@ -364,8 +364,8 @@ export default async function RoutePage({
   const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds, tripWaits] =
     await Promise.all([
       isWeekView
-        ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
-        : getWorstTripsOfDay({
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getRouteTripStats>>)
+        : getRouteTripStats({
             routeId: slug,
             range,
             sort: tripSort,

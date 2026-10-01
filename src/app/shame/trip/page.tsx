@@ -20,18 +20,18 @@ import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
+  getFilterUsage,
   getLatestEventDate,
   getShameDayHours,
-  getShameOfDay,
-  getShameOfWeek,
   getShameRouteStreaksBatch,
-  getShameTripsInHours,
+  getTripBoardInHours,
+  getTripBoardOfDay,
+  getTripBoardOfWeek,
   PERIOD_REVALIDATE,
   SHAME_MIN_STOPS,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
 import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
 import { tripHref } from "@/lib/page/hrefs";
@@ -156,7 +156,7 @@ async function TripRangeBoard({
   filter: ShameFilter;
   periodWhen: string;
 }): Promise<JSX.Element> {
-  const shame = await getShameOfWeek(range, filter, PERIOD_REVALIDATE);
+  const shame = await getTripBoardOfWeek(range, filter, PERIOD_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
   const routeDayCounts = countBy(shame.days, (d) => d.routeId);
 
@@ -244,7 +244,7 @@ async function TripDayBoard({
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
   const [shame, dayHours] = await Promise.all([
-    getShameOfDay(range, filter, TODAY_REVALIDATE),
+    getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
     getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
@@ -345,7 +345,7 @@ async function TripHoursBoard({
   filter: ShameFilter;
   hours: HourRange;
 }): Promise<JSX.Element> {
-  const { rows, total } = await getShameTripsInHours(range, filter, hours, TODAY_REVALIDATE);
+  const { rows, total } = await getTripBoardInHours(range, filter, hours, TODAY_REVALIDATE);
   const crowned = isCrownable(rows[0] ?? null);
 
   /**

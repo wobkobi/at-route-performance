@@ -12,18 +12,18 @@ import {
   getLatestTripDay,
   getNetworkCancelledTrips,
   getRankings,
+  getRouteBoardOfDay,
+  getRouteBoardOfWeek,
   getRouteDailyStats,
   getRouteStats,
-  getShameOfDay,
-  getShameOfWeek,
-  getShameRouteOfDay,
-  getShameRouteOfWeek,
+  getStopBoardOfDay,
+  getStopBoardOfWeek,
   getStopStats,
+  getTripBoardOfDay,
+  getTripBoardOfWeek,
   getTripCancellation,
   getTripScheduledStops,
   getTripTimeline,
-  getWorstStopsOfDay,
-  getWorstStopsOfWeek,
   LIVE_DAY_REVALIDATE,
   PERIOD_REVALIDATE,
   TODAY_REVALIDATE,
@@ -465,10 +465,10 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     const period = await resolvePeriod(card.window, card.period);
     let body: SubjectBodyProps = NOTHING_RANKED;
     if (card.board === "trip") {
-      const t = (await getShameOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
+      const t = (await getTripBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (t) body = runBody(t, true);
     } else if (card.board === "route") {
-      const r = (await getShameRouteOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
+      const r = (await getRouteBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (r)
         body = {
           route: glyphOf(r),
@@ -481,7 +481,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
           ],
         };
     } else {
-      const s = (await getWorstStopsOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
+      const s = (await getStopBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (s)
         body = {
           route: null,
@@ -506,7 +506,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
   let date: string;
   let body: SubjectBodyProps;
   if (card.board === "trip") {
-    const day = await shameDay(card, (range) => getShameOfDay(range, filter, TODAY_REVALIDATE));
+    const day = await shameDay(card, (range) => getTripBoardOfDay(range, filter, TODAY_REVALIDATE));
     date = day.date;
     const hours = filterLiveHours(day.data.hours, date);
     const t = pickWorst(hours);
@@ -515,7 +515,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     else body = runBody(t, false);
   } else if (card.board === "route") {
     const day = await shameDay(card, (range) =>
-      getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+      getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
     );
     date = day.date;
     const r = pickWorst(filterLiveHours(day.data.hours, date));
@@ -533,9 +533,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
         ],
       };
   } else {
-    const day = await shameDay(card, (range) =>
-      getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
-    );
+    const day = await shameDay(card, (range) => getStopBoardOfDay(range, filter, TODAY_REVALIDATE));
     date = day.date;
     const s = pickWorst(filterLiveHours(day.data.hours, date));
     if (!s) body = NOTHING_RANKED;

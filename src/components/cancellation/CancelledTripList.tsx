@@ -15,7 +15,7 @@ import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ShowMore } from "@/components/ui/ShowMore";
-import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
+import type { NetworkCancelledTrip } from "@/lib/data";
 import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
 import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";

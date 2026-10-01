@@ -45,13 +45,13 @@ import {
   getFilteredCancellations,
   getFilteredRankings,
   getLatestEventDate,
-  getShameOfDay,
-  getShameRouteOfDay,
-  getShameRoutesInHours,
+  getRouteBoardInHours,
+  getRouteBoardOfDay,
   getShameRouteStreak,
-  getShameStopsInHours,
-  getShameTripsInHours,
-  getWorstStopsOfDay,
+  getStopBoardInHours,
+  getStopBoardOfDay,
+  getTripBoardInHours,
+  getTripBoardOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
@@ -637,9 +637,9 @@ async function HomeShameCards({
   if (hours) {
     const live = linkDay === undefined;
     const [trips, routes, stops] = await Promise.all([
-      getShameTripsInHours(range, filter, hours, TODAY_REVALIDATE),
-      getShameRoutesInHours(range, filter, hours, TODAY_REVALIDATE),
-      getShameStopsInHours(range, filter, hours, TODAY_REVALIDATE),
+      getTripBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+      getRouteBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+      getStopBoardInHours(range, filter, hours, TODAY_REVALIDATE),
     ]);
     const trip = crownedTop(trips.rows);
     const route = crownedTop(routes.rows);
@@ -669,9 +669,9 @@ async function HomeShameCards({
     );
   }
   const [shameTrips, shameRoutes, shameStops] = await Promise.all([
-    getShameOfDay(range, filter, TODAY_REVALIDATE),
-    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
-    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
+    getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
+    getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
+    getStopBoardOfDay(range, filter, TODAY_REVALIDATE),
   ]);
   const tripHours = filterLiveHours(shameTrips.hours, serviceDate);
   const trip = crownedRow(tripHours);

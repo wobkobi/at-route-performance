@@ -27,13 +27,13 @@ import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
   getEarliestDataDay,
+  getRouteModeMap,
   getRouteNames,
   getStationSiblings,
   getStopIdentity,
   getStopStats,
   LIVE_DAY_REVALIDATE,
 } from "@/lib/data";
-import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import {
   alertsForStop,

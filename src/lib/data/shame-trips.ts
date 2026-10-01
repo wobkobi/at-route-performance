@@ -26,7 +26,7 @@ import type { ShameOfDay, ShameOfWeek, ShameRanked, ShameTrip } from "@/types/da
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's worst runs.
  */
-export function cachedWorstTripsOfDay(
+export function cachedTripBoardOfDay(
   date: string,
   mode: Mode | null,
   schools: SchoolFilter,
@@ -69,7 +69,7 @@ interface ShameTripRaw extends Omit<
  * @param revalidate - Cache lifetime in seconds.
  * @returns The day's worst run and the per-hour worst list (earliest hour first).
  */
-export async function getShameOfDay(
+export async function getTripBoardOfDay(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -210,7 +210,7 @@ export const SHAME_RANKED_LIMIT = 10;
  * @param revalidate - Cache lifetime in seconds.
  * @returns Up to {@link SHAME_RANKED_LIMIT} runs, worst first, and how many qualified.
  */
-export async function getShameTripsInHours(
+export async function getTripBoardInHours(
   range: DateRange,
   filter: ShameFilter,
   hours: HourRange,
@@ -346,7 +346,7 @@ function shamePipelineBase(
 /**
  * The week's "Shame of the Week": the single most off-schedule run plus the
  * worst run of each service day, within the chosen filter. Mirrors
- * {@link getShameOfDay} but groups by service day instead of hour, bucketing
+ * {@link getTripBoardOfDay} but groups by service day instead of hour, bucketing
  * each run by the service date ingest stamped on it. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters mirroring the home page.
@@ -355,7 +355,7 @@ function shamePipelineBase(
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst run and the per-day worst list, earliest day first.
  */
-export async function getShameOfWeek(
+export async function getTripBoardOfWeek(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -368,7 +368,7 @@ export async function getShameOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstTripsOfDay(date, mode, schools, revalidate),
+        cachedTripBoardOfDay(date, mode, schools, revalidate),
       ),
     )
   ).flat();
@@ -382,7 +382,7 @@ export async function getShameOfWeek(
 
 /**
  * The worst run of each service day within a range (one row per day with data).
- * Used per-day by {@link getShameOfWeek}; left uncached so the caller owns the
+ * Used per-day by {@link getTripBoardOfWeek}; left uncached so the caller owns the
  * per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).

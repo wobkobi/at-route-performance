@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
-import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data/routes";
+import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data";
 import { logReadFailure, readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { formatCount, formatPct } from "@/lib/format";

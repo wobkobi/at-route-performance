@@ -20,18 +20,18 @@ import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
+  getFilterUsage,
   getLatestEventDate,
+  getRouteBoardInHours,
+  getRouteBoardOfDay,
+  getRouteBoardOfWeek,
   getShameDayHours,
-  getShameRouteOfDay,
-  getShameRouteOfWeek,
-  getShameRoutesInHours,
   getShameRouteStreaksBatch,
   MIN_ROUTE_EVENTS_HOUR,
   PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
 import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
 import { routeHref } from "@/lib/page/hrefs";
@@ -144,7 +144,7 @@ async function RouteRangeBoard({
   isMonth: boolean;
   periodParam: string | null;
 }): Promise<JSX.Element> {
-  const shame = await getShameRouteOfWeek(range, filter, PERIOD_REVALIDATE);
+  const shame = await getRouteBoardOfWeek(range, filter, PERIOD_REVALIDATE);
   const periodNoun = isMonth ? "month" : "week";
   const worstKey = shame.worst?.date ?? null;
   const routeDayCounts = countBy(shame.days, (d) => d.routeId);
@@ -242,7 +242,7 @@ async function RouteDayBoard({
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
   const [shame, dayHours] = await Promise.all([
-    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+    getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
     getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
@@ -357,7 +357,7 @@ async function RouteHoursBoard({
   hours: HourRange;
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
-  const { rows, total } = await getShameRoutesInHours(range, filter, hours, TODAY_REVALIDATE);
+  const { rows, total } = await getRouteBoardInHours(range, filter, hours, TODAY_REVALIDATE);
   const crowned = isCrownable(rows[0] ?? null);
 
   /**

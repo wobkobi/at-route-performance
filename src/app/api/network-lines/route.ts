@@ -2,7 +2,7 @@
 // GET handler returning the road path of every route, for the live map's underlay.
 
 import { readFailed } from "@/lib/api-error";
-import { getNetworkLines } from "@/lib/data/network-lines";
+import { getNetworkLines } from "@/lib/data";
 import { NextResponse } from "next/server";
 
 /**

@@ -22,6 +22,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getOperatorDirectory,
+  getRouteModeMap,
   getRouteNames,
   getTripScheduledStops,
   getTripShape,
@@ -31,7 +32,6 @@ import {
   getVehicleWorkByDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap, type LiveVehicle } from "@/lib/feed/vehicles";
 import {

@@ -18,17 +18,17 @@ import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
+  getFilterUsage,
   getLatestEventDate,
   getShameDayHours,
-  getShameStopsInHours,
-  getWorstStopsOfDay,
-  getWorstStopsOfWeek,
+  getStopBoardInHours,
+  getStopBoardOfDay,
+  getStopBoardOfWeek,
   MIN_STOP_EVENTS_HOUR,
   PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getFilterUsage } from "@/lib/data/filter-usage";
 import { formatCount, plural } from "@/lib/format";
 import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
 import { stopHref } from "@/lib/page/hrefs";
@@ -159,7 +159,7 @@ async function StopRangeBoard({
   filter: ShameFilter;
   periodWhen: string;
 }): Promise<JSX.Element> {
-  const shame = await getWorstStopsOfWeek(range, filter, PERIOD_REVALIDATE);
+  const shame = await getStopBoardOfWeek(range, filter, PERIOD_REVALIDATE);
   // Crowned by day, not by stop: a stop that tops several days wins one of them,
   // and its other rows are ordinary rows.
   const worstKey = shame.worst?.date ?? null;
@@ -237,7 +237,7 @@ async function StopDayBoard({
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
   const [shame, dayHours] = await Promise.all([
-    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
+    getStopBoardOfDay(range, filter, TODAY_REVALIDATE),
     // The span is which hours the day ran, shared with the trips and routes
     // boards, so it is read without the direction: narrowed, a Late board would
     // lose the hours whose worst stop ran early rather than showing them empty.
@@ -334,7 +334,7 @@ async function StopHoursBoard({
   hours: HourRange;
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
-  const { rows, total } = await getShameStopsInHours(range, filter, hours, TODAY_REVALIDATE);
+  const { rows, total } = await getStopBoardInHours(range, filter, hours, TODAY_REVALIDATE);
   const crowned = isCrownable(rows[0] ?? null);
 
   /**

@@ -10,7 +10,7 @@ import { ModeUsageFilter } from "@/components/filter/ModeUsageFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageHeader } from "@/components/ui/PageHeader";
-import type { FilterUsage } from "@/lib/data/filter-usage";
+import type { FilterUsage } from "@/lib/data";
 import type { Mode } from "@/lib/mode";
 import type { ShameBoard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";

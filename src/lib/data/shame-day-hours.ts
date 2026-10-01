@@ -1,9 +1,9 @@
 // src/lib/data/shame-day-hours.ts
 // The hours any of the three shame day boards has a row for, so each board can cover the same span.
 import type { ShameFilter } from "@/lib/data/shame-filter";
-import { getShameRouteOfDay } from "@/lib/data/shame-routes";
-import { getShameOfDay } from "@/lib/data/shame-trips";
-import { getWorstStopsOfDay } from "@/lib/data/stops";
+import { getRouteBoardOfDay } from "@/lib/data/shame-routes";
+import { getStopBoardOfDay } from "@/lib/data/shame-stops";
+import { getTripBoardOfDay } from "@/lib/data/shame-trips";
 import type { DateRange } from "@/lib/time/service-day";
 
 /**
@@ -21,9 +21,9 @@ export async function getShameDayHours(
   revalidate: number,
 ): Promise<number[]> {
   const [trips, routes, stops] = await Promise.all([
-    getShameOfDay(range, filter, revalidate),
-    getShameRouteOfDay(range, filter, revalidate),
-    getWorstStopsOfDay(range, filter, revalidate),
+    getTripBoardOfDay(range, filter, revalidate),
+    getRouteBoardOfDay(range, filter, revalidate),
+    getStopBoardOfDay(range, filter, revalidate),
   ]);
   const hours = [...trips.hours, ...routes.hours, ...stops.hours].map((h) => h.hour);
   return [...new Set(hours)];

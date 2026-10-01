@@ -30,8 +30,8 @@ import {
 } from "@/lib/time/service-day";
 import type { PerTripStat, TripStop, TripTimeline } from "@/types/api";
 
-/** Parameters for {@link getWorstTripsOfDay}. */
-export interface WorstTripsParams {
+/** Parameters for {@link getRouteTripStats}. */
+export interface RouteTripStatsParams {
   routeId: string;
   range: DateRange;
   limit?: number;
@@ -39,7 +39,7 @@ export interface WorstTripsParams {
   sort?: TripSort;
 }
 
-/** Ordering for {@link getWorstTripsOfDay}. */
+/** Ordering for {@link getRouteTripStats}. */
 export type TripSort = "off" | "late" | "early" | "departure";
 
 /**
@@ -67,7 +67,7 @@ interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
  * @param p - Route, day window, on-time threshold, optional row limit and sort.
  * @returns Per-trip rows ordered by `sort` (up to `limit`, default 50).
  */
-export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
+export async function getRouteTripStats(p: RouteTripStatsParams): Promise<PerTripStat[]> {
   const limit = p.limit ?? 50;
   const sort = p.sort ?? "off";
   return cachedForRange(

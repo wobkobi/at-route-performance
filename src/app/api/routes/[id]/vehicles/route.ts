@@ -2,7 +2,7 @@
 // GET handler returning live vehicle positions JSON for a route, each with its current delay.
 
 import { readFailed } from "@/lib/api-error";
-import { getOperatorDirectory } from "@/lib/data/operators";
+import { getOperatorDirectory } from "@/lib/data";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { operatorOf } from "@/lib/operators";
 import { routeSlug } from "@/lib/route/slug";

@@ -12,9 +12,9 @@ import { readFailed } from "@/lib/api-error";
 import { requireCronAuth } from "@/lib/cron/auth";
 import { forEachLimited, pageWarmPaths } from "@/lib/cron/warm";
 import {
-  cachedWorstRoutesOfDay,
-  cachedWorstStopsOfDay,
-  cachedWorstTripsOfDay,
+  cachedRouteBoardOfDay,
+  cachedStopBoardOfDay,
+  cachedTripBoardOfDay,
   PERIOD_REVALIDATE,
 } from "@/lib/data";
 import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
@@ -81,10 +81,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const yesterday = shiftDays(nzServiceDayString(), -1);
     const [trips, routes, stops] = await Promise.all([
-      cachedWorstTripsOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
-      cachedWorstRoutesOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
+      cachedTripBoardOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
+      cachedRouteBoardOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
       // Both directions: that is what every card and the board's own default read.
-      cachedWorstStopsOfDay(yesterday, null, "exclude", null, PERIOD_REVALIDATE),
+      cachedStopBoardOfDay(yesterday, null, "exclude", null, PERIOD_REVALIDATE),
     ]);
     after(() => warmPages(new URL(request.url).origin, yesterday));
     return NextResponse.json(

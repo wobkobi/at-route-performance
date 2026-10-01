@@ -3,7 +3,7 @@
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { type ShameFilter, schoolRouteMatch } from "@/lib/data/shame-filter";
-import { SHAME_RANKED_LIMIT, cachedWorstTripsOfDay } from "@/lib/data/shame-trips";
+import { SHAME_RANKED_LIMIT, cachedTripBoardOfDay } from "@/lib/data/shame-trips";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { type Mode, modeOrBus } from "@/lib/mode";
@@ -28,14 +28,14 @@ import type {
 
 /**
  * The cached worst routes for one service day. Same key/TTL ownership as
- * {@link cachedWorstTripsOfDay}.
+ * {@link cachedTripBoardOfDay}.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param mode - Route mode filter (null = every mode).
  * @param schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's worst routes.
  */
-export function cachedWorstRoutesOfDay(
+export function cachedRouteBoardOfDay(
   date: string,
   mode: Mode | null,
   schools: SchoolFilter,
@@ -424,7 +424,7 @@ interface ShameRouteRaw {
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst route and the per-hour worst list.
  */
-export async function getShameRouteOfDay(
+export async function getRouteBoardOfDay(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -513,7 +513,7 @@ export async function getShameRouteOfDay(
  * @param revalidate - Cache lifetime in seconds.
  * @returns Up to {@link SHAME_RANKED_LIMIT} routes, worst first, and how many qualified.
  */
-export async function getShameRoutesInHours(
+export async function getRouteBoardInHours(
   range: DateRange,
   filter: ShameFilter,
   hours: HourRange,
@@ -592,7 +592,7 @@ export async function getShameRoutesInHours(
 /**
  * The week's "Shame of the Week" for routes: the single most off-schedule route
  * plus the worst route of each service day. Groups `ArrivalEvent` by
- * `(routeId, serviceDay)`. Mirrors {@link getShameRouteOfDay} but for the week
+ * `(routeId, serviceDay)`. Mirrors {@link getRouteBoardOfDay} but for the week
  * view. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters.
@@ -601,7 +601,7 @@ export async function getShameRoutesInHours(
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst route and the per-day worst list, earliest day first.
  */
-export async function getShameRouteOfWeek(
+export async function getRouteBoardOfWeek(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -612,7 +612,7 @@ export async function getShameRouteOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstRoutesOfDay(date, mode, schools, revalidate),
+        cachedRouteBoardOfDay(date, mode, schools, revalidate),
       ),
     )
   ).flat();
@@ -626,7 +626,7 @@ export async function getShameRouteOfWeek(
 
 /**
  * The worst route of each service day within a range (one row per day with
- * data). Used per-day by {@link getShameRouteOfWeek}; left uncached so the
+ * data). Used per-day by {@link getRouteBoardOfWeek}; left uncached so the
  * caller owns the per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
