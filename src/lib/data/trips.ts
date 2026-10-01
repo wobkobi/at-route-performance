@@ -2,7 +2,7 @@
 // Runs of a route: the day's worst trips board, one trip's timeline and its schedule.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
-import { DAY_REVALIDATE, SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
+import { DAY_REVALIDATE, LIVE_DAY_REVALIDATE, SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import {
@@ -191,7 +191,7 @@ export async function getRouteTripStats(p: RouteTripStatsParams): Promise<PerTri
       sort,
     ],
     p.range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -341,7 +341,7 @@ export async function getTripTimeline(
     ["trip-timeline-v3", tripId, routeId, day?.start.toISOString() ?? "all"],
     // The "all" variant follows the trip's latest day and stays short-lived.
     day ?? null,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 

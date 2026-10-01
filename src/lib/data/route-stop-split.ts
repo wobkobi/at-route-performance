@@ -5,6 +5,7 @@
 // (rule 26): the feed keeps timing buses past closed stops.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
+import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { closedArrivalsMatch, queryRouteClosures } from "@/lib/data/route-closures";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { realDeviationMatchFor } from "@/lib/deviation";
@@ -101,6 +102,6 @@ export function getRouteStopSplit(
     (classified) => queryRouteStopSplit(slug, range, mode, classified, rawToCanon),
     ["route-stop-split-v2", slug, range.start.toISOString(), range.end.toISOString(), mode],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }

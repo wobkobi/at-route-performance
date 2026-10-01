@@ -2,7 +2,7 @@
 // Cancellations: per-route lists, counts and the most-cancelled board.
 import { pushTo, sumBy } from "@/lib/collections";
 import { cachedForDay, cachedForRange } from "@/lib/data/cache";
-import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
+import { FIVE_MINUTE_REVALIDATE, LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { prisma } from "@/lib/db";
@@ -110,7 +110,7 @@ export async function getCancelledTrips(
     },
     ["cancelled-trips-v4", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -225,7 +225,7 @@ function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[
     },
     ["network-cancelled-trips-v2", date],
     date,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -279,7 +279,12 @@ export async function getTripCancellation(
         ? { detected_at: row.detectedAt.toISOString(), service_date: row.serviceDate }
         : null;
     },
-    ["trip-cancellation", tripId, range?.start.toISOString() ?? "latest"],
+    [
+      "trip-cancellation",
+      tripId,
+      range?.start.toISOString() ?? "latest",
+      range?.end.toISOString() ?? "latest",
+    ],
     { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }

@@ -3,6 +3,7 @@
 // own arrivals bracket them (see confirmedDetour in lib/off-route.ts).
 import { pushTo } from "@/lib/collections";
 import { cachedForRange } from "@/lib/data/cache";
+import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
 import { confirmedDetour, MIN_SIGHTINGS, type Sighting } from "@/lib/off-route";
@@ -64,9 +65,9 @@ export async function getTripDetour(tripId: string, range: DateRange): Promise<T
       if (sightings.length === 0) return null;
       return { sightings, alert: rows.find((r) => r.alert)?.alert ?? null };
     },
-    ["trip-detour", tripId, range.start.toISOString()],
+    ["trip-detour", tripId, range.start.toISOString(), range.end.toISOString()],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -98,6 +99,6 @@ export async function getDetouredTripIds(routeId: string, range: DateRange): Pro
     },
     ["detoured-trips", routeId, range.start.toISOString(), range.end.toISOString()],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }

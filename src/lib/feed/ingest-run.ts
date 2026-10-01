@@ -57,8 +57,8 @@ export async function recordIngestRun(run: IngestRunInput): Promise<void> {
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown error";
-    console.warn("[INGEST_RUN] Failed to record run", { endpoint: run.endpoint, error: msg });
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.warn("[INGEST-RUN] Failed to record run", { endpoint: run.endpoint, error: msg });
   }
 }
 

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.41] - 2026-10-02
+
+### Fixed
+
+- The top-routes cache key carries its week again (finished weeks were sharing one entry), range
+  keys carry both ends, the positional live TTLs are named, and log prefixes share one upper-case
+  style.
+
 ## [2.41.39] - 2026-10-02
 
 ### Changed

@@ -403,7 +403,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
     : [];
   if (shapeIds.length > 0 && shapeDocs.length === 0) {
     console.warn(
-      `[route-view] No Shape records found for ${shapeIds.length} shape IDs — run /api/ingest/gtfs/shapes`,
+      `[ROUTE-VIEW] No Shape records found for ${shapeIds.length} shape IDs; run /api/ingest/gtfs/shapes`,
     );
   }
   const shapeById = new Map(
@@ -475,7 +475,7 @@ export async function buildRouteView(
     // memCache stores nothing for a rejected factory, so the next request
     // retries rather than living with this for the 24 h TTL.
     console.warn(
-      `[route-view] Pattern unavailable for ${routeId}`,
+      `[ROUTE-VIEW] Pattern unavailable for ${routeId}`,
       err instanceof Error ? err.message : err,
     );
     shape = emptyShape();

@@ -3,7 +3,7 @@
 import { groupBy } from "@/lib/collections";
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
-import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
+import { HOUR_REVALIDATE, LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
@@ -266,7 +266,7 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
     // TTL. Stable within a service day, since nzLast7DaysRange ends on the 4am
     // boundary rather than at now.
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -445,7 +445,7 @@ export async function getRouteDailyStats(
     },
     ["route-daily-stats", routeId, from?.toISOString() ?? "", to?.toISOString() ?? ""],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
   const penalties = await Promise.all(
     days.map((d) => getRouteRiderWait(nzServiceDayRange(d.date))),

@@ -4,6 +4,7 @@
 // closure recorded by mistake costs nothing once it is corrected.
 import { pushTo } from "@/lib/collections";
 import { cachedForRange } from "@/lib/data/cache";
+import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma, runCommand } from "@/lib/db";
 import { closesStops, type DayClosure } from "@/lib/strip/marks";
@@ -113,6 +114,6 @@ export function getRouteClosures(slug: string, range: DateRange): Promise<DayClo
     async () => queryRouteClosures(await routeIdsForSlug(slug), range),
     ["route-closures", slug, range.start.toISOString(), range.end.toISOString()],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }

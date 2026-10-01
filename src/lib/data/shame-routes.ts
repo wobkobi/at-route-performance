@@ -2,6 +2,7 @@
 // The worst routes: hourly and per-day boards, and the streak batch behind the flame badges.
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow } from "@/lib/data/raw";
+import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { type ShameFilter, schoolRouteMatch } from "@/lib/data/shame-filter";
 import { SHAME_RANKED_LIMIT, cachedTripBoardOfDay } from "@/lib/data/shame-trips";
 import { realDeviationMatchFor } from "@/lib/deviation";
@@ -246,7 +247,7 @@ function shameSlotsOfDay(
     },
     key,
     date,
-    3600,
+    HOUR_REVALIDATE,
   ).then((day) =>
     day ? { worstOfDayRouteId: day.worstOfDayRouteId, hours: new Map(day.hours) } : null,
   );

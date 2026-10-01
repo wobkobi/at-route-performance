@@ -5,6 +5,7 @@
 import { cachedForDay, windowEnd } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import {
@@ -112,7 +113,7 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
     },
     ["rider-wait-v2", date],
     date,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 

@@ -105,7 +105,7 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
       if (res.status === 429 || res.status >= 500) {
         const backoffMs = retryDelay(attempt);
         console.warn(
-          `[AT API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
+          `[AT-API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );
 
         if (attempt < retries) {
@@ -130,7 +130,7 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
         attempt === 0 &&
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
-        console.warn(`[AT API] ${lastError.message}. Retrying once...`);
+        console.warn(`[AT-API] ${lastError.message}. Retrying once...`);
         await sleep(2000);
         continue;
       }

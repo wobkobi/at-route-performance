@@ -69,7 +69,7 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
   const promise = fn()
     .then((value) => {
       if (process.env.NODE_ENV === "development") {
-        console.log(`[mem-cache miss] ${key} (${Date.now() - missAt}ms)`);
+        console.log(`[MEM-CACHE] miss ${key} (${Date.now() - missAt}ms)`);
       }
       store.set(key, { value, expiresAt: Date.now() + ttlSec * 1000 });
       inflight.delete(key);

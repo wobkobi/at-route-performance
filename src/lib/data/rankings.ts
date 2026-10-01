@@ -2,6 +2,7 @@
 // Per-route rankings over a window: summaries for rolled-up days, live scans for the rest.
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { LIVE_DAY_REVALIDATE, PERIOD_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
 import type { Mode } from "@/lib/mode";
@@ -146,9 +147,16 @@ export async function getTopRoutes(p: TopRoutesParams): Promise<RouteRow[]> {
   const range = isoWeekRange(p.week);
   return cachedForRange(
     (classified) => queryTopRoutes(p, range, classified),
-    ["top-routes", String(p.limit), p.metric, p.mode ?? ""],
+    [
+      "top-routes",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      String(p.limit),
+      p.metric,
+      p.mode ?? "all",
+    ],
     range,
-    3600,
+    PERIOD_REVALIDATE,
   );
 }
 
@@ -318,7 +326,7 @@ function cachedLiveRankingsOfDay(date: string): Promise<RouteRow[]> {
     () => queryLiveRankings(nzServiceDayRange(date)),
     ["live-rankings-day", date],
     date,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 

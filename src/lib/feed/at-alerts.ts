@@ -301,7 +301,7 @@ async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]
     );
     return alerts.map((a) => resolveAlertRoutes(a, tripRoutes, shortNames));
   } catch (err) {
-    console.warn("[AT Alerts] Route lookup failed", err instanceof Error ? err.message : err);
+    console.warn("[AT-ALERTS] Route lookup failed", err instanceof Error ? err.message : err);
     return alerts;
   }
 }
@@ -336,7 +336,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
       if (res.status === 429 || res.status >= 500) {
         const backoffMs = retryDelay(attempt);
         console.warn(
-          `[AT Alerts] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
+          `[AT-ALERTS] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );
         if (attempt < retries) {
           await sleep(backoffMs);
@@ -359,7 +359,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
         attempt === 0 &&
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
-        console.warn(`[AT Alerts] ${lastError.message}. Retrying once...`);
+        console.warn(`[AT-ALERTS] ${lastError.message}. Retrying once...`);
         await sleep(2000);
         continue;
       }
