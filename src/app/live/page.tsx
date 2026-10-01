@@ -9,12 +9,18 @@ import { LoadingBlock } from "@/components/Loading";
 import LiveMapWrapper from "@/components/map/LiveMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
 import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data/routes";
 import { logReadFailure, readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
-import { formatCount, formatPct, OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { formatCount, formatPct } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
 import { parseMode, type Mode } from "@/lib/mode";
 import { routeHref } from "@/lib/page/hrefs";
@@ -92,12 +98,10 @@ export default async function LivePage({
 
   return (
     <main className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Live now</h1>
-        <p className="mt-0.5 text-sm text-at-muted">
-          Every bus, train and ferry on a run right now. Refreshes every two minutes.
-        </p>
-      </header>
+      <PageHeader
+        title="Live now"
+        subtitle="Every bus, train and ferry on a run right now. Refreshes every two minutes."
+      />
 
       <ModeFilter
         active={mode}
@@ -110,13 +114,8 @@ export default async function LivePage({
       </Suspense>
 
       <section aria-labelledby="live-map" className="space-y-3">
-        <h2 id="live-map" className="text-lg font-ultra tracking-zero text-at-ink">
-          Where they are
-        </h2>
-        <LiveMapWrapper
-          mode={mode}
-          className="h-[min(27.5rem,65svh)] border border-at-border sm:h-140"
-        />
+        <SectionHeading id="live-map">Where they are</SectionHeading>
+        <LiveMapWrapper mode={mode} className="at-card h-[min(27.5rem,65svh)] sm:h-140" />
         <p className="text-xs text-at-muted">
           Tap a dot for its run and vehicle, or a line for the routes on it. Buses are the small
           dots, and each line is drawn in its route&apos;s colour. The buttons above the map show or
@@ -126,9 +125,7 @@ export default async function LivePage({
 
       <section aria-labelledby="live-routes" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="live-routes" className="text-lg font-ultra tracking-zero text-at-ink">
-            Routes running
-          </h2>
+          <SectionHeading id="live-routes">Routes running</SectionHeading>
           <nav aria-label="Order by" className="flex flex-wrap gap-2">
             {(Object.keys(SORT_LABEL) as LiveSort[]).map((s) => (
               <ChipLink
@@ -200,9 +197,9 @@ async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element
     // database case visible at all - the reader still gets the page.
     logReadFailure("live-figures", err);
     return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
+      <EmptyState>
         The live figures could not be read just now. Try again in a couple of minutes.
-      </div>
+      </EmptyState>
     );
   }
   const t = liveTotals(rows);
@@ -230,21 +227,19 @@ async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element
     },
   ];
   return (
-    <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-5">
+    <FigureStrip>
       {figures.map((f) => (
-        <div key={f.label} className="min-w-0">
-          <dt className="text-xs tracking-zero text-at-muted uppercase">{f.label}</dt>
-          <dd className={cn("text-2xl font-ultra tabular-nums", f.tone ?? "text-at-ink")}>
-            {f.value}
-          </dd>
-          {f.note !== undefined && (
-            <dd className="text-xs text-at-muted tabular-nums">
-              {f.note ? `${f.note} of those with a delay` : " "}
-            </dd>
-          )}
-        </div>
+        <Figure
+          key={f.label}
+          label={f.label}
+          className={f.tone}
+          // A blank note under the counts keeps their values level with the bands'.
+          note={f.note === undefined ? undefined : f.note ? `${f.note} of those with a delay` : " "}
+        >
+          {f.value}
+        </Figure>
       ))}
-    </dl>
+    </FigureStrip>
   );
 }
 
@@ -284,86 +279,74 @@ async function LiveTable({
   } catch (err) {
     // Same pair of sources as LiveFigures above, so the same reasoning applies.
     logReadFailure("live-routes", err);
-    return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        No live positions to list: they could not be read just now.
-      </div>
-    );
+    return <EmptyState>No live positions to list: they could not be read just now.</EmptyState>;
   }
   if (rows.length === 0) {
     return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
+      <EmptyState>
         Nothing is on a run right now. Late at night the network runs few or no services.
-      </div>
+      </EmptyState>
     );
   }
   const shown = all ? rows : rows.slice(0, TABLE_ROWS);
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="at-th-row">
-              <SortHeader {...head("route")} align="left">
-                Route
-              </SortHeader>
-              <SortHeader {...head("running")}>Running</SortHeader>
-              <SortHeader {...head("late")}>Late</SortHeader>
-              <SortHeader {...head("ontime")} className="hidden sm:table-cell">
-                On time
-              </SortHeader>
-              <SortHeader {...head("early")} className="hidden sm:table-cell">
-                Early
-              </SortHeader>
-              <SortHeader {...head("delay")} className="hidden md:table-cell">
-                Early or late, avg
-              </SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => {
-              const route = routes.get(r.slug);
-              const name = route ? routeSubtitle({ ...route, slug: r.slug }) : null;
-              const avg = offScheduleValue(r.avgDelaySec, null, r.mode);
-              return (
-                <tr key={r.slug} className="border-b border-at-border last:border-b-0">
-                  <th scope="row" className="p-3 text-left font-normal">
-                    <Link
-                      href={routeHref(r.slug)}
-                      className="flex min-w-0 items-center gap-2 hover:underline"
-                    >
-                      <ModeIcon
-                        mode={r.mode}
-                        shortName={route?.shortName ?? r.slug}
-                        longName={route?.longName}
-                        className="h-4 w-4 shrink-0"
-                      />
-                      <span className="font-semibold text-at-shore">{r.slug}</span>
-                      {name && name !== r.slug && (
-                        <span className="hidden truncate text-at-muted sm:inline">{name}</span>
-                      )}
-                    </Link>
-                  </th>
-                  <td className="p-3 text-right tabular-nums">{r.vehicles}</td>
-                  <td className={cn("p-3 text-right tabular-nums", r.late > 0 && "text-at-late")}>
-                    {r.late}
-                  </td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.early}</td>
-                  <td
-                    className={cn(
-                      "hidden p-3 text-right whitespace-nowrap tabular-nums md:table-cell",
-                      OFF_SCHEDULE_TONE_CLASS[avg.tone],
-                    )}
+      <DataTable caption="Routes running now">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("route")} align="left">
+              Route
+            </SortHeader>
+            <SortHeader {...head("running")}>Running</SortHeader>
+            <SortHeader {...head("late")}>Late</SortHeader>
+            <SortHeader {...head("ontime")} className="hidden sm:table-cell">
+              On time
+            </SortHeader>
+            <SortHeader {...head("early")} className="hidden sm:table-cell">
+              Early
+            </SortHeader>
+            <SortHeader {...head("delay")} className="hidden md:table-cell">
+              Early or late, avg
+            </SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((r) => {
+            const route = routes.get(r.slug);
+            const name = route ? routeSubtitle({ ...route, slug: r.slug }) : null;
+            return (
+              <tr key={r.slug} className={ROW_CLASS}>
+                <th scope="row" className="p-3 text-left font-normal">
+                  <Link
+                    href={routeHref(r.slug)}
+                    className="flex min-w-0 items-center gap-2 hover:underline"
                   >
-                    {avg.text}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    <ModeIcon
+                      mode={r.mode}
+                      shortName={route?.shortName ?? r.slug}
+                      longName={route?.longName}
+                      className="h-4 w-4 shrink-0"
+                    />
+                    <span className="font-semibold text-at-shore">{r.slug}</span>
+                    {name && name !== r.slug && (
+                      <span className="hidden truncate text-at-muted sm:inline">{name}</span>
+                    )}
+                  </Link>
+                </th>
+                <td className="p-3 text-right tabular-nums">{r.vehicles}</td>
+                <td className={cn("p-3 text-right tabular-nums", r.late > 0 && "text-at-late")}>
+                  {r.late}
+                </td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.early}</td>
+                <td className="hidden p-3 text-right whitespace-nowrap md:table-cell">
+                  <OffScheduleValue signedSec={r.avgDelaySec} absSec={null} mode={r.mode} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
       {shown.length < rows.length && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-at-muted tabular-nums">

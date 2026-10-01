@@ -10,6 +10,8 @@ import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   getCancelledCount,
   getEarliestDataDay,
@@ -172,11 +174,11 @@ export default async function DaysPage({
   dayRows.catch(() => undefined);
 
   return (
-    <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Day by day</h1>
-        <RangeControls basePath="/days" nav={nav} windows={WINDOWS} />
-      </header>
+    <main className="space-y-6">
+      <PageHeader
+        title="Day by day"
+        actions={<RangeControls basePath="/days" nav={nav} windows={WINDOWS} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <Suspense
@@ -354,82 +356,78 @@ async function DaysBody({
         </p>
       </div>
 
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="at-th-row">
-              <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
-                Day
-              </SortHeader>
-              {/* Not sortable: the verdict is banded from On time, which sorts. */}
-              <SortHeader align="left" className="px-2 py-3 sm:p-3">
-                Verdict
-              </SortHeader>
-              <SortHeader {...head("ontime")} className="px-2 py-3 sm:p-3">
-                On time
-              </SortHeader>
-              <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
-                Off by
-              </SortHeader>
-              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
-                Arrivals
-              </SortHeader>
-              <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
-                Flagged cancelled
-              </SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {past.map((s) => (
-              <tr key={s.date} className="border-b border-at-border last:border-b-0">
-                <th
-                  scope="row"
-                  className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
-                >
-                  <Link href={hrefFor(s.date)} className="at-link">
-                    {serviceDayLabel(s.date)}
-                  </Link>
-                  {s.date === today && (
-                    <span className="ml-1 font-normal text-at-muted">so far</span>
-                  )}
-                </th>
-                {s.kind === "day" ? (
-                  <>
-                    <td
-                      className={`px-2 py-3 font-semibold sm:p-3 ${s.verdict?.toneClass ?? "text-at-muted"}`}
-                    >
-                      {s.verdict?.label ?? UNKNOWN_VALUE}
-                    </td>
-                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
-                      {formatPct(s.summary.on_time_pct)}
-                    </td>
-                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
-                      {s.summary.avg_abs_delay_sec === null
-                        ? UNKNOWN_VALUE
-                        : formatDuration(s.summary.avg_abs_delay_sec)}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {formatCount(s.summary.events)}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {formatCount(s.summary.cancelled ?? 0)}
-                    </td>
-                  </>
-                ) : (
-                  <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
-                    No arrivals recorded
-                    {/* The cancellations are the only thing that separates the
+      <DataTable caption="Each day's verdict and figures">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
+              Day
+            </SortHeader>
+            {/* Not sortable: the verdict is banded from On time, which sorts. */}
+            <SortHeader align="left" className="px-2 py-3 sm:p-3">
+              Verdict
+            </SortHeader>
+            <SortHeader {...head("ontime")} className="px-2 py-3 sm:p-3">
+              On time
+            </SortHeader>
+            <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
+              Off by
+            </SortHeader>
+            <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
+              Arrivals
+            </SortHeader>
+            <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
+              Flagged cancelled
+            </SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {past.map((s) => (
+            <tr key={s.date} className={ROW_CLASS}>
+              <th
+                scope="row"
+                className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
+              >
+                <Link href={hrefFor(s.date)} className="at-link">
+                  {serviceDayLabel(s.date)}
+                </Link>
+                {s.date === today && <span className="ml-1 font-normal text-at-muted">so far</span>}
+              </th>
+              {s.kind === "day" ? (
+                <>
+                  <td
+                    className={`px-2 py-3 font-semibold sm:p-3 ${s.verdict?.toneClass ?? "text-at-muted"}`}
+                  >
+                    {s.verdict?.label ?? UNKNOWN_VALUE}
+                  </td>
+                  <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
+                    {formatPct(s.summary.on_time_pct)}
+                  </td>
+                  <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
+                    {s.summary.avg_abs_delay_sec === null
+                      ? UNKNOWN_VALUE
+                      : formatDuration(s.summary.avg_abs_delay_sec)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(s.summary.events)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(s.summary.cancelled ?? 0)}
+                  </td>
+                </>
+              ) : (
+                <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
+                  No arrivals recorded
+                  {/* The cancellations are the only thing that separates the
                         worst possible day - every trip cancelled, so nothing
                         arrived - from an ingest outage. Named here rather than
                         in the column beside it, which a phone does not render. */}
-                    {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
     </div>
   );
 }

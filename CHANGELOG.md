@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.31] - 2026-10-01
+
+### Changed
+
+- List pages share one page header, table and empty-state style; the show-more count is grouped
+
 ## [2.41.30] - 2026-10-01
 
 ### Changed

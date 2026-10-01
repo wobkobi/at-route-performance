@@ -9,6 +9,7 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { RouteExplorer } from "@/components/route/RouteExplorer";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { addTo } from "@/lib/collections";
 import {
   getCancelledRoutes,
@@ -178,10 +179,7 @@ export default async function RoutesPage({
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Routes</h1>
-        <RangeControls basePath="/routes" nav={nav} />
-      </header>
+      <PageHeader title="Routes" actions={<RangeControls basePath="/routes" nav={nav} />} />
 
       <RouteExplorer
         rows={explorerRows}

@@ -13,6 +13,7 @@ import { RangeControls } from "@/components/date/RangeControls";
 import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ChevronRight } from "@/components/icons";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -169,10 +170,10 @@ export default async function CancellationsPage({
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Cancellations</h1>
-        <RangeControls basePath="/cancellations" nav={nav} />
-      </header>
+      <PageHeader
+        title="Cancellations"
+        actions={<RangeControls basePath="/cancellations" nav={nav} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <ModeFilter
@@ -196,7 +197,7 @@ export default async function CancellationsPage({
         routes={byRoute.size}
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <CancelledBoard
             rows={boardRows.slice(0, BOARD_ROUTES)}

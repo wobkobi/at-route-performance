@@ -17,6 +17,8 @@ export interface DataTableProps {
   framed?: boolean;
   /** Extra classes for the scroll wrapper. */
   className?: string;
+  /** Extra classes for the table itself, such as a fixed layout for set column widths. */
+  tableClassName?: string;
   /** The `thead` and `tbody`. Header rows take `.at-th-row`, body rows {@link ROW_CLASS}, cells {@link CELL_CLASS}, and a row's first cell is a `th scope="row"`. */
   children: ReactNode;
 }
@@ -29,6 +31,7 @@ export interface DataTableProps {
  * @param props.showCaption - Show the caption visibly.
  * @param props.framed - Draw the box.
  * @param props.className - Extra classes for the wrapper.
+ * @param props.tableClassName - Extra classes for the table.
  * @param props.children - The table's sections.
  * @returns The table.
  */
@@ -37,11 +40,12 @@ export function DataTable({
   showCaption = false,
   framed = true,
   className,
+  tableClassName,
   children,
 }: DataTableProps): JSX.Element {
   return (
     <div className={cn("overflow-x-auto", framed && "at-card", className)}>
-      <table className="min-w-full text-sm">
+      <table className={cn("min-w-full text-sm", tableClassName)}>
         <caption
           className={showCaption ? "caption-bottom p-3 text-left text-xs text-at-muted" : "sr-only"}
         >

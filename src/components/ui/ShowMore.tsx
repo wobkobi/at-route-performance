@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format";
 import { LIST_PAGE_SIZE } from "@/lib/page/filter-params";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -22,7 +23,7 @@ export type ShowMoreProps = {
  * @returns The button, centred.
  */
 export function ShowMore({ remaining, className, href, onClick }: ShowMoreProps): JSX.Element {
-  const label = `Show ${Math.min(LIST_PAGE_SIZE, remaining)} more of ${remaining}`;
+  const label = `Show ${Math.min(LIST_PAGE_SIZE, remaining)} more of ${formatCount(remaining)}`;
   return (
     <div className={cn("flex justify-center", className)}>
       {href !== undefined ? (

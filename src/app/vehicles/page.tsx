@@ -9,6 +9,10 @@ import { OperatorSelect } from "@/components/filter/OperatorSelect";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ShowMore } from "@/components/ui/ShowMore";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import { TRAIN_COUNT_NOTE } from "@/components/VehiclesSection";
 import {
@@ -42,6 +46,7 @@ import {
   periodRangeNav,
   rangeViewParams,
   routeLinkParams,
+  windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
@@ -220,31 +225,27 @@ export default async function VehiclesPage({
   const showsTrains = mode === null || mode === "TRAIN";
 
   return (
-    <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            Hardest-worked vehicles
-          </h1>
-          <p className="mt-0.5 text-sm text-at-muted">
-            {operator ? (
-              <>
-                Every vehicle that ran {/^[AEIOU]/.test(operator.name) ? "an" : "a"}{" "}
-                <Link
-                  href={buildHref(operatorHref(operator), { ...view, school: filters.school })}
-                  className="at-link"
-                >
-                  {operator.name}
-                </Link>{" "}
-                route, ranked by how much it ran.
-              </>
-            ) : (
-              "Every vehicle that ran, ranked by how much it ran."
-            )}
-          </p>
-        </div>
-        <RangeControls basePath="/vehicles" nav={nav} />
-      </header>
+    <main className="space-y-6">
+      <PageHeader
+        title="Hardest-worked vehicles"
+        subtitle={
+          operator ? (
+            <>
+              Every vehicle that ran {/^[AEIOU]/.test(operator.name) ? "an" : "a"}{" "}
+              <Link
+                href={buildHref(operatorHref(operator), { ...view, school: filters.school })}
+                className="at-link"
+              >
+                {operator.name}
+              </Link>{" "}
+              route, ranked by how much it ran.
+            </>
+          ) : (
+            "Every vehicle that ran, ranked by how much it ran."
+          )
+        }
+        actions={<RangeControls basePath="/vehicles" nav={nav} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <ModeFilter
@@ -265,7 +266,7 @@ export default async function VehiclesPage({
       {/* Named from the visible label rather than by an aria-label repeating it,
           which had a screen reader announce "Rank by" twice over. */}
       <nav aria-labelledby="rank-by" className="flex flex-wrap items-center gap-2">
-        <span id="rank-by" className="text-xs tracking-zero text-at-muted uppercase">
+        <span id="rank-by" className="at-eyebrow text-at-muted">
           Rank by
         </span>
         {(Object.keys(SORT_LABEL) as VehicleSort[]).map((s) => (
@@ -284,77 +285,73 @@ export default async function VehiclesPage({
       </nav>
 
       {rows.length === 0 ? (
-        <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-          No vehicles recorded for this period yet.
-        </div>
+        <EmptyState>No vehicles recorded {windowPhrase(nav, period)}.</EmptyState>
       ) : (
-        <div className="overflow-x-auto border border-at-border bg-at-surface">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="at-th-row">
-                <th scope="col" className="w-10 p-3 text-right font-semibold">
-                  #
+        <DataTable caption="Vehicles by time in service">
+          <thead>
+            <tr className="at-th-row">
+              <th scope="col" className="w-10 p-3 text-right font-semibold">
+                #
+              </th>
+              <SortHeader {...head("vehicle")} align="left">
+                Vehicle
+              </SortHeader>
+              <SortHeader {...head("hours")}>In service</SortHeader>
+              <SortHeader {...head("runs")}>Runs</SortHeader>
+              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
+                Arrivals
+              </SortHeader>
+              {multiDay && (
+                <SortHeader {...head("days")} className="hidden sm:table-cell">
+                  Days
+                </SortHeader>
+              )}
+              <SortHeader {...head("off")} className="hidden sm:table-cell">
+                Avg off
+              </SortHeader>
+              <th scope="col" className="hidden p-3 font-semibold md:table-cell">
+                Routes
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((v, i) => (
+              <tr key={v.vehicleId} className={ROW_CLASS}>
+                <td className="p-3 text-right text-at-muted tabular-nums">{i + 1}</td>
+                <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
+                  <span className="flex items-center gap-2">
+                    <ModeIcon mode={v.mode} className="h-4 w-4" />
+                    <Link
+                      href={vehicleHref(v.vehicleId, { ...view, ...listState })}
+                      className="at-link"
+                    >
+                      {fleet.get(v.vehicleId)?.label ?? (
+                        <span className="tabular-nums">{v.vehicleId}</span>
+                      )}
+                    </Link>
+                    <VehicleLiveBadge vehicleId={v.vehicleId} live={live} />
+                  </span>
                 </th>
-                <SortHeader {...head("vehicle")} align="left">
-                  Vehicle
-                </SortHeader>
-                <SortHeader {...head("hours")}>In service</SortHeader>
-                <SortHeader {...head("runs")}>Runs</SortHeader>
-                <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
-                  Arrivals
-                </SortHeader>
+                <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                  {formatHours(v.serviceSec)}
+                </td>
+                <td className="p-3 text-right tabular-nums">{formatCount(v.runs)}</td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                  {formatCount(v.arrivals)}
+                </td>
                 {multiDay && (
-                  <SortHeader {...head("days")} className="hidden sm:table-cell">
-                    Days
-                  </SortHeader>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{v.days}</td>
                 )}
-                <SortHeader {...head("off")} className="hidden sm:table-cell">
-                  Avg off
-                </SortHeader>
-                <th scope="col" className="hidden p-3 font-semibold md:table-cell">
-                  Routes
-                </th>
+                <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
+                  {formatDuration(v.avgOffSec)}
+                </td>
+                <td className="hidden p-3 md:table-cell">
+                  <RouteLinks ids={v.routes} names={names} params={routeParams} />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((v, i) => (
-                <tr key={v.vehicleId} className="border-b border-at-border last:border-b-0">
-                  <td className="p-3 text-right text-at-muted tabular-nums">{i + 1}</td>
-                  <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
-                    <span className="flex items-center gap-2">
-                      <ModeIcon mode={v.mode} className="h-4 w-4" />
-                      <Link
-                        href={vehicleHref(v.vehicleId, { ...view, ...listState })}
-                        className="at-link"
-                      >
-                        {fleet.get(v.vehicleId)?.label ?? (
-                          <span className="tabular-nums">{v.vehicleId}</span>
-                        )}
-                      </Link>
-                      <VehicleLiveBadge vehicleId={v.vehicleId} live={live} />
-                    </span>
-                  </th>
-                  <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                    {formatHours(v.serviceSec)}
-                  </td>
-                  <td className="p-3 text-right tabular-nums">{formatCount(v.runs)}</td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                    {formatCount(v.arrivals)}
-                  </td>
-                  {multiDay && (
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">{v.days}</td>
-                  )}
-                  <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
-                    {formatDuration(v.avgOffSec)}
-                  </td>
-                  <td className="hidden p-3 md:table-cell">
-                    <RouteLinks ids={v.routes} names={names} params={routeParams} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -364,19 +361,15 @@ export default async function VehiclesPage({
             : `Showing ${formatCount(rows.length)} of ${formatCount(ranked.length)} vehicles`}
         </p>
         {rows.length < ranked.length && (
-          <Link
+          <ShowMore
+            remaining={ranked.length - rows.length}
             href={buildHref("/vehicles", {
               ...view,
               ...filters,
               ...keep,
               show: String(shown + LIST_PAGE_SIZE),
             })}
-            scroll={false}
-            className="chip chip-off"
-          >
-            Show {Math.min(LIST_PAGE_SIZE, ranked.length - rows.length)} more of{" "}
-            {ranked.length - rows.length}
-          </Link>
+          />
         )}
       </div>
 

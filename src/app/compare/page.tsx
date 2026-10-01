@@ -8,6 +8,9 @@
 import { ChipLink } from "@/components/Chip";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/date/RangeControls";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import {
   bestColumns,
@@ -357,16 +360,12 @@ export default async function ComparePage({
   const rows = figureRows(kind);
 
   return (
-    <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Compare</h1>
-          <p className="mt-0.5 text-sm text-at-muted">
-            Up to {MAX_COMPARE} {kind} side by side, {phrase}.
-          </p>
-        </div>
-        <RangeControls basePath="/compare" nav={nav} />
-      </header>
+    <main className="space-y-6">
+      <PageHeader
+        title="Compare"
+        subtitle={`Up to ${MAX_COMPARE} ${kind} side by side, ${phrase}.`}
+        actions={<RangeControls basePath="/compare" nav={nav} />}
+      />
 
       <nav aria-label="What to compare" className="flex flex-wrap gap-2">
         {(["routes", "stops"] as const).map((k) => (
@@ -377,79 +376,77 @@ export default async function ComparePage({
       </nav>
 
       {columns.length > 0 && (
-        <div className="overflow-x-auto border border-at-border bg-at-surface">
-          <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col className="w-24 sm:w-32" />
+        <DataTable caption={`The ${kind} side by side`} tableClassName="w-full table-fixed">
+          <colgroup>
+            <col className="w-24 sm:w-32" />
+            {columns.map((c) => (
+              <col key={c.id} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="border-b border-at-border align-top">
+              <th scope="col" className="p-2 text-left sm:p-3">
+                <span className="sr-only">Figure</span>
+              </th>
               {columns.map((c) => (
-                <col key={c.id} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr className="border-b border-at-border align-top">
-                <th scope="col" className="p-2 text-left sm:p-3">
-                  <span className="sr-only">Figure</span>
-                </th>
-                {columns.map((c) => (
-                  <th key={c.id} scope="col" className="p-2 text-left font-normal sm:p-3">
-                    <Link href={c.href} className="block min-w-0 hover:underline">
-                      <span className="flex items-start gap-1.5 font-semibold text-at-shore">
-                        {c.route && (
-                          <ModeIcon
-                            mode={c.route.mode}
-                            shortName={c.route.shortName}
-                            longName={c.route.longName}
-                            className="mt-0.5 h-4 w-4 shrink-0"
-                          />
-                        )}
-                        <span className="min-w-0 wrap-break-word">{c.name}</span>
-                      </span>
-                      {c.detail && (
-                        <span className="mt-0.5 line-clamp-2 block text-xs text-at-muted">
-                          {c.detail}
-                        </span>
+                <th key={c.id} scope="col" className="p-2 text-left font-normal sm:p-3">
+                  <Link href={c.href} className="block min-w-0 hover:underline">
+                    <span className="flex items-start gap-1.5 font-semibold text-at-shore">
+                      {c.route && (
+                        <ModeIcon
+                          mode={c.route.mode}
+                          shortName={c.route.shortName}
+                          longName={c.route.longName}
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                        />
                       )}
-                    </Link>
-                    <MiniSplit figures={c.figures} />
-                    <Link
-                      href={idsHref(toggleCompareId(ids, c.id), true)}
-                      scroll={false}
-                      aria-label={`Remove ${c.name}`}
-                      className="mt-2 inline-block text-xs text-at-muted hover:text-at-shore hover:underline"
-                    >
-                      × Remove
-                    </Link>
+                      <span className="min-w-0 wrap-break-word">{c.name}</span>
+                    </span>
+                    {c.detail && (
+                      <span className="mt-0.5 line-clamp-2 block text-xs text-at-muted">
+                        {c.detail}
+                      </span>
+                    )}
+                  </Link>
+                  <MiniSplit figures={c.figures} />
+                  <Link
+                    href={idsHref(toggleCompareId(ids, c.id), true)}
+                    scroll={false}
+                    aria-label={`Remove ${c.name}`}
+                    className="mt-2 inline-block text-xs text-at-muted hover:text-at-shore hover:underline"
+                  >
+                    × Remove
+                  </Link>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const values = columns.map((c) => figureOf(c, row.key));
+              const best = row.better ? bestColumns(values, row.better) : new Set<number>();
+              return (
+                <tr key={row.label} className={ROW_CLASS}>
+                  <th scope="row" className="at-eyebrow p-2 text-left text-at-muted sm:p-3">
+                    {row.label}
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const values = columns.map((c) => figureOf(c, row.key));
-                const best = row.better ? bestColumns(values, row.better) : new Set<number>();
-                return (
-                  <tr key={row.label} className="border-b border-at-border last:border-b-0">
-                    <th scope="row" className="at-eyebrow p-2 text-left text-at-muted sm:p-3">
-                      {row.label}
-                    </th>
-                    {values.map((v, i) => (
-                      <td
-                        key={columns[i]!.id}
-                        className={cn(
-                          "p-2 tabular-nums sm:p-3",
-                          best.has(i) && "font-semibold text-at-ontime",
-                        )}
-                      >
-                        {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
-                        {best.has(i) && <span className="sr-only"> (best)</span>}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  {values.map((v, i) => (
+                    <td
+                      key={columns[i]!.id}
+                      className={cn(
+                        "p-2 tabular-nums sm:p-3",
+                        best.has(i) && "font-semibold text-at-ontime",
+                      )}
+                    >
+                      {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
+                      {best.has(i) && <span className="sr-only"> (best)</span>}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {missing.length > 0 && (
@@ -464,9 +461,10 @@ export default async function ComparePage({
         </p>
       )}
 
-      <section
+      <Panel
         aria-label={`Add ${kind === "routes" ? "a route" : "a stop"}`}
-        className="space-y-3 border border-at-border bg-at-surface p-4"
+        pad="sm"
+        className="space-y-3"
       >
         {full ? (
           <p className="text-sm text-at-muted">
@@ -515,7 +513,7 @@ export default async function ComparePage({
             Start again
           </Link>
         )}
-      </section>
+      </Panel>
 
       <p className="text-xs text-at-muted">
         {kind === "routes"

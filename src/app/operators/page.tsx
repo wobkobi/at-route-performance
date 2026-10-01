@@ -10,6 +10,9 @@ import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SchoolAdded } from "@/components/SchoolAdded";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/cn";
 import {
   getCancelledByRoute,
@@ -31,6 +34,7 @@ import {
   parseRangeWindow,
   periodRangeNav,
   rangeViewParams,
+  windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
@@ -187,16 +191,12 @@ export default async function OperatorsPage({
   const table = sortRows(ranked, COLUMNS, sort, (o) => o.events < MIN_BOARD_EVENTS);
 
   return (
-    <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Operators</h1>
-          <p className="mt-0.5 text-sm text-at-muted">
-            The companies AT contracts to run its routes, best on time first.
-          </p>
-        </div>
-        <RangeControls basePath="/operators" nav={nav} />
-      </header>
+    <main className="space-y-6">
+      <PageHeader
+        title="Operators"
+        subtitle="The companies AT contracts to run its routes, best on time first."
+        actions={<RangeControls basePath="/operators" nav={nav} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <ModeFilter
@@ -213,108 +213,98 @@ export default async function OperatorsPage({
       </div>
 
       {table.length === 0 ? (
-        <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-          No operator recorded for this period yet.
-        </div>
+        <EmptyState>No operators recorded {windowPhrase(nav, period)}.</EmptyState>
       ) : (
-        <div className="overflow-x-auto border border-at-border bg-at-surface">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="at-th-row">
-                <SortHeader {...head("name")} align="left">
-                  Operator
-                </SortHeader>
-                <SortHeader {...head("ontime")}>On time</SortHeader>
-                <SortHeader {...head("off")}>Avg off</SortHeader>
-                <SortHeader {...head("routes")} className="hidden sm:table-cell">
-                  Routes
-                </SortHeader>
-                <SortHeader {...head("vehicles")} className="hidden sm:table-cell">
-                  Vehicles
-                </SortHeader>
-                <SortHeader {...head("arrivals")} className="hidden md:table-cell">
-                  Arrivals
-                </SortHeader>
-                <SortHeader {...head("cancelled")} className="hidden md:table-cell">
-                  Cancelled
-                </SortHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {table.map((o) => {
-                const thin = o.events < MIN_BOARD_EVENTS;
-                return (
-                  <tr
-                    key={o.operator.code}
-                    className={cn(
-                      "border-b border-at-border last:border-b-0",
-                      thin && "text-at-muted",
-                    )}
-                  >
-                    <th scope="row" className="p-3 text-left font-semibold">
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="flex items-center gap-1">
-                          {o.modes.map((m) => (
-                            <ModeIcon key={m} mode={m} className="h-4 w-4" />
-                          ))}
-                        </span>
-                        <Link
-                          href={buildHref(operatorHref(o.operator), {
-                            ...view,
-                            school: filters.school,
-                          })}
-                          className="at-link"
-                        >
-                          {o.operator.name}
-                        </Link>
+        <DataTable caption="Operators by on-time share">
+          <thead>
+            <tr className="at-th-row">
+              <SortHeader {...head("name")} align="left">
+                Operator
+              </SortHeader>
+              <SortHeader {...head("ontime")}>On time</SortHeader>
+              <SortHeader {...head("off")}>Avg off</SortHeader>
+              <SortHeader {...head("routes")} className="hidden sm:table-cell">
+                Routes
+              </SortHeader>
+              <SortHeader {...head("vehicles")} className="hidden sm:table-cell">
+                Vehicles
+              </SortHeader>
+              <SortHeader {...head("arrivals")} className="hidden md:table-cell">
+                Arrivals
+              </SortHeader>
+              <SortHeader {...head("cancelled")} className="hidden md:table-cell">
+                Cancelled
+              </SortHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {table.map((o) => {
+              const thin = o.events < MIN_BOARD_EVENTS;
+              return (
+                <tr key={o.operator.code} className={cn(ROW_CLASS, thin && "text-at-muted")}>
+                  <th scope="row" className="p-3 text-left font-semibold">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="flex items-center gap-1">
+                        {o.modes.map((m) => (
+                          <ModeIcon key={m} mode={m} className="h-4 w-4" />
+                        ))}
                       </span>
-                    </th>
-                    <td className="p-3 text-right tabular-nums">{formatPct(o.on_time_pct)}</td>
-                    <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                      {o.avg_abs_delay_sec === null
-                        ? UNKNOWN_VALUE
-                        : formatDuration(o.avg_abs_delay_sec)}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                       <Link
-                        href={buildHref("/routes", { ...view, ...filters, op: o.operator.slug })}
+                        href={buildHref(operatorHref(o.operator), {
+                          ...view,
+                          school: filters.school,
+                        })}
                         className="at-link"
                       >
-                        {o.routes}
+                        {o.operator.name}
                       </Link>
-                      <SchoolAdded n={added(o, "routes")} />
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {o.vehicles === null ? (
-                        UNKNOWN_VALUE
-                      ) : (
-                        <Link
-                          href={buildHref("/vehicles", {
-                            ...view,
-                            ...filters,
-                            op: o.operator.slug,
-                          })}
-                          className="at-link"
-                        >
-                          {formatCount(o.vehicles)}
-                        </Link>
-                      )}
-                      <SchoolAdded n={added(o, "vehicles")} />
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums md:table-cell">
-                      {formatCount(o.events)}
-                      <SchoolAdded n={added(o, "events")} />
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums md:table-cell">
-                      {formatCount(o.cancelled)}
-                      <SchoolAdded n={added(o, "cancelled")} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </span>
+                  </th>
+                  <td className="p-3 text-right tabular-nums">{formatPct(o.on_time_pct)}</td>
+                  <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                    {o.avg_abs_delay_sec === null
+                      ? UNKNOWN_VALUE
+                      : formatDuration(o.avg_abs_delay_sec)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    <Link
+                      href={buildHref("/routes", { ...view, ...filters, op: o.operator.slug })}
+                      className="at-link"
+                    >
+                      {o.routes}
+                    </Link>
+                    <SchoolAdded n={added(o, "routes")} />
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {o.vehicles === null ? (
+                      UNKNOWN_VALUE
+                    ) : (
+                      <Link
+                        href={buildHref("/vehicles", {
+                          ...view,
+                          ...filters,
+                          op: o.operator.slug,
+                        })}
+                        className="at-link"
+                      >
+                        {formatCount(o.vehicles)}
+                      </Link>
+                    )}
+                    <SchoolAdded n={added(o, "vehicles")} />
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums md:table-cell">
+                    {formatCount(o.events)}
+                    <SchoolAdded n={added(o, "events")} />
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums md:table-cell">
+                    {formatCount(o.cancelled)}
+                    <SchoolAdded n={added(o, "cancelled")} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       <p className="text-xs text-at-muted">
