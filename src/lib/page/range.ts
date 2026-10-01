@@ -237,7 +237,8 @@ function periodDays(
 
 /**
  * The week `period` holding a day, for a Week toggle that stays on the day's
- * week: its Monday, or null (the rolling last 7 days) for today.
+ * week: its Monday, or null (the rolling last 7 days) when that week reaches
+ * today, since a half-run fixed week shows less than the rolling one.
  * @param serviceDate - The shown service date (`YYYY-MM-DD`).
  * @param today - Today's service date (injectable for tests).
  * @returns The Monday `YYYY-MM-DD`, or null.
@@ -246,14 +247,14 @@ export function weekPeriodOf(
   serviceDate: string,
   today: string = nzServiceDayString(),
 ): string | null {
-  if (serviceDate >= today) return null;
-  return mondayOf(serviceDate);
+  const monday = mondayOf(serviceDate);
+  return shiftDays(monday, 6) >= today ? null : monday;
 }
 
 /**
  * The month `period` holding a day, for a Month toggle that stays on the day's
- * month: its `YYYY-MM`, or null (the current month) for today. Mirrors
- * {@link weekPeriodOf}.
+ * month: its `YYYY-MM`, or null (the current month) when it is this month.
+ * Mirrors {@link weekPeriodOf}.
  * @param serviceDate - The shown service date (`YYYY-MM-DD`).
  * @param today - Today's service date (injectable for tests).
  * @returns The month key `YYYY-MM`, or null.
@@ -262,9 +263,9 @@ export function monthPeriodOf(
   serviceDate: string,
   today: string = nzServiceDayString(),
 ): string | null {
-  if (serviceDate >= today) return null;
   const { y, mo } = parseYmd(serviceDate);
-  return ymKey(y, mo);
+  const month = ymKey(y, mo);
+  return month >= today.slice(0, 7) ? null : month;
 }
 
 /**

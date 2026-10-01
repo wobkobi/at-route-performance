@@ -138,6 +138,11 @@ describe("weekPeriodOf", () => {
     expect(weekPeriodOf("2026-09-07", TODAY)).toBe("2026-09-07");
     expect(weekPeriodOf("2026-09-01", TODAY)).toBe("2026-08-31");
   });
+
+  it("keeps a past day whose week reaches today on the rolling week", () => {
+    expect(weekPeriodOf("2026-09-30", "2026-10-02")).toBeNull();
+    expect(weekPeriodOf("2026-09-27", "2026-10-02")).toBe("2026-09-21");
+  });
 });
 
 describe("monthPeriodOf", () => {
@@ -146,9 +151,12 @@ describe("monthPeriodOf", () => {
   });
 
   it("snaps a past day to its month key", () => {
-    expect(monthPeriodOf("2026-09-01", TODAY)).toBe("2026-09");
     expect(monthPeriodOf("2026-08-31", TODAY)).toBe("2026-08");
     expect(monthPeriodOf("2025-01-05", TODAY)).toBe("2025-01");
+  });
+
+  it("keeps a past day in this month on the current month", () => {
+    expect(monthPeriodOf("2026-09-01", TODAY)).toBeNull();
   });
 });
 

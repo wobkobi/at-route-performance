@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.34] - 2026-10-02
+
+### Fixed
+
+- Switching to Week from a month whose last week is still running (or to Month within this month)
+  opens the rolling last 7 days or the current month, not a half-finished fixed week.
+
 ## [2.41.33] - 2026-10-02
 
 ### Changed
