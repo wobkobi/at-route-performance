@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.35] - 2026-10-02
+
+### Changed
+
+- The nine shame-board row renderers share one row body, the trip and route day boards one
+  repeat-offender flame, and the three day boards one hour-slot renderer; the worst row's tint is a
+  shared `.at-worst` class, and the trip-row classes moved to `lib/page/row.ts`.
+
 ## [2.41.34] - 2026-10-02
 
 ### Fixed

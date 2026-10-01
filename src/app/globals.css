@@ -145,6 +145,11 @@
     @apply min-h-11 border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore;
   }
 
+  /* The board row holding the worst of its board: a faint late tint, under any hover tint. */
+  .at-worst {
+    @apply bg-at-late/5;
+  }
+
   /* A table's header row: small muted capitals, ruled off from the body. */
   .at-th-row {
     @apply border-b border-at-border text-left text-xs tracking-zero text-at-muted uppercase;

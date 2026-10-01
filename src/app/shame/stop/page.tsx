@@ -3,18 +3,17 @@
 
 import { LoadingBlock } from "@/components/Loading";
 import {
+  hourSlotRenderer,
   ShameBoard,
   ShameDayLabel,
-  ShameEmptyHourRow,
   ShameHourLabel,
   ShameRankLabel,
+  ShameRowBody,
   ShameSplitRow,
   ShameSubjectLink,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
-import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
-import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
@@ -39,7 +38,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  type HourSlot,
 } from "@/lib/page/nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
@@ -170,7 +168,7 @@ async function StopRangeBoard({
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           <ShameDayLabel
             date={s.date}
@@ -179,22 +177,14 @@ async function StopRangeBoard({
           />
         }
       >
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <ShameRowBody
+          subject={
             <ShameSubjectLink href={stopHref(s.stop_id, { day })}>{s.name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
-          {weekCount > 1 && (
-            <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(weekCount)} in {periodWhen}
-            </span>
-          )}
-        </span>
-        <ShameRowDelay
-          avgDelaySec={s.avg_delay_sec}
-          avgAbsDelaySec={s.avg_abs_delay_sec}
-          mode={s.mode}
+          }
+          worst={isWorst}
+          detail={plural(s.events, "arrival")}
+          note={weekCount > 1 && `${s.name} was bad ${badTimes(weekCount)} in ${periodWhen}`}
+          figures={s}
         />
       </ShameSplitRow>
     );
@@ -263,7 +253,7 @@ async function StopDayBoard({
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           <ShameHourLabel
             hour={s.hour}
@@ -275,48 +265,26 @@ async function StopDayBoard({
           />
         }
       >
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <ShameRowBody
+          subject={
             <ShameSubjectLink href={stopHref(s.stop_id, { day: linkDay })}>
               {s.name}
             </ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
-          {hourCount > 1 && (
-            <span className="block text-xs text-at-muted">
-              {s.name} was bad {badTimes(hourCount)} {dayWhen}
-            </span>
-          )}
-        </span>
-        <ShameRowDelay
-          avgDelaySec={s.avg_delay_sec}
-          avgAbsDelaySec={s.avg_abs_delay_sec}
-          mode={s.mode}
+          }
+          worst={isWorst}
+          detail={plural(s.events, "arrival")}
+          note={hourCount > 1 && `${s.name} was bad ${badTimes(hourCount)} ${dayWhen}`}
+          figures={s}
         />
       </ShameSplitRow>
     );
   };
 
-  /**
-   * Render one hour of the day board: its worst stop, or a line saying no
-   * stop met the minimum sample that hour.
-   * @param slot - The hour and its row, if any.
-   * @param ctx - Surface context from the board.
-   * @returns The row element.
-   */
-  const renderHourSlot = (slot: HourSlot<ShameStop>, ctx: ShameRowContext): JSX.Element =>
-    slot.row ? (
-      renderDayRow(slot.row, ctx)
-    ) : (
-      <ShameEmptyHourRow
-        hour={slot.hour}
-        serviceDate={serviceDate}
-        title="No stop fits this hour"
-        reason={emptyHourReason(filter.direction)}
-        ctx={ctx}
-      />
-    );
+  const renderHourSlot = hourSlotRenderer(renderDayRow, {
+    serviceDate,
+    title: "No stop fits this hour",
+    reason: emptyHourReason(filter.direction),
+  });
 
   return (
     <ShameBoard
@@ -371,20 +339,14 @@ async function StopHoursBoard({
     return (
       <Link
         href={stopHref(s.stop_id, { day: linkDay })}
-        className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}
+        className={cn(ctx.anchorClass, isWorst && "at-worst")}
       >
         <ShameRankLabel rank={rank} />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-at-ink">{s.name}</span>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted">{plural(s.events, "arrival")}</span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={s.avg_delay_sec}
-          avgAbsDelaySec={s.avg_abs_delay_sec}
-          mode={s.mode}
+        <ShameRowBody
+          subject={<span className="font-semibold text-at-ink">{s.name}</span>}
+          worst={isWorst}
+          detail={plural(s.events, "arrival")}
+          figures={s}
         />
       </Link>
     );

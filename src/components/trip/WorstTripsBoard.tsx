@@ -28,6 +28,12 @@ import { formatDuration, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
 import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
+import {
+  TRIP_NAME_CLASS,
+  TRIP_NAME_GROUP_CLASS,
+  TRIP_ROW_CLASS,
+  TRIP_ROW_LINK_CLASS,
+} from "@/lib/page/row";
 import { nzClockTime } from "@/lib/time/format";
 import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
 import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
@@ -38,12 +44,6 @@ import {
   type CancellationStage,
 } from "@/lib/trip/cancellation";
 import { boundFor } from "@/lib/trip/departure-label";
-import {
-  TRIP_NAME_CLASS,
-  TRIP_NAME_GROUP_CLASS,
-  TRIP_ROW_CLASS,
-  TRIP_ROW_LINK_CLASS,
-} from "@/lib/trip/row";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { type JSX, Suspense } from "react";

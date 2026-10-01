@@ -2,21 +2,20 @@
 // Worst-route page listing the most off-schedule route per hour (day view) or per day (week view).
 
 import { LoadingBlock } from "@/components/Loading";
-import { ModeIcon } from "@/components/ModeIcon";
 import { FlameCount } from "@/components/shame/FlameCount";
 import {
+  hourSlotRenderer,
   ShameBoard,
+  ShameDayFlame,
   ShameDayLabel,
-  ShameEmptyHourRow,
   ShameHourLabel,
   ShameRankLabel,
+  ShameRowBody,
   ShameSplitRow,
   ShameSubjectLink,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
-import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
-import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
@@ -42,7 +41,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  type HourSlot,
 } from "@/lib/page/nav";
 import {
   dayRangeNav,
@@ -160,7 +158,7 @@ async function RouteRangeBoard({
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           r.date ? (
             <ShameDayLabel
@@ -173,17 +171,12 @@ async function RouteRangeBoard({
           )
         }
       >
-        <ModeIcon
-          mode={r.mode}
-          shortName={r.shortName}
-          longName={r.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={href}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {dayCount > 1 && (
+        <ShameRowBody
+          route={r}
+          subject={<ShameSubjectLink href={href}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            dayCount > 1 && (
               <FlameCount
                 tier="week"
                 count={dayCount}
@@ -193,16 +186,10 @@ async function RouteRangeBoard({
                   periodParam,
                 )}`}
               />
-            )}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {plural(r.events, "arrival")}
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={r.avg_delay_sec}
-          avgAbsDelaySec={r.avg_abs_delay_sec}
-          mode={r.mode}
+            )
+          }
+          detail={plural(r.events, "arrival")}
+          figures={r}
         />
       </ShameSplitRow>
     );
@@ -278,14 +265,10 @@ async function RouteDayBoard({
       [HOURS_PARAM]: hourRangeParam(singleHourRange(r.hour)),
     });
     const hourCount = routeHourCounts.get(r.routeId) ?? 0;
-    const streakInfo = routeStreakMap.get(r.routeId);
-    const streakDays = streakInfo?.count ?? 1;
-    const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
-    const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           <ShameHourLabel
             hour={r.hour}
@@ -295,75 +278,35 @@ async function RouteDayBoard({
           />
         }
       >
-        <ModeIcon
-          mode={r.mode}
-          shortName={r.shortName}
-          longName={r.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={href}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {worstOfDayStreak >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={worstOfDayStreak}
-                worst={isWorst}
-                label={`${name}: worst of the day ${worstOfDayStreak} days in a row · ${totalHours} hours total`}
-              />
-            ) : streakDays >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={streakDays}
-                worst={isWorst}
-                label={`${name}: on the shame list ${streakDays} days in a row · ${totalHours} hours total`}
-              />
-            ) : hourCount > 1 ? (
-              <FlameCount
-                tier="day"
-                count={hourCount}
-                worst={isWorst}
-                label={
-                  isWorst
-                    ? `${name}: worst route of the day · worst in ${hourCount} hours`
-                    : `${name}: worst route in ${hourCount} hours ${dayWhen}`
-                }
-              />
-            ) : null}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {plural(r.events, "arrival")}
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={r.avg_delay_sec}
-          avgAbsDelaySec={r.avg_abs_delay_sec}
-          mode={r.mode}
+        <ShameRowBody
+          route={r}
+          subject={<ShameSubjectLink href={href}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            <ShameDayFlame
+              name={name}
+              worst={isWorst}
+              hourCount={hourCount}
+              streak={routeStreakMap.get(r.routeId)}
+              hoursLabel={
+                isWorst
+                  ? `${name}: worst route of the day · worst in ${hourCount} hours`
+                  : `${name}: worst route in ${hourCount} hours ${dayWhen}`
+              }
+            />
+          }
+          detail={plural(r.events, "arrival")}
+          figures={r}
         />
       </ShameSplitRow>
     );
   };
 
-  /**
-   * Render one hour of the day board: its worst route, or a line saying no
-   * route met the minimum sample that hour.
-   * @param slot - The hour and its row, if any.
-   * @param ctx - Surface context from the board.
-   * @returns The row element.
-   */
-  const renderHourSlot = (slot: HourSlot<ShameRouteRow>, ctx: ShameRowContext): JSX.Element =>
-    slot.row ? (
-      renderDayRow(slot.row, ctx)
-    ) : (
-      <ShameEmptyHourRow
-        hour={slot.hour}
-        serviceDate={serviceDate}
-        title="No route fits this hour"
-        reason={`No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting this hour`}
-        ctx={ctx}
-      />
-    );
+  const renderHourSlot = hourSlotRenderer(renderDayRow, {
+    serviceDate,
+    title: "No route fits this hour",
+    reason: `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting this hour`,
+  });
 
   return (
     <ShameBoard
@@ -416,33 +359,19 @@ async function RouteHoursBoard({
   const renderRow = (r: ShameRouteRow, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(r) + 1;
     const isWorst = crowned && rank === 1;
-    const name = routeDisplayName(r);
     const href = routeHref(r.routeId, {
       day: linkDay,
       [HOURS_PARAM]: hourRangeParam(isWholeDay(hours) ? null : hours),
     });
     return (
-      <Link href={href} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={href} className={cn(ctx.anchorClass, isWorst && "at-worst")}>
         <ShameRankLabel rank={rank} />
-        <ModeIcon
-          mode={r.mode}
-          shortName={r.shortName}
-          longName={r.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-at-ink">{name}</span>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {plural(r.events, "arrival")}
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={r.avg_delay_sec}
-          avgAbsDelaySec={r.avg_abs_delay_sec}
-          mode={r.mode}
+        <ShameRowBody
+          route={r}
+          subject={<span className="font-semibold text-at-ink">{routeDisplayName(r)}</span>}
+          worst={isWorst}
+          detail={plural(r.events, "arrival")}
+          figures={r}
         />
       </Link>
     );

@@ -2,21 +2,20 @@
 // Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
 
 import { LoadingBlock } from "@/components/Loading";
-import { ModeIcon } from "@/components/ModeIcon";
 import { FlameCount } from "@/components/shame/FlameCount";
 import {
+  hourSlotRenderer,
   ShameBoard,
+  ShameDayFlame,
   ShameDayLabel,
-  ShameEmptyHourRow,
   ShameHourLabel,
   ShameRankLabel,
+  ShameRowBody,
   ShameSplitRow,
   ShameSubjectLink,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
-import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
-import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
 import { countBy } from "@/lib/collections";
 import {
@@ -42,7 +41,6 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  type HourSlot,
 } from "@/lib/page/nav";
 import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
@@ -113,6 +111,23 @@ function shamedTripHref(t: ShameTrip): string {
 }
 
 /**
+ * A shamed trip's detail line: where it was bound, when it left and how many
+ * stops it recorded. Each piece keeps to one line when the row wraps.
+ * @param props - Component props.
+ * @param props.t - The shamed trip.
+ * @returns The line's content.
+ */
+function TripDetail({ t }: { t: ShameTrip }): JSX.Element {
+  return (
+    <>
+      {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
+      <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
+      <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
+    </>
+  );
+}
+
+/**
  * Week/month board body: runs the per-day worst-run fan-out and renders one row
  * per service day. Streams in behind the header so the shell never waits on a
  * cold period.
@@ -148,7 +163,7 @@ async function TripRangeBoard({
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           t.date ? (
             <ShameDayLabel
@@ -161,35 +176,22 @@ async function TripRangeBoard({
           )
         }
       >
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.shortName}
-          longName={t.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {dayCount > 1 && (
+        <ShameRowBody
+          route={t}
+          subject={<ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            dayCount > 1 && (
               <FlameCount
                 tier="week"
                 count={dayCount}
                 worst={isWorst}
                 label={`${name} appeared as the worst trip on ${dayCount} days in ${periodWhen}`}
               />
-            )}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+            )
+          }
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </ShameSplitRow>
     );
@@ -259,14 +261,10 @@ async function TripDayBoard({
     const isWorst = worstKey === `${t.hour}-${t.trip_id}`;
     const name = routeDisplayName(t);
     const hourCount = routeHourCounts.get(t.routeId) ?? 0;
-    const streakInfo = routeStreakMap.get(t.routeId);
-    const streakDays = streakInfo?.count ?? 1;
-    const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
-    const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           <ShameHourLabel
             hour={t.hour}
@@ -276,73 +274,31 @@ async function TripDayBoard({
           />
         }
       >
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.shortName}
-          longName={t.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {worstOfDayStreak >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={worstOfDayStreak}
-                worst={isWorst}
-                label={`${name}: worst of the day ${worstOfDayStreak} days in a row · ${totalHours} hours total`}
-              />
-            ) : streakDays >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={streakDays}
-                worst={isWorst}
-                label={`${name}: on the shame list ${streakDays} days in a row · ${totalHours} hours total`}
-              />
-            ) : hourCount > 1 ? (
-              <FlameCount
-                tier="day"
-                count={hourCount}
-                worst={isWorst}
-                label={`${name} appeared in ${hourCount} hourly slots ${dayWhen}`}
-              />
-            ) : null}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+        <ShameRowBody
+          route={t}
+          subject={<ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            <ShameDayFlame
+              name={name}
+              worst={isWorst}
+              hourCount={hourCount}
+              streak={routeStreakMap.get(t.routeId)}
+              hoursLabel={`${name} appeared in ${hourCount} hourly slots ${dayWhen}`}
+            />
+          }
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </ShameSplitRow>
     );
   };
 
-  /**
-   * Render one hour of the day board: its worst run, or a line saying no
-   * run met the minimum sample that hour.
-   * @param slot - The hour and its row, if any.
-   * @param ctx - Surface context from the board.
-   * @returns The row element.
-   */
-  const renderHourSlot = (slot: HourSlot<ShameTrip>, ctx: ShameRowContext): JSX.Element =>
-    slot.row ? (
-      renderDayRow(slot.row, ctx)
-    ) : (
-      <ShameEmptyHourRow
-        hour={slot.hour}
-        serviceDate={serviceDate}
-        title="No run fits this hour"
-        reason={`No run starting this hour recorded ${SHAME_MIN_STOPS} stops`}
-        ctx={ctx}
-      />
-    );
+  const renderHourSlot = hourSlotRenderer(renderDayRow, {
+    serviceDate,
+    title: "No run fits this hour",
+    reason: `No run starting this hour recorded ${SHAME_MIN_STOPS} stops`,
+  });
 
   return (
     <ShameBoard
@@ -391,31 +347,15 @@ async function TripHoursBoard({
   const renderRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(t) + 1;
     const isWorst = crowned && rank === 1;
-    const name = routeDisplayName(t);
     return (
-      <Link href={shamedTripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={shamedTripHref(t)} className={cn(ctx.anchorClass, isWorst && "at-worst")}>
         <ShameRankLabel rank={rank} />
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.shortName}
-          longName={t.longName}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-at-ink">{name}</span>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+        <ShameRowBody
+          route={t}
+          subject={<span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>}
+          worst={isWorst}
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </Link>
     );

@@ -1,4 +1,4 @@
-// src/lib/trip/row.ts
+// src/lib/page/row.ts
 // The row layout every list of trips shares - the shame board's run rows, its
 // cancelled rows and the /cancellations list - so the three line their columns up
 // and a reader crossing between them reads the same row.
