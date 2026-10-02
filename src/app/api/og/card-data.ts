@@ -69,7 +69,11 @@ import {
   weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
-import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/trip/cancellation";
+import {
+  CANCELLATION_BADGE_MEANING,
+  CANCELLATION_LABEL,
+  cancellationStage,
+} from "@/lib/trip/cancellation";
 import { boundFor } from "@/lib/trip/departure-label";
 import { dayVerdict } from "@/lib/verdict";
 import type { FleetSummary, ShameRouteRow, ShameTrip } from "@/types/dashboard";
@@ -278,7 +282,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
   let hero: SubjectBodyProps["hero"] = null;
   let lines: string[] = [];
   if (stage === "before" || stage === "mid-trip") {
-    hero = { text: stage === "before" ? "Cancelled" : "Cut short", toneClass: "text-at-late" };
+    hero = { text: CANCELLATION_LABEL[stage], toneClass: "text-at-late" };
     lines = [CANCELLATION_BADGE_MEANING[stage]];
   } else if (stops.length > 0) {
     const signed = stops.reduce((s, x) => s + x.deviation_sec, 0) / stops.length;

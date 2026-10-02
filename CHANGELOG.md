@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.47] - 2026-10-03
+
+### Fixed
+
+- Cancellation badges read NEVER RAN, CUT SHORT and REINSTATED, the same names as the filter chips,
+  summary, trip note and share card.
+
 ## [2.41.46] - 2026-10-02
 
 ### Fixed

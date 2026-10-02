@@ -5,13 +5,13 @@
 // client navigations that keep the scroll position, so a sort change or a
 // longer list swaps the board in place instead of reloading the
 // document behind the route skeleton. Rows arrive already laid out (see
-// lib/trip/board.ts): cancelled trips carry a CANCELLED badge, and on the delay
+// lib/trip/board.ts): cancelled trips carry a NEVER RAN badge, and on the delay
 // sorts a rank and the wait a rider had for the next trip when that is known; a
-// run AT also flagged carries its stage (CANCELLED MID-TRIP, shortened to CUT
-// SHORT on a phone, or REINSTATED), a run whose vehicle left its route an OFF
-// ROUTE badge, running trips get a LIVE badge, streamed in per row so AT's
-// realtime call never holds up the chips or the show-more link. The section is `min-w-0` because it sits in a grid,
-// where it would otherwise grow to its truncating rows' full width on a phone.
+// run AT also flagged carries its stage (CUT SHORT or REINSTATED), a run whose
+// vehicle left its route an OFF ROUTE badge, running trips get a LIVE badge,
+// streamed in per row so AT's realtime call never holds up the chips or the
+// show-more link. The section is `min-w-0` because it sits in a grid, where it
+// would otherwise grow to its truncating rows' full width on a phone.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
 import { ChipLink } from "@/components/Chip";
@@ -40,7 +40,7 @@ import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
 import {
   CANCELLATION_BADGE,
   CANCELLATION_BADGE_MEANING,
-  CANCELLATION_BADGE_SHORT,
+  CANCELLATION_STAGES,
   type CancellationStage,
 } from "@/lib/trip/cancellation";
 import { boundFor } from "@/lib/trip/departure-label";
@@ -140,11 +140,10 @@ function badgeKey(
   const stages = new Set<CancellationStage>(
     rows.flatMap((r) => (r.kind === "cancelled" ? ["before" as const] : (r.cancellation ?? []))),
   );
-  for (const stage of ["before", "mid-trip", "ran"] as const) {
+  for (const stage of CANCELLATION_STAGES) {
     if (!stages.has(stage)) continue;
     items.push({
       label: CANCELLATION_BADGE[stage],
-      shortLabel: CANCELLATION_BADGE_SHORT[stage],
       tone: CANCELLATION_TONE[stage],
       meaning: CANCELLATION_BADGE_MEANING[stage],
     });

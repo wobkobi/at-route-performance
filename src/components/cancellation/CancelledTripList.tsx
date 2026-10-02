@@ -32,7 +32,7 @@ import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
 import {
   CANCELLATION_BADGE,
   CANCELLATION_BADGE_MEANING,
-  CANCELLATION_BADGE_SHORT,
+  CANCELLATION_LABEL,
   CANCELLATION_STAGES,
   type CancellationStage,
 } from "@/lib/trip/cancellation";
@@ -64,9 +64,9 @@ export interface CancelledTripListProps {
 
 const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = [
   { key: null, label: "All" },
-  { key: "before", label: "Never ran" },
-  { key: "mid-trip", label: "Cut short" },
-  { key: "ran", label: "Reinstated" },
+  { key: "before", label: CANCELLATION_LABEL.before },
+  { key: "mid-trip", label: CANCELLATION_LABEL["mid-trip"] },
+  { key: "ran", label: CANCELLATION_LABEL.ran },
 ];
 
 /**
@@ -116,14 +116,11 @@ export function CancelledTripList({
     return { visible: [...later, ...due], notDue: later.length };
   }, [trips, stage, multiDay, liveAt]);
   // Key entries for the stages on screen, so no badge is explained in a hover a
-  // phone cannot reach - and none is explained that the reader cannot see. The
-  // filter chips name the stages in their own words ("Never ran", "Cut short"),
-  // which is not the same vocabulary as the badges.
+  // phone cannot reach - and none is explained that the reader cannot see.
   const keyItems: BadgeKeyItem[] = useMemo(() => {
     const shownStages = new Set(visible.slice(0, shown).map((t) => t.stage));
     return CANCELLATION_STAGES.filter((s) => shownStages.has(s)).map((s) => ({
       label: CANCELLATION_BADGE[s],
-      shortLabel: CANCELLATION_BADGE_SHORT[s],
       tone: CANCELLATION_TONE[s],
       meaning: CANCELLATION_BADGE_MEANING[s],
     }));

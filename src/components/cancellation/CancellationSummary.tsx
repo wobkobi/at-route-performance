@@ -4,6 +4,7 @@
 
 import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
 import { formatCount } from "@/lib/format";
+import { CANCELLATION_LABEL } from "@/lib/trip/cancellation";
 import type { JSX } from "react";
 
 /** Props for {@link CancellationSummary}. */
@@ -41,9 +42,17 @@ export function CancellationSummary({
     // The three stage cells below partition this one, reinstated included. The
     // home strip carries the same figure under the same name and note.
     { label: "Flagged cancelled", value: flagged, note: "Reinstated trips included" },
-    { label: "Never ran", value: neverRan, className: neverRan > 0 ? "text-at-late" : undefined },
-    { label: "Cut short", value: cutShort, className: cutShort > 0 ? "text-at-late" : undefined },
-    { label: "Reinstated", value: reinstated },
+    {
+      label: CANCELLATION_LABEL.before,
+      value: neverRan,
+      className: neverRan > 0 ? "text-at-late" : undefined,
+    },
+    {
+      label: CANCELLATION_LABEL["mid-trip"],
+      value: cutShort,
+      className: cutShort > 0 ? "text-at-late" : undefined,
+    },
+    { label: CANCELLATION_LABEL.ran, value: reinstated },
     { label: "Routes", value: routes },
   ];
   return (

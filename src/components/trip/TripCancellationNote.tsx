@@ -5,7 +5,7 @@
 import { TripNote } from "@/components/ui/TripNote";
 import { plural } from "@/lib/format";
 import { nzClockTime } from "@/lib/time/format";
-import type { CancellationStage } from "@/lib/trip/cancellation";
+import { CANCELLATION_LABEL, type CancellationStage } from "@/lib/trip/cancellation";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 
@@ -47,10 +47,10 @@ export function TripCancellationNote({
     </Link>
   );
   if (stage === "before" || lastStop === null) {
-    title = "Cancelled";
+    title = CANCELLATION_LABEL.before;
     body = `AT cancelled this trip (first flagged at ${flagged}) and it recorded no arrivals.`;
   } else if (stage === "ran") {
-    title = "Cancelled, then reinstated";
+    title = CANCELLATION_LABEL.ran;
     body = (
       <>
         AT flagged this trip cancelled at {flagged}, but it kept recording arrivals until{" "}
@@ -66,7 +66,7 @@ export function TripCancellationNote({
       </>
     );
   } else {
-    title = "Cancelled mid-trip";
+    title = CANCELLATION_LABEL["mid-trip"];
     const rest =
       notServed === null
         ? "nothing was recorded after that"

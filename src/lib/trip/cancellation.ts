@@ -62,28 +62,33 @@ export function cancellationStage(
   return before > 0 ? "mid-trip" : "before";
 }
 
-/** Badge label for each stage, as used on the trip boards and lists. */
-export const CANCELLATION_BADGE: Record<CancellationStage, string> = {
-  before: "CANCELLED",
-  "mid-trip": "CANCELLED MID-TRIP",
-  ran: "REINSTATED",
+/**
+ * Each stage's one name, wherever a stage is named: the filter chips, the
+ * summary cells, the trip note and the share card.
+ */
+export const CANCELLATION_LABEL: Record<CancellationStage, string> = {
+  before: "Never ran",
+  "mid-trip": "Cut short",
+  ran: "Reinstated",
 };
 
-/** Narrower badge labels for a phone-width row, where the full one crowds out the trip's time. */
-export const CANCELLATION_BADGE_SHORT: Record<CancellationStage, string> = {
-  before: "CANCELLED",
-  "mid-trip": "CUT SHORT",
-  ran: "REINSTATED",
+/**
+ * Badge label for each stage: its name in capitals, as every status badge is
+ * written. Short enough that a phone row needs no narrower form.
+ */
+export const CANCELLATION_BADGE: Record<CancellationStage, string> = {
+  before: CANCELLATION_LABEL.before.toUpperCase(),
+  "mid-trip": CANCELLATION_LABEL["mid-trip"].toUpperCase(),
+  ran: CANCELLATION_LABEL.ran.toUpperCase(),
 };
 
 /**
  * What each stage badge means, in words. Read by the key under each board that
  * shows these badges, so the meaning does not live only in a hover a phone
- * cannot reach - which also matters most on a phone, where the row carries the
- * shorter label of the two.
+ * cannot reach.
  */
 export const CANCELLATION_BADGE_MEANING: Record<CancellationStage, string> = {
-  before: "AT cancelled this trip",
+  before: "AT cancelled this trip before it set off",
   "mid-trip": "AT cancelled this trip after it set off",
   ran: "AT flagged this trip cancelled, then it ran anyway",
 };

@@ -2,7 +2,6 @@ import { cn } from "@/lib/cn";
 import {
   CANCELLATION_BADGE,
   CANCELLATION_BADGE_MEANING,
-  CANCELLATION_BADGE_SHORT,
   type CancellationStage,
 } from "@/lib/trip/cancellation";
 import type { JSX } from "react";
@@ -102,7 +101,6 @@ export function CancellationBadge({ stage }: { stage: CancellationStage }): JSX.
     <Badge
       tone={CANCELLATION_TONE[stage]}
       label={CANCELLATION_BADGE[stage]}
-      shortLabel={CANCELLATION_BADGE_SHORT[stage]}
       title={CANCELLATION_BADGE_MEANING[stage]}
     />
   );
