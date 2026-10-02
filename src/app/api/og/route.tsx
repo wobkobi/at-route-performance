@@ -83,8 +83,12 @@ async function render(element: JSX.Element, cacheControl: string): Promise<Image
  * @returns The PNG, always 200.
  */
 export async function GET(req: NextRequest): Promise<ImageResponse> {
-  const { logo } = await loadAssets();
+  // The query is read before any await. Under Cache Components the build
+  // prerenders this handler: reading the request first stops that prerender
+  // cleanly, while the file read in loadAssets could end it first, and a query
+  // read after that throws and fails the build (only when the read was quick).
   const card = parseCardQuery(req.nextUrl.searchParams);
+  const { logo } = await loadAssets();
   let home: HomeCardData | null = null;
   let subject: SubjectCardData | null = null;
   try {

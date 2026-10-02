@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.56] - 2026-10-03
+
+### Fixed
+
+- The share-card route reads its query before loading fonts, so a quick file read can no longer end
+  the build's prerender first and fail the build.
+
 ## [2.41.55] - 2026-10-03
 
 ### Fixed
