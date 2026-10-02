@@ -101,6 +101,7 @@ export { getStationSiblings, getStopIdentity, getStopStats } from "@/lib/data/st
 export {
   getLatestTripDay,
   getRouteTripStats,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,

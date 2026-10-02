@@ -412,6 +412,26 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
 }
 
 /**
+ * A trip's GTFS headsign, as the ingest stored it in TripMeta. Cached for a day
+ * like the schedule; a trip the ingest never saw has none.
+ * @param tripId - AT GTFS trip id.
+ * @returns The headsign, or null when it is not known.
+ */
+export async function getTripHeadsign(tripId: string): Promise<string | null> {
+  return unstable_cache(
+    async () => {
+      const meta = await prisma.tripMeta.findUnique({
+        where: { id: tripId },
+        select: { headsign: true },
+      });
+      return meta?.headsign ?? null;
+    },
+    ["trip-headsign", tripId],
+    { revalidate: DAY_REVALIDATE },
+  )();
+}
+
+/**
  * The road path one trip drives, as `[lat, lon]` pairs for the map. AT's trip
  * record names its GTFS `shape_id`, and the shapes ingest stores that geometry
  * (simplified, in `[lon, lat]` order). Cached for a day like the schedule. A

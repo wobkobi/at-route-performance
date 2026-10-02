@@ -22,6 +22,7 @@ import {
   getTripBoardOfDay,
   getTripBoardOfWeek,
   getTripCancellation,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripTimeline,
   LIVE_DAY_REVALIDATE,
@@ -251,12 +252,13 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
  */
 export async function tripCardData(card: TripCard): Promise<SubjectCardData | null> {
   const day = card.day ? nzServiceDayRange(card.day) : await getLatestTripDay(card.tripId);
-  const [timeline, flag, scheduled] = await Promise.all([
+  const [timeline, flag, scheduled, headsign] = await Promise.all([
     getTripTimeline(card.tripId, card.id, day ?? undefined),
     getTripCancellation(card.tripId, day),
-    // The schedule only names the destination and the start; an AT outage
-    // should cost the card those, not the whole card.
+    // The schedule only gives the start; an AT outage should cost the card
+    // that, not the whole card.
     getTripScheduledStops(card.tripId).catch(readFallback("og-trip-scheduled-stops", [])),
+    getTripHeadsign(card.tripId).catch(readFallback("og-trip-headsign", null)),
   ]);
   const { route, stops } = timeline;
   if (!route && stops.length === 0 && scheduled.length === 0) return null;
@@ -276,7 +278,6 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
     : scheduled[0]?.departure_time
       ? formatGtfsTime(scheduled[0].departure_time)
       : null;
-  const destination = scheduled.at(-1)?.name ?? stops.at(-1)?.name ?? null;
   const date = day ? nzServiceDayString(day.start) : null;
 
   let hero: SubjectBodyProps["hero"] = null;
@@ -305,7 +306,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
           }
         : null,
       name: route ? routeDisplayName({ ...route, slug: card.id }) : card.id,
-      subname: destination ? `to ${destination}` : null,
+      subname: boundFor(headsign, mode),
       hero,
       lines,
     },

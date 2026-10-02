@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.53] - 2026-10-03
+
+### Fixed
+
+- The trip page names where the trip is going ("Trip to Otahuhu Station via Mangere Bridge,
+  departing 4:58 am"), and its share card reads the destination from the headsign the way the boards
+  do, rather than from the last stop's name.
+
 ## [2.41.52] - 2026-10-03
 
 ### Changed

@@ -22,6 +22,7 @@ import {
   getLatestTripDay,
   getTripCancellation,
   getTripDetour,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
@@ -53,6 +54,7 @@ import {
 } from "@/lib/time/service-day";
 import { tripBoardView } from "@/lib/trip/board";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/trip/cancellation";
+import { boundFor } from "@/lib/trip/departure-label";
 import { buildTripLine } from "@/lib/trip/line";
 import { vehicleName } from "@/lib/vehicle/detail";
 import type { TripStop } from "@/types/api";
@@ -140,7 +142,7 @@ export default async function TripPage({
   // The stored service date the ghost records are keyed on is null only for an
   // undated link to a trip that has never recorded anything.
   const serviceDate = day ? nzServiceDayString(day.start) : null;
-  const [timeline, optional, flag, detour, ghostRun, ghostRunHere] = await Promise.all([
+  const [timeline, optional, flag, detour, ghostRun, ghostRunHere, headsign] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
     Promise.allSettled([getTripScheduledStops(tripId), getTripShape(tripId)]),
     getTripCancellation(tripId, day),
@@ -149,6 +151,7 @@ export default async function TripPage({
     getGhostRun(tripId, serviceDate),
     // Another run's readings were filed under this run's number.
     serviceDate ? getGhostRunFor(tripId, serviceDate) : Promise.resolve<GhostRunRow | null>(null),
+    getTripHeadsign(tripId).catch(readFallback("trip-headsign", null)),
   ]);
   const [scheduledResult, roadResult] = optional;
   const scheduleFailed = scheduledResult.status === "rejected";
@@ -246,6 +249,9 @@ export default async function TripPage({
     : null;
 
   const title = route ? routeDisplayName({ ...route, slug }) : slug;
+  // "to Britomart via Panmure", read from the headsign as the boards read it.
+  const bound = route ? boundFor(headsign, route.mode) : null;
+  const tripPhrase = bound ? `Trip ${bound}` : "Trip";
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
   const firstDeparture = scheduledStops[0]?.departure_time;
   const departing = firstServed
@@ -290,7 +296,7 @@ export default async function TripPage({
       >
         <p className="mt-0.5 text-sm text-at-muted">
           {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
-          {departing ? `Trip departing ${departing}` : "Trip"}
+          {departing ? `${tripPhrase}${bound ? "," : ""} departing ${departing}` : tripPhrase}
           {departing && departsAfterMidnight && serviceDate && (
             <>
               {" "}
