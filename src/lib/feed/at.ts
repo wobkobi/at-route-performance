@@ -140,5 +140,5 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
     }
   }
 
-  throw lastError || new Error("AT API fetch failed");
+  throw lastError ?? new Error("AT API fetch failed");
 }

@@ -361,7 +361,7 @@ export async function PeriodBoards({
 
       <p className="text-xs text-at-muted">
         Rankings are built from real-time arrivals and refresh hourly. {CANCELLED_SPLIT_COPY}
-        {(b.offScheduleDeltas || b.reliableDeltas) &&
+        {(b.offScheduleDeltas ?? b.reliableDeltas) &&
           ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
       </p>
     </>

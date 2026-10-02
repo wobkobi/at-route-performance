@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.52] - 2026-10-03
+
+### Changed
+
+- Lint rules hold the consistency pass: no hand-written mode lists, bare toLocaleString() or
+  hand-built entity paths, pages and components read data through the barrel, API read failures log
+  through the alertable helper, consistent type imports, and ?? over || for objects and numbers.
+
 ## [2.41.51] - 2026-10-03
 
 ### Fixed

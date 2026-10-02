@@ -54,7 +54,7 @@ for (const dateStr of dates) {
 
     const totalEvents = stats.reduce((s, r) => s + r.events, 0);
     console.log(
-      `  ${dateStr}  ok  (${stats.length} routes, ${totalEvents.toLocaleString()} events)`,
+      `  ${dateStr}  ok  (${stats.length} routes, ${totalEvents.toLocaleString("en-NZ")} events)`,
     );
     ok++;
   } catch (err) {

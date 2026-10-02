@@ -60,7 +60,7 @@ for (const date of dates) {
   try {
     const rows = await writeHourlySummary(nzServiceDayRange(date));
     console.log(
-      `  ${date}  ok  (${rows.toLocaleString()} route-hours, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
+      `  ${date}  ok  (${rows.toLocaleString("en-NZ")} route-hours, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
     );
     ok++;
   } catch (err) {

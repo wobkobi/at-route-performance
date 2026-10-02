@@ -393,7 +393,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
     }
   }
 
-  throw lastError || new Error("AT Alerts fetch failed");
+  throw lastError ?? new Error("AT Alerts fetch failed");
 }
 
 /**
