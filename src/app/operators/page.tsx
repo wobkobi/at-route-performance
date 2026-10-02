@@ -220,7 +220,7 @@ export default async function OperatorsPage({
                 Operator
               </SortHeader>
               <SortHeader {...head("ontime")}>On time</SortHeader>
-              <SortHeader {...head("off")}>Avg off</SortHeader>
+              <SortHeader {...head("off")}>Avg off by</SortHeader>
               <SortHeader {...head("routes")} className="hidden sm:table-cell">
                 Routes
               </SortHeader>

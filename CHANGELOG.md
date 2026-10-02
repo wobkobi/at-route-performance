@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.44] - 2026-10-02
+
+### Fixed
+
+- The average absolute delay reads "Avg off by" on every page, table and map popup, and the signed
+  average reads "Early or late".
+
 ## [2.41.43] - 2026-10-02
 
 ### Fixed

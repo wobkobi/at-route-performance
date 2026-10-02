@@ -187,8 +187,8 @@ function AverageDetail({
           {/* Neither total applies the on-time window: a route that runs as early as it runs
               late balances near zero, and "on time" above a magnitude of 9m would contradict it. */}
           <div className="mt-2 text-sm">
-            {/* "Off by", the card's own noun, rather than a seventh name for this one metric. */}
-            <TotalRow label="Off by" value={formatDuration(split.magnitude)} />
+            {/* The card's own label, so the breakdown names the figure it explains. */}
+            <TotalRow label="Avg off by" value={formatDuration(split.magnitude)} />
           </div>
           {/* What that figure is made of. The two halves always fill the bar, so its balance
               says which way the typical miss went - not how big it was, which is the figure

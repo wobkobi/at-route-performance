@@ -307,7 +307,7 @@ export default async function VehiclesPage({
                 </SortHeader>
               )}
               <SortHeader {...head("off")} className="hidden sm:table-cell">
-                Avg off
+                Avg off by
               </SortHeader>
               <th scope="col" className="hidden p-3 font-semibold md:table-cell">
                 Routes

@@ -46,7 +46,7 @@ export type ExplorerSort =
 export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; dir: SortDir }> = [
   { key: "route", label: "Route number", dir: "asc" },
   { key: "ontime", label: "On time %", dir: "desc" },
-  { key: "off", label: "Average off by", dir: "desc" },
+  { key: "off", label: "Avg off by", dir: "desc" },
   { key: "delay", label: "Early or late", dir: "desc" },
   { key: "late", label: "Late %", dir: "desc" },
   { key: "early", label: "Early %", dir: "desc" },

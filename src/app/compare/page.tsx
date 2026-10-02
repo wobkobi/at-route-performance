@@ -131,7 +131,7 @@ function figureRows(kind: CompareKind): FigureRow[] {
     { label: "On time", key: "on_time_pct", format: "pct", better: "high" },
     { label: "Late", key: "late_pct", format: "pct", better: "low" },
     { label: "Early", key: "early_pct", format: "pct", better: "low" },
-    { label: "Average off", key: "avg_abs_delay_sec", format: "duration", better: "low" },
+    { label: "Avg off by", key: "avg_abs_delay_sec", format: "duration", better: "low" },
     { label: "Arrivals", key: "events", format: "count", better: null },
     {
       label: kind === "routes" ? "Cancelled trips" : "Routes calling",

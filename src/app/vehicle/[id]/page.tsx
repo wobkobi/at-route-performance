@@ -357,7 +357,7 @@ export default async function VehiclePage({
             <Figure label="In service">{formatHours(total.serviceSec)}</Figure>
             <Figure label="Runs">{formatCount(total.runs)}</Figure>
             <Figure label="Arrivals">{formatCount(total.arrivals)}</Figure>
-            <Figure label="Avg off">{formatDuration(total.avgOffSec)}</Figure>
+            <Figure label="Avg off by">{formatDuration(total.avgOffSec)}</Figure>
             {rank && (
               <Figure label="Hardest worked">
                 <Link href={buildHref("/vehicles", { ...view, school: "1" })} className="at-link">
@@ -618,7 +618,7 @@ function RunsTable({
                 Cars
               </SortHeader>
             )}
-            <SortHeader {...head("off")}>Off schedule</SortHeader>
+            <SortHeader {...head("off")}>Avg off by</SortHeader>
           </tr>
         </thead>
         <tbody>
@@ -726,7 +726,7 @@ function DaysTable({
               Arrivals
             </SortHeader>
             <SortHeader {...head("off")} className="hidden sm:table-cell">
-              Avg off
+              Avg off by
             </SortHeader>
           </tr>
         </thead>

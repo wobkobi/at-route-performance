@@ -452,7 +452,7 @@ export function RouteExplorer({
                   <Figure size="sm" label="Early or late">
                     <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
                   </Figure>
-                  <Figure size="sm" label="Off by">
+                  <Figure size="sm" label="Avg off by">
                     {r.avg_abs_delay_sec === null
                       ? UNKNOWN_VALUE
                       : formatDuration(r.avg_abs_delay_sec)}

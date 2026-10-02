@@ -457,7 +457,7 @@ function drawStopLayer(
           },
     );
     // A signed mean, so the window is not applied: it prints its distance rather than "on time",
-    // which would contradict the "Off by" figure beside it.
+    // which would contradict the "Avg off by" figure beside it.
     const net =
       s.avg_delay_sec == null ? UNKNOWN_VALUE : formatDelay(s.avg_delay_sec, { thresholdSec: 0 });
     const name = stopLinks
@@ -465,7 +465,7 @@ function drawStopLayer(
       : `<strong>${escapeHtml(s.name)}</strong>`;
     const popup =
       s.avg_abs_delay_sec != null
-        ? `${name}<br>Early or late: ${net}<br>Off by: ${formatDuration(s.avg_abs_delay_sec)} avg`
+        ? `${name}<br>Early or late: ${net}<br>Avg off by: ${formatDuration(s.avg_abs_delay_sec)}`
         : `${name}<br>Early or late: ${net}`;
     marker.bindPopup(popup);
     marker.addTo(stopLayer);

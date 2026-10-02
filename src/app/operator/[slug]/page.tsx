@@ -332,7 +332,7 @@ export default async function OperatorPage({
       {mine ? (
         <FigureStrip className="lg:grid-cols-6">
           <Figure label="On time">{formatPct(mine.on_time_pct)}</Figure>
-          <Figure label="Avg off">
+          <Figure label="Avg off by">
             {mine.avg_abs_delay_sec === null
               ? UNKNOWN_VALUE
               : formatDuration(mine.avg_abs_delay_sec)}
@@ -377,7 +377,7 @@ export default async function OperatorPage({
                   Route
                 </SortHeader>
                 <SortHeader {...routeSort.head("ontime")}>On time</SortHeader>
-                <SortHeader {...routeSort.head("off")}>Avg off</SortHeader>
+                <SortHeader {...routeSort.head("off")}>Avg off by</SortHeader>
                 <SortHeader {...routeSort.head("arrivals")} className="hidden sm:table-cell">
                   Arrivals
                 </SortHeader>
@@ -444,7 +444,7 @@ export default async function OperatorPage({
                 <SortHeader {...fleetSort.head("hours")}>In service</SortHeader>
                 <SortHeader {...fleetSort.head("runs")}>Runs</SortHeader>
                 <SortHeader {...fleetSort.head("off")} className="hidden sm:table-cell">
-                  Avg off
+                  Avg off by
                 </SortHeader>
               </tr>
             </thead>

@@ -368,7 +368,7 @@ async function DaysBody({
               On time
             </SortHeader>
             <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
-              Off by
+              Avg off by
             </SortHeader>
             <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
               Arrivals

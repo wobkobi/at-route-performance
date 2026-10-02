@@ -307,7 +307,7 @@ async function LiveTable({
               Early
             </SortHeader>
             <SortHeader {...head("delay")} className="hidden md:table-cell">
-              Early or late, avg
+              Early or late
             </SortHeader>
           </tr>
         </thead>

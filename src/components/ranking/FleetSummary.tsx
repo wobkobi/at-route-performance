@@ -157,7 +157,7 @@ function VerdictPanel({
             : `${formatCount(data.events)} arrivals` +
               (data.avg_abs_delay_sec === null
                 ? ""
-                : `, ${formatDuration(data.avg_abs_delay_sec)} off on average`)}
+                : `, avg off by ${formatDuration(data.avg_abs_delay_sec)}`)}
         </p>
       </div>
       {split && <SplitBar {...split} mode={breakdown.mode} />}
