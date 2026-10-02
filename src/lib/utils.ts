@@ -11,6 +11,15 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Exponential backoff for a retried AT request: 1s, 2s, 4s and so on, capped at 60s.
+ * @param attempt - The zero-based attempt that just failed.
+ * @returns The wait before the next attempt, in milliseconds.
+ */
+export function retryDelay(attempt: number): number {
+  return Math.min(60_000, 1000 * 2 ** attempt);
+}
+
+/**
  * Type guard for a non-null object.
  * @param v - Value to test.
  * @returns True when `v` is a non-null object.

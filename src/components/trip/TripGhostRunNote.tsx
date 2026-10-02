@@ -4,7 +4,8 @@
 // this one's number. Written for a rider, who knows a run by when it departs and
 // has never heard of a trip id.
 
-import { buildHref } from "@/lib/utils";
+import { TripNote } from "@/components/ui/TripNote";
+import { tripHref } from "@/lib/page/hrefs";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -48,37 +49,32 @@ export function TripGhostRunNote({
 }: TripGhostRunNoteProps): JSX.Element {
   const named = other?.label ?? null;
   const title =
-    kind === "hidden" ? "Reported under another run's number" : "No readings for this run";
+    kind === "hidden"
+      ? "Reported under another trip's number"
+      : "No arrivals recorded for this trip";
   const body =
     kind === "hidden"
       ? named === null
-        ? `Auckland Transport reported this ${noun} under another run's number, so these readings do not belong to this trip.`
-        : `Auckland Transport reported this ${noun} under another run's number. These readings belong to the ${named} run.`
+        ? `AT reported this ${noun} under another trip's number, so these readings do not belong to this trip.`
+        : `AT reported this ${noun} under another trip's number. These readings belong to the ${named} trip.`
       : named === null
-        ? `Auckland Transport reported this ${noun} under another run's number, so nothing was recorded against this trip.`
-        : `Auckland Transport reported it under the ${named} run's number, so nothing was recorded against this trip.`;
+        ? `AT reported this ${noun} under another trip's number, so nothing was recorded against this trip.`
+        : `AT reported it under the ${named} trip's number, so nothing was recorded against this trip.`;
 
   return (
-    <section className="border border-l-4 border-at-border border-l-at-muted bg-at-surface p-4">
-      <h2 className="text-lg font-ultra tracking-zero">{title}</h2>
-      <p className="mt-1 text-sm text-at-muted">
+    <TripNote tone="muted" title={title}>
+      <p>
         {body}
         {other && (
           <>
             {" "}
-            <Link
-              href={buildHref(
-                `/route/${encodeURIComponent(routeSlug)}/trip/${encodeURIComponent(other.trip_id)}`,
-                { d: day ?? undefined },
-              )}
-              className="text-at-shore hover:underline"
-            >
-              See that run
+            <Link href={tripHref(routeSlug, other.trip_id, day)} className="at-link">
+              See that trip
             </Link>
             .
           </>
         )}
       </p>
-    </section>
+    </TripNote>
   );
 }

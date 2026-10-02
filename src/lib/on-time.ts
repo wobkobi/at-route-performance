@@ -66,7 +66,7 @@ const BUS_EARLY_SEC = 60;
 
 /**
  * Early tolerance (seconds) for a mode.
- * @param mode - Route mode ("BUS" | "TRAIN" | "FERRY").
+ * @param mode - Route mode (Mode).
  * @returns Seconds early a service may run and still count on time.
  */
 export function earlyToleranceFor(mode: string): number {
@@ -86,6 +86,9 @@ export function isOnTime(deviationSec: number, mode: string): boolean {
 
 /** How a stop/trip/route reads against the on-time window. */
 export type DelayBand = "early" | "ontime" | "late";
+
+/** A delay band, or "none" when nothing was read to band. */
+export type ReadingBand = DelayBand | "none";
 
 /**
  * Classify a signed deviation as early / on time / late for the given mode.

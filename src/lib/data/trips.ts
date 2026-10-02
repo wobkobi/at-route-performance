@@ -1,8 +1,10 @@
 // src/lib/data/trips.ts
 // Runs of a route: the day's worst trips board, one trip's timeline and its schedule.
-import { cachedForRange, scheduledAtWindow, toIso } from "@/lib/data/cache";
+import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { DAY_REVALIDATE, LIVE_DAY_REVALIDATE, SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import {
   isGhostDeviation,
   medianDeviation,
@@ -28,17 +30,16 @@ import {
 } from "@/lib/time/service-day";
 import type { PerTripStat, TripStop, TripTimeline } from "@/types/api";
 
-/** Parameters for {@link getWorstTripsOfDay}. */
-export interface WorstTripsParams {
+/** Parameters for {@link getRouteTripStats}. */
+export interface RouteTripStatsParams {
   routeId: string;
   range: DateRange;
-  thresholdSec: number;
   limit?: number;
   /** How to order the runs (default "off" = most off-schedule). */
   sort?: TripSort;
 }
 
-/** Ordering for {@link getWorstTripsOfDay}. */
+/** Ordering for {@link getRouteTripStats}. */
 export type TripSort = "off" | "late" | "early" | "departure";
 
 /**
@@ -54,6 +55,15 @@ const TRIP_SORTS: Record<TripSort, Record<string, 1 | -1>> = {
   departure: { scheduled_start: 1, _id: 1 },
 };
 
+/**
+ * Read a trip ordering from the URL (`?tsort`).
+ * @param raw - The param's value.
+ * @returns The ordering, or "off" (the board's default) when missing or unknown.
+ */
+export function parseTripSort(raw: string | undefined): TripSort {
+  return raw !== undefined && Object.hasOwn(TRIP_SORTS, raw) ? (raw as TripSort) : "off";
+}
+
 /** Raw worst-trips row before the `scheduled_start` date is normalised. */
 interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
   scheduled_start: { $date: string } | string;
@@ -66,123 +76,117 @@ interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
  * @param p - Route, day window, on-time threshold, optional row limit and sort.
  * @returns Per-trip rows ordered by `sort` (up to `limit`, default 50).
  */
-export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripStat[]> {
+export async function getRouteTripStats(p: RouteTripStatsParams): Promise<PerTripStat[]> {
   const limit = p.limit ?? 50;
   const sort = p.sort ?? "off";
   return cachedForRange(
     async (classified) => {
       const routeIds = await routeIdsForSlug(p.routeId);
       const real = realDeviationExprFor(classified);
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                routeId: { $in: routeIds },
-                // The run's stamped day over a padded scan, as the shame boards
-                // read it: a run crossing 4am stays one row on its own day
-                // rather than lending its tail to the next day as another run.
-                scheduledAt: scheduledAtWindow(padScanRange(p.range)),
-                serviceDate: { $in: serviceDatesInRange(p.range) },
-                // No deviation filter here: every trip that had any event is
-                // counted so the total reflects real runs, not just those within
-                // the noise-free window.
+      const res = await aggregateRows<WorstTripRaw>("ArrivalEvent", [
+        {
+          $match: {
+            routeId: { $in: routeIds },
+            // The run's stamped day over a padded scan, as the shame boards
+            // read it: a run crossing 4am stays one row on its own day
+            // rather than lending its tail to the next day as another run.
+            scheduledAt: scheduledAtWindow(padScanRange(p.range)),
+            serviceDate: { $in: serviceDatesInRange(p.range) },
+            // No deviation filter here: every trip that had any event is
+            // counted so the total reflects real runs, not just those within
+            // the noise-free window.
+          },
+        },
+        // Sort by time first so $first/$last within the group give the
+        // chronological first/last stop, not an arbitrary document order.
+        { $sort: { tripId: 1, scheduledAt: 1 } },
+        {
+          $group: {
+            _id: "$tripId",
+            scheduled_start: { $min: "$scheduledAt" },
+            first_stop_id: { $first: "$stopId" },
+            // Real readings only: a ghost re-report contributes null to each
+            // list and is dropped below, so the stop count, the vehicle and
+            // the stats all describe the run itself. A ghost comes from a
+            // different vehicle, so its id would name the wrong bus, and it
+            // repeats a stop the run already served, so counting rows would
+            // overstate the stops.
+            _delays: { $push: { $cond: [real, "$deviationSec", null] } },
+            _stops: { $addToSet: { $cond: [real, "$stopId", null] } },
+            _vehicles: { $push: { $cond: [real, { $ifNull: ["$vehicleId", null] }, null] } },
+            // The longest consist seen: a reading taken while a coupled
+            // unit's GPS had dropped out would otherwise read short.
+            cars: { $max: { $cond: [real, "$cars", null] } },
+          },
+        },
+        {
+          $addFields: {
+            _ok: { $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } } },
+            stops: {
+              $size: { $filter: { input: "$_stops", as: "s", cond: { $ne: ["$$s", null] } } },
+            },
+            // The chronologically first real reading names the vehicle.
+            vehicle_id: {
+              $first: {
+                $filter: { input: "$_vehicles", as: "v", cond: { $ne: ["$$v", null] } },
               },
             },
-            // Sort by time first so $first/$last within the group give the
-            // chronological first/last stop, not an arbitrary document order.
-            { $sort: { tripId: 1, scheduledAt: 1 } },
-            {
-              $group: {
-                _id: "$tripId",
-                scheduled_start: { $min: "$scheduledAt" },
-                first_stop_id: { $first: "$stopId" },
-                // Real readings only: a ghost re-report contributes null to each
-                // list and is dropped below, so the stop count, the vehicle and
-                // the stats all describe the run itself. A ghost comes from a
-                // different vehicle, so its id would name the wrong bus, and it
-                // repeats a stop the run already served, so counting rows would
-                // overstate the stops.
-                _delays: { $push: { $cond: [real, "$deviationSec", null] } },
-                _stops: { $addToSet: { $cond: [real, "$stopId", null] } },
-                _vehicles: { $push: { $cond: [real, { $ifNull: ["$vehicleId", null] }, null] } },
-                // The longest consist seen: a reading taken while a coupled
-                // unit's GPS had dropped out would otherwise read short.
-                cars: { $max: { $cond: [real, "$cars", null] } },
+          },
+        },
+        // A whole-ghost run builds an empty _ok, so it would reach $limit
+        // with a null average, sort last and still occupy a row and the
+        // Trips count on the route page. Drop it before the same-minute
+        // collapse, so it cannot win a collapse group either.
+        { $match: { $expr: { $gt: [{ $size: "$_ok" }, 0] } } },
+        {
+          $addFields: {
+            avg_delay_sec: { $avg: "$_ok" },
+            avg_abs_delay_sec: {
+              $avg: { $map: { input: "$_ok", as: "d", in: { $abs: "$$d" } } },
+            },
+            worst_delay_sec: { $max: "$_ok" },
+          },
+        },
+        // AT issues several trip_ids for one physical run, so collapse runs that
+        // share the same Auckland-local start minute and stop count into one
+        // (keeping the most off-schedule). Done before the metric sort + limit so
+        // the board and the Trips count reflect real runs.
+        {
+          $addFields: {
+            _minute: {
+              $dateToString: {
+                date: "$scheduled_start",
+                format: "%Y-%m-%dT%H:%M",
+                timezone: NZ_TZ,
               },
             },
-            {
-              $addFields: {
-                _ok: { $filter: { input: "$_delays", as: "d", cond: { $ne: ["$$d", null] } } },
-                stops: {
-                  $size: { $filter: { input: "$_stops", as: "s", cond: { $ne: ["$$s", null] } } },
-                },
-                // The chronologically first real reading names the vehicle.
-                vehicle_id: {
-                  $first: {
-                    $filter: { input: "$_vehicles", as: "v", cond: { $ne: ["$$v", null] } },
-                  },
-                },
-              },
-            },
-            // A whole-ghost run builds an empty _ok, so it would reach $limit
-            // with a null average, sort last and still occupy a row and the
-            // Trips count on the route page. Drop it before the same-minute
-            // collapse, so it cannot win a collapse group either.
-            { $match: { $expr: { $gt: [{ $size: "$_ok" }, 0] } } },
-            {
-              $addFields: {
-                avg_delay_sec: { $avg: "$_ok" },
-                avg_abs_delay_sec: {
-                  $avg: { $map: { input: "$_ok", as: "d", in: { $abs: "$$d" } } },
-                },
-                worst_delay_sec: { $max: "$_ok" },
-              },
-            },
-            // AT issues several trip_ids for one physical run, so collapse runs that
-            // share the same Auckland-local start minute and stop count into one
-            // (keeping the most off-schedule). Done before the metric sort + limit so
-            // the board and the Trips count reflect real runs.
-            {
-              $addFields: {
-                _minute: {
-                  $dateToString: {
-                    date: "$scheduled_start",
-                    format: "%Y-%m-%dT%H:%M",
-                    timezone: NZ_TZ,
-                  },
-                },
-              },
-            },
-            { $sort: { _minute: 1, stops: -1, avg_abs_delay_sec: -1 } },
-            { $group: { _id: { m: "$_minute", s: "$stops" }, doc: { $first: "$$ROOT" } } },
-            { $replaceRoot: { newRoot: "$doc" } },
-            { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
-            { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
-            { $sort: TRIP_SORTS[sort] },
-            { $limit: limit },
-            {
-              $project: {
-                _id: 0,
-                trip_id: { $toString: "$_id" },
-                vehicle_id: 1,
-                cars: { $ifNull: ["$cars", null] },
-                scheduled_start: 1,
-                stops: 1,
-                avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                worst_delay_sec: 1,
-                headsign: { $ifNull: ["$meta.headsign", null] },
-                direction_id: { $ifNull: ["$meta.directionId", null] },
-                first_stop_id: 1,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: WorstTripRaw[] } };
-      return res.cursor.firstBatch.map((t) => ({
+          },
+        },
+        { $sort: { _minute: 1, stops: -1, avg_abs_delay_sec: -1 } },
+        { $group: { _id: { m: "$_minute", s: "$stops" }, doc: { $first: "$$ROOT" } } },
+        { $replaceRoot: { newRoot: "$doc" } },
+        { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
+        { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
+        { $sort: TRIP_SORTS[sort] },
+        { $limit: limit },
+        {
+          $project: {
+            _id: 0,
+            trip_id: { $toString: "$_id" },
+            vehicle_id: 1,
+            cars: { $ifNull: ["$cars", null] },
+            scheduled_start: 1,
+            stops: 1,
+            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+            worst_delay_sec: 1,
+            headsign: { $ifNull: ["$meta.headsign", null] },
+            direction_id: { $ifNull: ["$meta.directionId", null] },
+            first_stop_id: 1,
+          },
+        },
+      ]);
+      return res.map((t) => ({
         ...t,
         scheduled_start: toIso(t.scheduled_start),
       }));
@@ -196,7 +200,7 @@ export async function getWorstTripsOfDay(p: WorstTripsParams): Promise<PerTripSt
       sort,
     ],
     p.range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -219,31 +223,27 @@ export async function getLatestTripDay(tripId: string): Promise<DateRange | null
   // Cache the service date string; reconstruct DateRange outside to avoid Date serialisation issues.
   const date = await unstable_cache(
     async () => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: { tripId } },
-            // `$max` skips nulls, and `YYYY-MM-DD` strings sort as dates.
-            {
-              $group: {
-                _id: null,
-                day: { $max: "$serviceDate" },
-                max: { $max: "$scheduledAt" },
-              },
+      const res = await aggregateRows<{ day?: string | null; max?: { $date: string } | string }>(
+        "ArrivalEvent",
+        [
+          { $match: { tripId } },
+          // `$max` skips nulls, and `YYYY-MM-DD` strings sort as dates.
+          {
+            $group: {
+              _id: null,
+              day: { $max: "$serviceDate" },
+              max: { $max: "$scheduledAt" },
             },
-          ] as never,
-          cursor: { batchSize: 1 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: { day?: string | null; max?: { $date: string } | string }[] };
-      };
-      const row = res.cursor.firstBatch[0];
+          },
+        ],
+        1,
+      );
+      const row = res[0];
       if (row?.day) return row.day;
       return row?.max ? nzServiceDayString(new Date(toIso(row.max))) : null;
     },
     ["latest-trip-day-v2", tripId],
-    { revalidate: 21600 },
+    { revalidate: SIX_HOUR_REVALIDATE },
   )();
   return date ? nzServiceDayRange(date) : null;
 }
@@ -279,38 +279,29 @@ export async function getTripTimeline(
         // Padded past 4am so a night run keeps its tail, and held to the run's
         // stamped day so the next day's run of the same trip id stays out. Not
         // clipped to now: a running trip's predicted stops belong on its timeline.
-        match.scheduledAt = {
-          $gte: { $date: day.start.toISOString() },
-          $lt: { $date: padScanRange(day).end.toISOString() },
-        };
+        match.scheduledAt = dateWindow({ start: day.start, end: padScanRange(day).end });
         match.serviceDate = nzServiceDayString(day.start);
       }
 
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            { $match: match },
-            { $sort: { scheduledAt: 1 as const } },
-            { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            {
-              $project: {
-                _id: 0,
-                stop_id: { $toString: "$stopId" },
-                name: "$stop.name",
-                lat: "$stop.lat",
-                lon: "$stop.lon",
-                scheduled_at: "$scheduledAt",
-                deviation_sec: "$deviationSec",
-                vehicle_id: "$vehicleId",
-                ...stationProjection,
-              },
-            },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: TripStopRaw[] } };
+      const res = await aggregateRows<TripStopRaw>("ArrivalEvent", [
+        { $match: match },
+        { $sort: { scheduledAt: 1 as const } },
+        { $lookup: { from: "Stop", localField: "stopId", foreignField: "_id", as: "stop" } },
+        { $unwind: "$stop" },
+        {
+          $project: {
+            _id: 0,
+            stop_id: { $toString: "$stopId" },
+            name: "$stop.name",
+            lat: "$stop.lat",
+            lon: "$stop.lon",
+            scheduled_at: "$scheduledAt",
+            deviation_sec: "$deviationSec",
+            vehicle_id: "$vehicleId",
+            ...stationProjection,
+          },
+        },
+      ]);
 
       // AT re-reports a trip_id against a later vehicle cycle, so a stop can carry
       // both its real arrival and a "ghost" reading ~1h off - and the ghosts can
@@ -320,7 +311,7 @@ export async function getTripTimeline(
       // wildly late. Same rule the nightly pass applies (see lib/deviation.ts),
       // reapplied here because a timeline can be read before that pass has run.
       const bestByStop = new Map<string, TripStopRaw>();
-      for (const r of res.cursor.firstBatch) {
+      for (const r of res) {
         const id = stationId(r.stop_id, r.name, stationPartsOf(r));
         const cur = bestByStop.get(id);
         if (!cur || Math.abs(r.deviation_sec) < Math.abs(cur.deviation_sec)) bestByStop.set(id, r);
@@ -352,14 +343,14 @@ export async function getTripTimeline(
               colour: route.colour,
             }
           : null,
-        vehicle_id: res.cursor.firstBatch.find((r) => r.vehicle_id)?.vehicle_id ?? null,
+        vehicle_id: res.find((r) => r.vehicle_id)?.vehicle_id ?? null,
         stops,
       };
     },
     ["trip-timeline-v3", tripId, routeId, day?.start.toISOString() ?? "all"],
     // The "all" variant follows the trip's latest day and stays short-lived.
     day ?? null,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -425,7 +416,27 @@ export async function getTripScheduledStops(tripId: string): Promise<ScheduledSt
       return out;
     },
     ["trip-scheduled-stops-v2", tripId],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
+  )();
+}
+
+/**
+ * A trip's GTFS headsign, as the ingest stored it in TripMeta. Cached for a day
+ * like the schedule; a trip the ingest never saw has none.
+ * @param tripId - AT GTFS trip id.
+ * @returns The headsign, or null when it is not known.
+ */
+export async function getTripHeadsign(tripId: string): Promise<string | null> {
+  return unstable_cache(
+    async () => {
+      const meta = await prisma.tripMeta.findUnique({
+        where: { id: tripId },
+        select: { headsign: true },
+      });
+      return meta?.headsign ?? null;
+    },
+    ["trip-headsign", tripId],
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 
@@ -461,6 +472,6 @@ export async function getTripShape(tripId: string): Promise<Array<[number, numbe
       return points.map(([lon, lat]): [number, number] => [lat, lon]);
     },
     ["trip-shape", tripId],
-    { revalidate: 86_400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }

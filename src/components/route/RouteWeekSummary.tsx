@@ -1,19 +1,16 @@
 // src/components/route/RouteWeekSummary.tsx
 // Render a route's per-day on-time summary for a week window.
-import { offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { cn } from "@/lib/cn";
+import { formatCount, formatPct } from "@/lib/format";
+import { serviceDayLabel } from "@/lib/time/service-day";
 import type { RouteDay } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
-
-/**
- * Format a `YYYY-MM-DD` service date as `DD/MM`.
- * @param iso - The service date.
- * @returns Short date like "24/06".
- */
-function shortDate(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
-}
 
 /**
  * Compact per-day history table for a single route: each service day's event
@@ -40,60 +37,56 @@ export function RouteWeekSummary({
 }): JSX.Element {
   if (days.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface">
-        <h2 className="border-b border-at-border px-4 py-3 text-lg font-ultra tracking-zero">
-          {label}
-        </h2>
-        <p className="px-4 py-6 text-sm text-at-muted">
+      <Panel>
+        <SectionHeading className="border-b border-at-border px-4 py-3">{label}</SectionHeading>
+        <EmptyState inset className="px-4 py-6">
           No arrivals were recorded for this route in this period.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
 
   return (
-    <section className="border border-at-border bg-at-surface">
-      <h2 className="border-b border-at-border px-4 py-3 text-lg font-ultra tracking-zero">
-        {label}
-      </h2>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-at-shore-pale text-left text-xs tracking-zero text-at-muted uppercase">
-              <th scope="col" className="px-4 py-2">
-                Date
+    <Panel>
+      <SectionHeading className="border-b border-at-border px-4 py-3">{label}</SectionHeading>
+      <DataTable caption={`${label}, day by day`} framed={false}>
+        <thead>
+          <tr className="at-th-row">
+            <th scope="col" className={CELL_CLASS}>
+              Date
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Arrivals
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Early or late
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              On time
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((day) => (
+            <tr key={day.date} className={ROW_CLASS}>
+              <th scope="row" className={cn(CELL_CLASS, "text-left font-normal tabular-nums")}>
+                <Link href={dayHref(day.date)} className="at-link">
+                  {serviceDayLabel(day.date)}
+                </Link>
               </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                Arrivals
-              </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                Early or late
-              </th>
-              <th scope="col" className="px-4 py-2 text-right">
-                On time
-              </th>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                {formatCount(day.events)}
+              </td>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                <OffScheduleValue signedSec={day.avg_delay_sec} absSec={null} mode={mode} />
+              </td>
+              <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                {formatPct(day.on_time_pct)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {days.map((day) => (
-              <tr key={day.date} className="border-t border-at-border">
-                <td className="px-4 py-2 tabular-nums">
-                  <Link href={dayHref(day.date)} className="text-at-shore hover:underline">
-                    {shortDate(day.date)}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">{day.events}</td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {offScheduleValue(day.avg_delay_sec, null, mode).text}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {day.on_time_pct == null ? UNKNOWN_VALUE : `${day.on_time_pct.toFixed(1)}%`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          ))}
+        </tbody>
+      </DataTable>
+    </Panel>
   );
 }

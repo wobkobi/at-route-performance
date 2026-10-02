@@ -3,28 +3,38 @@
 // a table of the routes running, each with how its vehicles sit against the
 // on-time window. Read from AT's live feed, which the site caches for two minutes.
 
-import { ChipLink } from "@/components/Chip";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ChipGroup, ChipLink } from "@/components/Chip";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { LoadingBlock } from "@/components/Loading";
 import LiveMapWrapper from "@/components/map/LiveMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { ON_TIME_WINDOW_NOTE } from "@/lib/copy";
-import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data/routes";
+import { getDirectoryRoutes, getRouteModeMap, type DirectoryRoute } from "@/lib/data";
 import { logReadFailure, readFallback } from "@/lib/db";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
-import { OFF_SCHEDULE_TONE_CLASS, offScheduleValue } from "@/lib/format";
+import { formatCount, formatPct } from "@/lib/format";
 import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/live-routes";
+import { parseMode, type Mode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
+import { routeHref } from "@/lib/page/hrefs";
+import { ROUTE_NAME_CLASS } from "@/lib/page/row";
 import {
   sortRows,
   tableSort,
   type SortColumn,
   type SortDir,
+  type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -35,11 +45,11 @@ import { Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Live now",
   description:
-    "Every Auckland bus, train and ferry on a run right now, on a map and by route, with how many are running late.",
-};
+    "Every Auckland bus, train and ferry on a trip right now, on a map and by route, with how many are running late.",
+});
 
 /** Query params for the live page. */
 interface LiveSearchParams {
@@ -58,7 +68,7 @@ const COLUMNS: SortColumn<LiveRouteRow>[] = [
   { key: "late", value: "late" },
   { key: "ontime", value: "onTime" },
   { key: "early", value: "early" },
-  { key: "avg", value: "avgDelaySec" },
+  { key: "delay", value: "avgDelaySec" },
 ];
 
 /** Routes the table opens with; `?all=1` lists every one. */
@@ -82,9 +92,7 @@ export default async function LivePage({
   searchParams?: Promise<LiveSearchParams>;
 }): Promise<JSX.Element> {
   const sp = (await searchParams) ?? {};
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const all = sp.all === "1";
   const { sort, head, keep } = tableSort(sp, COLUMNS, "running", (p) =>
     buildHref("/live", { mode: mode ?? undefined, ...p, all: all ? "1" : undefined }),
@@ -92,12 +100,10 @@ export default async function LivePage({
 
   return (
     <main className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Live now</h1>
-        <p className="mt-0.5 text-sm text-at-muted">
-          Every bus, train and ferry on a run right now. Refreshes every two minutes.
-        </p>
-      </header>
+      <PageHeader
+        title="Live now"
+        subtitle="Every bus, train and ferry on a trip right now. Refreshes every two minutes."
+      />
 
       <ModeFilter
         active={mode}
@@ -110,15 +116,10 @@ export default async function LivePage({
       </Suspense>
 
       <section aria-labelledby="live-map" className="space-y-3">
-        <h2 id="live-map" className="text-lg font-ultra tracking-zero text-at-ink">
-          Where they are
-        </h2>
-        <LiveMapWrapper
-          mode={mode}
-          className="h-[min(27.5rem,65svh)] border border-at-border sm:h-140"
-        />
+        <SectionHeading id="live-map">Where they are</SectionHeading>
+        <LiveMapWrapper mode={mode} className="at-card h-[min(27.5rem,65svh)] sm:h-140" />
         <p className="text-xs text-at-muted">
-          Tap a dot for its run and vehicle, or a line for the routes on it. Buses are the small
+          Tap a dot for its trip and vehicle, or a line for the routes on it. Buses are the small
           dots, and each line is drawn in its route&apos;s colour. The buttons above the map show or
           hide each kind of dot and the lines.
         </p>
@@ -126,10 +127,8 @@ export default async function LivePage({
 
       <section aria-labelledby="live-routes" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="live-routes" className="text-lg font-ultra tracking-zero text-at-ink">
-            Routes running
-          </h2>
-          <nav aria-label="Order by" className="flex flex-wrap gap-2">
+          <SectionHeading id="live-routes">Routes running</SectionHeading>
+          <ChipGroup label="Order by">
             {(Object.keys(SORT_LABEL) as LiveSort[]).map((s) => (
               <ChipLink
                 key={s}
@@ -143,7 +142,7 @@ export default async function LivePage({
                 {SORT_LABEL[s]}
               </ChipLink>
             ))}
-          </nav>
+          </ChipGroup>
         </div>
         <Suspense fallback={<LoadingBlock label="Loading the routes running" />}>
           <LiveTable mode={mode} sort={sort} head={head} keep={keep} all={all} />
@@ -152,8 +151,8 @@ export default async function LivePage({
 
       <p className="text-xs text-at-muted">
         Each vehicle is placed on the same on-time window as the rest of the site, from the delay
-        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between runs are
-        left out, and one with no delay in the feed counts as running but in no band.
+        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between trips
+        are left out, and one with no delay in the feed counts as running but in no band.
       </p>
     </main>
   );
@@ -167,20 +166,20 @@ export default async function LivePage({
  * @param sort - The table's sort; level rows keep the most-running order.
  * @returns The rows.
  */
-async function loadRows(mode: ModeFilterValue, sort: TableSort | null): Promise<LiveRouteRow[]> {
+async function loadRows(mode: Mode | null, sort: TableSort | null): Promise<LiveRouteRow[]> {
   const [vehicles, modes] = await Promise.all([getLiveVehicles(), getRouteModeMap()]);
   const rows = sortRows(liveRoutes(vehicles, modes, "running"), COLUMNS, sort);
   return mode ? rows.filter((r) => r.mode === mode) : rows;
 }
 
 /**
- * The share of a count in a total, as a whole percentage.
+ * The share of a count in a total, as a percentage.
  * @param n - The count.
  * @param total - The total.
- * @returns "12%", or null for an empty total.
+ * @returns "12.5%", or null for an empty total.
  */
 function pct(n: number, total: number): string | null {
-  return total > 0 ? `${Math.round((n / total) * 100)}%` : null;
+  return total > 0 ? formatPct((n / total) * 100) : null;
 }
 
 /**
@@ -189,7 +188,7 @@ function pct(n: number, total: number): string | null {
  * @param props.mode - The mode filter.
  * @returns The strip.
  */
-async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Element> {
+async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element> {
   let rows: LiveRouteRow[];
   try {
     rows = await loadRows(mode, null);
@@ -200,51 +199,49 @@ async function LiveFigures({ mode }: { mode: ModeFilterValue }): Promise<JSX.Ele
     // database case visible at all - the reader still gets the page.
     logReadFailure("live-figures", err);
     return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
+      <EmptyState>
         The live figures could not be read just now. Try again in a couple of minutes.
-      </div>
+      </EmptyState>
     );
   }
   const t = liveTotals(rows);
   const timed = t.late + t.onTime + t.early;
   const figures: Array<{ label: string; value: string; note?: string | null; tone?: string }> = [
-    { label: "On a run", value: t.vehicles.toLocaleString("en-NZ") },
-    { label: "Routes running", value: t.routes.toLocaleString("en-NZ") },
-    {
-      label: "Late",
-      value: t.late.toLocaleString("en-NZ"),
-      note: pct(t.late, timed),
-      tone: "text-at-late",
-    },
+    { label: "On a trip", value: formatCount(t.vehicles) },
+    { label: "Routes running", value: formatCount(t.routes) },
     {
       label: "On time",
-      value: t.onTime.toLocaleString("en-NZ"),
+      value: formatCount(t.onTime),
       note: pct(t.onTime, timed),
       tone: "text-at-ontime",
     },
     {
+      label: "Late",
+      value: formatCount(t.late),
+      note: pct(t.late, timed),
+      tone: "text-at-late",
+    },
+    {
       label: "Early",
-      value: t.early.toLocaleString("en-NZ"),
+      value: formatCount(t.early),
       note: pct(t.early, timed),
       tone: "text-at-early-strong",
     },
   ];
   return (
-    <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-5">
+    <FigureStrip>
       {figures.map((f) => (
-        <div key={f.label} className="min-w-0">
-          <dt className="text-xs tracking-zero text-at-muted uppercase">{f.label}</dt>
-          <dd className={cn("text-2xl font-ultra tabular-nums", f.tone ?? "text-at-ink")}>
-            {f.value}
-          </dd>
-          {f.note !== undefined && (
-            <dd className="text-xs text-at-muted tabular-nums">
-              {f.note ? `${f.note} of those with a delay` : " "}
-            </dd>
-          )}
-        </div>
+        <Figure
+          key={f.label}
+          label={f.label}
+          className={f.tone}
+          // A blank note under the counts keeps their values level with the bands'.
+          note={f.note === undefined ? undefined : f.note ? `${f.note} of those with a delay` : " "}
+        >
+          {f.value}
+        </Figure>
       ))}
-    </dl>
+    </FigureStrip>
   );
 }
 
@@ -265,9 +262,9 @@ async function LiveTable({
   keep,
   all,
 }: {
-  mode: ModeFilterValue;
+  mode: Mode | null;
   sort: TableSort | null;
-  head: (key: string) => { href: string; dir: SortDir | null };
+  head: (key: SortKey) => { href: string; dir: SortDir | null };
   keep: Record<string, string | undefined>;
   all: boolean;
 }): Promise<JSX.Element> {
@@ -280,91 +277,75 @@ async function LiveTable({
       getDirectoryRoutes().catch(readFallback("directory-routes", [])),
     ]);
     rows = r;
-    routes = new Map(directory.map((d) => [routeSlug(d.id), d]));
+    routes = new Map(directory.map((d) => [routeSlug(d.routeId), d]));
   } catch (err) {
     // Same pair of sources as LiveFigures above, so the same reasoning applies.
     logReadFailure("live-routes", err);
-    return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        No live positions to list: they could not be read just now.
-      </div>
-    );
+    return <EmptyState>No live positions to list: they could not be read just now.</EmptyState>;
   }
   if (rows.length === 0) {
     return (
-      <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-        Nothing is on a run right now. Late at night the network runs few or no services.
-      </div>
+      <EmptyState>
+        Nothing is on a trip right now. Late at night the network runs few or no trips.
+      </EmptyState>
     );
   }
   const shown = all ? rows : rows.slice(0, TABLE_ROWS);
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <SortHeader {...head("route")} align="left">
-                Route
-              </SortHeader>
-              <SortHeader {...head("running")}>Running</SortHeader>
-              <SortHeader {...head("late")}>Late</SortHeader>
-              <SortHeader {...head("ontime")} className="hidden sm:table-cell">
-                On time
-              </SortHeader>
-              <SortHeader {...head("early")} className="hidden sm:table-cell">
-                Early
-              </SortHeader>
-              <SortHeader {...head("avg")} className="hidden md:table-cell">
-                Early or late, avg
-              </SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => {
-              const route = routes.get(r.slug);
-              const name = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
-              const avg = offScheduleValue(r.avgDelaySec, null, r.mode);
-              return (
-                <tr key={r.slug} className="border-b border-at-border last:border-b-0">
-                  <th scope="row" className="p-3 text-left font-normal">
-                    <Link
-                      href={`/route/${encodeURIComponent(r.slug)}`}
-                      className="flex min-w-0 items-center gap-2 hover:underline"
-                    >
-                      <ModeIcon
-                        mode={r.mode}
-                        shortName={route?.shortName ?? r.slug}
-                        longName={route?.longName}
-                        colour={route?.colour}
-                        className="h-4 w-4 shrink-0"
-                      />
-                      <span className="font-semibold text-at-shore">{r.slug}</span>
-                      {name && name !== r.slug && (
-                        <span className="hidden truncate text-at-muted sm:inline">{name}</span>
-                      )}
-                    </Link>
-                  </th>
-                  <td className="p-3 text-right tabular-nums">{r.vehicles}</td>
-                  <td className={cn("p-3 text-right tabular-nums", r.late > 0 && "text-at-late")}>
-                    {r.late}
-                  </td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
-                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.early}</td>
-                  <td
-                    className={cn(
-                      "hidden p-3 text-right whitespace-nowrap tabular-nums md:table-cell",
-                      OFF_SCHEDULE_TONE_CLASS[avg.tone],
+      <DataTable caption="Routes running now">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("route")} align="left">
+              Route
+            </SortHeader>
+            <SortHeader {...head("running")}>Running</SortHeader>
+            <SortHeader {...head("ontime")} className="hidden sm:table-cell">
+              On time
+            </SortHeader>
+            <SortHeader {...head("late")}>Late</SortHeader>
+            <SortHeader {...head("early")} className="hidden sm:table-cell">
+              Early
+            </SortHeader>
+            <SortHeader {...head("delay")} className="hidden md:table-cell">
+              Early or late
+            </SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((r) => {
+            const named = { ...routes.get(r.slug), slug: r.slug };
+            const subtitle = routeSubtitle(named);
+            return (
+              <tr key={r.slug} className={ROW_CLASS}>
+                <th scope="row" className="p-3 text-left font-normal">
+                  <Link href={routeHref(r.slug)} className="group flex min-w-0 items-center gap-2">
+                    <ModeIcon
+                      mode={r.mode}
+                      shortName={named.shortName ?? r.slug}
+                      longName={named.longName}
+                      className="h-4 w-4 shrink-0"
+                    />
+                    <span className={ROUTE_NAME_CLASS}>{routeDisplayName(named)}</span>
+                    {subtitle && (
+                      <span className="hidden truncate text-at-muted sm:inline">{subtitle}</span>
                     )}
-                  >
-                    {avg.text}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </Link>
+                </th>
+                <td className="p-3 text-right tabular-nums">{r.vehicles}</td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
+                <td className={cn("p-3 text-right tabular-nums", r.late > 0 && "text-at-late")}>
+                  {r.late}
+                </td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.early}</td>
+                <td className="hidden p-3 text-right whitespace-nowrap md:table-cell">
+                  <OffScheduleValue signedSec={r.avgDelaySec} absSec={null} mode={r.mode} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
       {shown.length < rows.length && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-at-muted tabular-nums">

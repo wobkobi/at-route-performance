@@ -3,23 +3,31 @@
 // The Routes page body: filter and sort controls (with presets for the home
 // page's Most off-schedule and Most reliable boards in full), the KPI strip for
 // exactly the routes that pass the filters, and the route list with a "More
-// details" link per route, ranked when sorted by a measure. Filtering runs on the client (a few hundred rows), so a change is
-// instant; the state is written back to the query string with replaceState, so
-// the view survives a reload and can be shared without a navigation.
+// details" link per route, ranked when sorted by a measure. Filtering runs on
+// the client (a few hundred rows), so a change is instant; the state is written
+// back to the query string with useUrlParams, so the view survives a reload and
+// can be shared without a navigation.
 
+import { ChipToggle } from "@/components/Chip";
+import { DELAY_OPTIONS } from "@/components/filter/DelayFilter";
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
-import { ChevronRight } from "@/components/icons";
+import { MODE_OPTIONS } from "@/components/filter/ModeFilter";
+import { RadioFilter } from "@/components/filter/RadioFilter";
+import { ChevronRight, SortArrow } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
-import { cn } from "@/lib/cn";
-import {
-  formatDuration,
-  OFF_SCHEDULE_TONE_CLASS,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure } from "@/components/ui/FigureStrip";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { Panel } from "@/components/ui/Panel";
+import { ShowMore } from "@/components/ui/ShowMore";
+import { labelsOf } from "@/lib/collections";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
+import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
+import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
+import { useUrlParams } from "@/lib/page/use-url-param";
 import { summariseRows } from "@/lib/rankings";
 import {
   activeView,
@@ -30,17 +38,18 @@ import {
   EXPLORER_VIEWS,
   explorerQuery,
   filterRoutes,
-  PAGE_SIZE,
-  SHOWN_PARAM,
   sortRoutes,
   type ExplorerFilters,
   type ExplorerRoute,
   type ExplorerSort,
 } from "@/lib/route/explorer";
-import { lineName } from "@/lib/route/line-name";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type JSX, type ReactNode } from "react";
+
+/** The params the explorer's client state writes: its filters and the row count. */
+const OWNED_PARAMS = [...EXPLORER_PARAMS, SHOWN_PARAM];
 
 /** Props for {@link RouteExplorer}. */
 export interface RouteExplorerProps {
@@ -52,37 +61,14 @@ export interface RouteExplorerProps {
   initialFilters: ExplorerFilters;
   /** How many rows to show, parsed from the page's query string. */
   initialShown: number;
-  /** Query (with its `?`) each route link carries, so the route opens on the same window. */
-  routeQuery: string;
+  /** Params each route link carries, so the route opens on the same window. */
+  routeParams: LinkQuery;
   /**
    * Slugs of the routes with a vehicle on a run now, or null when AT's feed
    * could not be read. Unresolved, so the list never waits on the feed.
    */
   running: Promise<string[] | null>;
 }
-
-/** A square button in the filter panel, matching the search field and selects. */
-const BOX =
-  "inline-flex items-center gap-1 border px-3 py-1.5 text-sm font-semibold transition-colors";
-
-/** {@link BOX} when not chosen. */
-const BOX_OFF =
-  "border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore";
-
-/** The Mode filter's choices, null for every mode. */
-const MODES = [
-  [null, "All"],
-  ["BUS", "Bus"],
-  ["TRAIN", "Train"],
-  ["FERRY", "Ferry"],
-] as const;
-
-/** The Running filter's choices, null for either way. */
-const LEANS = [
-  [null, "Either way"],
-  ["late", "Late"],
-  ["early", "Early"],
-] as const;
 
 /** The on/off filters gathered under More. */
 const TOGGLES = [
@@ -99,37 +85,15 @@ const TOGGLES = [
  * @returns The row.
  */
 function FilterRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  const id = useId();
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-      <span className="w-20 shrink-0 text-xs font-semibold tracking-zero text-at-muted uppercase">
+      <span id={id} className="at-eyebrow w-20 shrink-0 text-at-muted">
         {label}
       </span>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  );
-}
-
-/**
- * One figure in a route card.
- * @param props - Component props.
- * @param props.label - The figure's label.
- * @param props.children - The value.
- * @param props.className - Classes for the value (colour).
- * @returns The figure.
- */
-function Figure({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}): JSX.Element {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs tracking-zero text-at-muted uppercase">{label}</dt>
-      <dd className={cn("truncate font-semibold tabular-nums", className)}>{children}</dd>
+      <div role="group" aria-labelledby={id} className="flex flex-wrap gap-2">
+        {children}
+      </div>
     </div>
   );
 }
@@ -141,7 +105,7 @@ function Figure({
  * @param props.operators - The stored operators' slugs and names.
  * @param props.initialFilters - The filters parsed from the query string.
  * @param props.initialShown - How many rows to show, parsed from the query string.
- * @param props.routeQuery - Query each route link carries.
+ * @param props.routeParams - Params each route link carries.
  * @param props.running - Slugs of the routes running now, unresolved.
  * @returns The explorer.
  */
@@ -150,7 +114,7 @@ export function RouteExplorer({
   operators,
   initialFilters,
   initialShown,
-  routeQuery,
+  routeParams,
   running,
 }: RouteExplorerProps): JSX.Element {
   const [filters, setFilters] = useState<ExplorerFilters>(initialFilters);
@@ -189,22 +153,13 @@ export function RouteExplorer({
   );
 
   // Mirror the filters and the row count into the query string, keeping the
-  // window params the server owns. replaceState updates the URL without a
-  // navigation or refetch - which is also why the count belongs here: the entry
-  // it overwrites is the one Back returns to, so a count held only in state
-  // comes back as the first page after opening a route and stepping back.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    for (const key of EXPLORER_PARAMS) params.delete(key);
-    params.delete(SHOWN_PARAM);
-    for (const [k, v] of Object.entries(explorerQuery(filters))) params.set(k, v);
-    if (shown > PAGE_SIZE) params.set(SHOWN_PARAM, String(shown));
-    const qs = params.toString();
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
-    if (next !== `${window.location.pathname}${window.location.search}`) {
-      window.history.replaceState(null, "", next);
-    }
-  }, [filters, shown]);
+  // window params the server owns. The count belongs here because the history
+  // entry the write overwrites is the one Back returns to, so a count held only
+  // in state comes back as the first page after opening a route and stepping back.
+  useUrlParams(OWNED_PARAMS, {
+    ...explorerQuery(filters),
+    ...(shown > LIST_PAGE_SIZE ? { [SHOWN_PARAM]: String(shown) } : {}),
+  });
 
   /**
    * Apply a filter change and return to the top of the list.
@@ -212,7 +167,7 @@ export function RouteExplorer({
    */
   const update = (patch: Partial<ExplorerFilters>): void => {
     setFilters((f) => ({ ...f, ...patch }));
-    setShown(PAGE_SIZE);
+    setShown(LIST_PAGE_SIZE);
   };
 
   /**
@@ -268,57 +223,33 @@ export function RouteExplorer({
     <div className="space-y-6">
       <FleetSummary data={hero} />
 
-      <section
-        aria-label="Filter and sort routes"
-        className="space-y-3 border border-at-border bg-at-surface p-4"
-      >
+      <Panel aria-label="Filter and sort routes" pad="sm" className="space-y-3">
         <input
           type="search"
           value={filters.q}
           onChange={(e) => update({ q: e.target.value })}
           placeholder="Search by route number or name"
           aria-label="Search routes"
-          className="w-full border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore"
+          className="at-field w-full"
         />
         <FilterRow label="Show">
           {EXPLORER_VIEWS.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              aria-pressed={view === v.key}
-              onClick={() => update(v.filters)}
-              className={cn(
-                BOX,
-                view === v.key ? "border-at-shore bg-at-shore text-white" : BOX_OFF,
-              )}
-            >
+            <ChipToggle key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
               {v.label}
-            </button>
+            </ChipToggle>
           ))}
         </FilterRow>
         <FilterRow label="Filter">
-          <FilterMenu
+          <RadioFilter
             label="Mode"
-            summary={MODES.find(([key]) => key !== null && key === filters.mode)?.[1] ?? null}
-            onReset={() => update({ mode: null })}
-          >
-            {MODES.map(([key, label]) => (
-              <FilterOption
-                key={label}
-                type="radio"
-                name="explorer-mode"
-                checked={filters.mode === key}
-                onChange={() => update({ mode: key })}
-              >
-                {label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
+            options={MODE_OPTIONS}
+            value={filters.mode}
+            defaultKey={null}
+            onChange={(mode) => update({ mode })}
+          />
           <FilterMenu
             label="Area"
-            summary={choiceSummary(
-              AREAS.filter((a) => filters.areas.includes(a.key)).map((a) => a.label),
-            )}
+            summary={choiceSummary(labelsOf(AREAS, filters.areas))}
             onReset={() => update({ areas: [] })}
           >
             {AREAS.map((a) => (
@@ -334,9 +265,7 @@ export function RouteExplorer({
           </FilterMenu>
           <FilterMenu
             label="Fare zone"
-            summary={choiceSummary(
-              FARE_ZONES.filter((z) => filters.zones.includes(z.key)).map((z) => z.label),
-            )}
+            summary={choiceSummary(labelsOf(FARE_ZONES, filters.zones))}
             onReset={() => update({ zones: [] })}
           >
             {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
@@ -351,75 +280,33 @@ export function RouteExplorer({
             ))}
           </FilterMenu>
           {operatorOptions.length > 1 && (
-            <FilterMenu
+            <RadioFilter
               label="Operator"
-              summary={
-                filters.op === null
-                  ? null
-                  : (operatorOptions.find((o) => o.slug === filters.op)?.name ?? filters.op)
-              }
-              onReset={() => update({ op: null })}
-            >
-              <FilterOption
-                type="radio"
-                name="explorer-op"
-                checked={filters.op === null}
-                onChange={() => update({ op: null })}
-              >
-                Any operator
-              </FilterOption>
-              {operatorOptions.map((o) => (
-                <FilterOption
-                  key={o.slug}
-                  type="radio"
-                  name="explorer-op"
-                  checked={filters.op === o.slug}
-                  onChange={() => update({ op: o.slug })}
-                >
-                  {o.name}
-                </FilterOption>
-              ))}
-            </FilterMenu>
+              options={[
+                { key: null, label: "Any operator" },
+                ...operatorOptions.map((o) => ({ key: o.slug, label: o.name })),
+              ]}
+              value={filters.op}
+              defaultKey={null}
+              onChange={(op) => update({ op })}
+              summary={(op) => operatorOptions.find((o) => o.slug === op)?.name ?? op}
+            />
           )}
-          <FilterMenu
+          <RadioFilter
             label="School buses"
-            summary={schoolFilterSummary(filters.school)}
-            onReset={() => update({ school: "exclude" })}
-          >
-            {SCHOOL_FILTERS.map((f) => (
-              <FilterOption
-                key={f.key}
-                type="radio"
-                name="explorer-school"
-                checked={filters.school === f.key}
-                onChange={() => update({ school: f.key })}
-              >
-                {f.label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
-          <FilterMenu
+            options={SCHOOL_FILTERS}
+            value={filters.school}
+            defaultKey="exclude"
+            onChange={(school) => update({ school })}
+            summary={schoolFilterSummary}
+          />
+          <RadioFilter
             label="Running"
-            summary={LEANS.find(([key]) => key !== null && key === filters.lean)?.[1] ?? null}
-            onReset={() => update({ lean: null })}
-            activeClass={
-              filters.lean === "late"
-                ? "border-at-late bg-at-surface text-at-late"
-                : "border-at-early-strong bg-at-surface text-at-early-strong"
-            }
-          >
-            {LEANS.map(([key, label]) => (
-              <FilterOption
-                key={label}
-                type="radio"
-                name="explorer-lean"
-                checked={filters.lean === key}
-                onChange={() => update({ lean: key })}
-              >
-                {label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
+            options={DELAY_OPTIONS}
+            value={filters.direction}
+            defaultKey={null}
+            onChange={(direction) => update({ direction })}
+          />
           <FilterMenu
             label="More"
             summary={choiceSummary(
@@ -448,16 +335,14 @@ export function RouteExplorer({
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-at-border pt-3">
           <label className="flex items-center gap-2 text-sm">
-            <span className="text-xs font-semibold tracking-zero text-at-muted uppercase">
-              Sort by
-            </span>
+            <span className="at-eyebrow text-at-muted">Sort by</span>
             <select
               value={filters.sort}
               onChange={(e) => {
                 const sort = e.target.value as ExplorerSort;
                 update({ sort, dir: defaultDir(sort) });
               }}
-              className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
+              className="at-field"
             >
               {EXPLORER_SORTS.map((s) => (
                 <option key={s.key} value={s.key}>
@@ -470,11 +355,12 @@ export function RouteExplorer({
             type="button"
             onClick={() => update({ dir: filters.dir === "asc" ? "desc" : "asc" })}
             aria-label={filters.dir === "asc" ? "Sorted low to high" : "Sorted high to low"}
-            className={cn(BOX, BOX_OFF)}
+            className="chip chip-off"
           >
-            {filters.dir === "asc" ? "Low to high ↑" : "High to low ↓"}
+            {filters.dir === "asc" ? "Low to high" : "High to low"}
+            <SortArrow dir={filters.dir} className="ml-1.5" />
           </button>
-          <span className="ml-auto text-sm text-at-muted tabular-nums">
+          <span role="status" className="ml-auto text-sm text-at-muted tabular-nums">
             {sorted.length === baseCount
               ? `${baseCount} routes`
               : `${sorted.length} of ${baseCount} routes`}
@@ -483,34 +369,34 @@ export function RouteExplorer({
             <button
               type="button"
               onClick={() => update(DEFAULT_FILTERS)}
-              className={cn(BOX, BOX_OFF)}
+              className="chip chip-off gap-1"
             >
               <span aria-hidden>×</span> Reset all
             </button>
           )}
         </div>
-      </section>
+      </Panel>
 
       {sorted.length === 0 ? (
-        <p className="border border-at-border bg-at-surface p-4 text-sm text-at-muted">
+        <EmptyState>
           {rows.length === 0
             ? "No routes have recorded arrivals in this window yet."
             : "No routes match these filters."}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="space-y-2">
           {sorted.slice(0, shown).map((r, i) => {
-            const label = r.short_name || r.long_name || r.slug;
-            const subtitle =
-              lineName(r.mode, r.short_name) ?? (r.long_name !== label ? r.long_name : null);
+            const label = routeDisplayName(r);
+            const subtitle = routeSubtitle(r);
             // Always a distance, never the words "on time": this sits beside an
             // on-time percentage, and a delay figure reading "on time" under an
             // "Early or late" label read as the two figures disagreeing.
-            const offSchedule = offScheduleValue(r.avg_delay_sec, null, r.mode);
             return (
-              <li
+              <Panel
+                as="li"
                 key={r.slug}
-                className="flex flex-col gap-3 border border-at-border bg-at-surface p-4 md:flex-row md:items-center md:gap-6"
+                pad="sm"
+                className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6"
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   {ranked && (
@@ -520,15 +406,14 @@ export function RouteExplorer({
                   )}
                   <ModeIcon
                     mode={r.mode}
-                    shortName={r.short_name}
-                    longName={r.long_name}
-                    colour={r.colour}
+                    shortName={r.shortName}
+                    longName={r.longName}
                     className="mt-0.5 h-6 w-6"
                   />
                   <div className="min-w-0">
                     <p className="text-lg leading-tight font-ultra tracking-zero">
                       <Link
-                        href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                        href={routeHref(r.slug, routeParams)}
                         prefetch={false}
                         className="text-at-ink hover:text-at-shore hover:underline"
                       >
@@ -547,7 +432,7 @@ export function RouteExplorer({
                               if (!filters.areas.includes(a)) toggleArea(a);
                             }}
                             aria-pressed={filters.areas.includes(a)}
-                            className="bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
+                            className="hit-44 bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
                           >
                             {AREA_LABEL[a]}
                           </button>
@@ -557,51 +442,48 @@ export function RouteExplorer({
                   </div>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
-                  <Figure label="On time">
-                    {r.on_time_pct === null ? UNKNOWN_VALUE : `${r.on_time_pct.toFixed(1)}%`}
-                  </Figure>
                   <Figure
-                    label="Early or late"
-                    className={OFF_SCHEDULE_TONE_CLASS[offSchedule.tone]}
+                    size="sm"
+                    label="On time"
+                    className={r.on_time_pct === null ? undefined : "text-at-ontime"}
                   >
-                    {offSchedule.text}
+                    {formatPct(r.on_time_pct)}
                   </Figure>
-                  <Figure label="Off by">
+                  <Figure size="sm" label="Early or late">
+                    <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
+                  </Figure>
+                  <Figure size="sm" label="Avg off by">
                     {r.avg_abs_delay_sec === null
                       ? UNKNOWN_VALUE
                       : formatDuration(r.avg_abs_delay_sec)}
                   </Figure>
                   <Figure
+                    size="sm"
                     label="Cancelled"
                     className={r.cancelled > 0 ? "text-at-late" : undefined}
                   >
-                    {r.cancelled.toLocaleString()}
+                    {formatCount(r.cancelled)}
                   </Figure>
                 </dl>
                 <Link
-                  href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
+                  href={routeHref(r.slug, routeParams)}
                   prefetch={false}
                   className="at-btn shrink-0 border border-at-shore text-at-shore hover:bg-at-shore-pale"
                 >
                   More details
                   <ChevronRight className="h-4 w-4" />
                 </Link>
-              </li>
+              </Panel>
             );
           })}
         </ol>
       )}
 
       {sorted.length > shown && (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + PAGE_SIZE)}
-            className="chip chip-off"
-          >
-            Show {Math.min(PAGE_SIZE, sorted.length - shown)} more of {sorted.length - shown}
-          </button>
-        </div>
+        <ShowMore
+          remaining={sorted.length - shown}
+          onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
+        />
       )}
     </div>
   );

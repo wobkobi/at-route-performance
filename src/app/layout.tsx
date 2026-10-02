@@ -5,8 +5,10 @@ import { DevHostRedirect } from "@/components/layout/DevHostRedirect";
 import { FooterFreshness } from "@/components/layout/FooterFreshness";
 import { FooterNav } from "@/components/layout/FooterNav";
 import { SiteNav } from "@/components/layout/SiteNav";
+import { LoadingLine } from "@/components/Loading";
 import { cn } from "@/lib/cn";
-import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
+import { SERVICE_DAY_NOTE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/copy";
+import { pageMetadata } from "@/lib/og";
 import { productionOrigin } from "@/lib/site-url";
 import { DATA_START_LABEL } from "@/lib/time/data-start";
 import { Analytics } from "@vercel/analytics/next";
@@ -31,8 +33,9 @@ export const metadata: Metadata = {
   // It does not reach a title set in this same segment, which is why the home
   // page sets none and takes the default.
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description:
-    "How close Auckland's buses, trains and ferries run to their timetable, measured every day.",
+  // The share fields are the fallback for a page that sets none (the 404), so
+  // its link still unfurls with the default card.
+  ...pageMetadata({ description: SITE_DESCRIPTION }),
 };
 
 /**
@@ -45,7 +48,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): JSX.Element {
   return (
-    <html lang="en">
+    <html lang="en-NZ">
       <body
         // Browser extensions (e.g. Grammarly) inject data-* attributes onto
         // <body> before hydration; suppress the resulting attribute mismatch.
@@ -121,7 +124,7 @@ export default function RootLayout({
                 affiliated with Auckland Transport.
               </p>
             </div>
-            <nav className="space-y-3 text-sm">
+            <nav aria-label="Explore" className="space-y-3 text-sm">
               <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">
                 Explore
               </h2>
@@ -137,7 +140,7 @@ export default function RootLayout({
               {/* The 4am boundary decides which day a 1am run is counted in, and the
                   day stepper could only say so on hover. */}
               <p className="text-xs text-white/50">{SERVICE_DAY_NOTE}</p>
-              <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
+              <Suspense fallback={<LoadingLine className="text-white/50" />}>
                 <FooterFreshness />
               </Suspense>
             </div>

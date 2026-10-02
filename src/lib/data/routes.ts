@@ -1,15 +1,18 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
-import { MS_IN_DAY } from "@/lib/data/cache";
-import { prisma, runCommand } from "@/lib/db";
+import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE, HOUR_REVALIDATE, TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
+import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { Mode } from "@/lib/mode";
 import {
   allSuccessorSlugs,
   directoryLineageRows,
   predecessorSlugs,
   successorSlug,
 } from "@/lib/route/lineage";
-import { routeSlug, routeVersion } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeVersion, type RouteDisplay } from "@/lib/route/slug";
+import { MS_PER_DAY } from "@/lib/time/service-day";
 
 /**
  * Every AT route id sharing one slug - the same route across feed-version
@@ -31,7 +34,7 @@ async function routeIdsMatching(slug: string): Promise<string[]> {
         .sort((a, b) => routeVersion(b) - routeVersion(a));
     },
     ["route-ids-matching", slug],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -69,7 +72,7 @@ export async function routeIdsForSlug(slug: string): Promise<string[]> {
 }
 
 /** How far back {@link routeHasTraffic} looks for an arrival on a line's own ids. */
-const TRAFFIC_LOOKBACK_MS = 7 * MS_IN_DAY;
+const TRAFFIC_LOOKBACK_MS = 7 * MS_PER_DAY;
 
 /**
  * Whether a route has recorded any arrival on its own ids in the last week. A
@@ -90,7 +93,7 @@ export async function routeHasTraffic(slug: string): Promise<boolean> {
       return hit !== null;
     },
     ["route-has-traffic", slug],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
 }
 
@@ -125,7 +128,7 @@ export async function findCanonicalRouteSlug(slug: string): Promise<string | nul
       return ci ? routeSlug(ci.id) : null;
     },
     ["canonical-route-slug", slug.toLowerCase()],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -149,16 +152,12 @@ export async function findSuccessorRouteSlug(slug: string): Promise<string | nul
 }
 
 /** A route as listed in the directory. */
-export interface DirectoryRoute {
-  id: string;
-  shortName: string | null;
-  longName: string | null;
-  mode: string;
+export interface DirectoryRoute extends RouteDisplay {
   colour: string | null;
 }
 
 /** How stale a route's `lastSeenAt` may be before it counts as retired (the sync runs daily). */
-const ROUTE_STALE_MS = 2 * MS_IN_DAY;
+const ROUTE_STALE_MS = 2 * MS_PER_DAY;
 
 /**
  * Routes AT's most recent GTFS sync still published, for the route directory.
@@ -187,14 +186,15 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
       const cutoff = newest?.lastSeenAt
         ? new Date(newest.lastSeenAt.getTime() - ROUTE_STALE_MS)
         : null;
-      return prisma.route.findMany({
+      const routes = await prisma.route.findMany({
         where: cutoff ? { lastSeenAt: { gte: cutoff } } : {},
         select: { id: true, shortName: true, longName: true, mode: true, colour: true },
         orderBy: { shortName: "asc" },
       });
+      return routes.map(({ id, ...route }) => ({ routeId: id, ...route }));
     },
     ["directory-routes"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
   const successors = allSuccessorSlugs();
   const traffic = await Promise.all(successors.map(routeHasTraffic));
@@ -215,7 +215,7 @@ export async function getDirectoryRoutes(): Promise<DirectoryRoute[]> {
  */
 export async function getRouteLabel(
   slug: string,
-): Promise<{ shortName: string | null; mode: string } | null> {
+): Promise<{ shortName: string | null; longName: string; mode: string } | null> {
   // Never empty (it falls back to the slug), but read with one so the newest id
   // is a plain string for the cache key.
   const newest = (await routeIdsForSlug(slug))[0] ?? slug;
@@ -223,10 +223,10 @@ export async function getRouteLabel(
     async () =>
       prisma.route.findUnique({
         where: { id: newest },
-        select: { shortName: true, mode: true },
+        select: { shortName: true, longName: true, mode: true },
       }),
     ["route-label", newest],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -235,16 +235,16 @@ export async function getRouteLabel(
  * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
  * @returns Map from route id to its mode.
  */
-export async function getRouteModeMap(): Promise<Map<string, "BUS" | "TRAIN" | "FERRY">> {
+export async function getRouteModeMap(): Promise<Map<string, Mode>> {
   const pairs = await unstable_cache(
     async () => {
       const rows = await prisma.route.findMany({ select: { id: true, mode: true } });
       return rows.map((r) => [r.id, r.mode] as const);
     },
     ["route-mode-map"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
-  return new Map(pairs as [string, "BUS" | "TRAIN" | "FERRY"][]);
+  return new Map(pairs as [string, Mode][]);
 }
 
 /**
@@ -274,7 +274,7 @@ export async function getRouteOperators(): Promise<Record<string, string>> {
       return out;
     },
     ["route-operators"],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }
 
@@ -309,10 +309,10 @@ async function allRouteNames(): Promise<Record<string, string>> {
   return unstable_cache(
     async () => {
       const rows = await prisma.route.findMany({ select: { id: true, shortName: true } });
-      return Object.fromEntries(rows.map((r) => [r.id, r.shortName ?? r.id]));
+      return Object.fromEntries(rows.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]));
     },
     ["route-names-all"],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }
 
@@ -335,22 +335,20 @@ async function allRouteNames(): Promise<Record<string, string>> {
 export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
   return unstable_cache(
     async () => {
-      const since = new Date(Date.now() - 7 * MS_IN_DAY);
-      const result = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "DailyRouteSummary",
-          pipeline: [
-            { $match: { date: { $gte: { $date: since.toISOString() } } } },
-            { $group: { _id: "$routeId", events: { $sum: "$events" } } },
-            { $sort: { events: -1 } },
-            // Room for the slug fold below to collapse republished versions.
-            { $limit: limit * 2 },
-          ] as never,
-          cursor: { batchSize: 1000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
+      const since = new Date(Date.now() - 7 * MS_PER_DAY);
+      const result = await aggregateRows<{ _id: string }>(
+        "DailyRouteSummary",
+        [
+          { $match: { date: { $gte: { $date: since.toISOString() } } } },
+          { $group: { _id: "$routeId", events: { $sum: "$events" } } },
+          { $sort: { events: -1 } },
+          // Room for the slug fold below to collapse republished versions.
+          { $limit: limit * 2 },
+        ],
+        1000,
+      );
       const slugs: string[] = [];
-      for (const row of result.cursor.firstBatch) {
+      for (const row of result) {
         const slug = routeSlug(row._id);
         if (!slugs.includes(slug)) slugs.push(slug);
         if (slugs.length === limit) break;
@@ -358,6 +356,6 @@ export async function getBusiestRouteSlugs(limit: number): Promise<string[]> {
       return slugs;
     },
     ["busiest-route-slugs", String(limit)],
-    { revalidate: 86400 },
+    { revalidate: DAY_REVALIDATE },
   )();
 }

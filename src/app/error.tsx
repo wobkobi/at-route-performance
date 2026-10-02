@@ -6,6 +6,7 @@
 // than Next's blank default. The root layout's own failures fall through to
 // global-error.tsx.
 
+import { PageHeader } from "@/components/ui/PageHeader";
 import Link from "next/link";
 import { useEffect, type JSX } from "react";
 
@@ -31,14 +32,11 @@ export default function ErrorPage({
     console.error("[PAGE] Render failed", { error: error.message, digest: error.digest });
   }, [error]);
   return (
-    <main className="space-y-4 py-8">
-      <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-        Something went wrong
-      </h1>
-      <p className="max-w-prose text-at-muted">
-        This page could not be loaded. The database or the Auckland Transport feeds may be
-        unreachable for a moment; the rest of the site should still work.
-      </p>
+    <main className="space-y-6">
+      <PageHeader
+        title="Something went wrong"
+        subtitle="This page could not be loaded. The database or the AT feeds may be unreachable for a moment; the rest of the site should still work."
+      />
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={reset} className="at-btn at-btn-cta">
           Try again

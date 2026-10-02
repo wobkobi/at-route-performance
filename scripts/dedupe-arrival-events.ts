@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db";
 /**
  * One-off migration for the ArrivalEvent unique-key change (actualAt >
  * scheduledAt): remove duplicate rows per stop visit, keeping the row with the
@@ -17,9 +18,7 @@
  * Usage:
  *   npx tsx --env-file=.env.local scripts/dedupe-arrival-events.ts [--dry-run] [--since=<hours>]
  */
-import { PrismaClient } from "@prisma/client";
 
-const p = new PrismaClient();
 const dryRun = process.argv.includes("--dry-run");
 const sinceArg = process.argv.find((a) => a.startsWith("--since="));
 const sinceHours = sinceArg ? Number.parseInt(sinceArg.slice(8), 10) : null;
@@ -29,18 +28,18 @@ const DELETE_BATCH = 1000;
 
 const oldest = sinceHours
   ? { scheduledAt: new Date(Date.now() - sinceHours * HOUR_MS) }
-  : await p.arrivalEvent.findFirst({
+  : await prisma.arrivalEvent.findFirst({
       orderBy: { scheduledAt: "asc" },
       select: { scheduledAt: true },
     });
-const newest = await p.arrivalEvent.findFirst({
+const newest = await prisma.arrivalEvent.findFirst({
   orderBy: { scheduledAt: "desc" },
   select: { scheduledAt: true },
 });
 
 if (!oldest || !newest) {
   console.log("No ArrivalEvent rows found - nothing to do.");
-  await p.$disconnect();
+  await prisma.$disconnect();
   process.exit(0);
 }
 
@@ -58,7 +57,7 @@ let duplicates = 0;
 let deleted = 0;
 
 for (let sliceMs = startMs; sliceMs < endMs; sliceMs += HOUR_MS) {
-  const rows = await p.arrivalEvent.findMany({
+  const rows = await prisma.arrivalEvent.findMany({
     where: { scheduledAt: { gte: new Date(sliceMs), lt: new Date(sliceMs + HOUR_MS) } },
     select: { id: true, tripId: true, stopId: true, scheduledAt: true, actualAt: true },
   });
@@ -84,7 +83,7 @@ for (let sliceMs = startMs; sliceMs < endMs; sliceMs += HOUR_MS) {
   duplicates += toDelete.length;
   if (!dryRun) {
     for (let i = 0; i < toDelete.length; i += DELETE_BATCH) {
-      const res = await p.arrivalEvent.deleteMany({
+      const res = await prisma.arrivalEvent.deleteMany({
         where: { id: { in: toDelete.slice(i, i + DELETE_BATCH) } },
       });
       deleted += res.count;
@@ -102,4 +101,4 @@ console.log(
   `\nDone. Scanned ${scanned} rows; ${duplicates} duplicates ` +
     (dryRun ? "found (dry run, nothing deleted)." : `found, ${deleted} deleted.`),
 );
-await p.$disconnect();
+await prisma.$disconnect();

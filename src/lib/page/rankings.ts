@@ -5,6 +5,8 @@
 // days; an explicit `period` is a calendar week reached by stepping back. A
 // matching previous range is resolved alongside each window so the table can
 // show rank movement.
+import { parseMode, type Mode } from "@/lib/mode";
+import type { PeriodWindow } from "@/lib/page/range";
 import { parseDelayDirection, type DelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter } from "@/lib/school-bus";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
@@ -16,16 +18,12 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
+  shiftDays,
   shiftMonth,
-  shiftWeek,
-  weekRangeLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
 
-/** Active rankings window. */
-export type RankWindow = "week" | "month";
-/** Active mode filter, or null for every mode. */
-export type RankMode = "BUS" | "TRAIN" | "FERRY" | null;
 /** Query params for the rankings page. */
 export interface RankingsSearchParams {
   window?: string;
@@ -37,10 +35,19 @@ export interface RankingsSearchParams {
 
 /** Parsed rankings params. */
 export interface ParsedRankingsParams {
-  window: RankWindow;
-  mode: RankMode;
+  window: PeriodWindow;
+  mode: Mode | null;
   dir: DelayDirection;
   schools: SchoolFilter;
+}
+
+/**
+ * Parse `?window` for a view with no day window, defaulting to the week.
+ * @param raw - The raw query value.
+ * @returns The window.
+ */
+export function parsePeriodWindow(raw: string | undefined): PeriodWindow {
+  return raw === "month" ? "month" : "week";
 }
 
 /**
@@ -49,8 +56,8 @@ export interface ParsedRankingsParams {
  * @returns The validated window, mode, direction and school toggle.
  */
 export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsParams {
-  const window: RankWindow = sp.window === "month" ? "month" : "week";
-  const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as RankMode;
+  const window = parsePeriodWindow(sp.window);
+  const mode = parseMode(sp.mode);
   const dir = parseDelayDirection(sp.dir);
   const schools = parseSchoolFilter(sp.school);
   return { window, mode, dir, schools };
@@ -70,7 +77,7 @@ export function parseRankingsParams(sp: RankingsSearchParams): ParsedRankingsPar
  * @returns The range and a human label.
  */
 export function resolveRange(
-  window: RankWindow,
+  window: PeriodWindow,
   period: string | undefined,
   anchor: Date,
 ): { range: DateRange; label: string } {
@@ -80,7 +87,7 @@ export function resolveRange(
   }
   if (period) {
     const range = nzWeekRange(period);
-    return { range: clampRangeToDataStart(range), label: weekRangeLabel(range) };
+    return { range: clampRangeToDataStart(range), label: weekLabel(range) };
   }
   return { range: clampRangeToDataStart(nzLast7DaysRange(anchor)), label: "Last 7 days" };
 }
@@ -96,16 +103,16 @@ export function resolveRange(
  * @returns The previous period's half-open date range, possibly empty.
  */
 export function resolvePrevRange(
-  window: RankWindow,
+  window: PeriodWindow,
   period: string | undefined,
   anchor: Date,
 ): DateRange {
   if (window === "month") {
     return clampRangeToDataStart(nzMonthRange(shiftMonth(period ?? nzMonthKey(anchor), -1)));
   }
-  if (period) return clampRangeToDataStart(nzWeekRange(shiftWeek(period, -7)));
+  if (period) return clampRangeToDataStart(nzWeekRange(shiftDays(period, -7)));
   // Step by service date rather than a fixed 7 * 24 h of milliseconds, which
   // lands an hour off the 4am boundary when the two windows straddle a DST switch.
-  const prevDay = shiftWeek(nzServiceDayString(anchor), -7);
+  const prevDay = shiftDays(nzServiceDayString(anchor), -7);
   return clampRangeToDataStart(nzLast7DaysRange(nzServiceDayRange(prevDay).start));
 }

@@ -5,9 +5,11 @@
 // were (lib/page/filter-params.ts); these sit beside them.
 
 import { isAreaKey, type AreaKey } from "@/lib/geo/areas";
+import type { LinkQuery } from "@/lib/page/hrefs";
+import type { RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import {
-  DAYS_PARAM,
+  DAY_TYPE_PARAM,
   dayTypeLabel,
   dayTypeOf,
   parseDayType,
@@ -44,18 +46,18 @@ export const NO_RANKING_FILTERS: RankingFilters = { hours: null, days: null, are
  * only: a single day already is one kind of day, so the param is ignored there.
  * @param sp - The page's params.
  * @param sp.hours - `hours`, e.g. `7-9`.
- * @param sp.days - `days`: weekday, sat or sun.
+ * @param sp.daytype - `daytype`: weekday, sat or sun.
  * @param sp.area - `area`, a comma list of area keys.
  * @param singleDay - Whether the page shows one service day.
  * @returns The filters, each unreadable part dropped.
  */
 export function parseRankingFilters(
-  sp: { hours?: string; days?: string; area?: string },
+  sp: { hours?: string; daytype?: string; area?: string },
   singleDay: boolean,
 ): RankingFilters {
   return {
     hours: parseHourRange(sp.hours),
-    days: singleDay ? null : parseDayType(sp.days),
+    days: singleDay ? null : parseDayType(sp.daytype),
     areas: [...new Set((sp.area ?? "").split(",").filter(isAreaKey))],
   };
 }
@@ -77,7 +79,7 @@ export function hasRankingFilters(f: RankingFilters): boolean {
 export function rankingFilterParams(f: RankingFilters): Record<string, string | undefined> {
   return {
     [HOURS_PARAM]: hourRangeParam(f.hours),
-    [DAYS_PARAM]: f.days ?? undefined,
+    [DAY_TYPE_PARAM]: f.days ?? undefined,
     [AREA_PARAM]: f.areas.length > 0 ? f.areas.join(",") : undefined,
   };
 }
@@ -104,20 +106,20 @@ export function inAreas(
  * @param routeAreas - Route slug to the areas it serves.
  * @returns The rows that pass.
  */
-export function rowsInAreas<T extends { route_id: string }>(
+export function rowsInAreas<T extends { routeId: string }>(
   rows: readonly T[],
   areas: readonly AreaKey[],
   routeAreas: Readonly<Record<string, readonly AreaKey[]>>,
 ): T[] {
   return areas.length === 0
     ? [...rows]
-    : rows.filter((r) => inAreas(routeSlug(r.route_id), areas, routeAreas));
+    : rows.filter((r) => inAreas(routeSlug(r.routeId), areas, routeAreas));
 }
 
 /** A cancelled trip, as far as the filters read it. */
 export interface FilterableCancellation {
   /** Route slug. */
-  route_id: string;
+  slug: string;
   mode: string;
   school: boolean;
   service_date: string;
@@ -144,20 +146,18 @@ export function cancellationMatches(
     if (!trip.scheduled_start) return false;
     if (!isHourInRange(nzLocalHour(new Date(trip.scheduled_start)), f.hours)) return false;
   }
-  return inAreas(trip.route_id, f.areas, routeAreas);
+  return inAreas(trip.slug, f.areas, routeAreas);
 }
 
 /**
- * A route link's query with the part of the day added, so a route opened from a
- * narrowed board opens on the same hours (the route page reads `hours` too).
- * @param query - The query from routeLinkQuery, with its `?`, or empty.
+ * A route link's params with the part of the day added, so a route opened from
+ * a narrowed board opens on the same hours (the route page reads `hours` too).
+ * @param params - The params from `routeLinkParams`.
  * @param hours - The part of the day, or null for all of it.
- * @returns The query with `hours` added when set.
+ * @returns The params with `hours` added when set.
  */
-export function routeQueryWithHours(query: string, hours: HourRange | null): string {
-  const param = hourRangeParam(hours);
-  if (!param) return query;
-  return `${query}${query ? "&" : "?"}${HOURS_PARAM}=${param}`;
+export function routeParamsWithHours(params: LinkQuery, hours: HourRange | null): LinkQuery {
+  return { ...params, [HOURS_PARAM]: hourRangeParam(hours) };
 }
 
 /**
@@ -190,10 +190,7 @@ export function rankingFiltersPhrase(
  * @param window - The window shown.
  * @returns The sentence after the phrase.
  */
-export function rankingFiltersReach(
-  filters: RankingFilters,
-  window: "day" | "week" | "month",
-): string {
+export function rankingFiltersReach(filters: RankingFilters, window: RangeWindow): string {
   if (window !== "day") {
     return `The figures, the cancellations and the route rankings follow it; the worst-of cards and the vehicle counts cover the whole ${window}.`;
   }

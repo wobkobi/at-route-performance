@@ -2,7 +2,9 @@
 // KPI strip for the Cancellations page: every trip AT flagged, split by how the
 // flag played out (see lib/trip/cancellation.ts), and how many routes had one.
 
-import { cn } from "@/lib/cn";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
+import { formatCount } from "@/lib/format";
+import { CANCELLATION_LABEL } from "@/lib/trip/cancellation";
 import type { JSX } from "react";
 
 /** Props for {@link CancellationSummary}. */
@@ -40,24 +42,26 @@ export function CancellationSummary({
     // The three stage cells below partition this one, reinstated included. The
     // home strip carries the same figure under the same name and note.
     { label: "Flagged cancelled", value: flagged, note: "Reinstated trips included" },
-    { label: "Never ran", value: neverRan, className: neverRan > 0 ? "text-at-late" : undefined },
-    { label: "Cut short", value: cutShort, className: cutShort > 0 ? "text-at-late" : undefined },
-    { label: "Reinstated", value: reinstated },
+    {
+      label: CANCELLATION_LABEL.before,
+      value: neverRan,
+      className: neverRan > 0 ? "text-at-late" : undefined,
+    },
+    {
+      label: CANCELLATION_LABEL["mid-trip"],
+      value: cutShort,
+      className: cutShort > 0 ? "text-at-late" : undefined,
+    },
+    { label: CANCELLATION_LABEL.ran, value: reinstated },
     { label: "Routes", value: routes },
   ];
   return (
-    <div className="border border-at-border bg-at-surface">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {cells.map((c) => (
-          <div key={c.label} className="p-3">
-            <div className="text-xs tracking-zero text-at-muted uppercase">{c.label}</div>
-            <div className={cn("text-xl font-ultra tracking-zero tabular-nums", c.className)}>
-              {c.value.toLocaleString()}
-            </div>
-            {c.note && <div className="text-xs text-at-muted">{c.note}</div>}
-          </div>
-        ))}
-      </div>
-    </div>
+    <FigureStrip>
+      {cells.map((c) => (
+        <Figure key={c.label} label={c.label} note={c.note} className={c.className}>
+          {formatCount(c.value)}
+        </Figure>
+      ))}
+    </FigureStrip>
   );
 }

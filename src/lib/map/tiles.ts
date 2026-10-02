@@ -1,5 +1,9 @@
 // src/lib/map/tiles.ts
-// The basemap tile URL, with the CARTO key only where the key is allowed.
+// The basemap: its tile URL, with the CARTO key only where the key is allowed,
+// and the map both live maps start from.
+
+import { wheelZoomOnHover } from "@/lib/map/wheel";
+import type * as Leaflet from "leaflet";
 
 /** CARTO Positron raster tiles, without a key. */
 const CARTO_TILES = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
@@ -53,4 +57,57 @@ export function cartoTileUrl(
     return CARTO_TILES;
   }
   return `${CARTO_TILES}?key=${encodeURIComponent(key)}`;
+}
+
+/** Central Auckland, for a map's view before it has anything to frame. */
+export const AUCKLAND_CENTRE: [number, number] = [-36.8485, 174.7633];
+
+/** How often a live map refreshes its vehicles while the tab is visible; the server caches the feed for as long. */
+export const MAP_POLL_MS = 120_000;
+
+/**
+ * Whether the reader has asked for reduced motion, for a map move made in script.
+ * @returns True when the reduced-motion media query matches.
+ */
+export function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * A Leaflet map with the site's basemap, before any view or layers. The wheel
+ * zooms only on a settled mouse (see {@link wheelZoomOnHover}); one-finger drag
+ * stays on for touch, since every page caps its map below the screen's height, so
+ * a swipe above or below it still scrolls the page. Zoom snaps to quarter steps,
+ * so a fitted frame fills its box rather than rounding down a whole level. With
+ * reduced motion on ({@link reducedMotion}), zooms jump rather than ease, tiles
+ * and markers appear without fading, and a flung pan stops where it is let go.
+ *
+ * The site-wide Referrer-Policy is same-origin, which strips the Referer from
+ * tile requests and fails a host-restricted CARTO key, so the tile layer sends
+ * the origin only (no page path).
+ * @param L - The Leaflet module, loaded by the caller on the client.
+ * @param el - The map's container element.
+ * @returns The map.
+ */
+export function createBaseMap(L: typeof Leaflet, el: HTMLElement): Leaflet.Map {
+  const still = reducedMotion();
+  const map = L.map(el, {
+    scrollWheelZoom: false,
+    zoomSnap: 0.25,
+    zoomAnimation: !still,
+    fadeAnimation: !still,
+    markerZoomAnimation: !still,
+    inertia: !still,
+  });
+  wheelZoomOnHover(map);
+  L.tileLayer(
+    cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),
+    {
+      maxZoom: 19,
+      subdomains: "abcd",
+      attribution: "© OpenStreetMap contributors © CARTO",
+      referrerPolicy: "strict-origin-when-cross-origin",
+    },
+  ).addTo(map);
+  return map;
 }

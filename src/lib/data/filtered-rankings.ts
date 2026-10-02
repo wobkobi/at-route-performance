@@ -6,17 +6,18 @@
 // day's hours from HourlyRouteSummary, or scans the day live when it has no
 // hourly rows yet (today, or a day from before the hourly rollup existed).
 
+import { addTo } from "@/lib/collections";
 import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { getRankings } from "@/lib/data/rankings";
+import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { getRiderWaitOfDates } from "@/lib/data/rider-wait";
 import { getRouteGeography } from "@/lib/data/route-areas";
-import { prisma, runCommand } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
+import type { Mode } from "@/lib/mode";
 import {
   earlyTwoCounts,
   lateSum,
-  ON_TIME_LATE_SEC,
   onTimeTwoCounts,
   pickEarlyByRouteMode,
   pickOnTimeByRouteMode,
@@ -34,17 +35,14 @@ import { datesOfType, type DayType } from "@/lib/time/day-type";
 import { NZ_TZ } from "@/lib/time/nz-tz";
 import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
 import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
-import type { TopRouteRow } from "@/types/api";
-
-/** How long a live day's filtered rows are served before a fresh read, in seconds. */
-const LIVE_DAY_REVALIDATE = 300;
+import type { RouteRow } from "@/types/api";
 
 /**
  * Round a pipeline value to one decimal, as every ranking row is.
  * @param expr - The value's expression.
  * @returns The rounding expression.
  */
-function round1(expr: unknown): object {
+function round1Expr(expr: unknown): object {
   return { $round: [expr, 1] };
 }
 
@@ -53,8 +51,8 @@ function round1(expr: unknown): object {
  * @param field - The count's field path.
  * @returns The percentage expression, its divisor guarded against zero.
  */
-function pctOf(field: string): object {
-  return round1({ $multiply: [{ $divide: [field, { $max: [1, "$plausible"] }] }, 100] });
+function pctOfExpr(field: string): object {
+  return round1Expr({ $multiply: [{ $divide: [field, { $max: [1, "$plausible"] }] }, 100] });
 }
 
 /**
@@ -75,36 +73,19 @@ const ROUTE_LOOKUP = [
 const ROW_PROJECT = {
   $project: {
     _id: 0,
-    route_id: { $toString: "$_id" },
-    short_name: "$route.shortName",
-    long_name: "$route.longName",
+    routeId: { $toString: "$_id" },
+    shortName: "$route.shortName",
+    longName: "$route.longName",
     mode: "$route.mode",
     colour: "$route.colour",
     events: 1,
-    avg_delay_sec: round1({ $divide: ["$sum_delay", { $max: [1, "$plausible"] }] }),
-    avg_abs_delay_sec: round1({ $divide: ["$sum_abs", { $max: [1, "$plausible"] }] }),
-    on_time_pct: pctOf("$on_time"),
-    early_pct: pctOf("$early"),
-    late_pct: pctOf("$late"),
+    avg_delay_sec: round1Expr({ $divide: ["$sum_delay", { $max: [1, "$plausible"] }] }),
+    avg_abs_delay_sec: round1Expr({ $divide: ["$sum_abs", { $max: [1, "$plausible"] }] }),
+    on_time_pct: pctOfExpr("$on_time"),
+    early_pct: pctOfExpr("$early"),
+    late_pct: pctOfExpr("$late"),
   },
 };
-
-/**
- * Run an aggregation and return its rows.
- * @param collection - The collection to aggregate.
- * @param pipeline - The stages.
- * @returns The first batch, which the batch size makes the whole result.
- */
-async function aggregateRows<T>(collection: string, pipeline: object[]): Promise<T[]> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: collection,
-      pipeline,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: T[] } };
-  return res.cursor.firstBatch;
-}
 
 /**
  * Whether the nightly rollup has written hourly rows for a day.
@@ -115,10 +96,7 @@ async function hasHourlyRows(range: DateRange): Promise<boolean> {
   const rows = await aggregateRows<unknown>("HourlyRouteSummary", [
     {
       $match: {
-        date: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        date: dateWindow(range),
       },
     },
     { $limit: 1 },
@@ -133,14 +111,11 @@ async function hasHourlyRows(range: DateRange): Promise<boolean> {
  * @param hours - The Auckland clock hours to keep.
  * @returns Per-route rows.
  */
-function hourlySummaryRows(range: DateRange, hours: number[]): Promise<TopRouteRow[]> {
-  return aggregateRows<TopRouteRow>("HourlyRouteSummary", [
+function hourlySummaryRows(range: DateRange, hours: number[]): Promise<RouteRow[]> {
+  return aggregateRows<RouteRow>("HourlyRouteSummary", [
     {
       $match: {
-        date: {
-          $gte: { $date: range.start.toISOString() },
-          $lt: { $date: range.end.toISOString() },
-        },
+        date: dateWindow(range),
         hour: { $in: hours },
       },
     },
@@ -170,13 +145,9 @@ function hourlySummaryRows(range: DateRange, hours: number[]): Promise<TopRouteR
  * @param classified - Whether the day's ghost pass has run.
  * @returns Per-route rows.
  */
-function liveHourRows(
-  range: DateRange,
-  hours: number[],
-  classified: boolean,
-): Promise<TopRouteRow[]> {
+function liveHourRows(range: DateRange, hours: number[], classified: boolean): Promise<RouteRow[]> {
   const plausible = realDeviationExprFor(classified);
-  return aggregateRows<TopRouteRow>("ArrivalEvent", [
+  return aggregateRows<RouteRow>("ArrivalEvent", [
     {
       $match: {
         scheduledAt: scheduledAtWindow(range),
@@ -207,9 +178,10 @@ function liveHourRows(
  * A classified day with hourly rows reads them; any other day is scanned.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param hours - The part of the day.
+ * @param revalidate - Cache TTL while the day is still under way, in seconds.
  * @returns Per-route rows, measured arrivals only.
  */
-function hourRowsOfDay(date: string, hours: HourRange): Promise<TopRouteRow[]> {
+function hourRowsOfDay(date: string, hours: HourRange, revalidate: number): Promise<RouteRow[]> {
   const range = nzServiceDayRange(date);
   const hourSet = hoursInRange(hours);
   return cachedForDay(
@@ -219,7 +191,7 @@ function hourRowsOfDay(date: string, hours: HourRange): Promise<TopRouteRow[]> {
         : liveHourRows(range, hourSet, classified),
     ["hour-rankings-day", date, hourRangeParam(hours) ?? "all"],
     date,
-    LIVE_DAY_REVALIDATE,
+    revalidate,
   );
 }
 
@@ -254,17 +226,15 @@ async function queryFilteredRankings(
   hours: HourRange | null,
   days: DayType | null,
   revalidate: number,
-): Promise<TopRouteRow[]> {
+): Promise<RouteRow[]> {
   const dates = filteredDates(range, days);
   if (!hours) {
-    const sets = await Promise.all(
-      dates.map((d) => getRankings(nzServiceDayRange(d), ON_TIME_LATE_SEC, revalidate)),
-    );
+    const sets = await Promise.all(dates.map((d) => getRankings(nzServiceDayRange(d), revalidate)));
     return foldLineageRows(sets.flat());
   }
   const [penalties, ...sets] = await Promise.all([
     getRiderWaitOfDates(dates, hours),
-    ...dates.map((d) => hourRowsOfDay(d, hours)),
+    ...dates.map((d) => hourRowsOfDay(d, hours, revalidate)),
   ]);
   return applyRoutePenalties(foldLineageRows(sets.flat()), penalties);
 }
@@ -281,7 +251,7 @@ export async function getFilteredRankings(
   range: DateRange,
   filters: RankingFilters,
   revalidate: number,
-): Promise<TopRouteRow[]> {
+): Promise<RouteRow[]> {
   const { hours, days, areas } = filters;
   const [rows, geography] = await Promise.all([
     hours || days
@@ -297,7 +267,7 @@ export async function getFilteredRankings(
           range,
           revalidate,
         )
-      : getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      : getRankings(range, revalidate),
     areas.length > 0 ? getRouteGeography() : null,
   ]);
   return geography ? rowsInAreas(rows, areas, geography.areas) : rows;
@@ -327,7 +297,7 @@ export interface FilteredCancellations {
 export async function getFilteredCancellations(
   range: DateRange,
   filters: RankingFilters,
-  base: { mode: string | null; schools: SchoolFilter },
+  base: { mode: Mode | null; schools: SchoolFilter },
 ): Promise<FilteredCancellations> {
   if (!hasRankingFilters(filters)) {
     throw new Error("getFilteredCancellations needs a filter; use the unfiltered counts");
@@ -346,7 +316,7 @@ export async function getFilteredCancellations(
     if (!t.school) withoutSchool++;
     if (!schoolAllows(base.schools, t.school)) continue;
     total++;
-    byRoute.set(t.route_id, (byRoute.get(t.route_id) ?? 0) + 1);
+    addTo(byRoute, t.slug);
   }
   return { total, withoutSchool, byRoute };
 }

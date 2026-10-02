@@ -1,21 +1,17 @@
 // src/lib/cron/warm.ts
 // What the nightly warm renders, and the small worker pool it renders them with.
+import { SITE_PAGES, type SitePage } from "@/lib/page/site-nav";
 import { isBeforeDataStart } from "@/lib/time/data-start";
-import { shiftWeek } from "@/lib/time/service-day";
+import { shiftDays } from "@/lib/time/service-day";
+import { buildHref } from "@/lib/utils";
 
 /**
  * Pages with a day stepper. Each is warmed on its default filters, the variant
  * a reader lands on and steps through.
  */
-export const DAY_PAGES = [
-  "/",
-  "/shame/trip",
-  "/shame/route",
-  "/shame/stop",
-  "/routes",
-  "/vehicles",
-  "/cancellations",
-] as const;
+export const DAY_PAGES: readonly string[] = SITE_PAGES.filter(
+  (p: SitePage) => p.takesDay === true,
+).map((p) => p.href);
 
 /** Completed service days the page warm covers, counting back from yesterday. */
 export const WARM_DAYS = 7;
@@ -29,10 +25,10 @@ export const WARM_DAYS = 7;
  * @returns Root-relative paths, each carrying its `?day=`.
  */
 export function pageWarmPaths(yesterday: string): string[] {
-  const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftWeek(yesterday, -i)).filter(
+  const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftDays(yesterday, -i)).filter(
     (day) => !isBeforeDataStart(day),
   );
-  return days.flatMap((day) => DAY_PAGES.map((page) => `${page}?day=${day}`));
+  return days.flatMap((day) => DAY_PAGES.map((page) => buildHref(page, { day })));
 }
 
 /**

@@ -2,16 +2,14 @@
 // src/components/filter/SchoolBusToggle.tsx
 // Filter box choosing whether school bus services are left out, included, or shown alone.
 
-import { FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
+import { UrlRadioFilter } from "@/components/filter/RadioFilter";
 import {
   SCHOOL_FILTERS,
   schoolFilterParam,
   schoolFilterSummary,
   type SchoolFilter,
 } from "@/lib/school-bus";
-import { buildHref } from "@/lib/utils";
-import { useRouter } from "next/navigation";
-import { useId, type JSX } from "react";
+import type { JSX } from "react";
 
 /** Props for {@link SchoolBusToggle}. */
 export interface SchoolBusToggleProps {
@@ -38,34 +36,17 @@ export function SchoolBusToggle({
   basePath,
   preservedParams,
 }: SchoolBusToggleProps): JSX.Element {
-  const router = useRouter();
-  const name = useId();
-  /**
-   * Navigate to the page under a choice.
-   * @param next - The choice.
-   */
-  const choose = (next: SchoolFilter): void => {
-    router.push(buildHref(basePath, { ...preservedParams, school: schoolFilterParam(next) }), {
-      scroll: false,
-    });
-  };
   return (
-    <FilterMenu
+    <UrlRadioFilter
       label="School buses"
-      summary={schoolFilterSummary(value)}
-      onReset={() => choose("exclude")}
-    >
-      {SCHOOL_FILTERS.map((f) => (
-        <FilterOption
-          key={f.key}
-          type="radio"
-          name={name}
-          checked={value === f.key}
-          onChange={() => choose(f.key)}
-        >
-          {f.label}
-        </FilterOption>
-      ))}
-    </FilterMenu>
+      param="school"
+      toParam={schoolFilterParam}
+      summary={schoolFilterSummary}
+      options={SCHOOL_FILTERS}
+      value={value}
+      defaultKey="exclude"
+      basePath={basePath}
+      preservedParams={preservedParams}
+    />
   );
 }

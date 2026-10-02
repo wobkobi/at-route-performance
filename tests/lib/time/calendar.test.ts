@@ -1,11 +1,5 @@
-import {
-  mondayOf,
-  monthPickPeriod,
-  monthShort,
-  monthTitle,
-  monthWeeks,
-  weekPickPeriod,
-} from "@/lib/time/calendar";
+import { monthPickPeriod, monthShort, monthWeeks, weekPickPeriod } from "@/lib/time/calendar";
+import { mondayOf, monthLabel } from "@/lib/time/service-day";
 import { describe, expect, it } from "vitest";
 
 describe("mondayOf", () => {
@@ -34,7 +28,7 @@ describe("monthWeeks", () => {
 
 describe("month labels", () => {
   it("names the month in full and short", () => {
-    expect(monthTitle("2026-09")).toBe("September 2026");
+    expect(monthLabel("2026-09")).toBe("September 2026");
     expect(monthShort("2026-09")).toBe("Sep");
   });
 });

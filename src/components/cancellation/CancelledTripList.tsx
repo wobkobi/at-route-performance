@@ -8,36 +8,40 @@
 // from a trip returns to the same stretch of the list.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
-import { cn } from "@/lib/cn";
-import type { NetworkCancelledTrip } from "@/lib/data/cancelled";
-import { UNKNOWN_VALUE } from "@/lib/format";
-import { useUrlParam } from "@/lib/page/use-url-param";
-import { nzClockTime, nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
-import {
-  CANCELLATION_BADGE,
-  CANCELLATION_BADGE_CLASS,
-  CANCELLATION_BADGE_MEANING,
-  CANCELLATION_BADGE_SHORT,
-  CANCELLATION_STAGES,
-  type CancellationStage,
-} from "@/lib/trip/cancellation";
-import { boundFor } from "@/lib/trip/departure-label";
+import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { ShowMore } from "@/components/ui/ShowMore";
+import type { NetworkCancelledTrip } from "@/lib/data";
+import { formatCount, UNKNOWN_VALUE } from "@/lib/format";
+import { LIST_PAGE_SIZE, parseShown, SHOWN_PARAM } from "@/lib/page/filter-params";
+import { tripHref } from "@/lib/page/hrefs";
 import {
   TRIP_NAME_CLASS,
   TRIP_NAME_GROUP_CLASS,
   TRIP_ROW_CLASS,
   TRIP_ROW_LINK_CLASS,
-} from "@/lib/trip/row";
+} from "@/lib/page/row";
+import { useUrlParam } from "@/lib/page/use-url-param";
+import { routeDisplayName } from "@/lib/route/slug";
+import { nzClockTime } from "@/lib/time/format";
+import { nzServiceDayRange, serviceDayLabel } from "@/lib/time/service-day";
+import {
+  CANCELLATION_BADGE,
+  CANCELLATION_BADGE_MEANING,
+  CANCELLATION_LABEL,
+  CANCELLATION_STAGES,
+  type CancellationStage,
+} from "@/lib/trip/cancellation";
+import { boundFor } from "@/lib/trip/departure-label";
 import { buildHref } from "@/lib/utils";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Fragment, useMemo, useState, type JSX } from "react";
-
-/** Trips shown before "Show more", and how many each press adds. */
-const PAGE_SIZE = 30;
 
 /** Props for {@link CancelledTripList}. */
 export interface CancelledTripListProps {
@@ -61,21 +65,10 @@ export interface CancelledTripListProps {
 
 const STAGES: ReadonlyArray<{ key: CancellationStage | null; label: string }> = [
   { key: null, label: "All" },
-  { key: "before", label: "Never ran" },
-  { key: "mid-trip", label: "Cut short" },
-  { key: "ran", label: "Reinstated" },
+  { key: "before", label: CANCELLATION_LABEL.before },
+  { key: "mid-trip", label: CANCELLATION_LABEL["mid-trip"] },
+  { key: "ran", label: CANCELLATION_LABEL.ran },
 ];
-
-/**
- * How many rows a `show` param opens the list to: a whole number above the
- * first page, or the first page for anything else.
- * @param raw - The param, or null when absent.
- * @returns Rows to show.
- */
-function parseShown(raw: string | null): number {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > PAGE_SIZE ? n : PAGE_SIZE;
-}
 
 /**
  * Whether a flagged trip has yet to reach its scheduled start.
@@ -113,8 +106,8 @@ export function CancelledTripList({
   // Seeded from the live URL rather than a server prop: Back restores the page
   // from the router cache, rendered before `show` was written into the URL.
   const searchParams = useSearchParams();
-  const [shown, setShown] = useState(() => parseShown(searchParams.get("show")));
-  useUrlParam("show", shown > PAGE_SIZE ? String(shown) : null);
+  const [shown, setShown] = useState(() => parseShown(searchParams.get(SHOWN_PARAM)));
+  useUrlParam(SHOWN_PARAM, shown > LIST_PAGE_SIZE ? String(shown) : null);
   const { visible, notDue } = useMemo(() => {
     const staged = stage ? trips.filter((t) => t.stage === stage) : trips;
     if (multiDay) return { visible: [...staged].reverse(), notDue: 0 };
@@ -124,15 +117,12 @@ export function CancelledTripList({
     return { visible: [...later, ...due], notDue: later.length };
   }, [trips, stage, multiDay, liveAt]);
   // Key entries for the stages on screen, so no badge is explained in a hover a
-  // phone cannot reach - and none is explained that the reader cannot see. The
-  // filter chips name the stages in their own words ("Never ran", "Cut short"),
-  // which is not the same vocabulary as the badges.
+  // phone cannot reach - and none is explained that the reader cannot see.
   const keyItems: BadgeKeyItem[] = useMemo(() => {
     const shownStages = new Set(visible.slice(0, shown).map((t) => t.stage));
     return CANCELLATION_STAGES.filter((s) => shownStages.has(s)).map((s) => ({
       label: CANCELLATION_BADGE[s],
-      shortLabel: CANCELLATION_BADGE_SHORT[s],
-      className: CANCELLATION_BADGE_CLASS[s],
+      tone: CANCELLATION_TONE[s],
       meaning: CANCELLATION_BADGE_MEANING[s],
     }));
   }, [visible, shown]);
@@ -143,10 +133,10 @@ export function CancelledTripList({
   }, [trips]);
 
   return (
-    <section className="min-w-0 border border-at-border bg-at-surface p-4">
+    <Panel pad="sm" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-ultra tracking-zero text-at-ink">Cancelled trips</h2>
-        <div className="flex flex-wrap gap-1">
+        <SectionHeading>Cancelled trips</SectionHeading>
+        <ChipGroup label="Stage" className="gap-1">
           {STAGES.map((s) => (
             <ChipLink
               key={s.label}
@@ -160,13 +150,13 @@ export function CancelledTripList({
               </span>
             </ChipLink>
           ))}
-        </div>
+        </ChipGroup>
       </div>
       {visible.length === 0 ? (
         // An empty list under a chosen stage is the chip's doing, not the
         // window's, so it names the chip and offers the way back out. The counts
         // on the chips say the same thing, but only to a reader who reads them.
-        <p className="text-sm text-at-muted">
+        <EmptyState inset>
           {stage !== null && trips.length > 0 ? (
             <>
               No trips at this stage.{" "}
@@ -175,14 +165,14 @@ export function CancelledTripList({
                 scroll={false}
                 className="underline"
               >
-                Show all {trips.length.toLocaleString()}
+                Show all {formatCount(trips.length)}
               </Link>
               .
             </>
           ) : (
-            "No trips were flagged cancelled in this window."
+            "No cancelled trips recorded in this window."
           )}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="striped">
           {visible.slice(0, shown).map((t, i) => {
@@ -198,13 +188,13 @@ export function CancelledTripList({
             return (
               <Fragment key={`${t.service_date}-${t.trip_id}`}>
                 {label && (
-                  <li className="no-stripe pt-3 pb-1 text-xs font-semibold tracking-zero text-at-muted uppercase first:pt-0">
+                  <li className="no-stripe at-eyebrow pt-3 pb-1 text-at-muted first:pt-0">
                     {label}
                   </li>
                 )}
                 <li className={TRIP_ROW_CLASS}>
                   <Link
-                    href={`/route/${encodeURIComponent(t.route_id)}/trip/${encodeURIComponent(t.trip_id)}?d=${encodeURIComponent(at)}`}
+                    href={tripHref(t.slug, t.trip_id, at)}
                     prefetch={false}
                     className={TRIP_ROW_LINK_CLASS}
                   >
@@ -218,33 +208,13 @@ export function CancelledTripList({
                         {t.scheduled_start ? nzClockTime(t.scheduled_start) : UNKNOWN_VALUE}
                       </span>
                     </span>
-                    <ModeIcon
-                      mode={t.mode}
-                      shortName={t.short_name}
-                      longName={t.long_name}
-                      colour={t.colour}
-                    />
+                    <ModeIcon mode={t.mode} shortName={t.shortName} longName={t.longName} />
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
-                        <span className="font-semibold text-at-ink">
-                          {t.short_name ?? t.route_id}
-                        </span>
-                        <span className="text-at-muted">
-                          {t.headsign
-                            ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}`
-                            : ""}
-                        </span>
+                        <span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>
+                        <span className="text-at-muted"> {boundFor(t.headsign, t.mode)}</span>
                       </span>
-                      <span
-                        title={CANCELLATION_BADGE_MEANING[t.stage]}
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-xs font-bold",
-                          CANCELLATION_BADGE_CLASS[t.stage],
-                        )}
-                      >
-                        <span className="sm:hidden">{CANCELLATION_BADGE_SHORT[t.stage]}</span>
-                        <span className="hidden sm:inline">{CANCELLATION_BADGE[t.stage]}</span>
-                      </span>
+                      <CancellationBadge stage={t.stage} />
                     </span>
                     <ChevronRight className="shrink-0 text-at-muted" />
                   </Link>
@@ -256,16 +226,12 @@ export function CancelledTripList({
       )}
       <BadgeKey items={keyItems} />
       {visible.length > shown && (
-        <div className="mt-3 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + PAGE_SIZE)}
-            className="chip chip-off"
-          >
-            Show {Math.min(PAGE_SIZE, visible.length - shown)} more of {visible.length - shown}
-          </button>
-        </div>
+        <ShowMore
+          remaining={visible.length - shown}
+          onClick={() => setShown((n) => n + LIST_PAGE_SIZE)}
+          className="mt-3"
+        />
       )}
-    </section>
+    </Panel>
   );
 }

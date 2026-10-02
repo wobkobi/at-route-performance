@@ -1,5 +1,6 @@
 // src/lib/feed/gtfs-shapes.ts
 // Fetch and simplify road geometry from the AT GTFS feed's `shapes.txt`.
+import { perpMetres } from "@/lib/geo/distance";
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `shapes.txt` holds road geometry per shape_id. */
@@ -10,9 +11,6 @@ const TOLERANCE_M = 4;
 
 /** Hard cap on points per shape (safety for extremely long/curvy shapes). */
 const MAX_POINTS = 1000;
-
-/** Metres per degree of latitude (good enough locally for simplification). */
-const M_PER_DEG = 111_320;
 
 /** A simplified shape: ordered `[lon, lat]` pairs (GeoJSON order) for one shape_id. */
 export interface ShapeGeom {
@@ -25,25 +23,6 @@ interface RawPoint {
   seq: number;
   lat: number;
   lon: number;
-}
-
-/**
- * Perpendicular distance (metres) from point `p` to the line through `a`-`b`,
- * using a local planar approximation (lon scaled by cos(lat)).
- * @param p - The point.
- * @param a - Line start.
- * @param b - Line end.
- * @returns Distance in metres.
- */
-function perpDistM(p: RawPoint, a: RawPoint, b: RawPoint): number {
-  const cosLat = Math.cos((a.lat * Math.PI) / 180) || 1e-6;
-  const px = (p.lon - a.lon) * M_PER_DEG * cosLat;
-  const py = (p.lat - a.lat) * M_PER_DEG;
-  const bx = (b.lon - a.lon) * M_PER_DEG * cosLat;
-  const by = (b.lat - a.lat) * M_PER_DEG;
-  const len2 = bx * bx + by * by;
-  if (len2 === 0) return Math.hypot(px, py);
-  return Math.abs(px * by - py * bx) / Math.sqrt(len2);
 }
 
 /**
@@ -63,7 +42,7 @@ function simplify(pts: RawPoint[], epsM: number): RawPoint[] {
   // Interior points only: the endpoints are always kept.
   for (const [i, p] of pts.entries()) {
     if (i === 0 || i === pts.length - 1) continue;
-    const d = perpDistM(p, first, last);
+    const d = perpMetres([p.lat, p.lon], [first.lat, first.lon], [last.lat, last.lon]);
     if (d > maxD) {
       maxD = d;
       idx = i;

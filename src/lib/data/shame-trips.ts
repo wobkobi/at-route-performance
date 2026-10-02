@@ -1,9 +1,10 @@
 // src/lib/data/shame-trips.ts
 // The worst runs: the hourly shame board, its per-day week form and the day cache.
-import { cachedForDay, cachedForRange, scheduledAtWindow, toIso } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows, toIso } from "@/lib/data/raw";
 import { schoolRouteMatch, type ShameFilter } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
+import { type Mode, modeOrBus } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import {
   type DateRange,
@@ -25,9 +26,9 @@ import type { ShameOfDay, ShameOfWeek, ShameRanked, ShameTrip } from "@/types/da
  * @param revalidate - TTL for the live day, in seconds.
  * @returns The day's worst runs.
  */
-export function cachedWorstTripsOfDay(
+export function cachedTripBoardOfDay(
   date: string,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   revalidate: number,
 ): Promise<ShameTrip[]> {
@@ -45,12 +46,12 @@ export const SHAME_MIN_STOPS = 5;
 /** Raw Shame row before its `scheduled_start` date is normalised. */
 interface ShameTripRaw extends Omit<
   ShameTrip,
-  "scheduled_start" | "short_name" | "long_name" | "mode"
+  "scheduled_start" | "shortName" | "longName" | "mode"
 > {
   scheduled_start: { $date: string } | string;
-  short_name?: string | null;
-  long_name?: string | null;
-  mode?: string | null;
+  shortName?: string | null;
+  longName?: string | null;
+  mode?: Mode | null;
 }
 
 /**
@@ -68,7 +69,7 @@ interface ShameTripRaw extends Omit<
  * @param revalidate - Cache lifetime in seconds.
  * @returns The day's worst run and the per-hour worst list (earliest hour first).
  */
-export async function getShameOfDay(
+export async function getTripBoardOfDay(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -76,8 +77,7 @@ export async function getShameOfDay(
   const { mode = null, schools = "exclude" } = filter;
   return cachedForRange(
     async (classified) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pipeline: any[] = [
+      const pipeline: object[] = [
         {
           $match: {
             scheduledAt: scheduledAtWindow(padScanRange(range)),
@@ -89,7 +89,7 @@ export async function getShameOfDay(
         {
           $group: {
             _id: "$tripId",
-            route_id: { $first: "$routeId" },
+            routeId: { $first: "$routeId" },
             scheduled_start: { $min: "$scheduledAt" },
             _stops: { $addToSet: "$stopId" },
             avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
@@ -101,7 +101,7 @@ export async function getShameOfDay(
         // that carries both a real arrival and a re-report.
         { $addFields: { stops: { $size: "$_stops" } } },
         { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
-        { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+        { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
         { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
         { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
         { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
@@ -124,9 +124,9 @@ export async function getShameOfDay(
           $group: {
             _id: "$hour",
             trip_id: { $first: { $toString: "$_id" } },
-            route_id: { $first: "$route_id" },
-            short_name: { $first: "$route.shortName" },
-            long_name: { $first: "$route.longName" },
+            routeId: { $first: "$routeId" },
+            shortName: { $first: "$route.shortName" },
+            longName: { $first: "$route.longName" },
             mode: { $first: "$route.mode" },
             colour: { $first: "$route.colour" },
             scheduled_start: { $first: "$scheduled_start" },
@@ -142,9 +142,9 @@ export async function getShameOfDay(
             _id: 0,
             hour: "$_id",
             trip_id: 1,
-            route_id: 1,
-            short_name: 1,
-            long_name: 1,
+            routeId: 1,
+            shortName: 1,
+            longName: 1,
             mode: 1,
             colour: 1,
             scheduled_start: 1,
@@ -156,21 +156,15 @@ export async function getShameOfDay(
           },
         },
       );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: ShameTripRaw[] } };
+      const res = await aggregateRows<ShameTripRaw>("ArrivalEvent", pipeline);
 
-      const hours: ShameTrip[] = res.cursor.firstBatch.map((t) => ({
+      const hours: ShameTrip[] = res.map((t) => ({
         hour: t.hour,
         trip_id: t.trip_id,
-        route_id: t.route_id,
-        short_name: t.short_name ?? null,
-        long_name: t.long_name ?? "",
-        mode: t.mode ?? "BUS",
+        routeId: t.routeId,
+        shortName: t.shortName ?? null,
+        longName: t.longName ?? "",
+        mode: modeOrBus(t.mode),
         colour: t.colour ?? null,
         scheduled_start: toIso(t.scheduled_start),
         stops: t.stops,
@@ -216,7 +210,7 @@ export const SHAME_RANKED_LIMIT = 10;
  * @param revalidate - Cache lifetime in seconds.
  * @returns Up to {@link SHAME_RANKED_LIMIT} runs, worst first, and how many qualified.
  */
-export async function getShameTripsInHours(
+export async function getTripBoardInHours(
   range: DateRange,
   filter: ShameFilter,
   hours: HourRange,
@@ -240,9 +234,9 @@ export async function getShameTripsInHours(
                 output: {
                   hour: "$hour",
                   trip_id: { $toString: "$_id" },
-                  route_id: "$route_id",
-                  short_name: "$route.shortName",
-                  long_name: "$route.longName",
+                  routeId: "$routeId",
+                  shortName: "$route.shortName",
+                  longName: "$route.longName",
                   mode: "$route.mode",
                   colour: "$route.colour",
                   scheduled_start: "$scheduled_start",
@@ -257,23 +251,20 @@ export async function getShameTripsInHours(
           },
         },
       );
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: pipeline as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { total: number; rows: ShameTripRaw[] }[] } };
-      const doc = res.cursor.firstBatch[0];
+      const res = await aggregateRows<{ total: number; rows: ShameTripRaw[] }>(
+        "ArrivalEvent",
+        pipeline,
+      );
+      const doc = res[0];
       return {
         total: doc?.total ?? 0,
         rows: (doc?.rows ?? []).map((t) => ({
           hour: t.hour,
           trip_id: t.trip_id,
-          route_id: t.route_id,
-          short_name: t.short_name ?? null,
-          long_name: t.long_name ?? "",
-          mode: t.mode ?? "BUS",
+          routeId: t.routeId,
+          shortName: t.shortName ?? null,
+          longName: t.longName ?? "",
+          mode: modeOrBus(t.mode),
           colour: t.colour ?? null,
           scheduled_start: toIso(t.scheduled_start),
           stops: t.stops,
@@ -311,13 +302,11 @@ export async function getShameTripsInHours(
  */
 function shamePipelineBase(
   range: DateRange,
-  mode: string | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   classified: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pipeline: any[] = [
+): object[] {
+  const pipeline: object[] = [
     {
       $match: {
         scheduledAt: scheduledAtWindow(padScanRange(range)),
@@ -328,7 +317,7 @@ function shamePipelineBase(
     {
       $group: {
         _id: "$tripId",
-        route_id: { $first: "$routeId" },
+        routeId: { $first: "$routeId" },
         scheduled_start: { $min: "$scheduledAt" },
         // $min, not $first: $first is order-dependent without a preceding
         // $sort, so a run whose readings disagreed would bucket at random.
@@ -343,7 +332,7 @@ function shamePipelineBase(
     // that carries both a real arrival and a re-report.
     { $addFields: { stops: { $size: "$_stops" } } },
     { $match: { stops: { $gte: SHAME_MIN_STOPS } } },
-    { $lookup: { from: "Route", localField: "route_id", foreignField: "_id", as: "route" } },
+    { $lookup: { from: "Route", localField: "routeId", foreignField: "_id", as: "route" } },
     { $unwind: { path: "$route", preserveNullAndEmptyArrays: true } },
     { $lookup: { from: "tripMeta", localField: "_id", foreignField: "_id", as: "meta" } },
     { $unwind: { path: "$meta", preserveNullAndEmptyArrays: true } },
@@ -357,7 +346,7 @@ function shamePipelineBase(
 /**
  * The week's "Shame of the Week": the single most off-schedule run plus the
  * worst run of each service day, within the chosen filter. Mirrors
- * {@link getShameOfDay} but groups by service day instead of hour, bucketing
+ * {@link getTripBoardOfDay} but groups by service day instead of hour, bucketing
  * each run by the service date ingest stamped on it. Cached at the supplied revalidate rate.
  * @param range - The week (or multi-day) window.
  * @param filter - Mode/school filters mirroring the home page.
@@ -366,7 +355,7 @@ function shamePipelineBase(
  * @param revalidate - Cache lifetime in seconds.
  * @returns The period's worst run and the per-day worst list, earliest day first.
  */
-export async function getShameOfWeek(
+export async function getTripBoardOfWeek(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
@@ -379,7 +368,7 @@ export async function getShameOfWeek(
   const days = (
     await Promise.all(
       serviceDatesInRange(range).map((date) =>
-        cachedWorstTripsOfDay(date, mode, schools, revalidate),
+        cachedTripBoardOfDay(date, mode, schools, revalidate),
       ),
     )
   ).flat();
@@ -393,7 +382,7 @@ export async function getShameOfWeek(
 
 /**
  * The worst run of each service day within a range (one row per day with data).
- * Used per-day by {@link getShameOfWeek}; left uncached so the caller owns the
+ * Used per-day by {@link getTripBoardOfWeek}; left uncached so the caller owns the
  * per-day cache key.
  * @param range - The window to aggregate (typically a single service day).
  * @param mode - Route mode filter (null = all).
@@ -403,7 +392,7 @@ export async function getShameOfWeek(
  */
 async function worstTripsForRange(
   range: DateRange,
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   classified: boolean,
 ): Promise<ShameTrip[]> {
@@ -425,9 +414,9 @@ async function worstTripsForRange(
             sortBy: { avg_abs_delay_sec: -1 },
             output: {
               trip_id: { $toString: "$_id" },
-              route_id: "$route_id",
-              short_name: "$route.shortName",
-              long_name: "$route.longName",
+              routeId: "$routeId",
+              shortName: "$route.shortName",
+              longName: "$route.longName",
               mode: "$route.mode",
               colour: "$route.colour",
               scheduled_start: "$scheduled_start",
@@ -445,9 +434,9 @@ async function worstTripsForRange(
       $project: {
         _id: 1,
         trip_id: "$worst.trip_id",
-        route_id: "$worst.route_id",
-        short_name: "$worst.short_name",
-        long_name: "$worst.long_name",
+        routeId: "$worst.routeId",
+        shortName: "$worst.shortName",
+        longName: "$worst.longName",
         mode: "$worst.mode",
         colour: "$worst.colour",
         scheduled_start: "$worst.scheduled_start",
@@ -459,24 +448,19 @@ async function worstTripsForRange(
       },
     },
   );
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: pipeline as never,
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as {
-    cursor: { firstBatch: (Omit<ShameTripRaw, "hour"> & { _id: string })[] };
-  };
+  const res = await aggregateRows<Omit<ShameTripRaw, "hour"> & { _id: string }>(
+    "ArrivalEvent",
+    pipeline,
+  );
 
-  return res.cursor.firstBatch.map((t) => ({
+  return res.map((t) => ({
     hour: 0,
     date: t._id,
     trip_id: t.trip_id,
-    route_id: t.route_id,
-    short_name: t.short_name ?? null,
-    long_name: t.long_name ?? "",
-    mode: t.mode ?? "BUS",
+    routeId: t.routeId,
+    shortName: t.shortName ?? null,
+    longName: t.longName ?? "",
+    mode: modeOrBus(t.mode),
     colour: t.colour ?? null,
     scheduled_start: toIso(t.scheduled_start),
     stops: t.stops,

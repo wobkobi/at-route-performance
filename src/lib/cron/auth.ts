@@ -4,7 +4,8 @@
 // be recovered by timing the response. A missing secret is a 500 (server
 // misconfiguration, fail closed rather than open); a mismatch is a logged 401.
 
-import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-error";
+import type { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 
 /**
@@ -17,7 +18,7 @@ export function requireCronAuth(req: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     console.error("[AUTH] CRON_SECRET not configured");
-    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    return apiError(500, "misconfigured", "Server misconfiguration.");
   }
 
   const provided = Buffer.from(req.headers.get("authorization") ?? "");
@@ -28,7 +29,7 @@ export function requireCronAuth(req: Request): NextResponse | null {
     console.warn("[AUTH] Unauthorised ingest attempt", {
       ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
     });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError(401, "unauthorized", "Unauthorized.");
   }
   return null;
 }

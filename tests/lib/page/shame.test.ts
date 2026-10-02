@@ -20,14 +20,12 @@ describe("parseShameParams", () => {
     const p = parseShameParams({});
     expect(p.filter).toEqual({ mode: null, schools: "exclude", direction: null });
     expect(p.view).toBe("day");
-    expect(p.subtitle).toBe("Buses, trains & ferries");
-    expect(p.preserved).toEqual({});
+    expect(p.subtitle).toBe("Buses, trains and ferries");
   });
 
-  it("reads a direction and keeps it for the other controls' links", () => {
+  it("reads a direction alongside the other filters", () => {
     const p = parseShameParams({ dir: "late", mode: "TRAIN", school: "1" });
-    expect(p.direction).toBe("late");
-    expect(p.preserved).toEqual({ mode: "TRAIN", school: "1", dir: "late" });
+    expect(p.filter).toEqual({ mode: "TRAIN", schools: "include", direction: "late" });
   });
 
   it("reads an unknown direction as both, so a bad link is not an empty board", () => {
@@ -46,10 +44,9 @@ describe("parseShameParams", () => {
     expect(parseShameParams({ hours: "all", window: "month" }).hours).toBeNull();
   });
 
-  it("names school buses alone and keeps the choice on the links", () => {
+  it("names school buses alone", () => {
     const p = parseShameParams({ school: "only" });
     expect(p.filter.schools).toBe("only");
-    expect(p.preserved).toEqual({ school: "only" });
     expect(p.subtitle).toBe("School buses");
   });
 

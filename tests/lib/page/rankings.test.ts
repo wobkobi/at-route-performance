@@ -13,7 +13,7 @@ describe("resolveRange", () => {
   it("raises the first week to the floor but still labels the whole week", () => {
     const { range, label } = resolveRange("week", "2026-09-07", anchor);
     expect(range.start.toISOString()).toBe(floor.toISOString());
-    expect(label).toBe("07/09 to 13/09");
+    expect(label).toBe("7 to 13 Sep");
   });
   it("raises the first month to the floor and labels the month", () => {
     const { range, label } = resolveRange("month", "2026-09", anchor);

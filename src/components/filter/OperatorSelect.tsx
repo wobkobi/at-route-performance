@@ -1,8 +1,8 @@
 "use client";
 // src/components/filter/OperatorSelect.tsx
 // A drop-down of operators for a server-rendered board: choosing one navigates
-// to the same page with `?op=<slug>`. Seventeen operators make too long a chip
-// row, which is why this is a select where the mode and school filters are chips.
+// to the same page with `?op=<slug>`. Seventeen operators make too long a list
+// for a filter menu of radio options, so this is a native select.
 
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -31,7 +31,7 @@ export function OperatorSelect({
   const router = useRouter();
 
   /**
-   * Navigate to the chosen operator, back to the first page of rows.
+   * Navigate to the chosen operator, back to the list's first rows.
    * @param e - The change event.
    */
   function choose(e: ChangeEvent<HTMLSelectElement>): void {
@@ -43,12 +43,8 @@ export function OperatorSelect({
 
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-xs font-semibold tracking-zero text-at-muted uppercase">Operator</span>
-      <select
-        value={active ?? ""}
-        onChange={choose}
-        className="border border-at-border bg-at-surface px-2 py-1.5 text-sm focus:border-at-shore"
-      >
+      <span className="at-eyebrow text-at-muted">Operator</span>
+      <select value={active ?? ""} onChange={choose} className="at-field">
         <option value="">Any operator</option>
         {options.map((o) => (
           <option key={o.slug} value={o.slug}>

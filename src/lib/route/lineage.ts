@@ -7,8 +7,10 @@
 // aggregate a line together with its predecessors, cross-route boards fold a
 // retired line's rows into its successor's, and a retired slug's URL redirects
 // once the successor is running.
+import { pushTo } from "@/lib/collections";
 import { routeSlug, routeVersion } from "@/lib/route/slug";
-import type { TopRouteRow } from "@/types/api";
+import { byEvents, weightedMean } from "@/lib/stats";
+import type { RouteRow } from "@/types/api";
 
 /** One line's succession across the CRL cutover. */
 interface LineSuccession {
@@ -66,12 +68,12 @@ export function allSuccessorSlugs(): string[] {
  * @param running - Successor slugs that have carried traffic.
  * @returns The rows to list, in the input order.
  */
-export function directoryLineageRows<T extends { id: string }>(
+export function directoryLineageRows<T extends { routeId: string }>(
   rows: readonly T[],
   running: ReadonlySet<string>,
 ): T[] {
   return rows.filter((row) => {
-    const slug = routeSlug(row.id);
+    const slug = routeSlug(row.routeId);
     if (predecessorSlugs(slug).length > 0) return running.has(slug);
     const successor = successorSlug(slug);
     return successor === null || !running.has(successor);
@@ -97,24 +99,12 @@ const WEIGHTED_FIELDS = [
  * @param field - The averaged field to combine.
  * @returns The combined value.
  */
-function weightedMean(
-  rows: readonly TopRouteRow[],
+function mergedMean(
+  rows: readonly RouteRow[],
   field: (typeof WEIGHTED_FIELDS)[number],
 ): number | null | undefined {
-  let present = false;
-  let weight = 0;
-  let sum = 0;
-  for (const row of rows) {
-    const value = row[field];
-    if (value === undefined) continue;
-    present = true;
-    if (value === null) continue;
-    weight += row.events;
-    sum += value * row.events;
-  }
-  if (!present) return undefined;
-  if (weight === 0) return null;
-  return Math.round((sum / weight) * 10) / 10;
+  if (rows.every((row) => row[field] === undefined)) return undefined;
+  return weightedMean(rows, (row) => row[field], byEvents);
 }
 
 /**
@@ -130,16 +120,14 @@ function weightedMean(
  * @param rows - Per-route rows keyed by full route id.
  * @returns One row per line.
  */
-export function foldLineageRows(rows: readonly TopRouteRow[]): TopRouteRow[] {
-  const slugsPresent = new Set(rows.map((row) => routeSlug(row.route_id)));
-  const groups = new Map<string, TopRouteRow[]>();
+export function foldLineageRows(rows: readonly RouteRow[]): RouteRow[] {
+  const slugsPresent = new Set(rows.map((row) => routeSlug(row.routeId)));
+  const groups = new Map<string, RouteRow[]>();
   for (const row of rows) {
-    const slug = routeSlug(row.route_id);
+    const slug = routeSlug(row.routeId);
     const successor = successorSlug(slug);
     const key = successor !== null && slugsPresent.has(successor) ? successor : slug;
-    const group = groups.get(key);
-    if (group) group.push(row);
-    else groups.set(key, [row]);
+    pushTo(groups, key, row);
   }
 
   return [...groups].map(([key, group]) => {
@@ -149,17 +137,17 @@ export function foldLineageRows(rows: readonly TopRouteRow[]): TopRouteRow[] {
     // version number never outranks it because the key matches only the
     // successor's rows.
     const head = group.reduce((best, row) =>
-      routeSlug(row.route_id) === key &&
-      (routeSlug(best.route_id) !== key || routeVersion(row.route_id) > routeVersion(best.route_id))
+      routeSlug(row.routeId) === key &&
+      (routeSlug(best.routeId) !== key || routeVersion(row.routeId) > routeVersion(best.routeId))
         ? row
         : best,
     );
-    const merged: TopRouteRow = {
+    const merged: RouteRow = {
       ...head,
       events: group.reduce((n, row) => n + row.events, 0),
     };
     for (const field of WEIGHTED_FIELDS) {
-      const value = weightedMean(group, field);
+      const value = mergedMean(group, field);
       if (value !== undefined) merged[field] = value;
     }
     return merged;

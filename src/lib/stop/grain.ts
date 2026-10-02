@@ -5,13 +5,13 @@
 // bays and a reader at one bus pole were told the same thing about figures that
 // mean different things.
 
+import { sumBy } from "@/lib/collections";
+import { sentenceStart } from "@/lib/format";
+import { isMode, modeWord } from "@/lib/mode";
 import { platformNoun } from "@/lib/stop/station-platforms";
 
 /** The generic word for one pole of each mode, for a place whose labels carry none. */
-const MODE_WORD: Record<string, string> = { BUS: "stop", TRAIN: "platform", FERRY: "pier" };
-
-/** How each mode is named in the eyebrow. */
-const MODE_LABEL: Record<string, string> = { BUS: "bus", TRAIN: "train", FERRY: "ferry" };
+const STOP_NOUN: Record<string, string> = { BUS: "stop", TRAIN: "platform", FERRY: "pier" };
 
 /**
  * The mode a stop's arrivals were mostly made by, weighted by arrivals rather than
@@ -25,8 +25,11 @@ const MODE_LABEL: Record<string, string> = { BUS: "bus", TRAIN: "train", FERRY: 
 export function dominantStopMode(
   routes: readonly { mode: string; events: number }[],
 ): string | null {
-  const totals = new Map<string, number>();
-  for (const r of routes) totals.set(r.mode, (totals.get(r.mode) ?? 0) + r.events);
+  const totals = sumBy(
+    routes,
+    (r) => r.mode,
+    (r) => r.events,
+  );
   let best: string | null = null;
   let most = -1;
   for (const [mode, events] of totals) {
@@ -68,11 +71,11 @@ export function stopGrain(
       ? platformNoun(labels.map((label) => ({ label })))
       : mode === null
         ? "stop"
-        : (MODE_WORD[mode] ?? "stop");
-  const modeLabel = mode === null ? null : (MODE_LABEL[mode] ?? null);
+        : (STOP_NOUN[mode] ?? "stop");
+  const modeLabel = isMode(mode) ? modeWord(mode) : null;
   if (poleCount > 1) {
     return `${poleCount} ${modeLabel === null ? "" : `${modeLabel} `}${noun}s`;
   }
   const one = modeLabel === null ? noun : `${modeLabel} ${noun}`;
-  return one.charAt(0).toUpperCase() + one.slice(1);
+  return sentenceStart(one);
 }

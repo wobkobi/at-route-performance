@@ -6,10 +6,12 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { CHART_FLOOR, DayChart } from "@/components/DayChart";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   getCancelledCount,
   getEarliestDataDay,
@@ -17,8 +19,9 @@ import {
   getRankings,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { formatDuration, UNKNOWN_VALUE } from "@/lib/format";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
+import { parseMode, type Mode } from "@/lib/mode";
+import { pageMetadata } from "@/lib/og";
 import {
   parseRangeWindow,
   periodForCarriedDay,
@@ -30,15 +33,17 @@ import {
   tableSort,
   type SortColumn,
   type SortDir,
+  type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { daySlot, type DaySlot } from "@/lib/time/day-series";
+import { dayLinkParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time/service-day";
-import { buildHref } from "@/lib/utils";
-import type { TopRouteRow } from "@/types/api";
+import { buildHref, stripUnset } from "@/lib/utils";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -49,11 +54,11 @@ import { Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Day by day",
   description:
     "How each day of the week or month went on Auckland's buses, trains and ferries, one verdict per day.",
-};
+});
 
 /** One day is one column, so the page offers no Day tab. */
 const WINDOWS: readonly RangeWindow[] = ["week", "month"];
@@ -104,14 +109,12 @@ export default async function DaysPage({
   const sp = (await searchParams) ?? {};
   // An explicit window is read the way every range page reads it, so this page
   // cannot disagree with the rest about what a value means; only an absent one
-  // takes the week default, as `/rankings` does. A bare `/days` stays bare rather
+  // takes the week default. A bare `/days` stays bare rather
   // than redirecting to `?window=week`: it is the URL the sitemap advertises, and
   // robots.txt disallows every query string, so the redirect would send a crawler
   // from the canonical page to one it may not fetch.
   const requested = sp.window ? parseRangeWindow(sp.window) : "week";
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   // One request-time clock read for the whole render, handed to every helper that
   // places a day against today (see lib/time/request-now.ts). Resolved before the
@@ -161,9 +164,7 @@ export default async function DaysPage({
   const dates = serviceDatesInRange(range).filter((d) => d >= DATA_START_DAY);
   const dayRows = Promise.all(
     dates.map((date) =>
-      date > today
-        ? Promise.resolve(null)
-        : getRankings(nzServiceDayRange(date), ON_TIME_LATE_SEC, TODAY_REVALIDATE),
+      date > today ? Promise.resolve(null) : getRankings(nzServiceDayRange(date), TODAY_REVALIDATE),
     ),
   );
   // Both readers await it later, in stream order; this keeps an early rejection
@@ -171,11 +172,11 @@ export default async function DaysPage({
   dayRows.catch(() => undefined);
 
   return (
-    <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Day by day</h1>
-        <RangeControls basePath="/days" nav={nav} windows={WINDOWS} />
-      </header>
+    <main className="space-y-6">
+      <PageHeader
+        title="Day by day"
+        actions={<RangeControls basePath="/days" nav={nav} windows={WINDOWS} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <Suspense
@@ -191,7 +192,7 @@ export default async function DaysPage({
         </Suspense>
         <Link
           href={buildHref("/", { ...view, ...filters })}
-          className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+          className="at-link ml-auto text-sm font-semibold"
         >
           {window === "week" ? "The week's overview" : "The month's overview"}
         </Link>
@@ -214,17 +215,6 @@ export default async function DaysPage({
 }
 
 /**
- * Drop the unset entries from a param set, for a control's preserved params.
- * @param params - The params, some unset.
- * @returns The set ones.
- */
-function stripUnset(params: Record<string, string | undefined>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined),
-  );
-}
-
-/**
  * The Mode and School buses boxes, once the days' routes say what ran: a mode
  * with no route in the window is left out, and the school box only shows when a
  * school service ran under the mode chosen.
@@ -243,8 +233,8 @@ async function DaysFilters({
   modePreserved,
   schoolPreserved,
 }: {
-  dayRows: Promise<(TopRouteRow[] | null)[]>;
-  mode: ModeFilterValue;
+  dayRows: Promise<(RouteRow[] | null)[]>;
+  mode: Mode | null;
   schools: SchoolFilter;
   modePreserved: Record<string, string>;
   schoolPreserved: Record<string, string>;
@@ -288,13 +278,13 @@ async function DaysBody({
   head,
 }: {
   dates: string[];
-  dayRows: Promise<(TopRouteRow[] | null)[]>;
+  dayRows: Promise<(RouteRow[] | null)[]>;
   monthView: boolean;
-  mode: ModeFilterValue;
+  mode: Mode | null;
   schools: SchoolFilter;
   today: string;
   sort: TableSort | null;
-  head: (key: string) => { href: string; dir: SortDir | null };
+  head: (key: SortKey) => { href: string; dir: SortDir | null };
 }): Promise<JSX.Element> {
   const allRows = await dayRows;
   const slots: DaySlot[] = await Promise.all(
@@ -319,7 +309,7 @@ async function DaysBody({
    */
   const hrefFor = (date: string): string =>
     buildHref("/", {
-      day: date === today ? undefined : date,
+      day: dayLinkParam(date, today),
       mode: mode ?? undefined,
       school: schoolFilterParam(schools),
     });
@@ -364,85 +354,78 @@ async function DaysBody({
         </p>
       </div>
 
-      <div className="overflow-x-auto border border-at-border bg-at-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-              <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
-                Day
-              </SortHeader>
-              {/* Not sortable: the verdict is banded from On time, which sorts. */}
-              <SortHeader align="left" className="px-2 py-3 sm:p-3">
-                Verdict
-              </SortHeader>
-              <SortHeader {...head("ontime")} className="px-2 py-3 sm:p-3">
-                On time
-              </SortHeader>
-              <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
-                Off by
-              </SortHeader>
-              <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
-                Arrivals
-              </SortHeader>
-              <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
-                Flagged cancelled
-              </SortHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {past.map((s) => (
-              <tr key={s.date} className="border-b border-at-border last:border-b-0">
-                <th
-                  scope="row"
-                  className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
-                >
-                  <Link href={hrefFor(s.date)} className="text-at-shore hover:underline">
-                    {serviceDayLabel(s.date)}
-                  </Link>
-                  {s.date === today && (
-                    <span className="ml-1 font-normal text-at-muted">so far</span>
-                  )}
-                </th>
-                {s.kind === "day" ? (
-                  <>
-                    <td
-                      className={`px-2 py-3 font-semibold sm:p-3 ${s.verdict?.toneClass ?? "text-at-muted"}`}
-                    >
-                      {s.verdict?.label ?? UNKNOWN_VALUE}
-                    </td>
-                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
-                      {s.summary.on_time_pct === null
-                        ? UNKNOWN_VALUE
-                        : `${s.summary.on_time_pct.toFixed(1)}%`}
-                    </td>
-                    <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
-                      {s.summary.avg_abs_delay_sec === null
-                        ? UNKNOWN_VALUE
-                        : formatDuration(s.summary.avg_abs_delay_sec)}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {s.summary.events.toLocaleString()}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {(s.summary.cancelled ?? 0).toLocaleString()}
-                    </td>
-                  </>
-                ) : (
-                  <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
-                    No arrivals recorded
-                    {/* The cancellations are the only thing that separates the
+      <DataTable caption="Each day's verdict and figures">
+        <thead>
+          <tr className="at-th-row">
+            <SortHeader {...head("day")} align="left" className="px-2 py-3 sm:p-3">
+              Day
+            </SortHeader>
+            {/* Not sortable: the verdict is banded from On time, which sorts. */}
+            <SortHeader align="left" className="px-2 py-3 sm:p-3">
+              Verdict
+            </SortHeader>
+            <SortHeader {...head("ontime")} className="px-2 py-3 sm:p-3">
+              On time
+            </SortHeader>
+            <SortHeader {...head("off")} className="px-2 py-3 sm:p-3">
+              Avg off by
+            </SortHeader>
+            <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
+              Arrivals
+            </SortHeader>
+            <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
+              Flagged cancelled
+            </SortHeader>
+          </tr>
+        </thead>
+        <tbody>
+          {past.map((s) => (
+            <tr key={s.date} className={ROW_CLASS}>
+              <th
+                scope="row"
+                className="px-2 py-3 text-left font-semibold whitespace-nowrap sm:p-3"
+              >
+                <Link href={hrefFor(s.date)} className="at-link">
+                  {serviceDayLabel(s.date)}
+                </Link>
+                {s.date === today && <span className="ml-1 font-normal text-at-muted">so far</span>}
+              </th>
+              {s.kind === "day" ? (
+                <>
+                  <td
+                    className={`px-2 py-3 font-semibold sm:p-3 ${s.verdict?.toneClass ?? "text-at-muted"}`}
+                  >
+                    {s.verdict?.label ?? UNKNOWN_VALUE}
+                  </td>
+                  <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
+                    {formatPct(s.summary.on_time_pct)}
+                  </td>
+                  <td className="px-2 py-3 text-right whitespace-nowrap tabular-nums sm:p-3">
+                    {s.summary.avg_abs_delay_sec === null
+                      ? UNKNOWN_VALUE
+                      : formatDuration(s.summary.avg_abs_delay_sec)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(s.summary.events)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(s.summary.cancelled ?? 0)}
+                  </td>
+                </>
+              ) : (
+                <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
+                  No arrivals recorded
+                  {/* The cancellations are the only thing that separates the
                         worst possible day - every trip cancelled, so nothing
                         arrived - from an ingest outage. Named here rather than
                         in the column beside it, which a phone does not render. */}
-                    {s.cancelled > 0 &&
-                      `, and ${s.cancelled.toLocaleString()} trip${s.cancelled === 1 ? "" : "s"} flagged cancelled`}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
     </div>
   );
 }

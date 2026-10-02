@@ -1,7 +1,6 @@
 // src/app/route/[id]/trip/[tripId]/page.tsx
 // Trip timeline page showing one run's stop-by-stop scheduled-vs-actual punctuality.
 
-import { ChevronLeft } from "@/components/icons";
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
 import { ModeIcon } from "@/components/ModeIcon";
@@ -9,6 +8,12 @@ import { TripCancellationNote } from "@/components/trip/TripCancellationNote";
 import { TripDetourNote } from "@/components/trip/TripDetourNote";
 import { TripGhostRunNote } from "@/components/trip/TripGhostRunNote";
 import { TripLine } from "@/components/trip/TripLine";
+import { BackLink } from "@/components/ui/BackLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Hint } from "@/components/ui/Hint";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
@@ -17,30 +22,41 @@ import {
   getLatestTripDay,
   getTripCancellation,
   getTripDetour,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
   type GhostRunRow,
   type ScheduledStop,
 } from "@/lib/data";
-import { formatGtfsTime } from "@/lib/format";
-import { cardMetadata, cardPath, parseTripCard } from "@/lib/og";
-import { routeSlug } from "@/lib/route/slug";
+import { readFallback } from "@/lib/db";
+import { formatCount } from "@/lib/format";
+import { metresBetween } from "@/lib/geo/distance";
+import { modeOrBus, modeWord } from "@/lib/mode";
+import { cardPath, pageMetadata, parseTripCard } from "@/lib/og";
+import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
+import { isSchoolBus } from "@/lib/school-bus";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
+import { dayLinkParam } from "@/lib/time/day-url";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
   afterMidnightNote,
   gtfsServiceSeconds,
   isAfterMidnight,
-  nzClockTime,
   nzServiceDayRange,
   nzServiceDayString,
+  parseInstantParam,
+  SEC_PER_DAY,
   serviceDayLabel,
 } from "@/lib/time/service-day";
 import { tripBoardView } from "@/lib/trip/board";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/trip/cancellation";
+import { boundFor } from "@/lib/trip/departure-label";
 import { buildTripLine } from "@/lib/trip/line";
-import { buildHref } from "@/lib/utils";
+import { vehicleName } from "@/lib/vehicle/detail";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -80,12 +96,12 @@ export async function generateMetadata({
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
   const title = `${routeSlug(id)} trip${dayPart}`;
-  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run ${MEASURED_AGAINST}`;
-  return {
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} trip ${MEASURED_AGAINST}`;
+  return pageMetadata({
     title,
     description,
-    ...cardMetadata(title, description, cardPath(parseTripCard(id, tripId, d))),
-  };
+    card: { title, path: cardPath(parseTripCard(id, tripId, d)) },
+  });
 }
 
 /**
@@ -118,16 +134,15 @@ export default async function TripPage({
   // or unparseable (an Invalid Date would throw inside nzServiceDayRange). The
   // timeline and the cancellation flag must agree on that day, so it is resolved
   // here rather than inside the timeline query.
-  const dAt = d ? new Date(d) : null;
-  const day =
-    dAt && !Number.isNaN(dAt.getTime()) ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
+  const dAt = parseInstantParam(d);
+  const day = dAt ? nzServiceDayRange(dAt) : await getLatestTripDay(tripId);
   // An AT outage costs this request its schedule and road path, not the day's
   // cache entries - but a swallowed failure read as "this run has no stops", so
   // `allSettled` keeps the rejection and the page below says which it was.
   // The stored service date the ghost records are keyed on is null only for an
   // undated link to a trip that has never recorded anything.
   const serviceDate = day ? nzServiceDayString(day.start) : null;
-  const [timeline, optional, flag, detour, ghostRun, ghostRunHere] = await Promise.all([
+  const [timeline, optional, flag, detour, ghostRun, ghostRunHere, headsign] = await Promise.all([
     getTripTimeline(tripId, slug, day ?? undefined),
     Promise.allSettled([getTripScheduledStops(tripId), getTripShape(tripId)]),
     getTripCancellation(tripId, day),
@@ -136,6 +151,7 @@ export default async function TripPage({
     getGhostRun(tripId, serviceDate),
     // Another run's readings were filed under this run's number.
     serviceDate ? getGhostRunFor(tripId, serviceDate) : Promise.resolve<GhostRunRow | null>(null),
+    getTripHeadsign(tripId).catch(readFallback("trip-headsign", null)),
   ]);
   const [scheduledResult, roadResult] = optional;
   const scheduleFailed = scheduledResult.status === "rejected";
@@ -150,8 +166,15 @@ export default async function TripPage({
   if (!route && !scheduleFailed && timeline.stops.length === 0 && scheduledStops.length === 0) {
     notFound();
   }
-  const routeMode = route?.mode ?? "BUS";
-  const vehicleNoun = routeMode === "TRAIN" ? "train" : routeMode === "FERRY" ? "ferry" : "bus";
+  // The fleet label the vehicle's own page goes by.
+  const fleet = vehicle_id
+    ? await getFleet([vehicle_id]).catch(
+        readFallback("trip-fleet", new Map<string, FleetVehicle>()),
+      )
+    : null;
+  const routeMode = modeOrBus(route?.mode);
+  const school = isSchoolBus(route?.shortName, route?.longName);
+  const vehicleNoun = modeWord(routeMode);
   // The ghost panels' link to the other run keeps this run's day.
   const linkD = d ?? day?.start.toISOString() ?? null;
 
@@ -214,26 +237,21 @@ export default async function TripPage({
   const furthest = detour?.sightings.reduce((a, b) => (b.distanceM > a.distanceM ? b : a));
   const nearest = furthest
     ? line.stops.reduce<{ name: string; stopId: string; d: number } | null>((best, s) => {
-        const d = Math.hypot(
-          s.lat - furthest.lat,
-          (s.lon - furthest.lon) * Math.cos((s.lat * Math.PI) / 180),
-        );
+        const d = metresBetween([s.lat, s.lon], [furthest.lat, furthest.lon]);
         return best === null || d < best.d ? { name: s.name, stopId: s.stop_id, d } : best;
       }, null)
     : null;
 
   // A stop or the vehicle opens on the run's day; today's is left off, as those pages default to it.
-  const pastDay = serviceDate && !isLiveRun && serviceDate !== today ? serviceDate : null;
-  const dayQuery = pastDay ? `?day=${pastDay}` : "";
-  /**
-   * A stop's page on the run's day.
-   * @param stopId - The stop.
-   * @returns The link.
-   */
-  const stopHref = (stopId: string): string => `/stop/${encodeURIComponent(stopId)}${dayQuery}`;
-  const nearestStop = nearest ? { name: nearest.name, href: stopHref(nearest.stopId) } : null;
+  const linkDay = isLiveRun ? undefined : dayLinkParam(serviceDate, today);
+  const nearestStop = nearest
+    ? { name: nearest.name, href: stopHref(nearest.stopId, { day: linkDay }) }
+    : null;
 
-  const title = route?.shortName ?? slug;
+  const title = route ? routeDisplayName({ ...route, slug }) : slug;
+  // "to Britomart via Panmure", read from the headsign as the boards read it.
+  const bound = route ? boundFor(headsign, route.mode) : null;
+  const tripPhrase = bound ? `Trip ${bound}` : "Trip";
   const firstServed = line.stops.find((s) => s.recorded)?.recorded;
   const firstDeparture = scheduledStops[0]?.departure_time;
   const departing = firstServed
@@ -241,10 +259,10 @@ export default async function TripPage({
     : firstDeparture
       ? formatGtfsTime(firstDeparture)
       : null;
-  // A 12:30am run counts toward the day before, which the date beside it names.
+  // A 12:30am run counts towards the day before, which the date beside it names.
   const departsAfterMidnight = firstServed
     ? isAfterMidnight(new Date(firstServed.scheduled_at))
-    : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= 86_400;
+    : !!firstDeparture && (gtfsServiceSeconds(firstDeparture) ?? 0) >= SEC_PER_DAY;
 
   const lastServed = recordedStops.reduce<TripStop | null>(
     (last, s) => (last === null || actualAt(s) > actualAt(last) ? s : last),
@@ -252,55 +270,49 @@ export default async function TripPage({
   );
 
   return (
-    <main className={cn("space-y-6")}>
-      <Link
-        href={buildHref(`/route/${encodeURIComponent(slug)}`, {
+    <main className="space-y-6">
+      <BackLink
+        href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
-          day: pastDay,
+          day: linkDay,
           // The board's sort, page and filters, as the run's link brought them.
           ...tripBoardView(sp),
         })}
-        className={cn("inline-flex items-center gap-1 text-sm text-at-shore hover:underline")}
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        Back to {title}
-      </Link>
+        to={title}
+      />
 
-      <header className="space-y-1">
-        <h1 className="flex items-center gap-3 text-3xl leading-headline font-ultra tracking-zero">
-          {route && (
+      <PageHeader
+        title={title}
+        icon={
+          route && (
             <ModeIcon
               mode={route.mode}
               shortName={route.shortName}
               longName={route.longName}
-              colour={route.colour}
               className="h-7 w-7"
             />
-          )}
-          {title}
-        </h1>
-        <p className="text-at-muted">
+          )
+        }
+      >
+        <p className="mt-0.5 text-sm text-at-muted">
           {day && `${serviceDayLabel(nzServiceDayString(day.start))} · `}
-          {departing ? `Trip departing ${departing}` : "Trip"}
+          {departing ? `${tripPhrase}${bound ? "," : ""} departing ${departing}` : tripPhrase}
           {departing && departsAfterMidnight && serviceDate && (
-            <span className="cursor-help" title={afterMidnightNote(serviceDate)}>
+            <>
               {" "}
-              (after midnight)
-            </span>
+              <Hint hint={afterMidnightNote(serviceDate)}>(after midnight)</Hint>
+            </>
           )}
           {vehicle_id && (
             <>
               {" · "}
-              <Link
-                href={`/vehicle/${encodeURIComponent(vehicle_id)}${dayQuery}`}
-                className="text-at-shore hover:underline"
-              >
-                {vehicle_id}
+              <Link href={vehicleHref(vehicle_id, { day: linkDay })} className="at-link">
+                {vehicleName(fleet?.get(vehicle_id)?.label, vehicle_id)}
               </Link>
             </>
           )}
         </p>
-      </header>
+      </PageHeader>
 
       {detour && (
         <TripDetourNote
@@ -320,7 +332,7 @@ export default async function TripPage({
               ? {
                   name: lastServed.name,
                   at: actualAt(lastServed),
-                  href: stopHref(lastServed.stop_id),
+                  href: stopHref(lastServed.stop_id, { day: linkDay }),
                 }
               : null
           }
@@ -362,9 +374,9 @@ export default async function TripPage({
         )}
       >
         {hasTripMap && (
-          <section className="border border-at-border bg-at-surface p-4 lg:sticky lg:top-6">
+          <Panel pad="sm" className="lg:sticky lg:top-6">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-ultra tracking-zero">Trip map</h2>
+              <SectionHeading>Trip map</SectionHeading>
               <StopDotKey />
             </div>
             <StopMapWrapper
@@ -376,36 +388,39 @@ export default async function TripPage({
               offRoute={detour?.sightings.map((s) => ({
                 lat: s.lat,
                 lon: s.lon,
-                label: `${nzClockTime(s.at)}, ${s.distanceM.toLocaleString()} m off route`,
+                label: `${nzClockTime(s.at)}, ${formatCount(s.distanceM)} metres off route`,
               }))}
-              mode={route?.mode as "BUS" | "TRAIN" | "FERRY" | undefined}
-              stopQuery={dayQuery}
+              mode={route ? modeOrBus(route.mode) : undefined}
+              school={school}
+              colour={route?.colour ?? null}
+              stopLinks
+              stopDay={linkDay}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
-            <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
-          </section>
+            <MapMarkKey
+              live={isLiveRun}
+              offRoute={(detour?.sightings.length ?? 0) > 0}
+              mode={routeMode}
+              school={school}
+            />
+          </Panel>
         )}
 
         {line.stops.length === 0 ? (
-          <p
-            className={cn(
-              "border border-at-border bg-at-surface p-4",
-              scheduleFailed ? "text-at-late" : "text-at-muted",
-            )}
-          >
+          <EmptyState className={scheduleFailed ? "text-at-late" : undefined}>
             {scheduleFailed
-              ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
+              ? "This trip's schedule could not be loaded, so its stops are missing. Reload to try again."
               : "No stop records found for this trip."}
-          </p>
+          </EmptyState>
         ) : (
-          <section className="border border-at-border bg-at-surface p-4">
+          <Panel pad="sm">
             <TripLine
               line={line}
               mode={routeMode}
               colour={route?.colour ?? null}
-              stopQuery={dayQuery}
+              stopDay={linkDay}
             />
-          </section>
+          </Panel>
         )}
       </div>
     </main>

@@ -5,7 +5,10 @@
 // A worst entry is only crowned when its average absolute deviation clears the
 // on-time late bound, so quiet days where everything sits within the window
 // crown nothing.
+import { type Mode, MODE_NOUN, parseMode } from "@/lib/mode";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { SECTION_PARAMS } from "@/lib/page/filter-params";
+import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { type DelayDirection, parseDelayDirection } from "@/lib/rankings";
 import { parseSchoolFilter, type SchoolFilter, schoolFilterParam } from "@/lib/school-bus";
 import { SERVICE_START_HOUR } from "@/lib/time/service-day";
@@ -18,23 +21,18 @@ import {
 } from "@/lib/time/time-of-day";
 import { buildHref } from "@/lib/utils";
 
-/** Cache TTL for the week boards (seconds). */
-export const WEEK_REVALIDATE = 3600;
 /**
  * Rows per column the day-board skeleton draws. The real board lists every
  * started hour of the service day, so a past day fills 12 rows per column.
  */
 export const ITEMS_PER_COL = 12;
 
-/** A transport mode the boards can filter by, or null for every mode. */
-export type ShameMode = "BUS" | "TRAIN" | "FERRY" | null;
-
 /**
  * Active filter shared by every shame board query. `direction` is read by the
  * stop board alone; the trip and route boards take the same object and ignore it.
  */
 export interface ShameFilter {
-  mode: ShameMode;
+  mode: Mode | null;
   schools: SchoolFilter;
   direction: DelayDirection;
 }
@@ -64,21 +62,9 @@ export interface ShameSearchParams {
  * a page that cannot act on it - the same reason `site-nav.ts` leaves `dir`
  * behind between sections.
  */
-export const SHAME_PARAMS = [
-  "day",
-  "mode",
-  "school",
-  "window",
-  "period",
-  "hours",
-] as const satisfies ReadonlyArray<keyof ShameSearchParams>;
-
-/** Human label for an active mode filter, used in the page subtitle. */
-export const MODE_LABEL: Record<string, string> = {
-  BUS: "Buses",
-  TRAIN: "Trains",
-  FERRY: "Ferries",
-};
+export const SHAME_PARAMS = [...SECTION_PARAMS, "hours"] as const satisfies ReadonlyArray<
+  keyof ShameSearchParams
+>;
 
 /**
  * Human label for an active direction filter, for the subtitle. "Only" is the
@@ -142,24 +128,19 @@ export function shameHoursLabel(hours: HourRange): string {
   return isWholeDay(hours) ? "whole day" : hourRangeLabel(hours);
 }
 
-/** Which board view is active: the hourly day board or a per-day range board. */
-export type ShameView = "day" | "week" | "month";
-
 /** Parsed shame-page params: the active filter plus its derived view state. */
 export interface ParsedShameParams {
-  mode: ShameMode;
+  mode: Mode | null;
   schools: SchoolFilter;
   direction: DelayDirection;
   filter: ShameFilter;
-  view: ShameView;
+  view: RangeWindow;
   /**
    * The part of the day the day board ranks, or null for its hourly board;
    * {@link WHOLE_DAY} for a day opened from a week or month row. Always null off
    * the day view: the week and month boards have no hours.
    */
   hours: HourRange | null;
-  /** Params to preserve on `DayNav` links (mode, school and direction). */
-  preserved: Record<string, string>;
   /** Subtitle describing the active filter ("Buses" / "All services" / …). */
   subtitle: string;
 }
@@ -170,26 +151,21 @@ export interface ParsedShameParams {
  * narrowing, so a reader who arrives on a filtered link can see what is being
  * left out without reading the URL.
  * @param sp - The raw search params.
- * @returns The filter, active view, preserved params, and subtitle.
+ * @returns The filter, active view, and subtitle.
  */
 export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
-  const mode = (["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null) as ShameMode;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const direction = parseDelayDirection(sp.dir);
   const subtitle =
     schools === "only"
       ? "School buses"
       : mode
-        ? (MODE_LABEL[mode] ?? mode)
+        ? MODE_NOUN[mode]
         : schools === "include"
           ? "All services"
-          : "Buses, trains & ferries";
-  const preserved: Record<string, string> = {};
-  if (mode) preserved.mode = mode;
-  const schoolParam = schoolFilterParam(schools);
-  if (schoolParam) preserved.school = schoolParam;
-  if (direction) preserved.dir = direction;
-  const view: ShameView = sp.window === "week" ? "week" : sp.window === "month" ? "month" : "day";
+          : "Buses, trains and ferries";
+  const view = parseRangeWindow(sp.window);
   const hours =
     view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);
   return {
@@ -199,7 +175,6 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
     filter: { mode, schools, direction },
     view,
     hours,
-    preserved,
     subtitle,
   };
 }
@@ -235,7 +210,7 @@ export function buildShameHref(
 }
 
 /**
- * How a ranked board's copy names its part of the day, after "runs starting".
+ * How a ranked board's copy names its part of the day, after "trips starting".
  * @param hours - The part of the day.
  * @returns "in this hour" for a single hour, "that day" for the whole day, else "in these hours".
  */
@@ -352,19 +327,4 @@ export function crownedRow<T extends { avg_abs_delay_sec: number }>(rows: T[]): 
 export function crownedTop<T extends { avg_abs_delay_sec: number }>(rows: T[]): CrownedRow<T> {
   const top = rows[0] ?? null;
   return { row: isCrownable(top) ? top : null, ranked: rows.length > 0 };
-}
-
-/**
- * Count rows by a derived key (e.g. how many hourly slots a route appears in).
- * @param rows - The rows to tally.
- * @param keyOf - Derives the grouping key for a row.
- * @returns A map of key to occurrence count.
- */
-export function countById<T>(rows: T[], keyOf: (row: T) => string): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = keyOf(row);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
 }

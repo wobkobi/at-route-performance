@@ -2,7 +2,7 @@
 // Pure helpers for one vehicle's page: its name, how full the feed says it is,
 // where it ranks on the hardest-worked board, and each run's figures.
 
-import { routeSlug } from "@/lib/route/slug";
+import { tripHref } from "@/lib/page/hrefs";
 import { nzServiceDayString } from "@/lib/time/service-day";
 import type { VehicleTotal } from "@/lib/vehicle/rank";
 
@@ -14,7 +14,7 @@ import type { VehicleTotal } from "@/lib/vehicle/rank";
  * @returns The page path.
  */
 export function liveRunHref({ routeId, tripId }: { routeId: string; tripId: string }): string {
-  return `/route/${encodeURIComponent(routeSlug(routeId))}/trip/${encodeURIComponent(tripId)}?d=${nzServiceDayString()}`;
+  return tripHref(routeId, tripId, nzServiceDayString());
 }
 
 /** Feed vehicle ids are all digits; anything else is not a vehicle page. */

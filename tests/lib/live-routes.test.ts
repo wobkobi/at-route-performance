@@ -121,15 +121,22 @@ describe("mapVehicles", () => {
     const out = mapVehicles(
       [veh("70-202", 30), veh("999-1", 0), veh("70-202", null, null)],
       new Map([["70-202", "BUS"]]),
-      { "70": "HE" },
+      { operators: { "70": "HE" } },
     );
-    expect(out.map((v) => v.op)).toEqual(["HE", null]);
+    expect(out.map((v) => v.operatorCode)).toEqual(["HE", null]);
   });
 
   it("marks a vehicle stored only when its trip has history, and every one when the lookup failed", () => {
     const vehicles = [veh("70-202", 30, "t1"), veh("70-202", 0, "t2")];
-    const out = mapVehicles(vehicles, new Map(), {}, new Set(["t1"]));
+    const out = mapVehicles(vehicles, new Map(), { stored: new Set(["t1"]) });
     expect(out.map((v) => v.stored)).toEqual([true, false]);
     expect(mapVehicles(vehicles, new Map()).map((v) => v.stored)).toEqual([true, true]);
+  });
+
+  it("flags a school route's vehicles by slug and rounds the heading", () => {
+    const vehicles = [{ ...veh("046-202", 0), bearing: 87.6 }, veh("70-202", 0)];
+    const out = mapVehicles(vehicles, new Map(), { school: new Set(["046"]) });
+    expect(out.map((v) => v.school)).toEqual([true, false]);
+    expect(out.map((v) => v.bearing)).toEqual([88, null]);
   });
 });

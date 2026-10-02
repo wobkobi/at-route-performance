@@ -14,7 +14,7 @@
 
 import { recentCleanupRuns } from "@/lib/cron/cleanup";
 import { projectCleanupHealth } from "@/lib/cron/health";
-import { prisma } from "@/lib/db";
+import { prisma, readFallback } from "@/lib/db";
 import { NextResponse } from "next/server";
 import pkg from "../../../../package.json";
 
@@ -77,7 +77,7 @@ export async function GET(): Promise<NextResponse> {
     database === "up"
       ? await recentCleanupRuns(10)
           .then(projectCleanupHealth)
-          .catch(() => null)
+          .catch(readFallback("api-health-cleanup-runs", null))
       : null;
   return NextResponse.json(
     {
@@ -88,6 +88,6 @@ export async function GET(): Promise<NextResponse> {
       databaseMs,
       cleanup,
     },
-    { headers: { "cache-control": "no-store" } },
+    { headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -1,5 +1,5 @@
 // Integration tests: `tests/**/*.int.test.ts` run against the database in
-// DATABASE_URL (`npm run test:int` loads .env.local). They prove that MongoDB
+// DATABASE_URL (`npm run test:int` loads .env.local through Node's --env-file-if-exists). They prove that MongoDB
 // agrees with the pure helpers the unit tests cover, using collectionless
 // `$documents` pipelines or scratch collections prefixed `_audit_`, and never
 // write to the app's own collections. A read-only assertion against one is

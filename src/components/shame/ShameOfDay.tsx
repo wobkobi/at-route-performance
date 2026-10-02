@@ -3,11 +3,13 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { routeSlug } from "@/lib/route/slug";
-import { nzClockTime } from "@/lib/time/service-day";
+import { NoWorst, WorstCard, WorstCardTitle } from "@/components/ui/WorstCard";
+import { cn } from "@/lib/cn";
+import { tripHref } from "@/lib/page/hrefs";
+import { routeDisplayName } from "@/lib/route/slug";
+import { nzClockTime } from "@/lib/time/format";
 import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link ShameOfDay}. */
@@ -25,8 +27,8 @@ export interface ShameOfDayProps {
   when?: string;
   /** All hourly shame entries for the day, used to count this route's appearances. */
   hours?: ShameTrip[];
-  /** Consecutive days this route has been featured as worst shame trip. */
-  routeStreakDays?: number;
+  /** Days in a row, ending on the shown day, that this route had the day's worst trip. */
+  crownedDays?: number;
 }
 
 /**
@@ -41,7 +43,7 @@ export interface ShameOfDayProps {
  * @param props.href - Override link target (optional).
  * @param props.when - The shown window as words for the empty-state copy ("today" by default).
  * @param props.hours - All hourly entries for the day, used to count this route's appearances.
- * @param props.routeStreakDays - Consecutive days this route has been the worst shame trip.
+ * @param props.crownedDays - Days in a row, ending on the shown day, that this route had the day's worst trip.
  * @returns The banner element.
  */
 export function ShameOfDay({
@@ -50,57 +52,31 @@ export function ShameOfDay({
   href: hrefProp,
   when = "today",
   hours,
-  routeStreakDays = 0,
+  crownedDays = 0,
 }: ShameOfDayProps): JSX.Element {
-  // Nothing ranked, which is not good news and must not read as the green
-  // all-clear below: no run cleared SHAME_MIN_STOPS under the active filters.
-  // Same quiet state the worst-route and worst-stop cards beside this one use.
-  if (!ranked) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-muted">Worst trip</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
-        <p className="text-sm text-at-muted">No run has enough arrivals in this period.</p>
-      </div>
-    );
-  }
-  // Runs ranked and none was past the late bound, so the board crowns nothing.
-  if (!trip) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-ontime">Worst trip</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
-        <p className="text-sm text-at-muted">
-          No trip stood out {when}, so there is nothing to call out.
-        </p>
-      </div>
-    );
+  // Nothing ranked (no trip cleared SHAME_MIN_STOPS under the active filters)
+  // is not the green all-clear: see NoWorst.
+  if (!ranked || !trip) {
+    return <NoWorst eyebrow="Worst trip" noun="trip" ranked={ranked} when={when} />;
   }
 
-  const name = trip.short_name || trip.long_name || routeSlug(trip.route_id);
+  const name = routeDisplayName(trip);
   const bound = boundFor(trip.headsign, trip.mode);
-  const routeHourCount = hours ? hours.filter((h) => h.route_id === trip.route_id).length : 0;
+  const routeHourCount = hours ? hours.filter((h) => h.routeId === trip.routeId).length : 0;
   // The card names one run, so it opens that run. `?d` is the run's own instant,
   // which is how the trip page tells this day's run from the same trip id on
   // another day. The board link belongs on the section heading above.
-  const href =
-    hrefProp ??
-    `/route/${encodeURIComponent(routeSlug(trip.route_id))}/trip/${encodeURIComponent(trip.trip_id)}?d=${encodeURIComponent(trip.scheduled_start)}`;
+  const href = hrefProp ?? tripHref(trip.routeId, trip.trip_id, trip.scheduled_start);
   return (
-    <Link
-      href={href}
-      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
-    >
-      <p className="at-eyebrow text-at-late">Worst trip</p>
+    <WorstCard tone="worst" eyebrow="Worst trip" href={href}>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={trip.mode}
-          shortName={trip.short_name}
-          longName={trip.long_name}
-          colour={trip.colour}
+          shortName={trip.shortName}
+          longName={trip.longName}
           className="h-6 w-6"
         />
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">{name}</span>
+        <WorstCardTitle>{name}</WorstCardTitle>
       </div>
       {/* The anchor line holds only the route, so it sits level with the stop
           card's name beside it; the headsign takes its own line. */}
@@ -116,12 +92,11 @@ export function ShameOfDay({
           worst trip in {routeHourCount} of the day&apos;s hours
         </p>
       )}
-      {routeStreakDays >= 4 && (
-        <p className="text-sm font-bold text-at-late">Featured {routeStreakDays} days in a row</p>
+      {crownedDays >= 2 && (
+        <p className={cn("text-at-late", crownedDays >= 4 ? "text-sm font-bold" : "text-xs")}>
+          Worst trip of the day on this route {crownedDays} days in a row
+        </p>
       )}
-      {routeStreakDays >= 2 && routeStreakDays < 4 && (
-        <p className="text-xs text-at-late">Featured {routeStreakDays} days in a row</p>
-      )}
-    </Link>
+    </WorstCard>
   );
 }

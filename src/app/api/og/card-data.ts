@@ -12,29 +12,35 @@ import {
   getLatestTripDay,
   getNetworkCancelledTrips,
   getRankings,
+  getRouteBoardOfDay,
+  getRouteBoardOfWeek,
   getRouteDailyStats,
   getRouteStats,
-  getShameOfDay,
-  getShameOfWeek,
-  getShameRouteOfDay,
-  getShameRouteOfWeek,
+  getStopBoardOfDay,
+  getStopBoardOfWeek,
   getStopStats,
+  getTripBoardOfDay,
+  getTripBoardOfWeek,
   getTripCancellation,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripTimeline,
-  getWorstStopsOfDay,
-  getWorstStopsOfWeek,
+  LIVE_DAY_REVALIDATE,
+  PERIOD_REVALIDATE,
   TODAY_REVALIDATE,
 } from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import {
+  formatCount,
   formatDuration,
-  formatGtfsTime,
+  formatPct,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
+  plural,
+  pluralNoun,
 } from "@/lib/format";
 import {
   cardFilterLabel,
-  monthLabel,
   type HomeCard,
   type ListCard,
   type RouteCard,
@@ -44,15 +50,17 @@ import {
 } from "@/lib/og";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
 import { filterLiveHours, resolveShownDay } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import { periodRangeNav } from "@/lib/page/range";
-import { isCrownable, pickWorst, WEEK_REVALIDATE } from "@/lib/page/shame";
+import { isCrownable, pickWorst } from "@/lib/page/shame";
 import { summariseRows, visibleRows } from "@/lib/rankings";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { aggregateWeek } from "@/lib/route/week";
 import { schoolAllows } from "@/lib/school-bus";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import {
-  nzClockTime,
+  dayRangeLabel,
+  monthLabel,
   nzHourLabel,
   nzMonthKey,
   nzServiceDayRange,
@@ -60,17 +68,18 @@ import {
   nzWeekRange,
   serviceDatesInRange,
   serviceDayLabel,
-  weekRangeLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
-import { CANCELLATION_BADGE_MEANING, cancellationStage } from "@/lib/trip/cancellation";
+import {
+  CANCELLATION_BADGE_MEANING,
+  CANCELLATION_LABEL,
+  cancellationStage,
+} from "@/lib/trip/cancellation";
 import { boundFor } from "@/lib/trip/departure-label";
 import { dayVerdict } from "@/lib/verdict";
 import type { FleetSummary, ShameRouteRow, ShameTrip } from "@/types/dashboard";
 import type { SubjectBodyProps } from "./card-layout";
-
-/** The stop page's cache lifetime, shared so the card reads the same entries. */
-const STOP_REVALIDATE = 300;
 
 /** What the home card shows once its view is resolved. */
 export interface HomeCardData {
@@ -90,15 +99,6 @@ export interface SubjectCardData {
 }
 
 /**
- * Format an arrivals count the way the pages do.
- * @param n - The count.
- * @returns "1,234 arrivals" (or "1 arrival").
- */
-function arrivals(n: number): string {
-  return `${n.toLocaleString("en-NZ")} arrival${n === 1 ? "" : "s"}`;
-}
-
-/**
  * Resolve a home card's view the way the home page does: the shown day (see
  * {@link resolveShownDay}), or a week or month anchored on the latest day with
  * data.
@@ -110,7 +110,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
   const filter = { mode: card.mode, schools: card.schools };
   if (card.window === "day") {
     const { range, serviceDate } = await resolveShownDay(card.day, today);
-    const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+    const rows = await getRankings(range, TODAY_REVALIDATE);
     return {
       when: serviceDayLabel(serviceDate),
       summary: summariseRows(visibleRows(rows, filter)),
@@ -118,7 +118,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
     };
   }
   const period = await resolvePeriod(card.window, card.period);
-  const rows = await getRankings(period.range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+  const rows = await getRankings(period.range, TODAY_REVALIDATE);
   return {
     when: period.when,
     summary: summariseRows(visibleRows(rows, filter)),
@@ -135,7 +135,7 @@ export async function homeCardData(card: HomeCard): Promise<HomeCardData> {
  * @returns The range, its label and whether it is over.
  */
 async function resolvePeriod(
-  window: "week" | "month",
+  window: PeriodWindow,
   rawPeriod: string | null,
 ): Promise<{ range: DateRange; when: string; complete: boolean }> {
   const today = nzServiceDayString();
@@ -150,9 +150,7 @@ async function resolvePeriod(
   return {
     range,
     when:
-      window === "month"
-        ? monthLabel(rawPeriod ?? nzMonthKey(anchor))
-        : `${serviceDayLabel(first)} to ${serviceDayLabel(last)}`,
+      window === "month" ? monthLabel(rawPeriod ?? nzMonthKey(anchor)) : dayRangeLabel(first, last),
     complete: (dates.at(-1) ?? today) < today,
   };
 }
@@ -165,7 +163,7 @@ async function resolvePeriod(
  */
 function onTimeHero(pct: number | null | undefined): SubjectBodyProps["hero"] {
   if (pct == null) return null;
-  return { text: `${pct.toFixed(1)}%`, toneClass: dayVerdict(pct)?.toneClass ?? "text-at-ink" };
+  return { text: formatPct(pct), toneClass: dayVerdict(pct)?.toneClass ?? "text-at-ink" };
 }
 
 /**
@@ -187,7 +185,6 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
     routeId: slug,
     from: range.start,
     to: range.end,
-    thresholdSec: ON_TIME_LATE_SEC,
   });
   const route = stats.route;
   const glyph = route
@@ -198,15 +195,15 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
         colour: route.colour,
       }
     : null;
-  const name = route?.shortName ?? slug;
-  const subname = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const name = route ? routeDisplayName({ ...route, slug }) : slug;
+  const subname = route ? routeSubtitle({ ...route, slug }) : null;
 
   if (card.window === "week") {
     const fixed = card.period ? nzWeekRange(card.period) : null;
     const week = aggregateWeek(await getRouteDailyStats(slug, fixed?.start, fixed?.end));
     const lastDay = fixed ? serviceDatesInRange(fixed).at(-1) : undefined;
     return {
-      eyebrow: `Route - ${fixed ? weekRangeLabel(fixed) : "Last 7 days"}`,
+      eyebrow: `Route · ${fixed ? weekLabel(fixed) : "Last 7 days"}`,
       body: {
         route: glyph,
         name,
@@ -214,8 +211,10 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
         hero: onTimeHero(week?.on_time_pct),
         lines: week
           ? [
-              `of ${arrivals(week.events)} on time`,
-              `${formatDuration(week.avg_abs_delay_sec)} off schedule on average`,
+              `of ${plural(week.events, "arrival")} on time`,
+              week.avg_abs_delay_sec == null
+                ? ""
+                : `${formatDuration(week.avg_abs_delay_sec)} off schedule on average`,
             ]
           : [],
       },
@@ -225,7 +224,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
 
   const summary = stats.summary;
   return {
-    eyebrow: `Route - ${serviceDayLabel(date)}`,
+    eyebrow: `Route · ${serviceDayLabel(date)}`,
     body: {
       route: glyph,
       name,
@@ -234,7 +233,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
       lines:
         summary && summary.on_time_pct != null
           ? [
-              `of ${arrivals(summary.events)} on time`,
+              `of ${plural(summary.events, "arrival")} on time`,
               summary.avg_abs_delay_sec == null
                 ? ""
                 : `${formatDuration(summary.avg_abs_delay_sec)} off schedule on average`,
@@ -254,12 +253,13 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
  */
 export async function tripCardData(card: TripCard): Promise<SubjectCardData | null> {
   const day = card.day ? nzServiceDayRange(card.day) : await getLatestTripDay(card.tripId);
-  const [timeline, flag, scheduled] = await Promise.all([
+  const [timeline, flag, scheduled, headsign] = await Promise.all([
     getTripTimeline(card.tripId, card.id, day ?? undefined),
     getTripCancellation(card.tripId, day),
-    // The schedule only names the destination and the start; an AT outage
-    // should cost the card those, not the whole card.
-    getTripScheduledStops(card.tripId).catch(() => []),
+    // The schedule only gives the start; an AT outage should cost the card
+    // that, not the whole card.
+    getTripScheduledStops(card.tripId).catch(readFallback("og-trip-scheduled-stops", [])),
+    getTripHeadsign(card.tripId).catch(readFallback("og-trip-headsign", null)),
   ]);
   const { route, stops } = timeline;
   if (!route && stops.length === 0 && scheduled.length === 0) return null;
@@ -279,37 +279,35 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
     : scheduled[0]?.departure_time
       ? formatGtfsTime(scheduled[0].departure_time)
       : null;
-  const destination = scheduled.at(-1)?.name ?? stops.at(-1)?.name ?? null;
   const date = day ? nzServiceDayString(day.start) : null;
 
   let hero: SubjectBodyProps["hero"] = null;
   let lines: string[] = [];
   if (stage === "before" || stage === "mid-trip") {
-    hero = { text: stage === "before" ? "Cancelled" : "Cut short", toneClass: "text-at-late" };
+    hero = { text: CANCELLATION_LABEL[stage], toneClass: "text-at-late" };
     lines = [CANCELLATION_BADGE_MEANING[stage]];
   } else if (stops.length > 0) {
     const signed = stops.reduce((s, x) => s + x.deviation_sec, 0) / stops.length;
     const abs = stops.reduce((s, x) => s + Math.abs(x.deviation_sec), 0) / stops.length;
     const value = offScheduleValue(signed, abs, mode);
     hero = { text: value.text, toneClass: OFF_SCHEDULE_TONE_CLASS[value.tone] };
-    lines = [`on average across ${stops.length} stop${stops.length === 1 ? "" : "s"}`];
+    lines = [`on average across ${plural(stops.length, "stop")}`];
     if (stage === "ran") lines.push(CANCELLATION_BADGE_MEANING.ran);
   }
 
   const when = [date ? serviceDayLabel(date) : null, departing].filter(Boolean).join(", ");
   return {
-    eyebrow: when ? `Run - ${when}` : "Run",
+    eyebrow: when ? `Trip · ${when}` : "Trip",
     body: {
       route: route
         ? {
             mode: route.mode,
             shortName: route.shortName,
             longName: route.longName,
-            colour: route.colour,
           }
         : null,
-      name: route?.shortName ?? card.id,
-      subname: destination ? `to ${destination}` : null,
+      name: route ? routeDisplayName({ ...route, slug: card.id }) : card.id,
+      subname: boundFor(headsign, mode),
       hero,
       lines,
     },
@@ -325,22 +323,22 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
  */
 export async function stopCardData(card: StopCard): Promise<SubjectCardData | null> {
   const { range, serviceDate: date } = await resolveShownDay(card.day);
-  const stats = await getStopStats(card.id, range, ON_TIME_LATE_SEC, STOP_REVALIDATE);
+  const stats = await getStopStats(card.id, range, LIVE_DAY_REVALIDATE);
   if (!stats) return null;
   const { summary } = stats;
   const abs = summary?.avg_abs_delay_sec;
   return {
-    eyebrow: `Stop - ${serviceDayLabel(date)}`,
+    eyebrow: `Stop · ${serviceDayLabel(date)}`,
     body: {
       route: null,
       name: stats.stop.name,
-      subname: `${stats.routes_count} route${stats.routes_count === 1 ? "" : "s"} called here`,
+      subname: `${plural(stats.routes_count, "route")} called here`,
       hero: abs == null ? null : { text: formatDuration(abs), toneClass: "text-at-ink" },
       lines:
         summary && abs != null
           ? [
-              `off schedule on average, across ${arrivals(summary.events)}`,
-              summary.on_time_pct == null ? "" : `${summary.on_time_pct.toFixed(1)}% on time`,
+              `off schedule on average, across ${plural(summary.events, "arrival")}`,
+              summary.on_time_pct == null ? "" : `${formatPct(summary.on_time_pct)} on time`,
             ].filter(Boolean)
           : [],
     },
@@ -351,10 +349,10 @@ export async function stopCardData(card: StopCard): Promise<SubjectCardData | nu
 /**
  * An eyebrow from its parts, dropping the empty ones.
  * @param parts - The heading, the period and the filter.
- * @returns "Worst run - Sun 20 Sep - Trains".
+ * @returns "Worst trip · Sun 20 Sep · Trains".
  */
 function eyebrowOf(...parts: (string | null)[]): string {
-  return parts.filter(Boolean).join(" - ");
+  return parts.filter(Boolean).join(" · ");
 }
 
 /**
@@ -363,16 +361,7 @@ function eyebrowOf(...parts: (string | null)[]): string {
  * @returns The glyph route.
  */
 function glyphOf(r: ShameTrip | ShameRouteRow): SubjectBodyProps["route"] {
-  return { mode: r.mode, shortName: r.short_name, longName: r.long_name, colour: r.colour ?? null };
-}
-
-/**
- * The name a shame row's route goes by on its board.
- * @param r - The row.
- * @returns The short name, the long name, or the slug.
- */
-function routeNameOf(r: ShameTrip | ShameRouteRow): string {
-  return r.short_name || r.long_name || routeSlug(r.route_id);
+  return { mode: r.mode, shortName: r.shortName, longName: r.longName };
 }
 
 /**
@@ -400,7 +389,7 @@ function offHero(signed: number, abs: number, mode: string): SubjectBodyProps["h
 
 /** Each shame card's heading and the noun its empty state uses. */
 const SHAME_HEADINGS = {
-  trip: { head: "Worst trip", noun: "run" },
+  trip: { head: "Worst trip", noun: "trip" },
   route: { head: "Worst route", noun: "route" },
   stop: { head: "Worst stop", noun: "stop" },
 } as const;
@@ -415,7 +404,7 @@ function nothingStoodOut(noun: string): SubjectBodyProps {
     route: null,
     name: null,
     subname: null,
-    hero: { text: "Nothing stood out", toneClass: "text-at-ontime" },
+    hero: { text: "No shame", toneClass: "text-at-ink" },
     lines: [`No ${noun} averaged more than ${formatDuration(ON_TIME_LATE_SEC)} off schedule`],
   };
 }
@@ -455,12 +444,12 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
   const time = nzClockTime(t.scheduled_start);
   return {
     route: glyphOf(t),
-    name: routeNameOf(t),
+    name: routeDisplayName(t),
     subname: destinationOf(t),
     hero: offHero(t.avg_delay_sec, t.avg_abs_delay_sec, t.mode),
     lines: [
-      `on average across ${t.stops} stops`,
-      dated && t.date ? `The ${time} run on ${serviceDayLabel(t.date)}` : `The ${time} run`,
+      `on average across ${plural(t.stops, "stop")}`,
+      dated && t.date ? `The ${time} trip on ${serviceDayLabel(t.date)}` : `The ${time} trip`,
     ],
   };
 }
@@ -482,23 +471,23 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     const period = await resolvePeriod(card.window, card.period);
     let body: SubjectBodyProps = NOTHING_RANKED;
     if (card.board === "trip") {
-      const t = (await getShameOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const t = (await getTripBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (t) body = runBody(t, true);
     } else if (card.board === "route") {
-      const r = (await getShameRouteOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const r = (await getRouteBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (r)
         body = {
           route: glyphOf(r),
-          name: routeNameOf(r),
+          name: routeDisplayName(r),
           subname: null,
           hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
           lines: [
             r.date ? `on average on ${serviceDayLabel(r.date)}` : "on average",
-            `${arrivals(r.events)} that day`,
+            `${plural(r.events, "arrival")} that day`,
           ],
         };
     } else {
-      const s = (await getWorstStopsOfWeek(period.range, filter, WEEK_REVALIDATE)).worst;
+      const s = (await getStopBoardOfWeek(period.range, filter, PERIOD_REVALIDATE)).worst;
       if (s)
         body = {
           route: null,
@@ -507,7 +496,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
           hero: { text: formatDuration(s.avg_abs_delay_sec), toneClass: "text-at-ink" },
           lines: [
             `off schedule on average on ${serviceDayLabel(s.date)}`,
-            `${arrivals(s.events)} that day`,
+            `${plural(s.events, "arrival")} that day`,
           ],
         };
     }
@@ -523,7 +512,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
   let date: string;
   let body: SubjectBodyProps;
   if (card.board === "trip") {
-    const day = await shameDay(card, (range) => getShameOfDay(range, filter, TODAY_REVALIDATE));
+    const day = await shameDay(card, (range) => getTripBoardOfDay(range, filter, TODAY_REVALIDATE));
     date = day.date;
     const hours = filterLiveHours(day.data.hours, date);
     const t = pickWorst(hours);
@@ -532,7 +521,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     else body = runBody(t, false);
   } else if (card.board === "route") {
     const day = await shameDay(card, (range) =>
-      getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
+      getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
     );
     date = day.date;
     const r = pickWorst(filterLiveHours(day.data.hours, date));
@@ -541,18 +530,16 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
     else
       body = {
         route: glyphOf(r),
-        name: routeNameOf(r),
+        name: routeDisplayName(r),
         subname: null,
         hero: offHero(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode),
         lines: [
           `on average in the ${nzHourLabel(r.hour)} hour`,
-          `${arrivals(r.events)} in that hour`,
+          `${plural(r.events, "arrival")} in that hour`,
         ],
       };
   } else {
-    const day = await shameDay(card, (range) =>
-      getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
-    );
+    const day = await shameDay(card, (range) => getStopBoardOfDay(range, filter, TODAY_REVALIDATE));
     date = day.date;
     const s = pickWorst(filterLiveHours(day.data.hours, date));
     if (!s) body = NOTHING_RANKED;
@@ -565,7 +552,7 @@ export async function shameCardData(card: ShameCard): Promise<SubjectCardData> {
         hero: { text: formatDuration(s.avg_abs_delay_sec), toneClass: "text-at-ink" },
         lines: [
           `off schedule on average in the ${nzHourLabel(s.hour)} hour`,
-          `${arrivals(s.events)} in that hour`,
+          `${plural(s.events, "arrival")} in that hour`,
         ],
       };
   }
@@ -597,10 +584,7 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
     range: DateRange,
   ): Promise<{ routes: FleetSummary | null; count: number; trips: NetworkCancelledTrip[] }> => {
     if (isRoutes) {
-      const rows = visibleRows(
-        await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE),
-        filter,
-      );
+      const rows = visibleRows(await getRankings(range, TODAY_REVALIDATE), filter);
       const ran = rows.filter((r) => r.events > 0);
       return { routes: summariseRows(ran), count: ran.length, trips: [] };
     }
@@ -640,12 +624,12 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
         subname: null,
         hero:
           data.count > 0
-            ? { text: `${data.count.toLocaleString("en-NZ")} routes`, toneClass: "text-at-ink" }
+            ? { text: `${formatCount(data.count)} routes`, toneClass: "text-at-ink" }
             : null,
         lines:
           s && s.on_time_pct != null
             ? [
-                `ran ${arrivals(s.events)}, ${s.on_time_pct.toFixed(1)}% on time`,
+                `ran ${plural(s.events, "arrival")}, ${formatPct(s.on_time_pct)} on time`,
                 s.avg_abs_delay_sec == null
                   ? ""
                   : `${formatDuration(s.avg_abs_delay_sec)} off schedule on average`,
@@ -659,9 +643,9 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
   const { trips } = data;
   const byRoute = new Map<string, { name: string; n: number }>();
   for (const t of trips) {
-    const row = byRoute.get(t.route_id);
+    const row = byRoute.get(t.slug);
     if (row) row.n++;
-    else byRoute.set(t.route_id, { name: t.short_name ?? t.route_id, n: 1 });
+    else byRoute.set(t.slug, { name: routeDisplayName(t), n: 1 });
   }
   const top = [...byRoute.values()].sort((a, b) => b.n - a.n)[0];
   const neverRan = trips.filter((t) => t.stage === "before").length;
@@ -674,14 +658,14 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
       subname: null,
       hero:
         trips.length > 0
-          ? { text: trips.length.toLocaleString("en-NZ"), toneClass: "text-at-late" }
+          ? { text: formatCount(trips.length), toneClass: "text-at-late" }
           : { text: "None", toneClass: "text-at-ontime" },
       lines:
         trips.length > 0
           ? [
-              `trip${trips.length === 1 ? "" : "s"} flagged cancelled, reinstated ones included`,
-              `${neverRan} never ran, ${cutShort} cut short`,
-              top ? `Most on ${top.name}: ${top.n}` : "",
+              `${pluralNoun(trips.length, "trip")} flagged cancelled, reinstated ones included`,
+              `${formatCount(neverRan)} never ran, ${formatCount(cutShort)} cut short`,
+              top ? `Most on ${top.name}: ${formatCount(top.n)}` : "",
             ].filter(Boolean)
           : ["No trip was flagged cancelled"],
     },

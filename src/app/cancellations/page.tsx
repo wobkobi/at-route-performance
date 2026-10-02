@@ -10,9 +10,10 @@ import { CancellationSummary } from "@/components/cancellation/CancellationSumma
 import { CancelledBoard } from "@/components/cancellation/CancelledBoard";
 import { CancelledTripList } from "@/components/cancellation/CancelledTripList";
 import { RangeControls } from "@/components/date/RangeControls";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
-import { ChevronRight } from "@/components/icons";
+import { MoreLink } from "@/components/ui/MoreLink";
+import { PageHeader } from "@/components/ui/PageHeader";
 import {
   getEarliestDataDay,
   getLatestEventDate,
@@ -20,23 +21,25 @@ import {
   type CancelledRouteRow,
   type NetworkCancelledTrip,
 } from "@/lib/data";
-import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
+import { parseMode } from "@/lib/mode";
+import { listShareCard, pageMetadata, parseListCard } from "@/lib/og";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  rangeViewParams,
+  routeLinkParams,
   type RangeNav,
 } from "@/lib/page/range";
+import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow } from "@/lib/time/request-now";
 import { nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import { CANCELLATION_STAGES } from "@/lib/trip/cancellation";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -46,7 +49,7 @@ export const instant = false;
 
 /** What a shared link to this page says under its title. */
 const DESCRIPTION =
-  "Every Auckland Transport trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.";
+  "Every AT trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.";
 
 /**
  * Title and shared-link card, built from the query alone so the metadata
@@ -62,11 +65,11 @@ export async function generateMetadata({
   searchParams?: Promise<CancellationsSearchParams>;
 }): Promise<Metadata> {
   const card = parseListCard("cancellations", (await searchParams) ?? {});
-  return {
+  return pageMetadata({
     title: "Cancellations",
     description: DESCRIPTION,
-    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
-  };
+    card: listShareCard(card),
+  });
 }
 
 /** Routes listed on the Most cancelled board before the link to the Routes page. */
@@ -103,9 +106,7 @@ export default async function CancellationsPage({
     clampDayParam("/cancellations", sp, today);
     dropTodayParam("/cancellations", sp, today);
   }
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
+  const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const stage = CANCELLATION_STAGES.find((s) => s === sp.stage) ?? null;
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
@@ -122,7 +123,7 @@ export default async function CancellationsPage({
     range = shown.range;
     trips = await getNetworkCancelledTrips(range);
     nav = dayRangeNav(shown, earliest, today);
-    linkDay = nav.isToday ? undefined : shown.serviceDate;
+    linkDay = dayLinkParam(shown.serviceDate, today);
     if (nav.isToday) liveAt = now.getTime();
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -140,13 +141,13 @@ export default async function CancellationsPage({
   );
   const byRoute = new Map<string, CancelledRouteRow>();
   for (const t of visible) {
-    const row = byRoute.get(t.route_id);
+    const row = byRoute.get(t.slug);
     if (row) row.cancelled++;
     else
-      byRoute.set(t.route_id, {
-        route_id: t.route_id,
-        short_name: t.short_name,
-        long_name: t.long_name,
+      byRoute.set(t.slug, {
+        slug: t.slug,
+        shortName: t.shortName,
+        longName: t.longName,
         mode: t.mode,
         colour: t.colour,
         cancelled: 1,
@@ -154,18 +155,12 @@ export default async function CancellationsPage({
   }
   const boardRows = [...byRoute.values()].sort(
     (a, b) =>
-      b.cancelled - a.cancelled ||
-      (a.short_name ?? a.route_id).localeCompare(b.short_name ?? b.route_id, undefined, {
-        numeric: true,
-      }),
+      b.cancelled - a.cancelled || compareRouteNumbers(routeDisplayName(a), routeDisplayName(b)),
   );
   const modes = new Set(trips.map((t) => t.mode));
 
   // The window params ride along on the filter chips; the window controls carry the filters.
-  const windowParams: Record<string, string> = {};
-  if (window !== "day") windowParams.window = window;
-  if (window === "day" && linkDay && sp.day) windowParams.day = linkDay;
-  if (period) windowParams.period = period;
+  const windowParams = stripUnset(rangeViewParams(window, sp.day ? linkDay : undefined, period));
   const stageParam: Record<string, string> = stage ? { stage } : {};
   const schoolParam = stripUnset({ school: schoolFilterParam(schools) });
   const modePreserved = { ...windowParams, ...schoolParam, ...stageParam };
@@ -174,10 +169,10 @@ export default async function CancellationsPage({
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Cancellations</h1>
-        <RangeControls basePath="/cancellations" nav={nav} />
-      </header>
+      <PageHeader
+        title="Cancellations"
+        actions={<RangeControls basePath="/cancellations" nav={nav} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <ModeFilter
@@ -201,15 +196,15 @@ export default async function CancellationsPage({
         routes={byRoute.size}
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <CancelledBoard
             rows={boardRows.slice(0, BOARD_ROUTES)}
             total={visible.length}
-            routeQuery={routeLinkQuery(window, linkDay, period)}
+            routeParams={routeLinkParams(window, linkDay, period)}
           />
           {boardRows.length > BOARD_ROUTES && (
-            <Link
+            <MoreLink
               href={buildHref("/routes", {
                 ...windowParams,
                 mode: mode ?? undefined,
@@ -217,11 +212,9 @@ export default async function CancellationsPage({
                 cancelled: "1",
                 sort: "cancelled",
               })}
-              className="inline-flex items-center gap-1 text-sm font-semibold text-at-shore hover:underline"
             >
               All {boardRows.length} routes with cancellations
-              <ChevronRight className="h-4 w-4" />
-            </Link>
+            </MoreLink>
           )}
         </div>
         {/* Keyed by what the list shows, so a new window or filter opens it at the first page. */}
@@ -237,10 +230,10 @@ export default async function CancellationsPage({
       </div>
 
       <p className="text-xs text-at-muted">
-        A trip counts once AT&apos;s realtime feed flags it cancelled. &quot;Never ran&quot;
-        recorded no arrival before the flag; &quot;cut short&quot; recorded arrivals up to it and
-        none after; &quot;reinstated&quot; kept recording arrivals after it, so the cancellation was
-        reversed. Cancellations are only known from when capture began.
+        A trip counts once AT&apos;s realtime feed flags it cancelled. &ldquo;Never ran&rdquo;
+        recorded no arrival before the flag; &ldquo;Cut short&rdquo; recorded arrivals up to it and
+        none after; &ldquo;Reinstated&rdquo; kept recording arrivals after it, so the cancellation
+        was reversed. Cancellations are only known from when capture began.
       </p>
     </main>
   );

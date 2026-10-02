@@ -14,7 +14,7 @@
 import { daySummarised, writeHourlySummary } from "@/lib/cron/aggregate";
 import { prisma } from "@/lib/db";
 import { DATA_START_DAY } from "@/lib/time/data-start";
-import { nzServiceDayRange, nzServiceDayString, shiftWeek } from "@/lib/time/service-day";
+import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes("--dry-run");
@@ -24,7 +24,7 @@ const today = nzServiceDayString();
 // Stepped by service date so a DST switch inside the range cannot skip or
 // repeat a day.
 const allDays: string[] = [];
-for (let d = DATA_START_DAY; d < today; d = shiftWeek(d, 1)) allDays.push(d);
+for (let d = DATA_START_DAY; d < today; d = shiftDays(d, 1)) allDays.push(d);
 const dates = args.length > 0 ? args : argv.includes("--all") ? allDays : [];
 
 if (dates.length === 0) {
@@ -60,7 +60,7 @@ for (const date of dates) {
   try {
     const rows = await writeHourlySummary(nzServiceDayRange(date));
     console.log(
-      `  ${date}  ok  (${rows.toLocaleString()} route-hours, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
+      `  ${date}  ok  (${rows.toLocaleString("en-NZ")} route-hours, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
     );
     ok++;
   } catch (err) {

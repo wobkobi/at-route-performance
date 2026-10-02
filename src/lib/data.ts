@@ -2,7 +2,6 @@
 // Barrel over src/lib/data/*.ts: the server-side data-access layer, split by
 // concern. Import sites use this path; each module below owns one concern.
 
-export { TODAY_REVALIDATE } from "@/lib/data/cache";
 export {
   getCancelledByRoute,
   getCancelledCount,
@@ -23,15 +22,26 @@ export {
   getLatestEventDate,
   getMostRecentDataDay,
 } from "@/lib/data/data-days";
+export { getFilterUsage, type FilterUsage } from "@/lib/data/filter-usage";
 export { getFilteredCancellations, getFilteredRankings } from "@/lib/data/filtered-rankings";
 export type { FilteredCancellations } from "@/lib/data/filtered-rankings";
 export { getGhostRun, getGhostRunFor } from "@/lib/data/ghost-runs";
 export type { GhostRunRow } from "@/lib/data/ghost-runs";
+export { getRecordedLiveTrips } from "@/lib/data/live-stored";
+export { getNetworkLines } from "@/lib/data/network-lines";
 export { getDetouredTripIds, getTripDetour } from "@/lib/data/off-route";
 export type { TripDetour } from "@/lib/data/off-route";
-export { getOperators } from "@/lib/data/operators";
+export { getOperatorDirectory, getOperators, type OperatorDirectory } from "@/lib/data/operators";
 export { getRankings, getTopRoutes } from "@/lib/data/rankings";
 export type { TopRoutesParams } from "@/lib/data/rankings";
+export {
+  DAY_REVALIDATE,
+  INGEST_INTERVAL_SEC,
+  LIVE_DAY_REVALIDATE,
+  PERIOD_REVALIDATE,
+  TODAY_REVALIDATE,
+  revalidateFor,
+} from "@/lib/data/revalidate";
 export { getRouteRiderWait, getTripRiderWait } from "@/lib/data/rider-wait";
 export type { DayRiderWait } from "@/lib/data/rider-wait";
 export { getRouteGeography } from "@/lib/data/route-areas";
@@ -46,6 +56,7 @@ export {
   getBusiestRouteSlugs,
   getDirectoryRoutes,
   getRouteLabel,
+  getRouteModeMap,
   getRouteNames,
   getRouteOperators,
   ownRouteIds,
@@ -57,41 +68,46 @@ export { getShameDayHours } from "@/lib/data/shame-day-hours";
 export type { ShameFilter } from "@/lib/data/shame-filter";
 export {
   MIN_ROUTE_EVENTS_HOUR,
-  cachedWorstRoutesOfDay,
-  getShameRouteOfDay,
-  getShameRouteOfWeek,
-  getShameRouteStreak,
-  getShameRouteStreaksBatch,
-  getShameRoutesInHours,
+  cachedRouteBoardOfDay,
+  getRouteBoardInHours,
+  getRouteBoardOfDay,
+  getRouteBoardOfWeek,
 } from "@/lib/data/shame-routes";
+export {
+  MIN_STOP_EVENTS_HOUR,
+  cachedStopBoardOfDay,
+  getStopBoardInHours,
+  getStopBoardOfDay,
+  getStopBoardOfWeek,
+} from "@/lib/data/shame-stops";
+export { getShameStreaks } from "@/lib/data/shame-streaks";
+export type { ShameStreak, StreakBoard } from "@/lib/data/shame-streaks";
 export {
   SHAME_MIN_STOPS,
   SHAME_RANKED_LIMIT,
-  cachedWorstTripsOfDay,
-  getShameOfDay,
-  getShameOfWeek,
-  getShameTripsInHours,
+  cachedTripBoardOfDay,
+  getTripBoardInHours,
+  getTripBoardOfDay,
+  getTripBoardOfWeek,
 } from "@/lib/data/shame-trips";
-export { searchStops, type StopMatch } from "@/lib/data/stop-search";
 export {
-  MIN_STOP_EVENTS_HOUR,
-  cachedWorstStopsOfDay,
-  findCurrentStationId,
-  getShameStopsInHours,
-  getStationSiblings,
-  getStopIdentity,
-  getStopStats,
-  getWorstStopsOfDay,
-  getWorstStopsOfWeek,
-} from "@/lib/data/stops";
+  listStops,
+  searchStops,
+  type StopListing,
+  type StopMatch,
+  type StopPage,
+} from "@/lib/data/stop-search";
+export { getStationSiblings, getStopIdentity, getStopStats } from "@/lib/data/stops";
 export {
   getLatestTripDay,
+  getRouteTripStats,
+  getTripHeadsign,
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
-  getWorstTripsOfDay,
+  parseTripSort,
 } from "@/lib/data/trips";
-export type { ScheduledStop, TripSort, WorstTripsParams } from "@/lib/data/trips";
+export type { RouteTripStatsParams, ScheduledStop, TripSort } from "@/lib/data/trips";
 export {
   getVehicleDayMap,
   getVehicleRunsOfDay,

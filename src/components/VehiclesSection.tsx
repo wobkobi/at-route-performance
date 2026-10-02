@@ -5,26 +5,22 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { SectionLink } from "@/components/SectionLink";
 import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/lib/data";
+import { formatCount } from "@/lib/format";
+import { MODES, modeWord, type Mode } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
-import { type HourRange, hourRangeClock } from "@/lib/time/time-of-day";
-import { VEHICLE_MODES, type VehicleCounts, type VehicleMode } from "@/lib/vehicle/counts";
+import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
+import type { VehicleCounts } from "@/lib/vehicle/counts";
 import type { JSX } from "react";
-
-const NOUN: Record<VehicleMode, [string, string]> = {
-  BUS: ["bus", "buses"],
-  TRAIN: ["train", "trains"],
-  FERRY: ["ferry", "ferries"],
-};
 
 /**
  * The modes a filtered page shows: just the chosen one, or all three.
  * @param mode - Mode filter, or null for every mode.
  * @returns The modes in display order.
  */
-export function vehicleModesShown(mode: VehicleMode | null): readonly VehicleMode[] {
-  return mode ? [mode] : VEHICLE_MODES;
+export function vehicleModesShown(mode: Mode | null): readonly Mode[] {
+  return mode ? [mode] : MODES;
 }
 
 /**
@@ -32,7 +28,7 @@ export function vehicleModesShown(mode: VehicleMode | null): readonly VehicleMod
  * is counted by that unit and a unit coupled behind it is never seen.
  */
 export const TRAIN_COUNT_NOTE =
-  "Trains are counted by the unit carrying each run; a unit coupled behind it is not seen.";
+  "Trains are counted by the unit carrying each trip; a unit coupled behind it is not seen.";
 
 /**
  * One span's figures: an eyebrow naming the span on a hairline, then a figure
@@ -51,7 +47,7 @@ function VehicleCard({
 }: {
   eyebrow: string;
   counts: VehicleCounts;
-  modes: readonly VehicleMode[];
+  modes: readonly Mode[];
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-4 border-t border-at-border pt-4">
@@ -59,12 +55,12 @@ function VehicleCard({
       <dl className="grid grid-cols-3 gap-4">
         {modes.map((m) => (
           <div key={m} className="flex flex-col gap-1">
-            <dt className="flex items-center gap-1.5 text-xs tracking-zero text-at-muted uppercase">
-              <ModeIcon mode={m} className="h-4 w-4" />
-              {NOUN[m][counts[m] === 1 ? 0 : 1]}
+            <dt className="at-eyebrow flex items-center gap-1.5 text-at-muted">
+              <ModeIcon mode={m} className="h-4 w-4" decorative />
+              {modeWord(m, counts[m] !== 1)}
             </dt>
             <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums sm:text-3xl">
-              {counts[m].toLocaleString("en-NZ")}
+              {formatCount(counts[m])}
             </dd>
           </div>
         ))}
@@ -98,7 +94,7 @@ export async function VehicleCards({
 }: {
   range: DateRange;
   label: string;
-  mode: VehicleMode | null;
+  mode: Mode | null;
   schools: SchoolFilter;
   hours?: HourRange | null;
   live?: boolean;

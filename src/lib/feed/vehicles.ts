@@ -4,6 +4,7 @@
 // updates feed, yielding delay-aware LiveVehicle markers for the map.
 // Cached briefly so map polling does not hammer the AT API.
 
+import { INGEST_INTERVAL_SEC } from "@/lib/data/revalidate";
 import { fetchATTripUpdates, type TripUpdate } from "@/lib/feed/at";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { VehicleReading } from "@/lib/off-route";
@@ -296,7 +297,9 @@ export async function fetchVehicleSnapshot(): Promise<VehicleSnapshot> {
  * @returns Live vehicles across the network.
  */
 export async function getLiveVehicles(): Promise<LiveVehicle[]> {
-  return unstable_cache(queryLiveVehicles, ["live-vehicles-v3"], { revalidate: 120 })();
+  return unstable_cache(queryLiveVehicles, ["live-vehicles-v3"], {
+    revalidate: INGEST_INTERVAL_SEC,
+  })();
 }
 
 /**

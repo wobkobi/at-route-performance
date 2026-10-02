@@ -1,6 +1,8 @@
 // src/app/not-found.tsx
 // Global 404 page: a directory of every page, and a way on to the route list.
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { SITE_PAGES } from "@/lib/page/site-nav";
 import { viewQuery } from "@/lib/route/explorer";
 import { buildHref } from "@/lib/utils";
@@ -12,7 +14,7 @@ import {
   FaBan,
   FaBroadcastTower,
   FaBuilding,
-  FaBus,
+  FaBusAlt,
   FaCalendarAlt,
   FaChartBar,
   FaExclamationTriangle,
@@ -31,7 +33,7 @@ const ICONS: Record<(typeof SITE_PAGES)[number]["href"], IconType> = {
   "/days": FaCalendarAlt,
   "/routes": FaChartBar,
   "/operators": FaBuilding,
-  "/vehicles": FaBus,
+  "/vehicles": FaBusAlt,
   "/live": FaBroadcastTower,
   "/shame/trip": FaExclamationTriangle,
   "/shame/route": FaRoute,
@@ -55,18 +57,17 @@ const ALL_ROUTES_HREF = buildHref("/routes", viewQuery("all"));
  */
 export default function NotFound(): JSX.Element {
   return (
-    <main className="space-y-10 py-8">
-      {/* 404 block */}
+    <main className="space-y-10">
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-6xl font-ultra tracking-zero text-at-muted">404</p>
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink">Page not found</h1>
         {/* This page answers an unmatched path as well as a notFound() from a
             route or stop, and Next gives it no way to tell which, so it names
             all three rather than asserting the one it cannot know. */}
-        <p className="text-sm text-at-muted">
-          That address doesn&apos;t match a page, a route or a stop. Everything the site has is
-          below.
-        </p>
+        <PageHeader
+          title="Page not found"
+          subtitle="That address does not match a page, a route or a stop. Everything the site has is below."
+          className="justify-center"
+        />
       </div>
 
       {/* Page directory */}
@@ -77,9 +78,9 @@ export default function NotFound(): JSX.Element {
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-3 border border-at-border bg-at-surface p-4 transition-colors hover:bg-at-shore-pale"
+              className="at-card flex items-center gap-3 p-4 transition-colors hover:bg-at-shore-pale"
             >
-              <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden />
               <p className="font-semibold text-at-ink">{label}</p>
             </Link>
           );
@@ -87,10 +88,10 @@ export default function NotFound(): JSX.Element {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-ultra tracking-zero text-at-ink">All routes</h2>
+        <SectionHeading>All routes</SectionHeading>
         <p className="text-sm text-at-muted">
           Looking for a route?{" "}
-          <Link href={ALL_ROUTES_HREF} className="font-semibold text-at-shore underline">
+          <Link href={ALL_ROUTES_HREF} className="at-link font-semibold">
             Every route
           </Link>{" "}
           is on the Routes page, school buses included.

@@ -5,6 +5,7 @@
 // in src/lib/data/stops.ts.
 
 import type { DelayDirection } from "@/lib/rankings";
+import { byEvents, weightedMean } from "@/lib/stats";
 import {
   stationId,
   stationNameOf,
@@ -51,8 +52,8 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
     string,
     {
       row: MergedStopRow;
-      absSum: number;
-      signedSum: number;
+      /** The platform rows merged in, re-averaged once the station is whole. */
+      members: RankedStopRow[];
       routeIds: Set<string>;
       /** Every platform's name, so the station's own name does not depend on row order. */
       platforms: (StationParts & { name: string })[];
@@ -61,13 +62,10 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
   for (const r of rows) {
     const parts = stationPartsOf(r);
     const id = stationId(r.stop_id, r.name, parts);
-    const absSum = r.avg_abs_delay_sec * r.events;
-    const signedSum = (r.avg_delay_sec ?? 0) * r.events;
     const cur = acc.get(id);
     if (cur) {
       cur.row.events += r.events;
-      cur.absSum += absSum;
-      cur.signedSum += signedSum;
+      cur.members.push(r);
       cur.platforms.push({ ...parts, name: r.name });
       for (const routeId of r.routeIds) cur.routeIds.add(routeId);
     } else {
@@ -80,20 +78,19 @@ export function mergeStationPlatforms(rows: readonly RankedStopRow[]): MergedSto
           avg_abs_delay_sec: r.avg_abs_delay_sec,
           routeIds: [],
         },
-        absSum,
-        signedSum,
+        members: [r],
         routeIds: new Set(r.routeIds),
         platforms: [{ ...parts, name: r.name }],
       });
     }
   }
   return [...acc.values()]
-    .map(({ row, absSum, signedSum, routeIds, platforms }) => ({
+    .map(({ row, members, routeIds, platforms }) => ({
       ...row,
       name: stationNameOf(platforms),
       routeIds: [...routeIds],
-      avg_abs_delay_sec: Math.round((absSum / row.events) * 10) / 10,
-      avg_delay_sec: Math.round((signedSum / row.events) * 10) / 10,
+      avg_abs_delay_sec: weightedMean(members, (m) => m.avg_abs_delay_sec, byEvents) ?? 0,
+      avg_delay_sec: weightedMean(members, (m) => m.avg_delay_sec, byEvents),
     }))
     .sort((a, b) => b.avg_abs_delay_sec - a.avg_abs_delay_sec);
 }

@@ -108,9 +108,9 @@ jobs:
 
       - name: Build, start and visit every page
         if: env.DATABASE_URL != ''
-        # Direct, not `npm run smoke`: that loads .env.local, which CI never has, and
-        # dotenv's CLI exits on a missing file. The job's env already carries the secrets.
-        run: npx tsx scripts/smoke-test.ts
+        # The script's .env.local flag skips a missing file, and the job's env
+        # already carries the secrets.
+        run: npm run smoke
 
       - name: Report a skipped run
         if: env.DATABASE_URL == ''

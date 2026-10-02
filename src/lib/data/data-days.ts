@@ -1,5 +1,7 @@
 // src/lib/data/data-days.ts
 // The edges of the archive: the earliest and latest days with enough data to show.
+import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
+import { TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
@@ -7,7 +9,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayNoon,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 
 /**
@@ -19,20 +21,14 @@ import {
  * @returns That event's `scheduledAt`, or null when the collection is empty.
  */
 async function endpointEventTime(direction: 1 | -1): Promise<Date | null> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $sort: { scheduledAt: direction } },
-        { $limit: 1 },
-        { $project: { _id: 0, scheduledAt: 1 } },
-      ] as never,
-      cursor: {},
-    }),
-  )) as unknown as { cursor: { firstBatch: { scheduledAt?: { $date: string } | string }[] } };
-  const raw = res.cursor.firstBatch[0]?.scheduledAt;
+  const res = await aggregateRows<{ scheduledAt?: { $date: string } | string }>("ArrivalEvent", [
+    { $sort: { scheduledAt: direction } },
+    { $limit: 1 },
+    { $project: { _id: 0, scheduledAt: 1 } },
+  ]);
+  const raw = res[0]?.scheduledAt;
   if (!raw) return null;
-  return new Date(typeof raw === "string" ? raw : raw.$date);
+  return new Date(toIso(raw));
 }
 
 /**
@@ -69,7 +65,7 @@ async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Prom
     });
     if (n >= minEvents) return day;
     // Step inward: forward from the earliest end, back from the latest.
-    day = shiftWeek(day, direction);
+    day = shiftDays(day, direction);
   }
   return null;
 }
@@ -85,7 +81,7 @@ export async function getLatestEventDate(): Promise<Date | null> {
   const iso = await unstable_cache(
     async () => (await endpointEventTime(-1))?.toISOString() ?? null,
     ["latest-event-date"],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return iso ? new Date(iso) : null;
 }
@@ -102,7 +98,7 @@ export async function getMostRecentDataDay(minEvents: number): Promise<Date | nu
   const day = await unstable_cache(
     () => findQualifyingDataDay(-1, minEvents),
     ["most-recent-data-day", String(minEvents)],
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return day ? serviceDayNoon(day) : null;
 }
@@ -133,10 +129,7 @@ export async function currentDayIsOpen(revalidate: number): Promise<boolean> {
         prisma.$runCommandRaw({
           count: "ArrivalEvent",
           query: {
-            scheduledAt: {
-              $gte: { $date: start.toISOString() },
-              $lt: { $date: new Date().toISOString() },
-            },
+            scheduledAt: dateWindow({ start, end: new Date() }),
           },
           limit: DAY_OPEN_EVENTS,
         }),
@@ -163,7 +156,7 @@ export async function getEarliestDataDay(minEvents: number): Promise<Date | null
     // Moves when the nightly cleanup prunes the oldest day; ten minutes, like
     // the latest/most-recent markers, so the day stepper cannot offer a day
     // that was just deleted for hours.
-    { revalidate: 600 },
+    { revalidate: TEN_MINUTE_REVALIDATE },
   )();
   return day ? serviceDayNoon(day) : null;
 }

@@ -2,6 +2,7 @@
 // Turn AT's two headsigns into what a departures board needs: where a service is
 // going from this stop, and the road or station it goes by.
 
+import { modeOrBus, type Mode } from "@/lib/mode";
 import { normaliseHeadsign } from "@/lib/stop/station";
 
 /** Where a departure is bound, split for a board's two lines. */
@@ -63,7 +64,7 @@ function after(text: string, re: RegExp): string | null {
 export function departureLabel(
   tripHeadsign: string | null,
   stopHeadsign: string | null,
-  mode: "BUS" | "TRAIN" | "FERRY",
+  mode: Mode,
 ): DepartureLabel {
   const trip = mode === "TRAIN" ? normaliseHeadsign(tripHeadsign) : tripHeadsign;
   const bound = trip === null ? null : after(trip, TO_RE);
@@ -94,11 +95,7 @@ export function departureLabel(
  */
 export function boundFor(headsign: string | null | undefined, mode: string): string | null {
   if (!headsign || !/\D/.test(headsign)) return null;
-  const { destination, via } = departureLabel(
-    headsign,
-    null,
-    mode === "TRAIN" || mode === "FERRY" ? mode : "BUS",
-  );
+  const { destination, via } = departureLabel(headsign, null, modeOrBus(mode));
   if (destination === null) return null;
   return via === null ? `to ${destination}` : `to ${destination} via ${via}`;
 }

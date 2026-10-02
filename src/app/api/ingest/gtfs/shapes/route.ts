@@ -56,13 +56,13 @@ async function runShapesSync(startTime: number): Promise<void> {
  * Sync GTFS shape geometry (road paths) into the Shape collection. Scheduled
  * (less often than the other ingests; the schedule is static) by the external
  * scheduler - see docs/cron-setup.md. Acknowledges, then syncs after the response.
- * @param req - Incoming request; requires the CRON_SECRET bearer token.
+ * @param request - Incoming request; requires the CRON_SECRET bearer token.
  * @returns 202 JSON `{ started }`; 401/500 on auth/config failure.
  */
-export function POST(req: Request): NextResponse {
+export function POST(request: Request): NextResponse {
   const startTime = Date.now();
 
-  const denied = requireCronAuth(req);
+  const denied = requireCronAuth(request);
   if (denied) return denied;
 
   after(() => runShapesSync(startTime));

@@ -1,13 +1,7 @@
 // src/lib/live-view.ts
 // Whether the window a page's URL names can still change. Pure and free of the
 // data layer, so the footer's client-side poller can import it.
-import { shiftWeek } from "@/lib/time/service-day";
-
-/** A `YYYY-MM` month key: the month view's `?period=`. */
-const MONTH_KEY = /^\d{4}-\d{2}$/;
-
-/** A `YYYY-MM-DD` date: the day view's `?day=`, and the week view's `?period=` start. */
-const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+import { shiftDays, YM_RE, YMD_RE } from "@/lib/time/service-day";
 
 /**
  * Whether the window a page's URL names still includes the live service day,
@@ -28,8 +22,8 @@ export function viewIncludesToday(
   { day, period }: { day: string | null; period: string | null },
   today: string,
 ): boolean {
-  if (day && DATE_KEY.test(day)) return day === today;
-  if (period && MONTH_KEY.test(period)) return today.startsWith(`${period}-`);
-  if (period && DATE_KEY.test(period)) return period <= today && today < shiftWeek(period, 7);
+  if (day && YMD_RE.test(day)) return day === today;
+  if (period && YM_RE.test(period)) return today.startsWith(`${period}-`);
+  if (period && YMD_RE.test(period)) return period <= today && today < shiftDays(period, 7);
   return true;
 }

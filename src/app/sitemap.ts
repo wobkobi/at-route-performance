@@ -6,31 +6,35 @@
 import { getDirectoryRoutes, getOperators } from "@/lib/data";
 import { logReadFailure } from "@/lib/db";
 import { operatorHref } from "@/lib/operators";
+import { routeHref } from "@/lib/page/hrefs";
+import { SITE_PAGES } from "@/lib/page/site-nav";
 import { routeSlug } from "@/lib/route/slug";
 import { crawlableOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 
 /**
- * The sections, with priority relative to each other.
+ * Each site page's priority relative to the others. Keyed by every page in
+ * {@link SITE_PAGES}, so a new page fails the type check until it has one.
  *
- * `/shame` and `/rankings` are left out on purpose: both only redirect, so
- * listing them would advertise a URL that answers 307 rather than a page. Stops
+ * `/shame` is not a site page: it only redirects, so listing it would
+ * advertise a URL that answers 307 rather than a page. Stops
  * are left out too - there are some 6,800 of them, and listing every one would
  * invite exactly the crawl this is meant to avoid. They stay reachable from a
  * route page, and allowed in robots.txt, just not advertised.
  */
-const SECTIONS: readonly [path: string, priority: number][] = [
-  ["/", 1],
-  ["/routes", 0.9],
-  ["/live", 0.8],
-  ["/cancellations", 0.7],
-  ["/shame/trip", 0.7],
-  ["/shame/route", 0.6],
-  ["/shame/stop", 0.6],
-  ["/days", 0.6],
-  ["/vehicles", 0.5],
-  ["/operators", 0.5],
-];
+const PRIORITY: Record<(typeof SITE_PAGES)[number]["href"], number> = {
+  "/": 1,
+  "/routes": 0.9,
+  "/live": 0.8,
+  "/cancellations": 0.7,
+  "/shame/trip": 0.7,
+  "/shame/route": 0.6,
+  "/shame/stop": 0.6,
+  "/days": 0.6,
+  "/vehicles": 0.5,
+  "/operators": 0.5,
+  "/compare": 0.4,
+};
 
 /**
  * Generate sitemap.xml: the sections, the current operators, then one page per current route.
@@ -43,10 +47,10 @@ const SECTIONS: readonly [path: string, priority: number][] = [
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = crawlableOrigin();
   const sections: MetadataRoute.Sitemap = [
-    ...SECTIONS.map(([path, priority]) => ({
-      url: `${origin}${path}`,
-      changeFrequency: path === "/live" ? ("hourly" as const) : ("daily" as const),
-      priority,
+    ...SITE_PAGES.map(({ href }) => ({
+      url: `${origin}${href}`,
+      changeFrequency: href === "/live" ? ("hourly" as const) : ("daily" as const),
+      priority: PRIORITY[href],
     })),
   ];
 
@@ -70,7 +74,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // with it, which is why the root layout skips static generation in the first place.
   let slugs: string[];
   try {
-    slugs = [...new Set((await getDirectoryRoutes()).map((r) => routeSlug(r.id)))].sort();
+    slugs = [...new Set((await getDirectoryRoutes()).map((r) => routeSlug(r.routeId)))].sort();
   } catch (err) {
     logReadFailure("sitemap-routes", err);
     return sections;
@@ -79,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...sections,
     ...slugs.map((slug) => ({
-      url: `${origin}/route/${encodeURIComponent(slug)}`,
+      url: `${origin}${routeHref(slug)}`,
       changeFrequency: "daily" as const,
       priority: 0.5,
     })),

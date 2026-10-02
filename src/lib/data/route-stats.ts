@@ -1,16 +1,22 @@
 // src/lib/data/route-stats.ts
 // One route's stats: the day summary with per-stop rows, and the per-day week table.
-import { MS_IN_DAY, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { groupBy } from "@/lib/collections";
+import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
+import { HOUR_REVALIDATE, LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRiderWaitOfDates, getRouteRiderWait } from "@/lib/data/rider-wait";
 import { routeIdsForSlug } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { earlySingleModeSum, lateSum, onTimeSingleModeSum } from "@/lib/on-time";
 import { applyPenalty, penaltyForRoute } from "@/lib/rider-wait";
+import type { RouteDisplay } from "@/lib/route/slug";
+import { byEvents, weightedMean } from "@/lib/stats";
 import { stationId, stationName, stationPartsOf, stationProjection } from "@/lib/stop/station";
 import { clampRangeToDataStart } from "@/lib/time/data-start";
 import {
+  MS_PER_DAY,
   NZ_TZ,
   nzLast7DaysRange,
   nzServiceDayRange,
@@ -27,14 +33,13 @@ export interface RouteStatsParams {
   routeId: string;
   from?: Date;
   to?: Date;
-  thresholdSec: number;
   /** Narrow to a part of the day; null or absent covers the whole of it. */
   hours?: HourRange | null;
 }
 
 /** Result shape of {@link getRouteStats}. */
 export interface RouteStats {
-  route: { shortName: string | null; longName: string; mode: string; colour: string | null } | null;
+  route: (Pick<RouteDisplay, "shortName" | "longName" | "mode"> & { colour: string | null }) | null;
   summary: RouteSummary | null;
   byStop: RouteByStop[];
 }
@@ -48,16 +53,13 @@ export interface RouteStats {
  * @returns Rows with train platforms merged by station, re-sorted busiest first.
  */
 function collapseStations(rows: RouteByStop[]): RouteByStop[] {
-  const acc = new Map<string, { row: RouteByStop; delaySum: number; otCount: number }>();
+  const acc = new Map<string, { row: RouteByStop; platforms: RouteByStop[] }>();
   for (const r of rows) {
     const id = stationId(r.stop_id, r.name, stationPartsOf(r));
-    const delaySum = (r.avg_delay_sec ?? 0) * r.events;
-    const otCount = ((r.on_time_pct ?? 0) / 100) * r.events;
     const cur = acc.get(id);
     if (cur) {
       cur.row.events += r.events;
-      cur.delaySum += delaySum;
-      cur.otCount += otCount;
+      cur.platforms.push(r);
     } else {
       // The merged row is the station, so it carries no single platform's grouping.
       acc.set(id, {
@@ -68,16 +70,15 @@ function collapseStations(rows: RouteByStop[]): RouteByStop[] {
           parent_station: undefined,
           platform_code: undefined,
         },
-        delaySum,
-        otCount,
+        platforms: [r],
       });
     }
   }
   return [...acc.values()]
-    .map(({ row, delaySum, otCount }) => ({
+    .map(({ row, platforms }) => ({
       ...row,
-      avg_delay_sec: row.events ? Math.round((delaySum / row.events) * 10) / 10 : null,
-      on_time_pct: row.events ? Math.round((otCount / row.events) * 1000) / 10 : null,
+      avg_delay_sec: weightedMean(platforms, (p) => p.avg_delay_sec, byEvents),
+      on_time_pct: weightedMean(platforms, (p) => p.on_time_pct, byEvents),
     }))
     .sort((a, b) => b.events - a.events);
 }
@@ -124,93 +125,81 @@ async function queryRouteStats(
       : {}),
   };
 
-  const summaryResult = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $match: match },
-        {
-          $group: {
-            _id: null,
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-            on_time_count: onTimeSingleModeSum(mode),
-            early_count: earlySingleModeSum(mode),
-            late_count: lateSum(),
-          },
-        },
-        {
-          $addFields: {
-            on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
-            early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
-            late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            events: 1,
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-            on_time_pct: { $round: ["$on_time_pct", 1] },
-            early_pct: { $round: ["$early_pct", 1] },
-            late_pct: { $round: ["$late_pct", 1] },
-          },
-        },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteSummary[] } };
+  const summaryResult = await aggregateRows<RouteSummary>("ArrivalEvent", [
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        events: { $sum: 1 },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+        on_time_count: onTimeSingleModeSum(mode),
+        early_count: earlySingleModeSum(mode),
+        late_count: lateSum(),
+      },
+    },
+    {
+      $addFields: {
+        on_time_pct: { $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] },
+        early_pct: { $multiply: [{ $divide: ["$early_count", "$events"] }, 100] },
+        late_pct: { $multiply: [{ $divide: ["$late_count", "$events"] }, 100] },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        events: 1,
+        avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+        avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+        on_time_pct: { $round: ["$on_time_pct", 1] },
+        early_pct: { $round: ["$early_pct", 1] },
+        late_pct: { $round: ["$late_pct", 1] },
+      },
+    },
+  ]);
 
-  const byStopResult = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        { $match: match },
-        {
-          $group: {
-            _id: "$stopId",
-            events: { $sum: 1 },
-            avg_delay_sec: { $avg: "$deviationSec" },
-            on_time_count: onTimeSingleModeSum(mode),
-          },
+  const byStopResult = await aggregateRows<RouteByStop>("ArrivalEvent", [
+    { $match: match },
+    {
+      $group: {
+        _id: "$stopId",
+        events: { $sum: 1 },
+        avg_delay_sec: { $avg: "$deviationSec" },
+        on_time_count: onTimeSingleModeSum(mode),
+      },
+    },
+    {
+      $addFields: {
+        on_time_pct: {
+          $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
         },
-        {
-          $addFields: {
-            on_time_pct: {
-              $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100],
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "Stop",
-            localField: "_id",
-            foreignField: "_id",
-            as: "stop",
-          },
-        },
-        { $unwind: "$stop" },
-        { $sort: { events: -1 as const } },
-        { $limit: 200 },
-        {
-          $project: {
-            _id: 0,
-            stop_id: { $toString: "$_id" },
-            name: "$stop.name",
-            lat: "$stop.lat",
-            lon: "$stop.lon",
-            events: 1,
-            avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-            on_time_pct: { $round: ["$on_time_pct", 1] },
-            ...stationProjection,
-          },
-        },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteByStop[] } };
+      },
+    },
+    {
+      $lookup: {
+        from: "Stop",
+        localField: "_id",
+        foreignField: "_id",
+        as: "stop",
+      },
+    },
+    { $unwind: "$stop" },
+    { $sort: { events: -1 as const } },
+    { $limit: 200 },
+    {
+      $project: {
+        _id: 0,
+        stop_id: { $toString: "$_id" },
+        name: "$stop.name",
+        lat: "$stop.lat",
+        lon: "$stop.lon",
+        events: 1,
+        avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+        on_time_pct: { $round: ["$on_time_pct", 1] },
+        ...stationProjection,
+      },
+    },
+  ]);
 
   return {
     route: route
@@ -221,8 +210,8 @@ async function queryRouteStats(
           colour: route.colour ?? null,
         }
       : null,
-    summary: summaryResult.cursor.firstBatch[0] ?? null,
-    byStop: collapseStations(byStopResult.cursor.firstBatch),
+    summary: summaryResult[0] ?? null,
+    byStop: collapseStations(byStopResult),
   };
 }
 
@@ -270,7 +259,6 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
       p.routeId,
       range.start.toISOString(),
       range.end.toISOString(),
-      String(p.thresholdSec),
       hourRangeParam(p.hours ?? null) ?? "",
     ],
     // The resolved window rather than null for the rolling default, so the key
@@ -278,7 +266,7 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
     // TTL. Stable within a service day, since nzLast7DaysRange ends on the 4am
     // boundary rather than at now.
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }
 
@@ -292,29 +280,23 @@ function measuredRouteStats(p: RouteStatsParams, range: DateRange): Promise<Rout
  * @returns The set of active stop ids.
  */
 export async function getRecentStopIds(routeId: string, days = 7): Promise<Set<string>> {
-  const since = new Date(Date.now() - days * MS_IN_DAY);
+  const since = new Date(Date.now() - days * MS_PER_DAY);
   const ids = await unstable_cache(
     async () => {
       const routeIds = await routeIdsForSlug(routeId);
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                routeId: { $in: routeIds },
-                scheduledAt: { $gte: { $date: since.toISOString() } },
-              },
-            },
-            { $group: { _id: "$stopId" } },
-          ] as never,
-          cursor: { batchSize: 100_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
-      return res.cursor.firstBatch.map((r) => r._id);
+      const res = await aggregateRows<{ _id: string }>("ArrivalEvent", [
+        {
+          $match: {
+            routeId: { $in: routeIds },
+            scheduledAt: { $gte: { $date: since.toISOString() } },
+          },
+        },
+        { $group: { _id: "$stopId" } },
+      ]);
+      return res.map((r) => r._id);
     },
     ["recent-stops", routeId, String(days), since.toISOString().slice(0, 10)],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
   return new Set(ids);
 }
@@ -330,11 +312,7 @@ function weightedDayField(
   group: readonly RouteDay[],
   pick: (row: RouteDay) => number | null,
 ): number | null {
-  const valued = group.filter((r) => pick(r) !== null && r.events > 0);
-  const weight = valued.reduce((n, r) => n + r.events, 0);
-  if (weight === 0) return null;
-  const sum = valued.reduce((n, r) => n + (pick(r) ?? 0) * r.events, 0);
-  return Math.round((sum / weight) * 10) / 10;
+  return weightedMean(group, pick, byEvents);
 }
 
 /**
@@ -345,8 +323,7 @@ function weightedDayField(
  * @returns One row per date, newest first.
  */
 function mergeRouteDays(rows: readonly RouteDay[]): RouteDay[] {
-  const byDate = new Map<string, RouteDay[]>();
-  for (const row of rows) byDate.set(row.date, [...(byDate.get(row.date) ?? []), row]);
+  const byDate = groupBy(rows, (r) => r.date);
   return [...byDate.entries()]
     .map(([date, group]) => ({
       date,
@@ -423,52 +400,44 @@ export async function getRouteDailyStats(
           select: { mode: true },
         });
         const mode = route?.mode ?? "BUS";
-        const res = (await runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              {
-                $match: {
-                  routeId: { $in: routeIds },
-                  // liveDates, not serviceDatesInRange(live): a summarised day
-                  // sitting between two unsummarised ones is already excluded
-                  // from the list, and the equality must not let it back in.
-                  scheduledAt: scheduledAtWindow(padScanRange(live)),
-                  serviceDate: { $in: liveDates },
-                  // Only unsummarised days are scanned here, so the guard stays on.
-                  ...realDeviationMatchFor(false),
-                },
+        const res = await aggregateRows<Omit<RouteDay, "date"> & { _id: string }>("ArrivalEvent", [
+          {
+            $match: {
+              routeId: { $in: routeIds },
+              // liveDates, not serviceDatesInRange(live): a summarised day
+              // sitting between two unsummarised ones is already excluded
+              // from the list, and the equality must not let it back in.
+              scheduledAt: scheduledAtWindow(padScanRange(live)),
+              serviceDate: { $in: liveDates },
+              // Only unsummarised days are scanned here, so the guard stays on.
+              ...realDeviationMatchFor(false),
+            },
+          },
+          {
+            $group: {
+              _id: "$serviceDate",
+              events: { $sum: 1 },
+              avg_delay_sec: { $avg: "$deviationSec" },
+              avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
+              on_time_count: onTimeSingleModeSum(mode),
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              events: 1,
+              avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
+              avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
+              on_time_pct: {
+                $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
               },
-              {
-                $group: {
-                  _id: "$serviceDate",
-                  events: { $sum: 1 },
-                  avg_delay_sec: { $avg: "$deviationSec" },
-                  avg_abs_delay_sec: { $avg: { $abs: "$deviationSec" } },
-                  on_time_count: onTimeSingleModeSum(mode),
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  events: 1,
-                  avg_delay_sec: { $round: ["$avg_delay_sec", 1] },
-                  avg_abs_delay_sec: { $round: ["$avg_abs_delay_sec", 1] },
-                  on_time_pct: {
-                    $round: [{ $multiply: [{ $divide: ["$on_time_count", "$events"] }, 100] }, 1],
-                  },
-                },
-              },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        )) as unknown as {
-          cursor: { firstBatch: (Omit<RouteDay, "date"> & { _id: string })[] };
-        };
+            },
+          },
+        ]);
         // The live window may span a summarised day in between; keep only the
         // dates that have no summary.
         const wanted = new Set(liveDates);
-        for (const row of res.cursor.firstBatch) {
+        for (const row of res) {
           if (wanted.has(row._id)) days.push({ ...row, date: row._id });
         }
       }
@@ -476,7 +445,7 @@ export async function getRouteDailyStats(
     },
     ["route-daily-stats", routeId, from?.toISOString() ?? "", to?.toISOString() ?? ""],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
   const penalties = await Promise.all(
     days.map((d) => getRouteRiderWait(nzServiceDayRange(d.date))),

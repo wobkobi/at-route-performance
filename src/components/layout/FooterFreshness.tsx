@@ -2,8 +2,9 @@
 // Async server component that fetches data freshness and renders the footer line.
 
 import { DataFreshness } from "@/components/layout/DataFreshness";
+import { INGEST_INTERVAL_SEC } from "@/lib/data";
 import { readFallback } from "@/lib/db";
-import { getDataFreshness, INGEST_INTERVAL_SEC } from "@/lib/feed/ingest-run";
+import { getDataFreshness } from "@/lib/feed/ingest-run";
 import { connection } from "next/server";
 import type { JSX } from "react";
 

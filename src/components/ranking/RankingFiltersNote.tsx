@@ -2,7 +2,9 @@
 // The line under the home verdict naming the narrowing filters, so a figure
 // read with the filter boxes out of sight still says what it covers.
 
+import { labelsOf } from "@/lib/collections";
 import { AREAS } from "@/lib/geo/areas";
+import type { RangeWindow } from "@/lib/page/range";
 import {
   rankingFiltersPhrase,
   rankingFiltersReach,
@@ -25,14 +27,10 @@ export function RankingFiltersNote({
   live,
 }: {
   filters: RankingFilters;
-  window: "day" | "week" | "month";
+  window: RangeWindow;
   live: boolean;
 }): JSX.Element | null {
-  const phrase = rankingFiltersPhrase(
-    filters,
-    AREAS.filter((a) => filters.areas.includes(a.key)).map((a) => a.label),
-    live,
-  );
+  const phrase = rankingFiltersPhrase(filters, labelsOf(AREAS, filters.areas), live);
   if (!phrase) return null;
   return (
     <p className="text-sm text-at-muted">

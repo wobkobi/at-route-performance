@@ -4,7 +4,9 @@
 // and the trigger that re-renders a live page once a newer ingest run lands.
 
 import { viewIncludesToday } from "@/lib/live-view";
-import { NZ_TZ, nzServiceDayString } from "@/lib/time/service-day";
+import { formatRelative, nzClockTime } from "@/lib/time/format";
+import { nzServiceDayString } from "@/lib/time/service-day";
+import { startVisiblePoll } from "@/lib/visible-poll";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from "react";
 
@@ -69,38 +71,6 @@ function getServerClockSnapshot(): number | null {
 }
 
 /**
- * Format an instant as Auckland-local HH:MM (24h), stable across server/client.
- * @param iso - ISO instant string.
- * @returns The Auckland-local clock time, e.g. `08:24`.
- */
-function nzClock(iso: string): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
-}
-
-/**
- * Render `fromMs` relative to `nowMs` ("2 minutes ago", "in 1 minute", "now"),
- * picking the coarsest sensible unit. Negative diffs are in the past.
- * @param fromMs - The instant being described, in epoch ms.
- * @param nowMs - The reference "now", in epoch ms.
- * @returns A localised relative-time phrase.
- */
-function formatRelative(fromMs: number, nowMs: number): string {
-  const rtf = new Intl.RelativeTimeFormat("en-NZ", { numeric: "auto" });
-  const diffSec = Math.round((fromMs - nowMs) / 1000);
-  if (Math.abs(diffSec) < 60) return rtf.format(diffSec, "second");
-  const diffMin = Math.round(diffSec / 60);
-  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute");
-  const diffHr = Math.round(diffMin / 60);
-  if (Math.abs(diffHr) < 24) return rtf.format(diffHr, "hour");
-  return rtf.format(Math.round(diffHr / 24), "day");
-}
-
-/**
  * Footer freshness line: the absolute Auckland-local time the data was last
  * updated, a live relative label that ticks as the page sits open, and the
  * projected next-update time (or "due now" once it has passed, and "ingest may
@@ -110,7 +80,7 @@ function formatRelative(fromMs: number, nowMs: number): string {
  *
  * The server-rendered instants go stale the moment the ingest cadence laps the
  * page view, so an open tab re-polls `/api/freshness` every {@link REFRESH_MS}
- * and on returning to a hidden tab - otherwise a tab left open reads
+ * and on returning to a tab once a poll is overdue - otherwise a tab left open reads
  * "update due now" forever while ingest is in fact running. The newest instant
  * wins between the props and the poll, so a client-side navigation with a
  * fresher server render is never downgraded.
@@ -152,16 +122,16 @@ export function DataFreshness({
   }, [lastUpdatedIso]);
 
   useEffect(() => {
-    let cancelled = false;
-    /** Poll `/api/freshness` and adopt the result, skipping hidden tabs. */
-    const refresh = async (): Promise<void> => {
-      // Skip hidden tabs; the visibilitychange listener catches up on return.
-      if (document.visibilityState !== "visible") return;
+    /**
+     * Poll `/api/freshness` and adopt the result.
+     * @param signal - Aborted when the effect cleans up.
+     */
+    const refresh = async (signal: AbortSignal): Promise<void> => {
       try {
-        const res = await fetch("/api/freshness");
+        const res = await fetch("/api/freshness", { signal });
         if (!res.ok) return;
         const data = (await res.json()) as Partial<FreshnessTimes>;
-        if (!cancelled && data.lastUpdated && data.nextUpdate) {
+        if (!signal.aborted && data.lastUpdated && data.nextUpdate) {
           setPolled({
             lastUpdated: data.lastUpdated,
             nextUpdate: data.nextUpdate,
@@ -183,17 +153,8 @@ export function DataFreshness({
         // Keep showing the last known instants; the next tick retries.
       }
     };
-    const id = setInterval(() => void refresh(), REFRESH_MS);
-    /** Catch up immediately when a hidden tab becomes visible again. */
-    const onVisible = (): void => {
-      void refresh();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    // The server render is fresh, so the first poll waits a full interval.
+    return startVisiblePoll(refresh, REFRESH_MS, { immediate: false });
   }, [router]);
 
   // Newest instant wins (ISO UTC strings compare lexicographically).
@@ -225,7 +186,7 @@ export function DataFreshness({
     <p className="text-xs leading-relaxed text-white/70">
       Last updated{" "}
       <time dateTime={shown.lastUpdatedIso} className="font-semibold text-white">
-        {nzClock(shown.lastUpdatedIso)}
+        {nzClockTime(shown.lastUpdatedIso)}
       </time>
       {relative ? ` (${relative})` : null}
       <span className="px-1.5 text-white/40">&middot;</span>
@@ -241,7 +202,7 @@ export function DataFreshness({
         <>
           next update by{" "}
           <time dateTime={shown.nextUpdateIso} className="font-semibold text-white">
-            {nzClock(shown.nextUpdateIso)}
+            {nzClockTime(shown.nextUpdateIso)}
           </time>
         </>
       )}

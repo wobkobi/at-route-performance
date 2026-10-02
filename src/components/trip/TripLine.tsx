@@ -3,12 +3,14 @@
 // vertical line in the route's colour, with the stops it made off its timetable
 // on a spur beside it and the stops it went around bypassed.
 
-import { brandColour } from "@/components/ModeIcon";
+import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
-import { formatDelay, formatGtfsTime } from "@/lib/format";
+import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
-import { nzClockTime } from "@/lib/time/service-day";
+import { stopHref } from "@/lib/page/hrefs";
+import { detourStrokeClass, routeColour } from "@/lib/route/colour";
+import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -37,7 +39,7 @@ const PHONE_W = 294;
 const WIDE_W = 574;
 
 /** Tailwind fill class for a recorded stop's delay figure. */
-const BAND_TEXT = { late: "fill-at-late", early: "fill-at-early-strong", ontime: "fill-at-ink" };
+const BAND_TEXT = { late: "fill-at-late", early: "fill-at-early-strong", ontime: "fill-at-ontime" };
 /** Tailwind stroke class for a recorded stop's ring. */
 const BAND_RING = { late: "stroke-at-late", early: "stroke-at-early", ontime: "stroke-at-ontime" };
 
@@ -78,7 +80,7 @@ function rowFigure(s: LineStop, mode: string): RowFigure | null {
     return { text: formatDelay(s.recorded.deviation_sec, { mode }), className: BAND_TEXT[band] };
   }
   if (s.state === "not-served") return { text: "Not served", className: "fill-at-late" };
-  if (s.state === "skipped") return { text: "Skipped", className: "fill-at-muted" };
+  if (s.state === "skipped") return { text: "Bypassed", className: "fill-at-muted" };
   return null;
 }
 
@@ -97,7 +99,7 @@ function stopSentence(s: LineStop, mode: string): string {
   }
   const at = sched ? `scheduled ${sched}` : "scheduled";
   if (s.state === "not-served") return `${s.name}: ${at}, not served.`;
-  if (s.state === "skipped") return `${s.name}: ${at}, skipped by the detour.`;
+  if (s.state === "skipped") return `${s.name}: ${at}, bypassed by the detour.`;
   return `${s.name}: ${at}, no arrival recorded.`;
 }
 
@@ -107,10 +109,10 @@ export interface TripLineProps {
   line: TripLineData;
   /** The route's mode, for the on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
+  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
   colour: string | null;
-  /** Query each stop's link carries, so it opens on the run's day ("" for today). */
-  stopQuery: string;
+  /** The day each stop's link opens on (the run's day), or undefined for today. */
+  stopDay?: string;
 }
 
 /**
@@ -122,10 +124,10 @@ export interface TripLineProps {
  * @param props.line - The line.
  * @param props.mode - The route's mode.
  * @param props.colour - The route's colour.
- * @param props.stopQuery - Query each stop's link carries.
+ * @param props.stopDay - The day each stop's link opens on.
  * @returns The timeline and its key.
  */
-export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.Element {
+export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.Element {
   const present = {
     unrecorded: line.stops.some((s) => s.state === "unrecorded"),
     skipped: line.stops.some((s) => s.state === "skipped"),
@@ -142,7 +144,7 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
           colour={colour}
           width={PHONE_W}
           compact
-          stopQuery={stopQuery}
+          stopDay={stopDay}
         />
       </div>
       <div className="hidden sm:block">
@@ -152,7 +154,7 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
           colour={colour}
           width={WIDE_W}
           compact={false}
-          stopQuery={stopQuery}
+          stopDay={stopDay}
         />
       </div>
       {/* The drawing's name links are out of the tab order; these are the ones a keyboard or
@@ -160,13 +162,11 @@ export function TripLine({ line, mode, colour, stopQuery }: TripLineProps): JSX.
       <ol className="sr-only">
         {line.stops.map((s, i) => (
           <li key={`${s.stop_id}-${i}`}>
-            <Link href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}>
-              {stopSentence(s, mode)}
-            </Link>
+            <Link href={stopHref(s.stop_id, { day: stopDay })}>{stopSentence(s, mode)}</Link>
           </li>
         ))}
       </ol>
-      <LineKey present={present} />
+      <LineKey present={present} detourClass={detourStrokeClass(routeColour(mode, colour))} />
     </>
   );
 }
@@ -193,7 +193,7 @@ function jumpsSkipped(stops: readonly LineStop[], leg: LineLeg): boolean {
  * @param props.colour - The route's colour.
  * @param props.width - The narrowest this layout is drawn (px).
  * @param props.compact - Shorter wording for the phone.
- * @param props.stopQuery - Query each stop's name link carries.
+ * @param props.stopDay - The day each stop's link opens on.
  * @returns The svg.
  */
 function LineSvg({
@@ -202,20 +202,20 @@ function LineSvg({
   colour,
   width,
   compact,
-  stopQuery,
+  stopDay,
 }: {
   line: TripLineData;
   mode: string;
   colour: string | null;
   width: number;
   compact: boolean;
-  stopQuery: string;
+  stopDay?: string;
 }): JSX.Element {
   const { stops, legs, bypasses } = line;
   const bowed = legs.map((g) => jumpsSkipped(stops, g));
   const hasSpur = stops.some((s) => s.offTimetable) || bowed.some(Boolean);
   const textX = hasSpur ? TEXT_X_SPUR : TEXT_X;
-  const lineHex = brandColour(colour);
+  const lineHex = routeColour(mode, colour);
   /**
    * A stop's circle centre, down the drawing.
    * @param i - Line index.
@@ -233,7 +233,7 @@ function LineSvg({
     <svg
       width="100%"
       height={stops.length * ROW_H}
-      aria-hidden="true"
+      aria-hidden
       focusable="false"
       className="block overflow-visible"
     >
@@ -287,7 +287,7 @@ function LineSvg({
               strokeWidth={4}
               strokeDasharray="6 4"
               strokeLinecap="round"
-              className="stroke-at-commercial"
+              className={detourStrokeClass(lineHex)}
             />
           );
         }
@@ -298,8 +298,7 @@ function LineSvg({
             fill="none"
             strokeWidth={6}
             strokeLinecap="round"
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
+            style={{ stroke: lineHex }}
           />
         );
       })}
@@ -329,7 +328,7 @@ function LineSvg({
               strokeDasharray={s.state === "skipped" ? "2 2.7" : undefined}
               className={cn("fill-at-surface", ring)}
             />
-            <a href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`} tabIndex={-1}>
+            <a href={stopHref(s.stop_id, { day: stopDay })} tabIndex={-1}>
               <text
                 x={textX}
                 y={y0 + DOT_Y + 5}
@@ -365,7 +364,7 @@ function LineSvg({
                 </>
               ) : (
                 <>
-                  Sched <tspan className="fill-at-ink">{sched ?? "-"}</tspan>
+                  Sched <tspan className="fill-at-ink">{sched ?? UNKNOWN_VALUE}</tspan>
                 </>
               )}
             </text>
@@ -393,15 +392,18 @@ function LineSvg({
  * @param props - Props.
  * @param props.present - Which states the line draws.
  * @param props.present.unrecorded - A timetabled stop with no arrival recorded.
- * @param props.present.skipped - A stop the run went around.
- * @param props.present.notServed - A stop the run never reached.
- * @param props.present.offTimetable - A stop the run made off its timetable.
- * @param props.present.ahead - A leg a live run has not reached yet.
+ * @param props.present.skipped - A stop the trip went around.
+ * @param props.present.notServed - A stop the trip never reached.
+ * @param props.present.offTimetable - A stop the trip made off its timetable.
+ * @param props.present.ahead - A leg a live trip has not reached yet.
+ * @param props.detourClass - The off-timetable legs' stroke class, as the line draws them.
  * @returns The key, or null when there is nothing to explain.
  */
 function LineKey({
   present,
+  detourClass,
 }: {
+  detourClass: string;
   present: {
     unrecorded: boolean;
     skipped: boolean;
@@ -455,36 +457,34 @@ function LineKey({
   if (present.offTimetable)
     entries.push({
       key: "off",
-      swatch: leg("stroke-at-commercial", 3, "4 3"),
+      swatch: leg(detourClass, 4, "6 4"),
       label: "Off the timetable's path",
     });
   if (present.skipped)
     entries.push({
       key: "skipped",
-      swatch: dot("stroke-at-muted", "2 2"),
-      label: "Skipped: the run went around it",
+      swatch: dot("stroke-at-muted", "2 2.7"),
+      label: "Bypassed: the trip went around it",
     });
   if (present.notServed)
     entries.push({
       key: "not-served",
       swatch: dot("stroke-at-late"),
-      label: "The run never reached this stop",
+      label: "The trip never reached this stop",
     });
   if (present.ahead)
     entries.push({ key: "ahead", swatch: leg("stroke-at-border", 4), label: "Not reached yet" });
-  if (entries.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-at-muted">
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-1.5">
-          <dt>
-            <svg width={18} height={14} aria-hidden="true" focusable="false">
-              {e.swatch}
-            </svg>
-          </dt>
-          <dd>{e.label}</dd>
-        </div>
-      ))}
-    </dl>
+    <SwatchKey
+      className="mt-3"
+      items={entries.map((e) => ({
+        ...e,
+        swatch: (
+          <SvgSwatch width={18} height={14}>
+            {e.swatch}
+          </SvgSwatch>
+        ),
+      }))}
+    />
   );
 }

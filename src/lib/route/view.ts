@@ -9,7 +9,9 @@
 // diagram shows branches rather than duplicate panels. The static shape depends
 // only on the schedule, so it is cached for 24 h; only the day's delay colouring
 // is recomputed per request.
+import { pushTo } from "@/lib/collections";
 import { getRecentStopIds } from "@/lib/data";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { offsetPath } from "@/lib/map/route-geo";
 import { memCache } from "@/lib/mem-cache";
@@ -24,14 +26,17 @@ import type { RoutePattern, RouteVariant } from "@/types/api";
  */
 const ROAD_OFFSET_M = 6;
 
-/** A stop plotted on the route map. */
+/** A stop plotted on a map: the route, trip, stop and vehicle maps all take this. */
 export interface MapStop {
   stop_id: string;
   name: string;
   lat: number;
   lon: number;
+  /** Average signed deviation of the calls there, or null when none was read. */
   avg_delay_sec: number | null;
   on_time_pct: number | null;
+  /** Average absolute deviation (off-by); when set, the popup shows it too. */
+  avg_abs_delay_sec?: number | null;
 }
 
 /** A route path line tagged with the direction it runs (for per-direction filtering). */
@@ -272,9 +277,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
     const first = d.variants[0]?.stopIds[0] ?? "";
     const last = d.variants[0]?.stopIds.at(-1) ?? "";
     const tKey = `${first}::${last}`;
-    const group = byTerminals.get(tKey);
-    if (group) group.push(dir);
-    else byTerminals.set(tKey, [dir]);
+    pushTo(byTerminals, tKey, dir);
   }
   for (const group of byTerminals.values()) {
     if (group.length < 2) continue;
@@ -400,7 +403,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
     : [];
   if (shapeIds.length > 0 && shapeDocs.length === 0) {
     console.warn(
-      `[route-view] No Shape records found for ${shapeIds.length} shape IDs — run /api/ingest/gtfs/shapes`,
+      `[ROUTE-VIEW] No Shape records found for ${shapeIds.length} shape IDs; run /api/ingest/gtfs/shapes`,
     );
   }
   const shapeById = new Map(
@@ -465,14 +468,14 @@ export async function buildRouteView(
   let shape: RouteShape;
   let patternFailed = false;
   try {
-    shape = await memCache(`route-shape|${routeId}|${mode}`, 86400, () =>
+    shape = await memCache(`route-shape|${routeId}|${mode}`, DAY_REVALIDATE, () =>
       queryRouteShape(routeId, mode),
     );
   } catch (err) {
     // memCache stores nothing for a rejected factory, so the next request
     // retries rather than living with this for the 24 h TTL.
     console.warn(
-      `[route-view] Pattern unavailable for ${routeId}`,
+      `[ROUTE-VIEW] Pattern unavailable for ${routeId}`,
       err instanceof Error ? err.message : err,
     );
     shape = emptyShape();

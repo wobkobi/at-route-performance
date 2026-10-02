@@ -1,6 +1,8 @@
 // src/lib/school-bus.ts
 // Recognise AT school-service routes by their `S###` code in a route name.
 
+import type { KeyedLabel } from "@/lib/collections";
+
 /**
  * AT school services carry an `S` + three-digit code, optionally with a trailing
  * variant letter, e.g. `S046`, `S046D`, `S001N`. In the feed this code lives in
@@ -36,11 +38,11 @@ export interface SchoolDelta {
  * @returns The amounts added, each 0 or more.
  */
 export function schoolDelta(
-  rows: ReadonlyArray<{ short_name?: string | null; long_name?: string | null; events: number }>,
+  rows: ReadonlyArray<{ shortName?: string | null; longName?: string | null; events: number }>,
   cancelled: number | null,
   cancelledWithout: number | null,
 ): SchoolDelta {
-  const school = rows.filter((r) => isSchoolBus(r.short_name, r.long_name));
+  const school = rows.filter((r) => isSchoolBus(r.shortName, r.longName));
   return {
     events: school.reduce((sum, r) => sum + r.events, 0),
     cancelled: Math.max(0, (cancelled ?? 0) - (cancelledWithout ?? 0)),
@@ -55,7 +57,7 @@ export function schoolDelta(
 export type SchoolFilter = "exclude" | "include" | "only";
 
 /** The filter's choices in menu order, with their labels. */
-export const SCHOOL_FILTERS: ReadonlyArray<{ key: SchoolFilter; label: string }> = [
+export const SCHOOL_FILTERS: readonly KeyedLabel<SchoolFilter>[] = [
   { key: "exclude", label: "Leave out" },
   { key: "include", label: "Include" },
   { key: "only", label: "Only school buses" },
@@ -94,6 +96,21 @@ export function schoolFilterParam(filter: SchoolFilter): string | undefined {
 export function schoolAllows(filter: SchoolFilter, school: boolean): boolean {
   if (filter === "include") return true;
   return filter === "only" ? school : !school;
+}
+
+/**
+ * Whether a route row passes the school-services filter, judged from its names.
+ * @param row - The route's names.
+ * @param row.shortName - Its short name.
+ * @param row.longName - Its long name.
+ * @param filter - The active school filter.
+ * @returns True when the row is shown.
+ */
+export function rowAllowedBySchool(
+  row: { shortName?: string | null; longName?: string | null },
+  filter: SchoolFilter,
+): boolean {
+  return schoolAllows(filter, isSchoolBus(row.shortName, row.longName));
 }
 
 /**

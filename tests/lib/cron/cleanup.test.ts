@@ -131,7 +131,11 @@ describe("parseCleanupParams", () => {
     for (const env of [undefined, "", "   "]) {
       const refused = parseCleanupParams(url(""), env);
       expect(refused.ok).toBe(false);
-      if (!refused.ok) expect(refused.refusal.error).toContain("RETENTION_DAYS");
+      if (!refused.ok) {
+        expect(refused.refusal.message).toContain("RETENTION_DAYS");
+        // A missing variable is the server's configuration, not the request.
+        expect(refused.refusal.status).toBe(500);
+      }
     }
   });
 
@@ -154,7 +158,10 @@ describe("parseCleanupParams", () => {
     for (const qs of ["?retentionDays=14", "?retentionDays=14&force=1"]) {
       const refused = parseCleanupParams(url(qs), "3652");
       expect(refused.ok).toBe(false);
-      if (!refused.ok) expect(refused.refusal.error).toContain(String(MIN_SAFE_RETENTION_DAYS));
+      if (!refused.ok) {
+        expect(refused.refusal.message).toContain(String(MIN_SAFE_RETENTION_DAYS));
+        expect(refused.refusal.status).toBe(400);
+      }
     }
     expect(parseCleanupParams(url(`?retentionDays=${MIN_SAFE_RETENTION_DAYS}`), "3652").ok).toBe(
       true,
@@ -166,7 +173,7 @@ describe("parseCleanupParams", () => {
     // rather than the archive floor.
     const refused = parseCleanupParams(url("?summaryDays=3"), "3652");
     expect(refused.ok).toBe(false);
-    if (!refused.ok) expect(refused.refusal.error).toContain("requires ?force=1");
+    if (!refused.ok) expect(refused.refusal.message).toContain("requires ?force=1");
     expect(parseCleanupParams(url("?summaryDays=3&force=1"), "3652")).toEqual({
       ok: true,
       params: { retentionDays: 3652, summaryDays: 3, force: true, dryRun: false },
@@ -179,11 +186,26 @@ describe("parseCleanupParams", () => {
     if (parsed.ok) expect(parsed.params.dryRun).toBe(true);
   });
 
+  it("reads a flag as on only at 1, and refuses a bare or odd one", () => {
+    // `?force=0` used to force, since any presence counted.
+    const off = parseCleanupParams(url("?force=0&dryRun=0"), "3652");
+    expect(off.ok && off.params.force === false && off.params.dryRun === false).toBe(true);
+    // Read as off, a bare `?dryRun` would delete for real, so it refuses instead.
+    for (const qs of ["?dryRun", "?dryRun=true", "?force=yes"]) {
+      const refused = parseCleanupParams(url(qs), "3652");
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.refusal.status).toBe(400);
+    }
+  });
+
   it("refuses nonsense values", () => {
     expect(parseCleanupParams(url("?retentionDays=abc"), "3652").ok).toBe(false);
     expect(parseCleanupParams(url("?retentionDays=0"), "3652").ok).toBe(false);
     expect(parseCleanupParams(url("?summaryDays=-1"), "3652").ok).toBe(false);
-    expect(parseCleanupParams(url(""), "abc").ok).toBe(false);
+    const broken = parseCleanupParams(url(""), "abc");
+    expect(broken.ok).toBe(false);
+    // A broken environment value is a 500, a broken query value a 400.
+    if (!broken.ok) expect(broken.refusal.status).toBe(500);
   });
 });
 

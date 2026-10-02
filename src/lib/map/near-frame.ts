@@ -4,8 +4,7 @@
 // wider than a street-level look needs. Pure, so the framing is testable
 // without a map.
 
-/** Metres per degree of latitude, the flat approximation the other map maths uses. */
-const M_PER_DEG = 111_320;
+import { M_PER_DEG, metresBetween } from "@/lib/geo/distance";
 
 /** How many of the nearest vehicles the frame reaches out to take in. */
 const NEAREST = 5;
@@ -32,18 +31,6 @@ const MAX_ROUGH_RADIUS_M = 8_000;
 
 /** A lat/lon box as `[[south, west], [north, east]]`, the form Leaflet takes. */
 export type LatLonBox = [[number, number], [number, number]];
-
-/**
- * Distance between two points in metres, on the flat approximation (accurate to
- * well under a percent across a city).
- * @param a - First point as `[lat, lon]`.
- * @param b - Second point as `[lat, lon]`.
- * @returns Metres apart.
- */
-function metresBetween(a: readonly [number, number], b: readonly [number, number]): number {
-  const cosLat = Math.cos((a[0] * Math.PI) / 180);
-  return Math.hypot((b[0] - a[0]) * M_PER_DEG, (b[1] - a[1]) * M_PER_DEG * cosLat);
-}
 
 /**
  * The frame for a located reader: a square centred on them, so they land in the

@@ -1,6 +1,6 @@
 // src/components/filter/TimeOfDayFilter.tsx
 // Chip row narrowing a route's figures to a part of the service day.
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { activePreset, hourRangeLabel, TIME_PRESETS, type HourRange } from "@/lib/time/time-of-day";
 import type { JSX } from "react";
 
@@ -26,8 +26,7 @@ export interface TimeOfDayFilterProps {
 export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.Element {
   const preset = activePreset(active);
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs tracking-zero text-at-muted uppercase">Time</span>
+    <ChipGroup label="Time" showLabel>
       <ChipLink href={hrefs.all} active={active == null}>
         All day
       </ChipLink>
@@ -45,6 +44,6 @@ export function TimeOfDayFilter({ active, hrefs }: TimeOfDayFilterProps): JSX.El
           {hourRangeLabel(active)}
         </span>
       )}
-    </div>
+    </ChipGroup>
   );
 }

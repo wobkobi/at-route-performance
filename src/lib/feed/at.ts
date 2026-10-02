@@ -8,7 +8,7 @@
 // timeout/network blip, since AT's realtime endpoint rate-limits and stalls
 // under load.
 
-import { isObj, sleep } from "@/lib/utils";
+import { isObj, retryDelay, sleep } from "@/lib/utils";
 
 export interface DelayTime {
   time?: number;
@@ -103,9 +103,9 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
 
       // Retry rate limiting (429) and transient server errors (5xx) with backoff
       if (res.status === 429 || res.status >= 500) {
-        const backoffMs = Math.min(60_000, 1000 * Math.pow(2, attempt)); // 1s, 2s, 4s, max 60s
+        const backoffMs = retryDelay(attempt);
         console.warn(
-          `[AT API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
+          `[AT-API] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );
 
         if (attempt < retries) {
@@ -130,8 +130,8 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
         attempt === 0 &&
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
-        console.warn(`[AT API] ${lastError.message}. Retrying once...`);
-        await sleep(2000);
+        console.warn(`[AT-API] ${lastError.message}. Retrying once...`);
+        await sleep(retryDelay(attempt));
         continue;
       }
 
@@ -140,5 +140,5 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
     }
   }
 
-  throw lastError || new Error("AT API fetch failed");
+  throw lastError ?? new Error("AT API fetch failed");
 }

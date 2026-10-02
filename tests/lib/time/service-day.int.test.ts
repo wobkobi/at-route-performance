@@ -11,7 +11,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDayScanRange,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -61,9 +61,9 @@ beforeAll(async () => {
   // The newest service day whose pad has fully passed, so a partial day never
   // reads as a missing tail.
   let last = nzServiceDayString(new Date());
-  while (serviceDayScanRange(last).end.getTime() > now) last = shiftWeek(last, -1);
+  while (serviceDayScanRange(last).end.getTime() > now) last = shiftDays(last, -1);
   const dates: string[] = [];
-  for (let d = last, i = 0; i < AUDIT_DAYS && d >= DATA_START_DAY; d = shiftWeek(d, -1), i++) {
+  for (let d = last, i = 0; i < AUDIT_DAYS && d >= DATA_START_DAY; d = shiftDays(d, -1), i++) {
     dates.unshift(d);
   }
 

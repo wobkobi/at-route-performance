@@ -3,6 +3,8 @@
 // Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
 import type { OffRoutePoint } from "@/components/map/StopMap";
+import type { Mode } from "@/lib/mode";
+import type { MapStop } from "@/lib/route/view";
 import dynamic from "next/dynamic";
 import type { JSX } from "react";
 
@@ -14,7 +16,13 @@ import type { JSX } from "react";
  * @returns A pulsing skeleton box.
  */
 function MapPlaceholder(): JSX.Element {
-  return <div className="h-full w-full animate-pulse bg-at-bg motion-reduce:animate-none" />;
+  return (
+    <div
+      role="status"
+      aria-label="Loading the map"
+      className="h-full w-full animate-pulse bg-at-bg motion-reduce:animate-none"
+    />
+  );
 }
 
 // ssr: false defers the Leaflet chunk to the client.
@@ -24,16 +32,7 @@ const StopMap = dynamic(() => import("@/components/map/StopMap"), {
 });
 
 interface StopMapWrapperProps {
-  stops: Array<{
-    stop_id: string;
-    name: string;
-    lat: number;
-    lon: number;
-    avg_delay_sec: number | null;
-    on_time_pct: number | null;
-    /** Average absolute deviation (off-by); when set, the popup shows it too. */
-    avg_abs_delay_sec?: number | null;
-  }>;
+  stops: MapStop[];
   /** Per-variant stop-coordinate sequences drawn as the route path. */
   routeLines?: Array<Array<[number, number]>>;
   /** Route id, keying the saved viewport and the live-vehicle poll. */
@@ -41,7 +40,11 @@ interface StopMapWrapperProps {
   /** Poll and plot the route's live vehicles; set only when the view covers now. */
   live?: boolean;
   /** Route transport mode, selecting the live-vehicle glyph. */
-  mode?: "BUS" | "TRAIN" | "FERRY";
+  mode?: Mode;
+  /** The route is a school service, whose vehicles take the school bus glyph. */
+  school?: boolean;
+  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
+  colour?: string | null;
   /** When set, the map centres on this stop and opens its popup. */
   selectedStopId?: string;
   /** When set, only the live vehicle whose tripId matches is shown. */
@@ -53,8 +56,10 @@ interface StopMapWrapperProps {
   filterDirectionIds?: number[];
   /** Readings of the vehicle off its road path, in time order (trip map). */
   offRoute?: OffRoutePoint[];
-  /** Query a stop's popup name links with ("" or "?day=..."); unset leaves names unlinked. */
-  stopQuery?: string;
+  /** Link each stop's popup name to its page; off leaves names unlinked. */
+  stopLinks?: boolean;
+  /** The day those links open on, or undefined for today. */
+  stopDay?: string;
   className?: string;
 }
 

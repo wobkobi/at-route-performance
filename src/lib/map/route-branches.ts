@@ -1,3 +1,5 @@
+import { pushTo } from "@/lib/collections";
+import { M_PER_DEG } from "@/lib/geo/distance";
 // src/lib/map/route-branches.ts
 // The paths that draw a whole route on the network map. A route publishes a
 // shape per pattern, and no one of them need cover it all: NX1's busiest pattern
@@ -5,9 +7,6 @@
 // western end (Walker Park, Selwyn Village, Coyle Park). So a route draws its
 // main shape, then each stretch of its other regular patterns that the paths
 // drawn so far do not already cover.
-
-/** Metres per degree of latitude, the flat approximation the lanes use. */
-const M_PER_DEG = 111_320;
 
 /** Longitude scale at Auckland's latitude. */
 const COS_LAT = Math.cos((-36.85 * Math.PI) / 180);
@@ -126,9 +125,7 @@ export function routePaths(shapes: readonly RouteShape[]): [number, number][][] 
     for (const p of densify(path)) {
       const [x, y] = metres(p);
       const key = `${Math.floor(x / COVER_M)},${Math.floor(y / COVER_M)}`;
-      const cell = grid.get(key);
-      if (cell) cell.push([x, y]);
-      else grid.set(key, [[x, y]]);
+      pushTo(grid, key, [x, y]);
     }
   };
   /**

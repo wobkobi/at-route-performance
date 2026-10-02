@@ -12,10 +12,10 @@
 // carrying no `?day` at all. Under Cache Components that read is an unstable
 // value, and it aborted the static shell of every page calling one of these.
 
+import { redirectKeepingQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay } from "@/lib/page/nav";
 import { clampServiceDate } from "@/lib/time/data-start";
 import { nzServiceDayString } from "@/lib/time/service-day";
-import { redirect } from "next/navigation";
 
 /**
  * Redirect a `?day` outside `[DATA_START_DAY, today]` onto the nearest real
@@ -38,15 +38,9 @@ export function clampDayParam(basePath: string, sp: { day?: string }, today?: st
   const now = today ?? nzServiceDayString();
   const clamped = clampServiceDate(day, now);
   if (clamped === day) return;
-  const entries = Object.entries(sp as Record<string, string | undefined>);
-  const params = new URLSearchParams(
-    entries.filter(([k, v]) => k !== "day" && v != null) as [string, string][],
-  );
   // Landing on today drops the param entirely, which is what dropTodayParam
   // would do on the next request anyway.
-  if (clamped !== now) params.set("day", clamped);
-  const qs = params.toString();
-  redirect(qs ? `${basePath}?${qs}` : basePath);
+  redirectKeepingQuery(basePath, sp, ["day"], { day: clamped === now ? undefined : clamped });
 }
 
 /**
@@ -78,10 +72,5 @@ export function dayLinkParam(date: string | null | undefined, today?: string): s
  */
 export function dropTodayParam(basePath: string, sp: { day?: string }, today?: string): void {
   if (!sp.day || sp.day !== (today ?? nzServiceDayString())) return;
-  const entries = Object.entries(sp as Record<string, string | undefined>);
-  const params = new URLSearchParams(
-    entries.filter(([k, v]) => k !== "day" && v != null) as [string, string][],
-  );
-  const qs = params.toString();
-  redirect(qs ? `${basePath}?${qs}` : basePath);
+  redirectKeepingQuery(basePath, sp, ["day"]);
 }

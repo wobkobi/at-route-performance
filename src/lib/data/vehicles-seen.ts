@@ -2,9 +2,10 @@
 // How many distinct buses, trains and ferries ran the ranked routes, over a
 // window and since the archive began.
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
@@ -14,7 +15,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
 import { type HourRange, hourRangeParam, hoursInRange } from "@/lib/time/time-of-day";
 import {
@@ -25,9 +26,6 @@ import {
   mergeVehicles,
   vehiclesByMode,
 } from "@/lib/vehicle/counts";
-
-/** A completed day's union only changes when a new day completes. */
-const COMPLETED_DAYS_REVALIDATE = 86_400;
 
 /**
  * One service day's distinct vehicles per mode, cached per day so a week, a
@@ -66,20 +64,14 @@ function cachedVehiclesOfDay(
         };
       }
       const [res, modeOf] = await Promise.all([
-        runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              { $match: match },
-              { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
-              { $project: { _id: 0, v: "$_id", r: 1 } },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        ) as unknown as Promise<{ cursor: { firstBatch: VehicleRouteRow[] } }>,
+        aggregateRows<VehicleRouteRow>("ArrivalEvent", [
+          { $match: match },
+          { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
+          { $project: { _id: 0, v: "$_id", r: 1 } },
+        ]),
         getRouteModeMap(),
       ]);
-      return vehiclesByMode(res.cursor.firstBatch, modeOf);
+      return vehiclesByMode(res, modeOf);
     },
     // The hours go last and only when set, so the whole-day entries keep their keys.
     [
@@ -138,7 +130,7 @@ export async function getVehicleCountsAllTime(
   const before = unstable_cache(
     async () => {
       const days: string[] = [];
-      for (let d = DATA_START_DAY; d < today; d = shiftWeek(d, 1)) days.push(d);
+      for (let d = DATA_START_DAY; d < today; d = shiftDays(d, 1)) days.push(d);
       return mergeVehicles(
         await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate, hours))),
       );
@@ -150,7 +142,7 @@ export async function getVehicleCountsAllTime(
       schools,
       ...(hours ? [hourRangeParam(hours) ?? ""] : []),
     ],
-    { revalidate: COMPLETED_DAYS_REVALIDATE },
+    { revalidate: DAY_REVALIDATE },
   )();
   const [past, current] = await Promise.all([
     before,

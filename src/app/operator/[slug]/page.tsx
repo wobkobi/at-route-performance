@@ -6,33 +6,49 @@
 
 import { RangeControls } from "@/components/date/RangeControls";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
-import { ChevronLeft } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { SchoolAdded } from "@/components/SchoolAdded";
 import { SortHeader } from "@/components/SortHeader";
+import { BackLink } from "@/components/ui/BackLink";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Figure, FigureStrip } from "@/components/ui/FigureStrip";
+import { MoreLink } from "@/components/ui/MoreLink";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { VehicleLiveBadge } from "@/components/VehicleLiveBadge";
 import {
   getCancelledRoutes,
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
-  getRouteOperators,
   getVehicleWork,
+  revalidateFor,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import { getLiveVehicleMap } from "@/lib/feed/vehicles";
-import { formatDuration, formatHours } from "@/lib/format";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import {
+  formatCount,
+  formatDuration,
+  formatHours,
+  formatPct,
+  plural,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
+import { pageMetadata } from "@/lib/og";
 import { operatorCodeOf, operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
 import { operatorBySlug, type Operator } from "@/lib/operators";
+import { operatorHref, routeHref, vehicleHref } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  rangeViewParams,
+  routeLinkParams,
+  windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
 import {
@@ -42,10 +58,10 @@ import {
   type SortColumn,
   type SortParamNames,
 } from "@/lib/page/table-sort";
-import { routeSlug } from "@/lib/route/slug";
-import { isSchoolBus, parseSchoolFilter, schoolAllows, schoolFilterParam } from "@/lib/school-bus";
+import { compareRouteNumbers, routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
+import { parseSchoolFilter, rowAllowedBySchool, schoolFilterParam } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref, stripUnset } from "@/lib/utils";
@@ -53,14 +69,11 @@ import { sortVehicles, type VehicleTotal } from "@/lib/vehicle/rank";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { JSX, ReactNode } from "react";
+import type { JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment reads its search
 // params and its data above any Suspense boundary, so it is allowed to block.
 export const instant = false;
-
-/** Cache TTL for a week or month's rows (seconds), as on the Operators page. */
-const PERIOD_REVALIDATE = 3600;
 
 /** Vehicles listed before the link to the full, filtered Vehicles page. */
 const FLEET_SHOWN = 10;
@@ -106,11 +119,8 @@ const FLEET_SORT: SortParamNames = { sort: "vsort", rev: "vrev" };
  * @returns The operator, or null.
  */
 async function resolveOperator(slug: string): Promise<Operator | null> {
-  const [operators, directory] = await Promise.all([
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
-  ]);
-  return operatorBySlug(slug, directory, new Set(Object.values(operators)));
+  const [[operators, directory]] = await Promise.all([getOperatorDirectory()]);
+  return operatorBySlug(slug, directory, Object.values(operators));
 }
 
 /**
@@ -126,10 +136,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const op = await resolveOperator((await params).slug);
   if (!op) return { title: "Operator not found" };
-  return {
+  return pageMetadata({
     title: op.name,
     description: `How the Auckland routes ${op.name} runs for AT kept to the timetable, and the vehicles that ran them.`,
-  };
+  });
 }
 
 /**
@@ -149,7 +159,7 @@ export default async function OperatorPage({
   const { slug } = await params;
   const op = await resolveOperator(slug);
   if (!op) notFound();
-  const basePath = `/operator/${op.slug}`;
+  const basePath = operatorHref(op);
   const sp = (await searchParams) ?? {};
   const window = parseRangeWindow(sp.window);
   // One request-time clock read for the whole render, taken before the day-param redirects below
@@ -165,13 +175,13 @@ export default async function OperatorPage({
 
   let range: DateRange;
   let nav: RangeNav;
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     nav = dayRangeNav(day, earliest, today);
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       basePath,
@@ -182,32 +192,31 @@ export default async function OperatorPage({
       today,
     ));
   }
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
 
   // With school services included, the same reads without them too, so each
   // figure can show the "+N" they add.
   const withoutSchool = { mode: null, schools: "exclude" as const };
-  const [allRows, operators, directory, cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
+  const [allRows, [operators, directory], cancelledRoutes, vehicles, cancelledBase, vehiclesBase] =
     await Promise.all([
-      getRankings(range, ON_TIME_LATE_SEC, revalidate),
-      getRouteOperators(),
-      getOperators().catch(readFallback<Operator[]>("operators", [])),
+      getRankings(range, revalidate),
+      getOperatorDirectory(),
       getCancelledRoutes(range, filter, 10_000, revalidate),
       getVehicleWork(range, filter, TODAY_REVALIDATE),
       schools === "include" ? getCancelledRoutes(range, withoutSchool, 10_000, revalidate) : null,
       schools === "include" ? getVehicleWork(range, withoutSchool, TODAY_REVALIDATE) : null,
     ]);
-  const rows = allRows.filter((r) => schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)));
-  const cancelled = new Map(cancelledRoutes.map((c) => [c.route_id, c.cancelled]));
+  const rows = allRows.filter((r) => rowAllowedBySchool(r, schools));
+  const cancelled = new Map(cancelledRoutes.map((c) => [c.slug, c.cancelled]));
   const table = operatorRows(rows, operators, cancelled, vehicles, directory);
   const rank = table.findIndex((o) => o.operator.code === op.code);
   const mine = rank === -1 ? null : table[rank]!;
   const base =
     cancelledBase && vehiclesBase
       ? (operatorRows(
-          allRows.filter((r) => !isSchoolBus(r.short_name, r.long_name)),
+          allRows.filter((r) => rowAllowedBySchool(r, "exclude")),
           operators,
-          new Map(cancelledBase.map((c) => [c.route_id, c.cancelled])),
+          new Map(cancelledBase.map((c) => [c.slug, c.cancelled])),
           vehiclesBase,
           directory,
         ).find((o) => o.operator.code === op.code) ?? null)
@@ -226,14 +235,15 @@ export default async function OperatorPage({
   // together by arrivals, as the operator's own are.
   const routes = new Map<string, OperatorRoute>();
   for (const r of rows) {
-    if (operatorCodeOf(r.route_id, operators) !== op.code) continue;
-    const s = routeSlug(r.route_id);
+    if (operatorCodeOf(r.routeId, operators) !== op.code) continue;
+    const s = routeSlug(r.routeId);
     const prev = routes.get(s);
     const events = r.events + (prev?.events ?? 0);
     routes.set(s, {
       slug: s,
-      name: r.short_name ?? s,
-      long: r.long_name,
+      name: routeDisplayName(r),
+      subtitle: routeSubtitle(r),
+      long: r.longName,
       mode: r.mode,
       colour: r.colour,
       events,
@@ -243,11 +253,12 @@ export default async function OperatorPage({
     });
   }
   for (const c of cancelledRoutes) {
-    if (operators[c.route_id] !== op.code || routes.has(c.route_id)) continue;
-    routes.set(c.route_id, {
-      slug: c.route_id,
-      name: c.short_name ?? c.route_id,
-      long: c.long_name ?? "",
+    if (operators[c.slug] !== op.code || routes.has(c.slug)) continue;
+    routes.set(c.slug, {
+      slug: c.slug,
+      name: routeDisplayName(c),
+      subtitle: routeSubtitle(c),
+      long: c.longName ?? "",
       mode: c.mode,
       colour: c.colour,
       events: 0,
@@ -256,11 +267,7 @@ export default async function OperatorPage({
       cancelled: c.cancelled,
     });
   }
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const view = rangeViewParams(window, linkDay, period);
   const school = schoolFilterParam(schools);
   // Each table's heading links carry the other table's sort, so sorting one
   // leaves the other as it was.
@@ -281,7 +288,7 @@ export default async function OperatorPage({
     FLEET_SORT,
   );
   const routeList = sortRows(
-    [...routes.values()].sort((a, b) => a.name.localeCompare(b.name, "en-NZ", { numeric: true })),
+    [...routes.values()].sort((a, b) => compareRouteNumbers(a.name, b.name)),
     ROUTE_COLUMNS,
     routeSort.sort,
   );
@@ -300,203 +307,172 @@ export default async function OperatorPage({
     readFallback("fleet", new Map<string, FleetVehicle>()),
   );
 
-  const routeQuery = routeLinkQuery(window, dayParam, period);
+  const routeParams = routeLinkParams(window, linkDay, period);
   const schoolPreserved = stripUnset({ ...view, ...routeKeep, ...fleetKeep });
 
   return (
     <main className="space-y-6">
-      <Link
-        href={buildHref("/operators", { ...view, school })}
-        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        All operators
-      </Link>
+      <BackLink href={buildHref("/operators", { ...view, school })} to="operators" />
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-            {mine?.modes.map((m) => (
-              <ModeIcon key={m} mode={m} className="h-7 w-7" />
-            ))}
-            {op.name}
-          </h1>
-          <p className="mt-0.5 text-sm text-at-muted">
-            Runs {routeList.length === 1 ? "1 route" : `${routeList.length} routes`} for AT in this
-            period.
-          </p>
-        </div>
-        <RangeControls basePath={basePath} nav={nav} />
-      </header>
+      <PageHeader
+        title={op.name}
+        icon={mine?.modes.map((m) => (
+          <ModeIcon key={m} mode={m} className="h-7 w-7" decorative />
+        ))}
+        subtitle={`Runs ${plural(routeList.length, "route")} for AT in this period.`}
+        actions={<RangeControls basePath={basePath} nav={nav} />}
+      />
 
       {/* Only for an operator that ran a school service in the window. */}
       <SchoolBusToggle value={schools} basePath={basePath} preservedParams={schoolPreserved} />
 
       {mine ? (
-        <dl className="grid grid-cols-2 gap-4 border border-at-border bg-at-surface px-6 py-5 sm:grid-cols-3 lg:grid-cols-6">
-          <Figure label="On time">
-            {mine.on_time_pct === null ? "-" : `${mine.on_time_pct.toFixed(1)}%`}
-          </Figure>
-          <Figure label="Avg off">
-            {mine.avg_abs_delay_sec === null ? "-" : formatDuration(mine.avg_abs_delay_sec)}
+        <FigureStrip className="lg:grid-cols-6">
+          <Figure label="On time">{formatPct(mine.on_time_pct)}</Figure>
+          <Figure label="Avg off by">
+            {mine.avg_abs_delay_sec === null
+              ? UNKNOWN_VALUE
+              : formatDuration(mine.avg_abs_delay_sec)}
           </Figure>
           <Figure label="Arrivals">
-            {mine.events.toLocaleString("en-NZ")}
+            {formatCount(mine.events)}
             <SchoolAdded n={added("events")} />
           </Figure>
           <Figure label="Cancelled">
-            {mine.cancelled.toLocaleString("en-NZ")}
+            {formatCount(mine.cancelled)}
             <SchoolAdded n={added("cancelled")} />
           </Figure>
           <Figure label="Vehicles">
-            {(mine.vehicles ?? 0).toLocaleString("en-NZ")}
+            {formatCount(mine.vehicles ?? 0)}
             <SchoolAdded n={added("vehicles")} />
           </Figure>
           <Figure label="Operators">
-            <Link
-              href={buildHref("/operators", { ...view, school })}
-              className="text-at-shore hover:underline"
-            >
+            <Link href={buildHref("/operators", { ...view, school })} className="at-link">
               #{rank + 1}
             </Link>
             <span className="ml-1 text-sm font-normal text-at-muted">of {table.length}</span>
           </Figure>
-        </dl>
+        </FigureStrip>
       ) : (
-        <div className="border border-at-border bg-at-surface px-6 py-5 text-sm text-at-muted">
-          Nothing recorded for {op.name} in this period.
-        </div>
+        <EmptyState>
+          Nothing recorded for {op.name} {windowPhrase(nav, period)}.
+        </EmptyState>
       )}
 
       {routeList.length > 0 && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its routes</h2>
-            <Link
-              href={buildHref("/routes", { ...view, school, op: op.slug })}
-              className="text-sm text-at-shore hover:underline"
-            >
+            <SectionHeading>Its routes</SectionHeading>
+            <MoreLink href={buildHref("/routes", { ...view, school, op: op.slug })}>
               Filter the routes page to {op.name}
-            </Link>
+            </MoreLink>
           </div>
-          <div className="overflow-x-auto border border-at-border bg-at-surface">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-                  <SortHeader {...routeSort.head("route")} align="left">
-                    Route
-                  </SortHeader>
-                  <SortHeader {...routeSort.head("ontime")}>On time</SortHeader>
-                  <SortHeader {...routeSort.head("off")}>Avg off</SortHeader>
-                  <SortHeader {...routeSort.head("arrivals")} className="hidden sm:table-cell">
-                    Arrivals
-                  </SortHeader>
-                  <SortHeader {...routeSort.head("cancelled")} className="hidden sm:table-cell">
-                    Cancelled
-                  </SortHeader>
-                </tr>
-              </thead>
-              <tbody>
-                {routeList.map((r) => (
-                  <tr key={r.slug} className="border-b border-at-border last:border-b-0">
-                    <th scope="row" className="p-3 text-left font-normal">
-                      <span className="flex items-center gap-2">
-                        <ModeIcon
-                          mode={r.mode}
-                          colour={r.colour}
-                          shortName={r.name}
-                          longName={r.long}
-                          className="h-4 w-4 shrink-0"
-                        />
-                        <span className="min-w-0">
-                          <Link
-                            href={`/route/${encodeURIComponent(r.slug)}${routeQuery}`}
-                            className="font-semibold text-at-shore hover:underline"
-                          >
-                            {r.name}
-                          </Link>
-                          {r.long && r.long !== r.name && (
-                            <span className="block truncate text-xs text-at-muted">{r.long}</span>
-                          )}
-                        </span>
+          <DataTable caption={`${op.name}'s routes`}>
+            <thead>
+              <tr className="at-th-row">
+                <SortHeader {...routeSort.head("route")} align="left">
+                  Route
+                </SortHeader>
+                <SortHeader {...routeSort.head("ontime")}>On time</SortHeader>
+                <SortHeader {...routeSort.head("off")}>Avg off by</SortHeader>
+                <SortHeader {...routeSort.head("arrivals")} className="hidden sm:table-cell">
+                  Arrivals
+                </SortHeader>
+                <SortHeader {...routeSort.head("cancelled")} className="hidden sm:table-cell">
+                  Cancelled
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {routeList.map((r) => (
+                <tr key={r.slug} className={ROW_CLASS}>
+                  <th scope="row" className="p-3 text-left font-normal">
+                    <span className="flex items-center gap-2">
+                      <ModeIcon
+                        mode={r.mode}
+                        shortName={r.name}
+                        longName={r.long}
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <span className="min-w-0">
+                        <Link
+                          href={routeHref(r.slug, routeParams)}
+                          className="at-link font-semibold"
+                        >
+                          {r.name}
+                        </Link>
+                        {r.subtitle && (
+                          <span className="block truncate text-xs text-at-muted">{r.subtitle}</span>
+                        )}
                       </span>
-                    </th>
-                    <td className="p-3 text-right tabular-nums">
-                      {r.onTime === null ? "-" : `${r.onTime.toFixed(1)}%`}
-                    </td>
-                    <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                      {r.off === null ? "-" : formatDuration(r.off)}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {r.events.toLocaleString("en-NZ")}
-                    </td>
-                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
-                      {r.cancelled.toLocaleString("en-NZ")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </span>
+                  </th>
+                  <td className="p-3 text-right tabular-nums">{formatPct(r.onTime)}</td>
+                  <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                    {r.off === null ? UNKNOWN_VALUE : formatDuration(r.off)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(r.events)}
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                    {formatCount(r.cancelled)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
         </section>
       )}
 
       {fleetShown.length > 0 && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero text-at-ink">Its vehicles</h2>
-            <Link
-              href={buildHref("/vehicles", { ...view, school, op: op.slug })}
-              className="text-sm text-at-shore hover:underline"
-            >
-              All {fleetAll.length.toLocaleString("en-NZ")} on the vehicles board
-            </Link>
+            <SectionHeading>Its vehicles</SectionHeading>
+            <MoreLink href={buildHref("/vehicles", { ...view, school, op: op.slug })}>
+              All {formatCount(fleetAll.length)} on the vehicles board
+            </MoreLink>
           </div>
-          <div className="overflow-x-auto border border-at-border bg-at-surface">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-at-border text-left text-xs tracking-wide text-at-muted uppercase">
-                  <SortHeader {...fleetSort.head("vehicle")} align="left">
-                    Vehicle
-                  </SortHeader>
-                  <SortHeader {...fleetSort.head("hours")}>In service</SortHeader>
-                  <SortHeader {...fleetSort.head("runs")}>Runs</SortHeader>
-                  <SortHeader {...fleetSort.head("off")} className="hidden sm:table-cell">
-                    Avg off
-                  </SortHeader>
+          <DataTable caption={`${op.name}'s vehicles`}>
+            <thead>
+              <tr className="at-th-row">
+                <SortHeader {...fleetSort.head("vehicle")} align="left">
+                  Vehicle
+                </SortHeader>
+                <SortHeader {...fleetSort.head("hours")}>In service</SortHeader>
+                <SortHeader {...fleetSort.head("runs")}>Trips</SortHeader>
+                <SortHeader {...fleetSort.head("off")} className="hidden sm:table-cell">
+                  Avg off by
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {fleetShown.map((v) => (
+                <tr key={v.vehicleId} className={ROW_CLASS}>
+                  <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
+                    <span className="flex items-center gap-2">
+                      <ModeIcon mode={v.mode} className="h-4 w-4" />
+                      <Link
+                        href={vehicleHref(v.vehicleId, { ...view, op: op.slug })}
+                        className="at-link"
+                      >
+                        {fleet.get(v.vehicleId)?.label ?? (
+                          <span className="tabular-nums">{v.vehicleId}</span>
+                        )}
+                      </Link>
+                      <VehicleLiveBadge vehicleId={v.vehicleId} live={live} />
+                    </span>
+                  </th>
+                  <td className="p-3 text-right whitespace-nowrap tabular-nums">
+                    {formatHours(v.serviceSec)}
+                  </td>
+                  <td className="p-3 text-right tabular-nums">{formatCount(v.runs)}</td>
+                  <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
+                    {formatDuration(v.avgOffSec)}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {fleetShown.map((v) => (
-                  <tr key={v.vehicleId} className="border-b border-at-border last:border-b-0">
-                    <th scope="row" className="p-3 text-left font-semibold whitespace-nowrap">
-                      <span className="flex items-center gap-2">
-                        <ModeIcon mode={v.mode} className="h-4 w-4" />
-                        <Link
-                          href={buildHref(`/vehicle/${v.vehicleId}`, { ...view, op: op.slug })}
-                          className="text-at-shore hover:underline"
-                        >
-                          {fleet.get(v.vehicleId)?.label ?? (
-                            <span className="tabular-nums">{v.vehicleId}</span>
-                          )}
-                        </Link>
-                        <VehicleLiveBadge vehicleId={v.vehicleId} live={live} />
-                      </span>
-                    </th>
-                    <td className="p-3 text-right whitespace-nowrap tabular-nums">
-                      {formatHours(v.serviceSec)}
-                    </td>
-                    <td className="p-3 text-right tabular-nums">
-                      {v.runs.toLocaleString("en-NZ")}
-                    </td>
-                    <td className="hidden p-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
-                      {formatDuration(v.avgOffSec)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </DataTable>
         </section>
       )}
 
@@ -513,6 +489,8 @@ export default async function OperatorPage({
 interface OperatorRoute {
   slug: string;
   name: string;
+  /** The second line under the name, or null when it would repeat it. */
+  subtitle: string | null;
   long: string;
   mode: string;
   colour?: string | null;
@@ -539,20 +517,4 @@ function weigh(
   if (a == null || aEvents === 0) return b;
   if (b === null || bEvents === 0) return a;
   return (a * aEvents + b * bEvents) / (aEvents + bEvents);
-}
-
-/**
- * One figure in the record strip.
- * @param root0 - Props.
- * @param root0.label - What it counts.
- * @param root0.children - The value.
- * @returns The term and its value.
- */
-function Figure({ label, children }: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-zero text-at-muted uppercase">{label}</dt>
-      <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums">{children}</dd>
-    </div>
-  );
 }

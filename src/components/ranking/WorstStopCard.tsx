@@ -2,11 +2,11 @@
 // Render a card for the window's worst-performing stop.
 
 import { OffScheduleLine } from "@/components/OffScheduleLine";
+import { NoWorst, WorstCard, WorstCardBucket, WorstCardTitle } from "@/components/ui/WorstCard";
+import { stopHref } from "@/lib/page/hrefs";
 import { dayLinkParam } from "@/lib/time/day-url";
-import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
-import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
+import type { HourRange } from "@/lib/time/time-of-day";
 import type { ShameDayStop, ShameStop } from "@/types/dashboard";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstStopCard}. */
@@ -68,55 +68,26 @@ export function WorstStopCard({
   hours = null,
   live = false,
 }: WorstStopCardProps): JSX.Element {
-  // Nothing ranked at all, which is not the green all-clear below.
-  if (!ranked) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-muted">Worst stop</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
-        <p className="text-sm text-at-muted">No stop has enough arrivals in this period.</p>
-      </div>
-    );
+  // Nothing ranked is not the green all-clear: see NoWorst.
+  if (!ranked || !stop) {
+    return <NoWorst eyebrow="Worst stop" noun="stop" ranked={ranked} when={when} />;
   }
-  // Stops ranked and none was past the late bound, so the board crowns nothing.
-  if (!stop) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-ontime">Worst stop</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
-        <p className="text-sm text-at-muted">
-          No stop stood out {when}, so there is nothing to call out.
-        </p>
-      </div>
-    );
-  }
-  // Week and month rows carry a service date and no hour; day rows are the
-  // other way round.
-  const bucket =
-    "date" in stop
-      ? `on ${weekdayShort(stop.date)}`
-      : hours
-        ? `from ${hourRangeClock(hours, live)}`
-        : `in the ${nzHourLabel(stop.hour)} hour`;
   // Today's `?day` is dropped, as on the route card: the stop page redirects it.
-  const dayParam = dayLinkParam(day);
-  const href =
-    hrefProp ?? `/stop/${encodeURIComponent(stop.stop_id)}${dayParam ? `?day=${dayParam}` : ""}`;
+  const href = hrefProp ?? stopHref(stop.stop_id, { day: dayLinkParam(day) });
   return (
-    <Link
-      href={href}
-      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
-    >
-      <p className="at-eyebrow text-at-late">Worst stop</p>
-      <span className="text-2xl font-ultra tracking-zero text-at-ink">{stop.name}</span>
+    <WorstCard tone="worst" eyebrow="Worst stop" href={href}>
+      <WorstCardTitle>{stop.name}</WorstCardTitle>
       <OffScheduleLine
         signedSec={stop.avg_delay_sec}
         absSec={stop.avg_abs_delay_sec}
         mode={stop.mode}
       />
-      <p className="text-xs text-at-muted tabular-nums">
-        {stop.events} arrivals {bucket}
-      </p>
-    </Link>
+      <WorstCardBucket
+        events={stop.events}
+        {...("date" in stop ? { date: stop.date } : { hour: stop.hour })}
+        hours={hours}
+        live={live}
+      />
+    </WorstCard>
   );
 }

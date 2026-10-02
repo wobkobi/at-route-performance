@@ -2,9 +2,10 @@
 // Note on the trip page explaining a cancellation flag: whether the trip never
 // ran, was cut short, or ran anyway after AT reversed the flag.
 
-import { cn } from "@/lib/cn";
-import { nzClockTime } from "@/lib/time/service-day";
-import type { CancellationStage } from "@/lib/trip/cancellation";
+import { TripNote } from "@/components/ui/TripNote";
+import { plural } from "@/lib/format";
+import { nzClockTime } from "@/lib/time/format";
+import { CANCELLATION_LABEL, type CancellationStage } from "@/lib/trip/cancellation";
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 
@@ -41,15 +42,15 @@ export function TripCancellationNote({
   let title: string;
   let body: ReactNode;
   const stop = lastStop && (
-    <Link href={lastStop.href} className="text-at-shore hover:underline">
+    <Link href={lastStop.href} className="at-link">
       {lastStop.name}
     </Link>
   );
   if (stage === "before" || lastStop === null) {
-    title = "Cancelled";
+    title = CANCELLATION_LABEL.before;
     body = `AT cancelled this trip (first flagged at ${flagged}) and it recorded no arrivals.`;
   } else if (stage === "ran") {
-    title = "Cancelled, then reinstated";
+    title = CANCELLATION_LABEL.ran;
     body = (
       <>
         AT flagged this trip cancelled at {flagged}, but it kept recording arrivals until{" "}
@@ -65,11 +66,11 @@ export function TripCancellationNote({
       </>
     );
   } else {
-    title = "Cancelled mid-trip";
+    title = CANCELLATION_LABEL["mid-trip"];
     const rest =
       notServed === null
         ? "nothing was recorded after that"
-        : `the ${notServed} ${notServed === 1 ? "stop" : "stops"} after that ${notServed === 1 ? "was" : "were"} not served`;
+        : `the ${plural(notServed, "stop")} after that ${notServed === 1 ? "was" : "were"} not served`;
     body = (
       <>
         Its last recorded stop was {stop} at {nzClockTime(lastStop.at)}. AT flagged it cancelled at{" "}
@@ -79,21 +80,8 @@ export function TripCancellationNote({
   }
 
   return (
-    <section
-      className={cn(
-        "border border-l-4 border-at-border bg-at-surface p-4",
-        stage === "ran" ? "border-l-at-muted" : "border-l-at-late",
-      )}
-    >
-      <h2
-        className={cn(
-          "text-lg font-ultra tracking-zero",
-          stage === "ran" ? "text-at-ink" : "text-at-late",
-        )}
-      >
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-at-muted">{body}</p>
-    </section>
+    <TripNote tone={stage === "ran" ? "muted" : "late"} title={title}>
+      <p>{body}</p>
+    </TripNote>
   );
 }

@@ -7,6 +7,7 @@
 // within the API quota. Only stop order is available here, no road geometry.
 // Results are cached daily and keyed by route, since the schedule is static.
 import { routeIdsForSlug } from "@/lib/data";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { fetchAll } from "@/lib/feed/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
 import type { RoutePattern, RouteVariant } from "@/types/api";
@@ -114,6 +115,6 @@ export async function getRoutePattern(routeId: string): Promise<RoutePattern> {
   // default only restates that contract for the type checker.
   const [latestId = routeId] = await routeIdsForSlug(routeId);
   return unstable_cache(() => queryRoutePattern(latestId), ["route-pattern", latestId], {
-    revalidate: 86_400,
+    revalidate: DAY_REVALIDATE,
   })();
 }

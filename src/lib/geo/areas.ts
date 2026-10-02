@@ -9,25 +9,25 @@
 // across a line can land in the neighbouring area), which is why a route needs
 // more than one stop in an area to count as serving it.
 
+import { countBy, isKeyOf, labelsByKey, type KeyedLabel } from "@/lib/collections";
+
 /** An area key. */
 export type AreaKey =
   "central" | "north" | "west" | "east" | "south" | "hibiscus-rodney" | "waiheke";
 
 /** Every area in display order, with its label. */
-export const AREAS: ReadonlyArray<{ key: AreaKey; label: string }> = [
+export const AREAS: readonly KeyedLabel<AreaKey>[] = [
   { key: "central", label: "Central" },
   { key: "north", label: "North Shore" },
   { key: "west", label: "West" },
   { key: "east", label: "East" },
   { key: "south", label: "South" },
-  { key: "hibiscus-rodney", label: "Hibiscus Coast & Rodney" },
-  { key: "waiheke", label: "Waiheke & islands" },
+  { key: "hibiscus-rodney", label: "Hibiscus Coast and Rodney" },
+  { key: "waiheke", label: "Waiheke and islands" },
 ];
 
 /** Area key to its label. */
-export const AREA_LABEL: Record<AreaKey, string> = Object.fromEntries(
-  AREAS.map((a) => [a.key, a.label]),
-) as Record<AreaKey, string>;
+export const AREA_LABEL = labelsByKey(AREAS);
 
 /**
  * Whether a string is an area key.
@@ -35,7 +35,7 @@ export const AREA_LABEL: Record<AreaKey, string> = Object.fromEntries(
  * @returns True when it names an area.
  */
 export function isAreaKey(value: string): value is AreaKey {
-  return AREAS.some((a) => a.key === value);
+  return isKeyOf(AREAS, value);
 }
 
 /**
@@ -83,11 +83,7 @@ export function areaOf(lat: number, lon: number): AreaKey {
  */
 export function routeAreas(stops: ReadonlyArray<{ lat: number; lon: number }>): AreaKey[] {
   if (stops.length === 0) return [];
-  const counts = new Map<AreaKey, number>();
-  for (const s of stops) {
-    const key = areaOf(s.lat, s.lon);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
+  const counts = countBy(stops, (s) => areaOf(s.lat, s.lon));
   const served = AREAS.map((a) => a.key).filter((key) => {
     const n = counts.get(key) ?? 0;
     return n >= 2 || n / stops.length >= 0.25;

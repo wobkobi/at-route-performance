@@ -6,10 +6,17 @@
 // figures are the rows of a list on the same 32px pitch, so CSS wraps or cuts a name to fit and
 // the figure columns size to their widest figure.
 
-import { ChipToggle } from "@/components/Chip";
-import { brandColour } from "@/components/ModeIcon";
+import { ChipGroup, ChipToggle } from "@/components/Chip";
+import { ChevronDown } from "@/components/icons";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
+import { midSentence } from "@/lib/format";
+import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
+import { detourStrokeClass, routeColour } from "@/lib/route/colour";
 import type { StripMarks } from "@/lib/strip/marks";
 import {
   BYPASS_OFF,
@@ -51,11 +58,11 @@ const HALF_STROKE: Record<HalfTone, string> = {
   unserved: "stroke-at-muted/60",
   closed: "stroke-at-muted/60",
 };
-/** Text class for each figure tone: only the stops off time stand out. */
+/** Text class for each figure tone: on time in its own colour, with the stops off time in bold. */
 const FIGURE_TEXT: Record<HalfTone, string> = {
   late: "font-semibold text-at-late",
   early: "font-semibold text-at-early-strong",
-  ontime: "text-at-muted",
+  ontime: "text-at-ontime",
   none: "text-at-muted",
   unserved: "text-at-muted",
   closed: "text-at-muted",
@@ -68,35 +75,6 @@ const MARK_STROKE: Record<SegmentMark, { w: number; dash?: string }> = {
   stub: { w: 3, dash: "3 5" },
   announced: { w: 3, dash: "4 4" },
 };
-/** The detour orange's hue, in degrees. */
-const DETOUR_HUE = 32;
-
-/**
- * The detour marks' stroke class: the detour orange, or ink on a route whose own colour is near
- * that orange (the Outer Link), where an orange strand beside an orange line reads as the line.
- * Near means a hue within 25 degrees of it on a colour that isn't washed out, so a red line keeps
- * the orange.
- * @param hex - The route's colour as `#rrggbb`, or null for the site's blue.
- * @returns The class.
- */
-function detourClass(hex: string | null): string {
-  if (!hex) return "stroke-at-commercial";
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
-    number,
-    number,
-    number,
-  ];
-  const max = Math.max(r, g, b);
-  const d = max - Math.min(r, g, b);
-  if (d < 0.25) return "stroke-at-commercial";
-  const hue =
-    max === r
-      ? (((g - b) / d + 6) % 6) * 60
-      : max === g
-        ? ((b - r) / d + 2) * 60
-        : ((r - g) / d + 4) * 60;
-  return Math.abs(hue - DETOUR_HUE) < 25 ? "stroke-at-ink" : "stroke-at-commercial";
-}
 /** One direction picked: the other direction's half of every ring, heading and figure recedes. */
 const DIM_HALF = {
   down: "group-data-[dir=up]/strip:stroke-at-border group-data-[dir=up]/strip:[stroke-dasharray:none]",
@@ -117,16 +95,6 @@ function breakable(name: string): ReactNode {
   return name.split("/").flatMap((part, i) => (i === 0 ? [part] : ["/", <wbr key={i} />, part]));
 }
 
-/**
- * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
- * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
- * @param heading - The heading.
- * @returns It with a lower-case first letter.
- */
-function midSentence(heading: string): string {
-  return heading.charAt(0).toLowerCase() + heading.slice(1);
-}
-
 /** Props for {@link RouteStrip}. */
 export interface RouteStripProps {
   /** The route laid out as one strip, from `buildStrip`. */
@@ -135,7 +103,7 @@ export interface RouteStripProps {
   split: StopSplit | null;
   /** The route's mode, for its on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for the site's blue. */
+  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
   colour: string | null;
   /** The side the page's direction chip picked, or null for both. */
   side: StripSide | null;
@@ -143,8 +111,8 @@ export interface RouteStripProps {
   alertRows: string[];
   /** The day's closures and detours placed on the strip, or null where none are read (the week). */
   marks: StripMarks | null;
-  /** Query a stop's link carries, so it opens on the day shown ("" for today or the week). */
-  stopQuery: string;
+  /** The day a stop's link opens on, or undefined for today or the week. */
+  stopDay?: string;
 }
 
 /**
@@ -163,7 +131,7 @@ export interface RouteStripProps {
  * @param props.side - The direction picked.
  * @param props.alertRows - Rows named in a live alert.
  * @param props.marks - The day's closures and detours, or null.
- * @param props.stopQuery - Query each stop's link carries.
+ * @param props.stopDay - The day a stop's link opens on.
  * @returns The diagram section.
  */
 export function RouteStrip({
@@ -174,9 +142,10 @@ export function RouteStrip({
   side,
   alertRows,
   marks,
-  stopQuery,
+  stopDay,
 }: RouteStripProps): JSX.Element {
   const router = useRouter();
+  const lineHex = routeColour(mode, colour);
   const searchParams = useSearchParams();
   // Seeded from the live URL, since Back restores a page rendered before `ver` was written.
   // Only a key with a chip on screen counts: a minor version has none, and neither does a route
@@ -214,12 +183,12 @@ export function RouteStrip({
 
   if (strip.rows.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="text-lg font-ultra tracking-zero">Line diagram</h2>
-        <p className="mt-2 text-sm text-at-muted">
+      <Panel pad="sm">
+        <SectionHeading>Line diagram</SectionHeading>
+        <EmptyState inset className="mt-2">
           No stopping pattern yet. The diagram fills in once this route records a full run.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
 
@@ -244,7 +213,7 @@ export function RouteStrip({
    */
   const hrefOf = (i: number): string | null => {
     const id = strip.rows[i]?.stopIds[0];
-    return id ? `/stop/${encodeURIComponent(id)}${stopQuery}` : null;
+    return id ? stopHref(id, { day: stopDay }) : null;
   };
 
   /**
@@ -293,7 +262,7 @@ export function RouteStrip({
         twoWay={twoWay}
         figures={split != null}
         nameX={nameX}
-        colour={colour}
+        lineHex={lineHex}
         alerts={alerts}
         active={active}
         setRef={(i, el) => {
@@ -306,20 +275,19 @@ export function RouteStrip({
     ));
 
   return (
-    <section className="border border-at-border bg-at-surface p-4">
-      <h2 className="mb-3 text-lg font-ultra tracking-zero">Line diagram</h2>
+    <Panel pad="sm">
+      <SectionHeading className="mb-3">Line diagram</SectionHeading>
       {chips.length > 1 && (
-        <div role="group" aria-label="Version" className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-at-muted">Version</span>
-          <ChipToggle on={version == null} onClick={() => setVersion(null)}>
+        <ChipGroup label="Version" showLabel className="mb-4">
+          <ChipToggle single on={version == null} onClick={() => setVersion(null)}>
             {chips.length === 2 ? "Both" : "All"}
           </ChipToggle>
           {chips.map((v) => (
-            <ChipToggle key={v.key} on={version === v.key} onClick={() => setVersion(v.key)}>
+            <ChipToggle single key={v.key} on={version === v.key} onClick={() => setVersion(v.key)}>
               {v.from} to {v.to}
             </ChipToggle>
           ))}
-        </div>
+        </ChipGroup>
       )}
       {!split && (
         <p className="mb-3 text-xs text-at-muted">
@@ -338,7 +306,7 @@ export function RouteStrip({
           twoWay={twoWay}
           perStop={split != null}
           alert={hasAlert}
-          colour={colour}
+          lineHex={lineHex}
         />
       </div>
       {view.notes.length > 0 && (
@@ -359,7 +327,7 @@ export function RouteStrip({
           {minor.map((v) => `${v.from} to ${v.to}`).join(" · ")}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -375,7 +343,7 @@ export function RouteStrip({
  * @param props.twoWay - Whether the route runs both ways.
  * @param props.figures - Whether there are figures per stop to show.
  * @param props.nameX - Where the names start (px).
- * @param props.colour - The route's colour.
+ * @param props.lineHex - The route's line colour.
  * @param props.alerts - Keys of the rows an alert names.
  * @param props.active - The row in the tab order.
  * @param props.setRef - Keeps each row's element, for moving focus.
@@ -392,7 +360,7 @@ function Column({
   twoWay,
   figures,
   nameX,
-  colour,
+  lineHex,
   alerts,
   active,
   setRef,
@@ -407,7 +375,7 @@ function Column({
   twoWay: boolean;
   figures: boolean;
   nameX: number;
-  colour: string | null;
+  lineHex: string;
   alerts: ReadonlySet<string>;
   active: number;
   setRef: (i: number, el: HTMLLIElement | null) => void;
@@ -415,8 +383,7 @@ function Column({
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
   hrefOf: (i: number) => string | null;
 }): JSX.Element {
-  const lineHex = brandColour(colour);
-  const detour = detourClass(lineHex);
+  const detour = detourStrokeClass(lineHex);
   const rowsH = col.rows.length * STRIP_ROW;
   const drawH = Math.max(rowsH, col.bottom + TERMINUS_R + RING_W);
   // Pieces off the picked version go first, so the line it runs along is drawn over their ends;
@@ -445,16 +412,18 @@ function Column({
     >
       {figures && (
         <div
-          aria-hidden="true"
+          aria-hidden
           className="col-span-full grid grid-cols-subgrid items-end border-b border-at-border pb-1.5 text-xs font-semibold text-at-muted"
         >
           <span />
           <span className={cn("text-right text-balance", DIM_TEXT.down)}>
-            {view.downHeading}&nbsp;▾
+            {view.downHeading}&nbsp;
+            <ChevronDown className="inline h-3.5 w-3.5 align-text-bottom" />
           </span>
           {twoWay && (
             <span className={cn("text-right text-balance", DIM_TEXT.up)}>
-              {view.upHeading}&nbsp;▴
+              {view.upHeading}&nbsp;
+              <ChevronDown className="inline h-3.5 w-3.5 rotate-180 align-text-bottom" />
             </span>
           )}
         </div>
@@ -464,7 +433,7 @@ function Column({
           data-strip
           width={nameX}
           height={drawH}
-          aria-hidden="true"
+          aria-hidden
           focusable="false"
           className="pointer-events-none absolute top-0 left-0 overflow-visible"
         >
@@ -483,10 +452,8 @@ function Column({
                 strokeDasharray={stroke.dash}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={
-                  !on ? "stroke-at-border" : (own ?? (lineHex ? undefined : "stroke-at-shore"))
-                }
-                style={on && !own && lineHex ? { stroke: lineHex } : undefined}
+                className={!on ? "stroke-at-border" : (own ?? undefined)}
+                style={on && !own ? { stroke: lineHex } : undefined}
               />
             );
           })}
@@ -549,20 +516,20 @@ function Column({
                   <Link
                     href={href}
                     tabIndex={-1}
-                    aria-hidden="true"
+                    aria-hidden
                     style={{ marginLeft: nameX }}
                     className={cn(nameClass, "hover:text-at-shore hover:underline")}
                   >
                     {breakable(row.name)}
                   </Link>
                 ) : (
-                  <span aria-hidden="true" style={{ paddingLeft: nameX }} className={nameClass}>
+                  <span aria-hidden style={{ paddingLeft: nameX }} className={nameClass}>
                     {breakable(row.name)}
                   </span>
                 )}
                 {figures && (
                   <span
-                    aria-hidden="true"
+                    aria-hidden
                     className={cn(
                       "text-right text-xs whitespace-nowrap tabular-nums sm:min-w-22 sm:text-sm",
                       FIGURE_TEXT[row.down.tone],
@@ -574,7 +541,7 @@ function Column({
                 )}
                 {figures && twoWay && (
                   <span
-                    aria-hidden="true"
+                    aria-hidden
                     className={cn(
                       "text-right text-xs whitespace-nowrap tabular-nums sm:min-w-22 sm:text-sm",
                       FIGURE_TEXT[row.up.tone],
@@ -679,7 +646,7 @@ function Ring({
  * @param props.twoWay - Whether the rings are split.
  * @param props.perStop - Whether figures are shown per stop.
  * @param props.alert - Whether a stop is named in an alert.
- * @param props.colour - The route's colour, for the line swatch.
+ * @param props.lineHex - The route's line colour, for the line swatch.
  * @returns The key, or null when there is nothing to explain.
  */
 function StripKey({
@@ -687,16 +654,15 @@ function StripKey({
   twoWay,
   perStop,
   alert,
-  colour,
+  lineHex,
 }: {
   view: StripView;
   twoWay: boolean;
   perStop: boolean;
   alert: boolean;
-  colour: string | null;
+  lineHex: string;
 }): JSX.Element | null {
-  const lineHex = brandColour(colour);
-  const detour = detourClass(lineHex);
+  const detour = detourStrokeClass(lineHex);
   const entries: Array<{ key: string; swatch: JSX.Element; label: string }> = [];
   /**
    * A half-ring swatch: the given halves on a white ring.
@@ -741,7 +707,7 @@ function StripKey({
     entries.push({
       key: "unserved",
       swatch: halves({ cls: "stroke-at-ontime" }, { cls: "stroke-at-muted/60", dash: "3 3" }),
-      label: "Dashed half: doesn't stop that way",
+      label: "Dashed half: does not stop that way",
     });
   }
   if (perStop && view.present.none) {
@@ -782,15 +748,7 @@ function StripKey({
       key: "pass",
       swatch: (
         <>
-          <line
-            x1={10}
-            x2={10}
-            y1={1}
-            y2={19}
-            strokeWidth={5}
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
-          />
+          <line x1={10} x2={10} y1={1} y2={19} strokeWidth={5} style={{ stroke: lineHex }} />
           <circle cx={10} cy={10} r={5} strokeWidth={3} className="fill-none stroke-at-border" />
         </>
       ),
@@ -813,8 +771,8 @@ function StripKey({
       strokeWidth={w}
       strokeDasharray={dash}
       strokeLinecap="round"
-      className={cls ?? (lineHex ? undefined : "stroke-at-shore")}
-      style={!cls && lineHex ? { stroke: lineHex } : undefined}
+      className={cls ?? undefined}
+      style={cls ? undefined : { stroke: lineHex }}
     />
   );
   if (view.present.closed) {
@@ -827,8 +785,7 @@ function StripKey({
             fill="none"
             strokeWidth={2.5}
             strokeLinejoin="round"
-            className={lineHex ? undefined : "stroke-at-shore"}
-            style={lineHex ? { stroke: lineHex } : undefined}
+            style={{ stroke: lineHex }}
           />
           <circle
             cx={7}
@@ -840,28 +797,28 @@ function StripKey({
           />
         </>
       ),
-      label: "Runs that way go round a closed stop",
+      label: "Trips that way go round a closed stop",
     });
   }
   if (view.present.stub) {
     entries.push({
       key: "stub",
       swatch: stroke("stroke-at-muted", 3, "3 5"),
-      label: "No run used this stretch",
+      label: "No trip used this stretch",
     });
   }
   if (view.present.detour) {
     entries.push({
       key: "detour",
       swatch: stroke(detour, 4),
-      label: "Detour the runs took",
+      label: "Detour the trips took",
     });
   }
   if (view.present.suspect) {
     entries.push({
       key: "suspect",
       swatch: stroke(detour, 4, "6 4"),
-      label: "Detour seen on one or two runs",
+      label: "Detour seen on one or two trips",
     });
   }
   if (view.present.announced) {
@@ -873,7 +830,7 @@ function StripKey({
           {stroke(detour, 3, "4 4")}
         </>
       ),
-      label: "Detour announced, not yet seen on the runs",
+      label: "Detour announced, not yet seen on the trips",
     });
   }
   if (alert) {
@@ -902,19 +859,17 @@ function StripKey({
       label: "Named in a service alert",
     });
   }
-  if (entries.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-at-muted">
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-1.5">
-          <dt>
-            <svg width={20} height={20} aria-hidden="true" focusable="false">
-              {e.swatch}
-            </svg>
-          </dt>
-          <dd>{e.label}</dd>
-        </div>
-      ))}
-    </dl>
+    <SwatchKey
+      className="mt-3"
+      items={entries.map((e) => ({
+        ...e,
+        swatch: (
+          <SvgSwatch width={20} height={20}>
+            {e.swatch}
+          </SvgSwatch>
+        ),
+      }))}
+    />
   );
 }

@@ -1,18 +1,13 @@
+import { MODES, type Mode } from "@/lib/mode";
 // src/lib/vehicle/counts.ts
 // Distinct vehicles per mode over one or more service days, for the home page's
 // vehicles section.
 
-/** The three modes a vehicle is counted under. */
-export type VehicleMode = "BUS" | "TRAIN" | "FERRY";
-
-/** The modes in display order. */
-export const VEHICLE_MODES: readonly VehicleMode[] = ["BUS", "TRAIN", "FERRY"];
-
 /** Distinct vehicle ids, split by mode. */
-export type VehiclesByMode = Record<VehicleMode, string[]>;
+export type VehiclesByMode = Record<Mode, string[]>;
 
 /** Distinct vehicles per mode across a window. */
-export type VehicleCounts = Record<VehicleMode, number>;
+export type VehicleCounts = Record<Mode, number>;
 
 /** One vehicle as the per-day aggregation returns it: its id and a route it ran. */
 export interface VehicleRouteRow {
@@ -27,10 +22,7 @@ export interface VehicleRouteRow {
  * @param modeOf - Route id > mode.
  * @returns The day's vehicle ids per mode.
  */
-export function vehiclesByMode(
-  rows: VehicleRouteRow[],
-  modeOf: Map<string, VehicleMode>,
-): VehiclesByMode {
+export function vehiclesByMode(rows: VehicleRouteRow[], modeOf: Map<string, Mode>): VehiclesByMode {
   const out: VehiclesByMode = { BUS: [], TRAIN: [], FERRY: [] };
   for (const { v, r } of rows) {
     const mode = modeOf.get(r);
@@ -47,7 +39,7 @@ export function vehiclesByMode(
  */
 export function mergeVehicles(days: VehiclesByMode[]): VehiclesByMode {
   const out: VehiclesByMode = { BUS: [], TRAIN: [], FERRY: [] };
-  for (const mode of VEHICLE_MODES) {
+  for (const mode of MODES) {
     out[mode] = [...new Set(days.flatMap((d) => d[mode]))];
   }
   return out;

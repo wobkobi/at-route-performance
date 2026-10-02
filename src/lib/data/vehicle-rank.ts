@@ -1,10 +1,12 @@
 // src/lib/data/vehicle-rank.ts
 // Per-vehicle work over a window, for the hardest-worked vehicles board.
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
+import type { MapStop } from "@/lib/route/view";
 import {
   type DateRange,
   nzServiceDayRange,
@@ -45,50 +47,44 @@ function cachedVehicleWorkOfDay(
       };
       if (routeIds) match.routeId = { $in: routeIds };
       const [res, modeOf] = await Promise.all([
-        runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              { $match: match },
-              {
-                $group: {
-                  _id: { v: "$vehicleId", t: "$tripId" },
-                  route: { $first: "$routeId" },
-                  first: { $min: "$actualAt" },
-                  last: { $max: "$actualAt" },
-                  e: { $sum: 1 },
-                  a: { $sum: { $abs: "$deviationSec" } },
-                },
-              },
-              {
-                $group: {
-                  _id: "$_id.v",
-                  r: { $sum: 1 },
-                  ms: { $sum: { $subtract: ["$last", "$first"] } },
-                  e: { $sum: "$e" },
-                  a: { $sum: "$a" },
-                  routes: { $addToSet: "$route" },
-                },
-              },
-              {
-                $project: {
-                  _id: 0,
-                  v: "$_id",
-                  r: 1,
-                  s: { $round: [{ $divide: ["$ms", 1000] }, 0] },
-                  e: 1,
-                  a: 1,
-                  routes: 1,
-                },
-              },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        ) as unknown as Promise<{ cursor: { firstBatch: RawVehicleDay[] } }>,
+        aggregateRows<RawVehicleDay>("ArrivalEvent", [
+          { $match: match },
+          {
+            $group: {
+              _id: { v: "$vehicleId", t: "$tripId" },
+              route: { $first: "$routeId" },
+              first: { $min: "$actualAt" },
+              last: { $max: "$actualAt" },
+              e: { $sum: 1 },
+              a: { $sum: { $abs: "$deviationSec" } },
+            },
+          },
+          {
+            $group: {
+              _id: "$_id.v",
+              r: { $sum: 1 },
+              ms: { $sum: { $subtract: ["$last", "$first"] } },
+              e: { $sum: "$e" },
+              a: { $sum: "$a" },
+              routes: { $addToSet: "$route" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              v: "$_id",
+              r: 1,
+              s: { $round: [{ $divide: ["$ms", 1000] }, 0] },
+              e: 1,
+              a: 1,
+              routes: 1,
+            },
+          },
+        ]),
         getRouteModeMap(),
       ]);
       const rows: VehicleDayRow[] = [];
-      for (const raw of res.cursor.firstBatch) {
+      for (const raw of res) {
         const m = raw.routes.map((id) => modeOf.get(id)).find(Boolean);
         if (m) rows.push({ ...raw, m });
       }
@@ -152,52 +148,50 @@ export function getVehicleRunsOfDay(
 ): Promise<VehicleRunRow[]> {
   return cachedForDay(
     async (classified) => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
-                ...realDeviationMatchFor(classified),
-                vehicleId,
-              },
+      const res = await aggregateRows<VehicleRunRow>(
+        "ArrivalEvent",
+        [
+          {
+            $match: {
+              scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
+              ...realDeviationMatchFor(classified),
+              vehicleId,
             },
-            {
-              $group: {
-                _id: "$tripId",
-                routeId: { $first: "$routeId" },
-                start: { $min: "$scheduledAt" },
-                first: { $min: "$actualAt" },
-                last: { $max: "$actualAt" },
-                e: { $sum: 1 },
-                dev: { $sum: "$deviationSec" },
-                abs: { $sum: { $abs: "$deviationSec" } },
-                cars: { $max: "$cars" },
-              },
+          },
+          {
+            $group: {
+              _id: "$tripId",
+              routeId: { $first: "$routeId" },
+              start: { $min: "$scheduledAt" },
+              first: { $min: "$actualAt" },
+              last: { $max: "$actualAt" },
+              e: { $sum: 1 },
+              dev: { $sum: "$deviationSec" },
+              abs: { $sum: { $abs: "$deviationSec" } },
+              cars: { $max: "$cars" },
             },
-            // Epoch ms rather than dates, so the rows cache as plain JSON.
-            {
-              $project: {
-                _id: 0,
-                tripId: "$_id",
-                routeId: 1,
-                startMs: { $toLong: "$start" },
-                firstMs: { $toLong: "$first" },
-                lastMs: { $toLong: "$last" },
-                e: 1,
-                dev: 1,
-                abs: 1,
-                cars: { $ifNull: ["$cars", null] },
-              },
+          },
+          // Epoch ms rather than dates, so the rows cache as plain JSON.
+          {
+            $project: {
+              _id: 0,
+              tripId: "$_id",
+              routeId: 1,
+              startMs: { $toLong: "$start" },
+              firstMs: { $toLong: "$first" },
+              lastMs: { $toLong: "$last" },
+              e: 1,
+              dev: 1,
+              abs: 1,
+              cars: { $ifNull: ["$cars", null] },
             },
-            { $sort: { startMs: 1 } },
-          ] as never,
-          cursor: { batchSize: 1_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: VehicleRunRow[] } };
+          },
+          { $sort: { startMs: 1 } },
+        ],
+        1_000,
+      );
       // A $toLong result can come back as extended JSON on some drivers.
-      return res.cursor.firstBatch.map((r) => ({
+      return res.map((r) => ({
         ...r,
         startMs: Number(r.startMs),
         firstMs: Number(r.firstMs),
@@ -211,20 +205,10 @@ export function getVehicleRunsOfDay(
 }
 
 /** A stop a vehicle called at, as its day map draws it. */
-export interface VehicleMapStop {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  /** Its average signed deviation over the day's calls there. */
-  avg_delay_sec: number | null;
-  on_time_pct: null;
-}
-
 /** Where a vehicle ran on one service day. */
 export interface VehicleDayMap {
   /** Every stop it called at, with how late it was there on average. */
-  stops: VehicleMapStop[];
+  stops: MapStop[];
   /** One road path per distinct shape its runs followed, as `[lat, lon]` pairs. */
   lines: Array<Array<[number, number]>>;
 }
@@ -247,44 +231,39 @@ export function getVehicleDayMap(
 ): Promise<VehicleDayMap> {
   return cachedForDay(
     async (classified) => {
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [
-            {
-              $match: {
-                scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
-                ...realDeviationMatchFor(classified),
-                vehicleId,
-              },
+      const rows = await aggregateRows<Omit<MapStop, "on_time_pct"> & { trips: string[] }>(
+        "ArrivalEvent",
+        [
+          {
+            $match: {
+              scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
+              ...realDeviationMatchFor(classified),
+              vehicleId,
             },
-            {
-              $group: {
-                _id: "$stopId",
-                dev: { $avg: "$deviationSec" },
-                trips: { $addToSet: "$tripId" },
-              },
+          },
+          {
+            $group: {
+              _id: "$stopId",
+              dev: { $avg: "$deviationSec" },
+              trips: { $addToSet: "$tripId" },
             },
-            { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
-            { $unwind: "$stop" },
-            {
-              $project: {
-                _id: 0,
-                stop_id: "$_id",
-                name: "$stop.name",
-                lat: "$stop.lat",
-                lon: "$stop.lon",
-                avg_delay_sec: { $round: ["$dev", 0] },
-                trips: 1,
-              },
+          },
+          { $lookup: { from: "Stop", localField: "_id", foreignField: "_id", as: "stop" } },
+          { $unwind: "$stop" },
+          {
+            $project: {
+              _id: 0,
+              stop_id: "$_id",
+              name: "$stop.name",
+              lat: "$stop.lat",
+              lon: "$stop.lon",
+              avg_delay_sec: { $round: ["$dev", 0] },
+              trips: 1,
             },
-          ] as never,
-          cursor: { batchSize: 10_000 },
-        }),
-      )) as unknown as {
-        cursor: { firstBatch: (Omit<VehicleMapStop, "on_time_pct"> & { trips: string[] })[] };
-      };
-      const rows = res.cursor.firstBatch;
+          },
+        ],
+        10_000,
+      );
       const tripIds = [...new Set(rows.flatMap((r) => r.trips))];
       const metas =
         tripIds.length > 0

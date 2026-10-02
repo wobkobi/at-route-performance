@@ -1,7 +1,7 @@
 // tests/lib/time/day-series.test.ts
 // Unit tests for the Day by day page's per-day slots.
 import { daySlot } from "@/lib/time/day-series";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -9,11 +9,11 @@ import { describe, expect, it } from "vitest";
  * @param over - Fields to override.
  * @returns The row.
  */
-function row(over: Partial<TopRouteRow>): TopRouteRow {
+function row(over: Partial<RouteRow>): RouteRow {
   return {
-    route_id: "r",
-    short_name: "1",
-    long_name: "One",
+    routeId: "r",
+    shortName: "1",
+    longName: "One",
     mode: "BUS",
     events: 100,
     avg_delay_sec: 60,
@@ -72,7 +72,7 @@ describe("daySlot", () => {
       rows: [
         row({ mode: "TRAIN", events: 100, on_time_pct: 90 }),
         row({ mode: "BUS", events: 100, on_time_pct: 50 }),
-        row({ mode: "BUS", long_name: "S046", events: 100, on_time_pct: 10 }),
+        row({ mode: "BUS", longName: "S046", events: 100, on_time_pct: 10 }),
       ],
       cancelled: 0,
     };

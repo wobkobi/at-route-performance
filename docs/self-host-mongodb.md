@@ -287,12 +287,13 @@ deleted. Both of those stand down under `?force=1`.
 `GET /api/health` reports the newest run's window - `retentionDays`, `cutoff`, `applied`, `dryRun`
 and `refused` - so start there rather than in the logs. Then:
 
-1. **`RETENTION_DAYS is not set`** (a 400, nothing recorded). The variable is missing from that
+1. **`RETENTION_DAYS is not set`** (a 500, nothing recorded). The variable is missing from that
    environment. Set it and re-run; do not pass `?retentionDays=` to paper over it, because the next
    nightly run refuses again.
-2. **`below the 365-day floor`** (a 400, nothing recorded). Someone set a short window. Correct the
-   variable. If the archive really is meant to shrink, move `MIN_SAFE_RETENTION_DAYS` in
-   `src/lib/cron/cleanup.ts` deliberately, in its own commit.
+2. **`below the 365-day floor`** (a 500 from the variable, a 400 from `?retentionDays=`, nothing
+   recorded). Someone set a short window. Correct the variable. If the archive really is meant to
+   shrink, move `MIN_SAFE_RETENTION_DAYS` in `src/lib/cron/cleanup.ts` deliberately, in its own
+   commit.
 3. **`over the 2% ceiling`** (recorded, `success: false`). The window moved, or a large backfill
    landed outside it. Check the `[CLEANUP] plan` log line for `doomedEvents` against `totalEvents`.
    Re-run with `?dryRun=1` first; only pass `?force=1` once the count is one you meant.

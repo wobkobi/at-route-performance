@@ -10,7 +10,7 @@ import {
   periodForCarriedDay,
   periodInPhrase,
   rangeTabPeriods,
-  routeLinkQuery,
+  routeLinkParams,
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/page/range";
@@ -97,27 +97,34 @@ describe("dayRangeNav", () => {
   });
 });
 
-describe("routeLinkQuery", () => {
+describe("routeLinkParams", () => {
   it("pins only a past day", () => {
-    expect(routeLinkQuery("day", TODAY, null, TODAY)).toBe("");
-    expect(routeLinkQuery("day", "2026-09-10", null, TODAY)).toBe("?day=2026-09-10");
+    expect(routeLinkParams("day", TODAY, null, TODAY)).toEqual({ day: undefined });
+    expect(routeLinkParams("day", "2026-09-10", null, TODAY)).toEqual({ day: "2026-09-10" });
   });
 
   it("opens the week view, pinned to a stepped-back week", () => {
-    expect(routeLinkQuery("week", null, null, TODAY)).toBe("?window=week");
-    expect(routeLinkQuery("week", null, "2026-09-07", TODAY)).toBe(
-      "?window=week&period=2026-09-07",
-    );
+    expect(routeLinkParams("week", null, null, TODAY)).toEqual({ window: "week", period: null });
+    expect(routeLinkParams("week", null, "2026-09-07", TODAY)).toEqual({
+      window: "week",
+      period: "2026-09-07",
+    });
   });
 
   it("hands a month off to the week its last day falls in, since routes have no month view", () => {
-    expect(routeLinkQuery("month", null, "2026-08", TODAY)).toBe("?window=week&period=2026-08-31");
+    expect(routeLinkParams("month", null, "2026-08", TODAY)).toEqual({
+      window: "week",
+      period: "2026-08-31",
+    });
   });
 
   it("leaves the running month on the rolling week rather than a future one", () => {
     // September still has days to come, so its last day clamps to today, whose
     // week is the rolling default the route page already shows.
-    expect(routeLinkQuery("month", null, "2026-09", TODAY)).toBe("?window=week");
+    expect(routeLinkParams("month", null, "2026-09", TODAY)).toEqual({
+      window: "week",
+      period: null,
+    });
   });
 });
 
@@ -131,6 +138,11 @@ describe("weekPeriodOf", () => {
     expect(weekPeriodOf("2026-09-07", TODAY)).toBe("2026-09-07");
     expect(weekPeriodOf("2026-09-01", TODAY)).toBe("2026-08-31");
   });
+
+  it("keeps a past day whose week reaches today on the rolling week", () => {
+    expect(weekPeriodOf("2026-09-30", "2026-10-02")).toBeNull();
+    expect(weekPeriodOf("2026-09-27", "2026-10-02")).toBe("2026-09-21");
+  });
 });
 
 describe("monthPeriodOf", () => {
@@ -139,9 +151,12 @@ describe("monthPeriodOf", () => {
   });
 
   it("snaps a past day to its month key", () => {
-    expect(monthPeriodOf("2026-09-01", TODAY)).toBe("2026-09");
     expect(monthPeriodOf("2026-08-31", TODAY)).toBe("2026-08");
     expect(monthPeriodOf("2025-01-05", TODAY)).toBe("2025-01");
+  });
+
+  it("keeps a past day in this month on the current month", () => {
+    expect(monthPeriodOf("2026-09-01", TODAY)).toBeNull();
   });
 });
 

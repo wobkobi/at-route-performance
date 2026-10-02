@@ -151,8 +151,8 @@ describe("applyRoutePenalties", () => {
    * @param routeId - Versioned route id.
    * @returns The row.
    */
-  const row = (routeId: string): PunctualityFields & { route_id: string } => ({
-    route_id: routeId,
+  const row = (routeId: string): PunctualityFields & { routeId: string } => ({
+    routeId: routeId,
     events: 100,
     avg_delay_sec: 0,
     avg_abs_delay_sec: 0,

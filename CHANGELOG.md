@@ -32,6 +32,396 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.56] - 2026-10-03
+
+### Fixed
+
+- The share-card route reads its query before loading fonts, so a quick file read can no longer end
+  the build's prerender first and fail the build.
+
+## [2.41.55] - 2026-10-03
+
+### Fixed
+
+- Route names in list rows are ink with a Shore hover and share one rank width; square corners on
+  the alert banner, split-bar popup and map labels; 44px targets on the area tags, filter Reset and
+  Near me; trip wording, separators and empty states made consistent where the pass missed them.
+
+## [2.41.54] - 2026-10-03
+
+### Changed
+
+- Typed mode filters, shared plural, time constants and retry delay where the consistency pass
+  missed them; tests for the map style helpers and page metadata.
+
+## [2.41.53] - 2026-10-03
+
+### Fixed
+
+- The trip page names where the trip is going ("Trip to Otahuhu Station via Mangere Bridge,
+  departing 4:58 am"), and its share card reads the destination from the headsign the way the boards
+  do, rather than from the last stop's name.
+
+## [2.41.52] - 2026-10-03
+
+### Changed
+
+- Lint rules hold the consistency pass: no hand-written mode lists, bare toLocaleString() or
+  hand-built entity paths, pages and components read data through the barrel, API read failures log
+  through the alertable helper, consistent type imports, and ?? over || for objects and numbers.
+
+## [2.41.51] - 2026-10-03
+
+### Fixed
+
+- Accessibility: en-NZ page language, named nav landmarks, the shame flame's label opens on tap and
+  focus, rank movement and LIVE badges read out their meaning, the date picker's explanation reaches
+  screen readers, the routes count is announced, and single-choice chips mark the current pick.
+
+## [2.41.50] - 2026-10-03
+
+### Fixed
+
+- Copy reads one way site-wide: " · " between parts, "to" in ranges, "and", "AT", curly quotes,
+  "does not", "towards", "Most off-schedule", and short units in the footer clock ("1 min ago").
+
+## [2.41.49] - 2026-10-03
+
+### Fixed
+
+- Shame flames: one colour per thing they count (hours today, days in a row on the board, days
+  crowned worst) with the unit on the count ("3h", "4d"), in place of a five-step heat ramp that
+  ended in purple; each streak now counts the board it sits on, so the trips board no longer shows
+  the routes board's history, and the home card's "days in a row" line counts the days the trips
+  board crowned that route.
+
+## [2.41.48] - 2026-10-03
+
+### Fixed
+
+- One word for a single journey: "trip" replaces "run" and "service" across the site and share
+  cards; detour-bypassed stops read "Bypassed"; the trip line's key marks match what it draws, and
+  orange routes draw detours in ink there too; alert badges get readable effect names; the early
+  time preset is "Early morning".
+
+## [2.41.47] - 2026-10-03
+
+### Fixed
+
+- Cancellation badges read NEVER RAN, CUT SHORT and REINSTATED, the same names as the filter chips,
+  summary, trip note and share card.
+
+## [2.41.46] - 2026-10-02
+
+### Fixed
+
+- Vehicles go by their fleet name on the trip header and the trips board, direction chips and the
+  stop schedule read "To Botany via Panmure", and route rows on the rankings, worst cards, shame and
+  live pages show the line name under the number.
+
+## [2.41.45] - 2026-10-02
+
+### Fixed
+
+- Both maps draw live vehicles as the same ringed marker with the route's icon and heading arrow,
+  school routes take the school bus icon, and every vehicle popup reads "Open this trip" / "This
+  vehicle"; map zoom and pan animations follow reduced motion
+
+## [2.41.44] - 2026-10-02
+
+### Fixed
+
+- The average absolute delay reads "Avg off by" on every page, table and map popup, and the signed
+  average reads "Early or late".
+
+## [2.41.43] - 2026-10-02
+
+### Fixed
+
+- Delay bands read On time, Late, Early, No reading everywhere; on-time figures are always blue,
+  live map marks use the bright early green, and compare marks its best cell with a BEST badge.
+
+## [2.41.42] - 2026-10-02
+
+### Changed
+
+- Scripts share the app's Prisma client, load .env.local through Node's --env-file-if-exists flag,
+  and are type-checked with the rest of the code.
+
+## [2.41.41] - 2026-10-02
+
+### Fixed
+
+- The top-routes cache key carries its week again (finished weeks were sharing one entry), range
+  keys carry both ends, the positional live TTLs are named, and log prefixes share one upper-case
+  style.
+
+## [2.41.39] - 2026-10-02
+
+### Changed
+
+- Every Data Cache TTL is a named constant in `lib/data/revalidate.ts`, pages pick theirs with
+  `revalidateFor(window)`, and the filtered hour readings honour the caller's TTL instead of a fixed
+  five minutes.
+
+## [2.41.38] - 2026-10-02
+
+### Fixed
+
+- API errors share one body ({ error, message }) with one status per failure: 400 bad query, 401
+  auth, 500 misconfigured, 502 AT's feed, 503 database unreachable; exception text stays in the log.
+  Flags read only `1`, route stats take NZ service days and honour `?sort`, `/api/stops` validates
+  its page and reads through the cache, and the dead `thresholdSec` is gone.
+
+## [2.41.37] - 2026-10-02
+
+### Fixed
+
+- Every page builds its title, description and share card through one helper; pages with no card of
+  their own share the home card, missing routes and stops say so in the tab, the sitemap lists
+  Compare, and the nightly warm covers Operators and Compare.
+
+## [2.41.36] - 2026-10-02
+
+### Changed
+
+- The live and route maps share one base map, colour lookup, popup link routing and visible-tab
+  poll; the footer freshness line uses the same poll.
+
+## [2.41.35] - 2026-10-02
+
+### Changed
+
+- The nine shame-board row renderers share one row body, the trip and route day boards one
+  repeat-offender flame, and the three day boards one hour-slot renderer; the worst row's tint is a
+  shared `.at-worst` class, and the trip-row classes moved to `lib/page/row.ts`.
+
+## [2.41.34] - 2026-10-02
+
+### Fixed
+
+- Switching to Week from a month whose last week is still running (or to Month within this month)
+  opens the rolling last 7 days or the current month, not a half-finished fixed week.
+
+## [2.41.33] - 2026-10-02
+
+### Changed
+
+- The worst trips, routes and stops pages use the shared page header, their subtitles end with a
+  full stop, and their empty boards read "No trips recorded in this week." like the rest of the
+  site.
+
+## [2.41.32] - 2026-10-02
+
+### Changed
+
+- Route, trip, stop, vehicle and operator pages share the page header, back link, figure strips,
+  tables and section headings; the route's stop list gets a real heading
+
+## [2.41.31] - 2026-10-01
+
+### Changed
+
+- List pages share one page header, table and empty-state style; the show-more count is grouped
+
+## [2.41.30] - 2026-10-01
+
+### Changed
+
+- Home, error and 404 pages share one page header, the route rankings heading links to the Routes
+  page like the bands around it, and loading placeholders announce themselves.
+
+## [2.41.29] - 2026-10-01
+
+### Fixed
+
+- Every chip, tab, filter box, date-picker button and hour cell is at least 44px tall, and the info
+  icons, dotted explanations and split-bar segments catch a 44px press without growing.
+
+## [2.41.28] - 2026-10-01
+
+### Changed
+
+- Window and board tabs, date steppers and chip rows share one set of chip components, and every
+  one-choice filter box (mode, school buses, running, operator) is built from one radio filter.
+
+## [2.41.27] - 2026-10-01
+
+### Changed
+
+- Filter menus, the date picker and the punctuality breakdown share one popover that moves focus in
+  and back; explanations that lived only in a tooltip title now show on tap and focus too.
+
+## [2.41.26] - 2026-10-01
+
+### Changed
+
+- Trip notes, worst cards, off-schedule values and every colour key now share one component each;
+  the route week table colours its early or late column.
+
+## [2.41.25] - 2026-10-01
+
+### Changed
+
+- Figure strips, tables and show-more buttons share one component each; the cancellations strip now
+  matches the routes strip
+
+## [2.41.24] - 2026-10-01
+
+### Changed
+
+- Boards, maps and strips share one panel, heading size and empty-state style; chevrons and sort
+  arrows come from shared icons
+
+## [2.41.23] - 2026-10-01
+
+### Changed
+
+- Badges share one square style and tone set (LIVE now in ink); links, search boxes, selects and
+  table headers share one class each; focus rings appear instantly and reduced motion turns off
+  every transition
+
+## [2.41.22] - 2026-10-01
+
+### Changed
+
+- Mode icons use one colour per mode (school and Link buses included), and route lines on the maps,
+  route strip and trip line draw in AT's route colour, falling back to the mode colour
+
+## [2.41.21] - 2026-10-01
+
+### Changed
+
+- Removed the old-URL redirects for /rankings, versioned route ids, the route page's month window
+  and name-keyed station links. Trip links and retired train lines still resolve.
+
+## [2.41.20] - 2026-10-01
+
+### Changed
+
+- Every list shows 30 rows and adds 30 per press, and the route page's trips board uses the same
+  show-more link instead of numbered pages.
+
+## [2.41.19] - 2026-10-01
+
+### Changed
+
+- One sort vocabulary across the site (ontime, off, arrivals, delay), and clashing URL params
+  renamed: the Routes page uses rev=1 for sort direction and dir for late or early, the route page's
+  travel direction is heading, and the day type is daytype.
+
+## [2.41.18] - 2026-10-01
+
+### Changed
+
+- The route page's Day and Week tabs and week stepper are the shared range controls, so its week
+  label opens the week picker like every other range page.
+
+## [2.41.17] - 2026-10-01
+
+### Changed
+
+- Range pages build their view params, today-less day links and window parsing through shared
+  helpers, read the clock once per render, and only run the day redirects on the day view.
+
+## [2.41.16] - 2026-10-01
+
+### Changed
+
+- One retry delay for the AT fetchers, one set of option-label helpers for the filter lists, one
+  show-more count reader, and a multi-param URL state hook the routes explorer uses.
+
+## [2.41.15] - 2026-10-01
+
+### Changed
+
+- Pages and API routes read the operator map and list through one guarded getOperatorDirectory, and
+  route rows pass the school filter through one rowAllowedBySchool.
+
+## [2.41.14] - 2026-10-01
+
+### Changed
+
+- Distance maths for maps, strips, shapes and stations shared in one module
+
+## [2.41.13] - 2026-10-01
+
+### Changed
+
+- Raw database reads share one aggregation runner and one date-window builder
+
+## [2.41.12] - 2026-10-01
+
+### Changed
+
+- Grouping, counting and median maths shared across the data and view code
+
+## [2.41.11] - 2026-10-01
+
+### Fixed
+
+- Switching day, week or month no longer keeps a long list expanded, and every control that carries
+  the page's params now agrees on which ones
+
+## [2.41.10] - 2026-10-01
+
+### Changed
+
+- Every route row names a route the same way (short name, long name, then slug), shows the same
+  subtitle, and sorts route numbers the same way
+
+## [2.41.9] - 2026-10-01
+
+### Changed
+
+- Every route, stop, vehicle, trip and operator link now comes from one set of builders in
+  lib/page/hrefs.ts, so each slugs the route, encodes its ids and drops unset params the same way;
+  links from the worst-trips board, cancelled trips and the live map now land on the canonical route
+  URL without a redirect
+
+## [2.41.8] - 2026-10-01
+
+### Fixed
+
+- Weeks read 21 to 27 Sep everywhere (28 Sep to 4 Oct across a month), the route week table names
+  its days, the footer clock reads 7:24 am, and the nightly warm and aggregate jobs find yesterday
+  by calendar day so a DST change cannot skip or repeat one
+
+## [2.41.6] - 2026-10-01
+
+### Fixed
+
+- Averages across routes, days and station platforms leave out a row with no figure instead of
+  counting it as zero, so a gap in the data no longer pulls a figure towards on time.
+
+## [2.41.5] - 2026-10-01
+
+### Fixed
+
+- Every percentage shows one decimal place, every count is grouped (12,345), missing figures show
+  the same placeholder dash everywhere, and distances read in metres so "m" only ever means minutes.
+
+## [2.41.4] - 2026-10-01
+
+### Changed
+
+- Windows, sort directions, late-or-early filters and delay bands each have one shared type, and a
+  missing reading is called the same thing on every map and figure. Nothing on the site changes.
+
+## [2.41.3] - 2026-10-01
+
+### Changed
+
+- Every route row carries the same named fields, from the database through to the page, and the
+  route list API returns them under those names. Nothing on the site changes.
+
+## [2.41.2] - 2026-10-01
+
+### Changed
+
+- Transport modes are read, checked and named in one place, so every page parses a mode filter the
+  same way. Nothing on the site changes.
+
 ## [2.41.1] - 2026-09-30
 
 ### Changed

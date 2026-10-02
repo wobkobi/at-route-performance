@@ -3,6 +3,8 @@
 // Pure and client-safe: the rows come from lib/data/route-stop-split.ts, and the versions from
 // the route's strip (lib/strip/route-strip.ts), which groups variants by the names of their ends.
 
+import { roundTenth } from "@/lib/stats";
+
 /** Arrival sums for one stop, from the runs of one direction, shape and headsign. */
 export interface StopSplitRow {
   stop_id: string;
@@ -125,8 +127,8 @@ function finish(table: Map<string, Map<number, Acc>>): StopFigures {
       if (a.events === 0) continue;
       row[dir] = {
         events: a.events,
-        avg_delay_sec: Math.round((a.dev / a.events) * 10) / 10,
-        on_time_pct: Math.round((a.onTime / a.events) * 1000) / 10,
+        avg_delay_sec: roundTenth(a.dev / a.events),
+        on_time_pct: roundTenth((a.onTime / a.events) * 100),
       };
     }
     out[stop] = row;

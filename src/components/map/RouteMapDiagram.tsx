@@ -4,22 +4,17 @@
 
 import { MapMarkKey, StopDotKey } from "@/components/map/MapLegend";
 import StopMapWrapper from "@/components/map/StopMapWrapper";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { modeOrBus } from "@/lib/mode";
+import type { MapStop } from "@/lib/route/view";
 import type { JSX } from "react";
-
-/** A stop plotted on the route map (the shape {@link StopMapWrapper} expects). */
-interface MapStopView {
-  stop_id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  avg_delay_sec: number | null;
-  on_time_pct: number | null;
-}
 
 /** Props for {@link RouteMapDiagram}. */
 export interface RouteMapDiagramProps {
   /** Stops to plot (already direction-filtered by the page). */
-  stops: MapStopView[];
+  stops: MapStop[];
   /** Per-direction road path lines. */
   routeLines: Array<Array<[number, number]>>;
   /** Route id, keying the saved viewport and the live-vehicle poll. */
@@ -28,13 +23,17 @@ export interface RouteMapDiagramProps {
   live: boolean;
   /** Route mode (live-vehicle glyph + delay colour banding). */
   mode: string;
+  /** The route is a school service, whose vehicles take the school bus glyph. */
+  school: boolean;
+  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
+  colour: string | null;
   /**
    * When set, only live vehicles whose `directionId` is in this list are shown.
    * Pass all raw GTFS direction ids that alias to the active direction.
    */
   filterDirectionIds?: number[];
-  /** Query a stop's popup name links with, so it opens on the day shown ("" for today or a week). */
-  stopQuery: string;
+  /** The day a stop's popup link opens on, or undefined for today or a week. */
+  stopDay?: string;
 }
 
 /**
@@ -46,8 +45,10 @@ export interface RouteMapDiagramProps {
  * @param props.routeId - Route id for the saved viewport and live vehicles.
  * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
+ * @param props.school - Whether the route is a school service.
+ * @param props.colour - The route's GTFS colour, for its lines.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
- * @param props.stopQuery - Query a stop's popup name links with.
+ * @param props.stopDay - The day a stop's popup link opens on.
  * @returns The map section.
  */
 export function RouteMapDiagram({
@@ -56,23 +57,25 @@ export function RouteMapDiagram({
   routeId,
   live,
   mode,
+  school,
+  colour,
   filterDirectionIds,
-  stopQuery,
+  stopDay,
 }: RouteMapDiagramProps): JSX.Element {
   if (stops.length === 0) {
     return (
-      <section className="border border-at-border bg-at-surface p-4">
-        <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
-        <p className="mt-2 text-sm text-at-muted">
+      <Panel pad="sm">
+        <SectionHeading>Route map</SectionHeading>
+        <EmptyState inset className="mt-2">
           No stops to plot yet. The map fills in once this route records arrivals.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
   return (
-    <section className="border border-at-border bg-at-surface p-4">
+    <Panel pad="sm">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-ultra tracking-zero">Route map</h2>
+        <SectionHeading>Route map</SectionHeading>
         <StopDotKey />
       </div>
       <StopMapWrapper
@@ -80,12 +83,15 @@ export function RouteMapDiagram({
         routeLines={routeLines}
         routeId={routeId}
         live={live}
-        mode={mode as "BUS" | "TRAIN" | "FERRY"}
+        mode={modeOrBus(mode)}
+        school={school}
+        colour={colour}
         filterDirectionIds={filterDirectionIds}
-        stopQuery={stopQuery}
+        stopLinks
+        stopDay={stopDay}
         className="h-[min(31.25rem,60svh)]"
       />
-      <MapMarkKey live={live} />
-    </section>
+      <MapMarkKey live={live} mode={modeOrBus(mode)} school={school} />
+    </Panel>
   );
 }

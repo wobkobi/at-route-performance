@@ -1,9 +1,11 @@
 // src/lib/data/shame-filter.ts
 // The mode and school-service filter every shame, stop and cancellation read shares.
+import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
+import type { Mode } from "@/lib/mode";
 import type { DelayDirection } from "@/lib/rankings";
-import { isSchoolBus, schoolAllows, type SchoolFilter } from "@/lib/school-bus";
+import { rowAllowedBySchool, type SchoolFilter } from "@/lib/school-bus";
 
 /** School-service code regex (mirrors `isSchoolBus`) for the Shame filter. */
 export const SCHOOL_BUS_REGEX = "^S[0-9]{3}[A-Z]*$";
@@ -11,7 +13,7 @@ export const SCHOOL_BUS_REGEX = "^S[0-9]{3}[A-Z]*$";
 /** Which runs the Shame board considers - mirrors the home page's filters. */
 export interface ShameFilter {
   /** Restrict to this mode; null/undefined means every mode. */
-  mode?: "BUS" | "TRAIN" | "FERRY" | null;
+  mode?: Mode | null;
   /** Which school services count (default "exclude", matching the home page default). */
   schools?: SchoolFilter;
   /**
@@ -50,7 +52,7 @@ export function schoolRouteMatch(schools: SchoolFilter): Record<string, unknown>
  * @returns Included route ids, or null when no route filter is needed.
  */
 export async function worstStopRouteIds(
-  mode: "BUS" | "TRAIN" | "FERRY" | null,
+  mode: Mode | null,
   schools: SchoolFilter,
 ): Promise<string[] | null> {
   if (!mode && schools === "include") return null;
@@ -61,11 +63,9 @@ export async function worstStopRouteIds(
         where: mode ? { mode } : undefined,
         select: { id: true, shortName: true, longName: true },
       });
-      return routes
-        .filter((r) => schoolAllows(schools, isSchoolBus(r.shortName, r.longName)))
-        .map((r) => r.id);
+      return routes.filter((r) => rowAllowedBySchool(r, schools)).map((r) => r.id);
     },
     ["worst-stop-route-ids", mode ?? "all", schools],
-    { revalidate: 3600 },
+    { revalidate: HOUR_REVALIDATE },
   )();
 }

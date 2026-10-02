@@ -31,3 +31,11 @@ describe("aggregateWeek", () => {
     expect(aggregateWeek([day(0, 50)])).toBeNull();
   });
 });
+
+describe("aggregateWeek nulls", () => {
+  it("leaves a day with no figure out of that figure's mean", () => {
+    const week = aggregateWeek([day(100, 80), { ...day(100, 0), on_time_pct: null }]);
+    expect(week?.events).toBe(200);
+    expect(week?.on_time_pct).toBe(80);
+  });
+});

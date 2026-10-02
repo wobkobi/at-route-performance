@@ -4,8 +4,11 @@
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
 // identical is a feed people learn to ignore.
+import { ChevronDown } from "@/components/icons";
+import { Badge, badgeClass } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import {
+  alertEffectLabel,
   alertPeriodToShow,
   alertSeverity,
   cleanAlertHeader,
@@ -13,8 +16,9 @@ import {
   hasSevereAlert,
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
+import { routeHref } from "@/lib/page/hrefs";
 import { routeSlug } from "@/lib/route/slug";
-import { NZ_TZ } from "@/lib/time/service-day";
+import { NZ_DATE, nzClockWithDate } from "@/lib/time/format";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -42,40 +46,12 @@ export interface AlertBannerProps {
 }
 
 /**
- * Format a Unix timestamp as a short NZ local time, adding the date when the
- * instant falls outside today. An alert running for weeks otherwise renders as
- * a bare "8:45 pm - 6:00 am" and reads as though it is tonight.
- * @param unix - Seconds since epoch.
- * @param withDate - Include the day and month.
- * @returns Localised time string, e.g. "8:45 pm" or "12 Sep, 8:45 pm".
- */
-function fmtTime(unix: number, withDate: boolean): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    ...(withDate ? { day: "numeric", month: "short" } : {}),
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(unix * 1000));
-}
-
-/**
- * Auckland-local calendar date of an instant, for same-day comparison. `en-CA`
- * yields `YYYY-MM-DD`, which compares as a plain string.
- */
-const NZ_DAY = new Intl.DateTimeFormat("en-CA", {
-  timeZone: NZ_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-/**
  * Whether an instant falls on today's Auckland-local calendar date.
  * @param unix - Seconds since epoch.
  * @returns True when it is today in Auckland.
  */
 function isToday(unix: number): boolean {
-  return NZ_DAY.format(new Date(unix * 1000)) === NZ_DAY.format(new Date());
+  return NZ_DATE.format(new Date(unix * 1000)) === NZ_DATE.format(new Date());
 }
 
 /**
@@ -93,10 +69,10 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
     alwaysDate || (start !== undefined && !isToday(start)) || (end !== undefined && !isToday(end));
 
   if (start !== undefined && end !== undefined) {
-    return `${fmtTime(start, dated)} – ${fmtTime(end, dated)}`;
+    return `${nzClockWithDate(new Date(start * 1000), dated)} to ${nzClockWithDate(new Date(end * 1000), dated)}`;
   }
-  if (start !== undefined) return `From ${fmtTime(start, dated)}`;
-  if (end !== undefined) return `Until ${fmtTime(end, dated)}`;
+  if (start !== undefined) return `From ${nzClockWithDate(new Date(start * 1000), dated)}`;
+  if (end !== undefined) return `Until ${nzClockWithDate(new Date(end * 1000), dated)}`;
   return null;
 }
 
@@ -136,14 +112,14 @@ export function AlertBanner({
   return (
     <details
       className={cn(
-        "group overflow-hidden rounded-lg border",
+        "group border",
         severe ? "border-at-disruption/30 bg-at-disruption/5" : "border-at-border bg-at-surface",
       )}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 p-3 select-none">
         {/* Exclamation icon */}
         <svg
-          aria-hidden="true"
+          aria-hidden
           className={cn("size-4 shrink-0", severe ? "text-at-disruption" : "text-at-muted")}
           viewBox="0 0 20 20"
           fill="currentColor"
@@ -160,38 +136,24 @@ export function AlertBanner({
           )}
         >
           {heading}
-          {pastWindow && <span className="font-normal"> - running now</span>}
+          {pastWindow && <span className="font-normal"> · running now</span>}
         </span>
-        <span
-          className={cn(
-            "px-2 py-0.5 text-xs tabular-nums",
-            severe ? "bg-at-disruption text-white" : "bg-at-border text-at-ink",
-          )}
-        >
+        <span className={cn(badgeClass(severe ? "disruption" : "muted"), "tabular-nums")}>
           {alerts.length}
         </span>
-        {/* Chevron rotates when details is open */}
-        <svg
-          aria-hidden="true"
+        <ChevronDown
           className={cn(
             "size-4 shrink-0 transition-transform group-open:rotate-180",
             severe ? "text-at-disruption" : "text-at-muted",
           )}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-          />
-        </svg>
+        />
       </summary>
 
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>
         {pastWindow && (
           <p className="p-3 text-xs text-at-muted">
-            Auckland Transport publishes only current and upcoming alerts, so these are the ones
-            running now, not a record of what was disrupted in the period shown.
+            AT publishes only current and upcoming alerts, so these are the ones running now, not a
+            record of what was disrupted in the period shown.
           </p>
         )}
         {alerts.map((alert, i) => {
@@ -212,6 +174,7 @@ export function AlertBanner({
           const period = alertPeriodToShow(alert);
           const periodText = periodLabel(period?.start, period?.end, pastWindow);
           const rowSevere = alertSeverity(alert) === "severe";
+          const effectLabel = alertEffectLabel(alert.effect);
 
           return (
             <div key={alert.id || i} className="space-y-1.5 p-3">
@@ -225,6 +188,7 @@ export function AlertBanner({
                       className="underline hover:no-underline"
                     >
                       {headerText}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ) : (
                     headerText
@@ -232,17 +196,8 @@ export function AlertBanner({
                 </p>
               )}
               {periodText && <p className="text-xs text-at-muted">{periodText}</p>}
-              {alert.effect && (
-                <span
-                  className={cn(
-                    "inline-block rounded px-1.5 py-0.5 text-xs",
-                    rowSevere
-                      ? "bg-at-disruption/15 text-at-disruption"
-                      : "bg-at-border/60 text-at-muted",
-                  )}
-                >
-                  {alert.effect.replace(/_/g, " ")}
-                </span>
+              {effectLabel && (
+                <Badge tone={rowSevere ? "disruption" : "muted"} label={effectLabel} />
               )}
               {cleanDesc && <p className="text-sm leading-snug text-at-muted">{cleanDesc}</p>}
               {routeIds.length > 0 && (
@@ -250,8 +205,8 @@ export function AlertBanner({
                   {routeIds.map((id) => (
                     <Link
                       key={id}
-                      href={`/route/${encodeURIComponent(routeSlug(id))}`}
-                      className="bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
+                      href={routeHref(id)}
+                      className={cn(badgeClass("pale"), "hover:underline")}
                     >
                       {routeNames?.[id] ?? routeSlug(id)}
                     </Link>

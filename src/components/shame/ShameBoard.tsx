@@ -1,7 +1,18 @@
 // src/components/shame/ShameBoard.tsx
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
+import { ModeIcon } from "@/components/ModeIcon";
+import { FlameCount } from "@/components/shame/FlameCount";
+import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
+import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Hint } from "@/components/ui/Hint";
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
+import type { ShameStreak, StreakBoard } from "@/lib/data";
+import { plural } from "@/lib/format";
+import type { HourSlot } from "@/lib/page/nav";
+import type { RouteDisplay } from "@/lib/route/slug";
 import {
   afterMidnightNote,
   nzHourLabel,
@@ -40,7 +51,7 @@ export interface ShameRowContext {
 /**
  * A day-board row's hour, such as "9am". The hours after midnight close the
  * board rather than open it, so each carries a tooltip naming the service day
- * it counts toward. Given an href, the hour is the row's main link (see
+ * it counts towards. Given an href, the hour is the row's main link (see
  * {@link ShameSplitRow}), opening the hour's ranked list from anywhere on the row.
  * @param props - Component props.
  * @param props.hour - Hour of day, 0-23.
@@ -69,11 +80,14 @@ export function ShameHourLabel({
       </Link>
     );
   }
-  return (
-    <span className={cn(LABEL, "text-at-muted", afterMidnight && "cursor-help")} title={note}>
-      {nzHourLabel(hour)}
-    </span>
-  );
+  if (note) {
+    return (
+      <Hint align="start" hint={note} className={cn(LABEL, "relative z-10 text-at-muted")}>
+        {nzHourLabel(hour)}
+      </Hint>
+    );
+  }
+  return <span className={cn(LABEL, "text-at-muted")}>{nzHourLabel(hour)}</span>;
 }
 
 /**
@@ -126,23 +140,23 @@ export function ShameDayLabel({
  * @param props - Component props.
  * @param props.ctx - Surface context from the board.
  * @param props.label - The label column, whose link covers the row.
- * @param props.className - Extra classes for the row (the worst highlight).
+ * @param props.worst - Whether the row holds the board's worst, which tints it.
  * @param props.children - The row body after the label, holding the subject link.
  * @returns The row element.
  */
 export function ShameSplitRow({
   ctx,
   label,
-  className,
+  worst,
   children,
 }: {
   ctx: ShameRowContext;
   label: ReactNode;
-  className?: string;
+  worst: boolean;
   children: ReactNode;
 }): JSX.Element {
   return (
-    <div className={cn(ctx.anchorClass, "group relative", className)}>
+    <div className={cn(ctx.anchorClass, "group relative", worst && "at-worst")}>
       {label}
       {children}
     </div>
@@ -173,6 +187,157 @@ export function ShameSubjectLink({
       {children}
     </Link>
   );
+}
+
+/**
+ * What every shame row shows after its hour, day or rank label: the route's mode
+ * icon (stop rows have none), the subject with its worst badge and flame, a muted
+ * detail line, and the off-schedule figure on the right.
+ * @param props - Component props.
+ * @param props.route - The route, for its mode icon; omitted on stop rows.
+ * @param props.subject - The subject's name: a {@link ShameSubjectLink} on a split
+ *   row, plain text on a row that is one link.
+ * @param props.subtitle - The route's second name (`routeSubtitle`) after the badges,
+ *   if the row has one.
+ * @param props.worst - Whether the row holds the board's worst, which earns the badge.
+ * @param props.flame - The repeat-offender flame beside the badge, if any.
+ * @param props.detail - The muted line under the name ("12 arrivals").
+ * @param props.note - A further muted line under the detail, if any.
+ * @param props.figures - The row's delay averages and mode (the row itself).
+ * @param props.figures.avg_delay_sec - Signed average deviation in seconds.
+ * @param props.figures.avg_abs_delay_sec - Average absolute deviation in seconds.
+ * @param props.figures.mode - Route mode, for the on-time window and wording.
+ * @returns The row body.
+ */
+export function ShameRowBody({
+  route,
+  subject,
+  subtitle,
+  worst,
+  flame,
+  detail,
+  note,
+  figures,
+}: {
+  route?: Pick<RouteDisplay, "mode" | "shortName" | "longName">;
+  subject: ReactNode;
+  subtitle?: string | null;
+  worst: boolean;
+  flame?: ReactNode;
+  detail: ReactNode;
+  note?: ReactNode;
+  figures: { avg_delay_sec: number | null; avg_abs_delay_sec: number; mode: string };
+}): JSX.Element {
+  return (
+    <>
+      {route && (
+        <ModeIcon
+          mode={route.mode}
+          shortName={route.shortName}
+          longName={route.longName}
+          className="mt-0.5 h-5 w-5 shrink-0"
+        />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          {subject}
+          {worst && <ShameWorstBadge />}
+          {flame}
+          {subtitle && <span className="min-w-0 truncate text-sm text-at-muted">{subtitle}</span>}
+        </span>
+        <span className="block text-xs text-at-muted tabular-nums">{detail}</span>
+        {note && <span className="block text-xs text-at-muted">{note}</span>}
+      </span>
+      <ShameRowDelay
+        avgDelaySec={figures.avg_delay_sec}
+        avgAbsDelaySec={figures.avg_abs_delay_sec}
+        mode={figures.mode}
+      />
+    </>
+  );
+}
+
+/**
+ * A day-board route's repeat-offender flame, the strongest that applies: the days
+ * in a row the board crowned it, else the days in a row it made the board, else
+ * how many of the day's hours it took. Both streak labels count the hours it took
+ * on this board across the run.
+ * @param props - Component props.
+ * @param props.name - The route's name, for the flame's label.
+ * @param props.noun - What the board ranks, for the crown label ("worst trip of the day").
+ * @param props.worst - Whether this row holds the day's worst.
+ * @param props.hourCount - How many of the day's hourly slots the route took.
+ * @param props.streak - The route's run of days on this board, if read.
+ * @param props.hoursLabel - The hourly count's label, which each board words its own way.
+ * @returns The flame, or null for a route in one hour with no streak.
+ */
+export function ShameDayFlame({
+  name,
+  noun,
+  worst,
+  hourCount,
+  streak,
+  hoursLabel,
+}: {
+  name: string;
+  noun: StreakBoard;
+  worst: boolean;
+  hourCount: number;
+  streak: ShameStreak | undefined;
+  hoursLabel: string;
+}): JSX.Element | null {
+  const boardDays = streak?.days ?? 1;
+  const totalHours = plural(hourCount + (streak?.prevHours ?? 0), "hour");
+  // The shown day counts towards the crown run only when this row holds it.
+  const crownedDays = worst ? 1 + (streak?.prevCrownedDays ?? 0) : 0;
+  if (crownedDays >= 2) {
+    return (
+      <FlameCount
+        kind="crown"
+        count={crownedDays}
+        worst={worst}
+        label={`${name}: worst ${noun} of the day ${crownedDays} days in a row · ${totalHours} on this board`}
+      />
+    );
+  }
+  if (boardDays >= 2) {
+    return (
+      <FlameCount
+        kind="days"
+        count={boardDays}
+        worst={worst}
+        label={`${name}: on this board ${boardDays} days in a row · ${totalHours} in all`}
+      />
+    );
+  }
+  if (hourCount > 1) {
+    return <FlameCount kind="hours" count={hourCount} worst={worst} label={hoursLabel} />;
+  }
+  return null;
+}
+
+/**
+ * A day board's row renderer over hour slots: the hour's row when something
+ * qualified, else a {@link ShameEmptyHourRow} saying what fell short, so every
+ * board covers the whole day the same way.
+ * @param renderRow - Renders an hour that has a row.
+ * @param empty - What an empty hour shows.
+ * @param empty.serviceDate - The shown service date (`YYYY-MM-DD`).
+ * @param empty.title - What did not fit, e.g. "No route fits this hour".
+ * @param empty.reason - The minimum it missed.
+ * @returns The board's `renderRow`.
+ */
+export function hourSlotRenderer<H>(
+  renderRow: (row: H, ctx: ShameRowContext) => JSX.Element,
+  empty: { serviceDate: string; title: string; reason: string },
+): (slot: HourSlot<H>, ctx: ShameRowContext) => JSX.Element {
+  return function renderHourSlot(slot, ctx) {
+    return slot.row ? (
+      renderRow(slot.row, ctx)
+    ) : (
+      <ShameEmptyHourRow hour={slot.hour} {...empty} ctx={ctx} />
+    );
+  };
 }
 
 /**
@@ -221,7 +386,7 @@ export interface ShameBoardProps<T> {
   keyOf: (item: T, index: number) => string;
   /** Message shown in place of the board when there are no rows. */
   emptyMessage: string;
-  /** Footer message shown under the board (e.g. "No runs were notably off schedule…"). */
+  /** Footer message shown under the board (e.g. "No trips were notably off schedule…"). */
   footerMessage?: string;
   /** Whether to show the footer. */
   showFooter?: boolean;
@@ -255,21 +420,19 @@ export function ShameBoard<T>({
   renderRow,
 }: ShameBoardProps<T>): JSX.Element {
   if (items.length === 0) {
-    return (
-      <p className="border border-at-border bg-at-surface p-4 text-at-muted">{emptyMessage}</p>
-    );
+    return <EmptyState>{emptyMessage}</EmptyState>;
   }
 
   const footer = showFooter && footerMessage && (
-    <p className="border border-at-border bg-at-surface px-4 py-3 text-sm text-at-muted">
+    <Panel as="p" className="px-4 py-3 text-sm text-at-muted">
       {footerMessage}
-    </p>
+    </Panel>
   );
 
   if (layout === "week") {
     return (
       <>
-        <div className="border border-at-border bg-at-surface">
+        <Panel as="div">
           <ul className="striped">
             {items.map((item, i) => (
               <li key={keyOf(item, i)}>
@@ -277,7 +440,7 @@ export function ShameBoard<T>({
               </li>
             ))}
           </ul>
-        </div>
+        </Panel>
         {footer}
       </>
     );
@@ -285,7 +448,7 @@ export function ShameBoard<T>({
 
   return (
     <>
-      <div className="border border-at-border bg-at-surface">
+      <Panel as="div">
         {/* Mobile: sequential single-column list */}
         <ul className="striped md:hidden">
           {items.map((item, i) => (
@@ -327,7 +490,7 @@ export function ShameBoard<T>({
             );
           })}
         </ul>
-      </div>
+      </Panel>
       {footer}
     </>
   );

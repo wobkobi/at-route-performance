@@ -10,19 +10,25 @@
 // everything below it down as the reader arrived.
 // The week view skips the expensive trips query and the live vehicle fetch.
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/date/DayNav";
-import { StepPending } from "@/components/date/StepPending";
+import { RangeControls } from "@/components/date/RangeControls";
 import { DirectionFilter } from "@/components/filter/DirectionFilter";
 import { TimeOfDayFilter } from "@/components/filter/TimeOfDayFilter";
-import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { ChevronDown } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
 import { RouteMapDiagram } from "@/components/map/RouteMapDiagram";
 import { ModeIcon } from "@/components/ModeIcon";
-import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
+import { PunctualityStat, StatCell, type PunctualityBreakdown } from "@/components/PunctualityStat";
 import { RouteStrip } from "@/components/route/RouteStrip";
 import { RouteWeekSummary } from "@/components/route/RouteWeekSummary";
 import { SortHeader } from "@/components/SortHeader";
 import { WorstTripsBoard } from "@/components/trip/WorstTripsBoard";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST } from "@/lib/copy";
 import {
   findCanonicalRouteSlug,
@@ -31,17 +37,16 @@ import {
   getCancelledTrips,
   getDetouredTripIds,
   getEarliestDataDay,
-  getOperators,
+  getOperatorDirectory,
   getRouteClosures,
   getRouteDailyStats,
   getRouteLabel,
   getRouteNames,
-  getRouteOperators,
   getRouteStats,
   getRouteStopSplit,
+  getRouteTripStats,
   getTripRiderWait,
-  getWorstTripsOfDay,
-  type TripSort,
+  parseTripSort,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import {
@@ -51,23 +56,34 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
-import { formatDuration, offScheduleValue, UNKNOWN_VALUE } from "@/lib/format";
-import { cardMetadata, cardPath, cardWhenSuffix, parseRouteCard } from "@/lib/og";
-import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay, resolveWeekNav } from "@/lib/page/nav";
-import { dayRangeNav, weekPeriodOf } from "@/lib/page/range";
+import {
+  formatCount,
+  formatDuration,
+  formatPct,
+  plural,
+  sentenceStart,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
+import { cardPath, cardWhenSuffix, pageMetadata, parseRouteCard } from "@/lib/og";
+import { operatorHref, operatorOf } from "@/lib/operators";
+import { parseShown } from "@/lib/page/filter-params";
+import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import { dayRangeNav, periodRangeNav, type RangeWindow } from "@/lib/page/range";
+import { resolveRange } from "@/lib/page/rankings";
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { withTripPenalty } from "@/lib/rider-wait";
-import { lineName } from "@/lib/route/line-name";
-import { routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildRouteView, type RouteView } from "@/lib/route/view";
 import { aggregateWeek } from "@/lib/route/week";
+import { isSchoolBus } from "@/lib/school-bus";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
-import { requestServiceDay } from "@/lib/time/request-now";
-import { nzLocalHour, nzWeekRange, weekRangeLabel, type DateRange } from "@/lib/time/service-day";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
+import { requestNow } from "@/lib/time/request-now";
+import { nzLocalHour, nzServiceDayString, type DateRange } from "@/lib/time/service-day";
 import {
   hourRangeParam,
   isHourInRange,
@@ -76,12 +92,12 @@ import {
   type HourRange,
 } from "@/lib/time/time-of-day";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip/board";
+import { boundFor } from "@/lib/trip/departure-label";
 import { buildHref } from "@/lib/utils";
-import { routeStatsQuery } from "@/lib/validate";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Suspense, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -143,21 +159,19 @@ export async function generateStaticParams(): Promise<{ id: string }[]> {
   return (slugs.length > 0 ? slugs : FALLBACK_ROUTES).map((id) => ({ id }));
 }
 
-/** Trips shown per page on the "of the day" board. */
-const PAGE_SIZE = 10;
-
 /** Upper bound on the day's runs fetched for the paginated board. */
 const TRIPS_FETCH_CAP = 500;
 
 /** Query params for route detail (raw strings). */
 interface StatsSearchParams {
-  thresholdSec?: string;
   day?: string;
   tsort?: string;
-  tpage?: string;
+  /** Trips the board is showing, in whole steps of the list length. */
+  show?: string;
   /** Reverse the active sort direction when "1". */
   trev?: string;
-  dir?: string;
+  /** Travel direction id to narrow the page to; unset for both. */
+  heading?: string;
   window?: string;
   /** Week start (`YYYY-MM-DD` Monday) when stepping back through the week view. */
   period?: string;
@@ -172,151 +186,31 @@ interface StatsSearchParams {
 const STOP_COLUMNS: SortColumn<RouteByStop>[] = [
   { key: "stop", value: "name", first: "asc" },
   { key: "arrivals", value: "events" },
-  { key: "late", value: "avg_delay_sec" },
+  { key: "delay", value: "avg_delay_sec" },
 ];
 
 /** The Stops table's own names: `tsort` and `trev` belong to the trips board. */
 const STOP_SORT: SortParamNames = { sort: "ssort", rev: "srev" };
 
-/** Valid trip-sort values. */
-const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
+/** The route page's windows: it has no month view. */
+const ROUTE_WINDOWS: readonly RangeWindow[] = ["day", "week"];
 
 /**
- * Full headsign label for a direction chip, taken from the busiest variant.
- * AT capitalises the connectives in some headsigns ("New Lynn To Lincoln Rd Via
- * Henderson") and not in others, so a mid-string "To" or "Via" is lowered to
- * keep the two chips of one route reading alike.
+ * A direction chip's label, from the busiest variant's headsign read the way
+ * every trip row reads one ({@link boundFor}): origin dropped, shouting undone,
+ * "To Lincoln Rd via Henderson".
  * @param variants - The direction's variants.
  * @param dirId - The direction id (for the fallback label).
- * @returns The headsign, or `Direction N` when none is available.
+ * @param mode - The route's mode; a train's platform numbers are dropped.
+ * @returns The label, or `Direction N` when no headsign names a place.
  */
-function directionLabel(variants: RouteVariant[], dirId: number): string {
+function directionLabel(variants: RouteVariant[], dirId: number, mode: string): string {
   const busiest = variants.reduce<RouteVariant | undefined>(
     (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
     undefined,
   );
-  const label = busiest?.headsign?.replace(/ (To|Via) /g, (m) => m.toLowerCase());
-  return label || `Direction ${dirId + 1}`;
-}
-
-/**
- * Route URL with an optional `?dir`, preserving the base params (day/threshold).
- * @param slug - The route slug.
- * @param base - Params to keep (day, threshold).
- * @param dir - The direction id, or null for "both".
- * @returns The href.
- */
-function routeDirHref(slug: string, base: URLSearchParams, dir: number | null): string {
-  const p = new URLSearchParams(base);
-  if (dir != null) p.set("dir", String(dir));
-  const qs = p.toString();
-  return `/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`;
-}
-
-/**
- * Prev/next week stepper for the route week view. Omits a chevron when the
- * corresponding href is null (at the edge of the data range).
- * @param props - Component props.
- * @param props.label - Human label for the active period.
- * @param props.prevHref - Previous-week link, or null when unavailable.
- * @param props.nextHref - Next-week link, or null when already at the present.
- * @returns The stepper element.
- */
-function RouteWeekNav({
-  label,
-  prevHref,
-  nextHref,
-}: {
-  label: string;
-  prevHref: string | null;
-  nextHref: string | null;
-}): JSX.Element {
-  return (
-    // Week steps prefetch in full for the reason DayNav's do, and an absent one
-    // leaves a `.step-slot` so the present week does not shift the row.
-    <div className="flex items-center gap-1">
-      {prevHref ? (
-        <Link
-          href={prevHref}
-          prefetch
-          aria-label="Previous week"
-          className="chip chip-icon chip-off"
-        >
-          <StepPending>
-            <ChevronLeft className="block h-4 w-4" />
-          </StepPending>
-        </Link>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
-      <span className="px-1 text-sm font-semibold tabular-nums">{label}</span>
-      {nextHref ? (
-        <Link href={nextHref} prefetch aria-label="Next week" className="chip chip-icon chip-off">
-          <StepPending>
-            <ChevronRight className="block h-4 w-4" />
-          </StepPending>
-        </Link>
-      ) : (
-        <span className="step-slot" aria-hidden />
-      )}
-    </div>
-  );
-}
-
-/**
- * Day / Week toggle using `chip chip-on` / `chip chip-off` box classes. Each
- * side keeps the direction and stays on the period being looked at: a past day's
- * Week opens that day's calendar week, and a stepped-back week's Day opens its Monday.
- *
- * The active side is a `<span>`, not a link, as the nav tabs and the shame
- * header are: its query is built for a fresh view and leaves out the trip
- * board's sort and page, so clicking the chip already highlighted threw away
- * where the reader was on the board and gave nothing back.
- * @param props - Component props.
- * @param props.slug - Route slug (for hrefs).
- * @param props.isWeekView - Whether the week segment is active.
- * @param props.dayQuery - Query for the Day side.
- * @param props.weekQuery - Query for the Week side.
- * @returns The toggle element.
- */
-function ViewToggle({
-  slug,
-  isWeekView,
-  dayQuery,
-  weekQuery,
-}: {
-  slug: string;
-  isWeekView: boolean;
-  dayQuery: Record<string, string | undefined>;
-  weekQuery: Record<string, string | undefined>;
-}): JSX.Element {
-  const base = `/route/${encodeURIComponent(slug)}`;
-  return (
-    <div className="flex items-center gap-1">
-      {isWeekView ? (
-        <Link href={buildHref(base, dayQuery)} scroll={false} className="chip chip-off">
-          Day
-        </Link>
-      ) : (
-        <span aria-current="page" className="chip chip-on">
-          Day
-        </span>
-      )}
-      {isWeekView ? (
-        <span aria-current="page" className="chip chip-on">
-          Week
-        </span>
-      ) : (
-        <Link
-          href={buildHref(base, { window: "week", ...weekQuery })}
-          scroll={false}
-          className="chip chip-off"
-        >
-          Week
-        </Link>
-      )}
-    </div>
-  );
+  const bound = boundFor(busiest?.headsign, mode);
+  return bound ? sentenceStart(bound) : `Direction ${dirId + 1}`;
 }
 
 /**
@@ -336,22 +230,23 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StatsSearchParams>;
 }): Promise<Metadata> {
-  const { id } = await params;
-  const slug = routeSlug(id);
-  const card = parseRouteCard(id, (await searchParams) ?? {});
+  const { id: slug } = await params;
+  const card = parseRouteCard(slug, (await searchParams) ?? {});
   // The line's own two fields, not a summary of its week: a title names the
   // route, and reading it this way keeps the head clear of both the aggregation
   // and the clock a default window would need.
-  const route = await getRouteLabel(slug).catch(readFallback("route-label", null));
-  const name = route ? lineName(route.mode, route.shortName) : null;
-  const label = route?.shortName ?? slug;
-  const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
+  // Undefined when the read failed, which is an outage rather than a missing route.
+  const route = await getRouteLabel(slug).catch(readFallback("route-label", undefined));
+  if (route === null) return { title: "Route not found" };
+  const name = route ? routeSubtitle({ ...route, slug }) : null;
+  const label = route ? routeDisplayName({ ...route, slug }) : slug;
+  const title = route ? (name ? `${label} · ${name}` : label) : `Route ${slug}`;
   const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
-  return {
+  return pageMetadata({
     title,
     description,
-    ...cardMetadata(`${title}${cardWhenSuffix(card)}`, description, cardPath(card)),
-  };
+    card: { title: `${title}${cardWhenSuffix(card)}`, path: cardPath(card) },
+  });
 }
 
 /**
@@ -370,51 +265,33 @@ export default async function RoutePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StatsSearchParams>;
 }): Promise<JSX.Element> {
-  const { id } = await params;
+  const { id: slug } = await params;
   const sp = (await searchParams) ?? {};
-  // Any window but the day means the week view: this page has no month, so a
-  // `window=month` link kept from before routeLinkQuery mapped it - or typed by
-  // hand - lands on a period view that names its own range rather than silently
-  // showing today. Its `?period` is a month key, which the week parse rejects,
-  // so it falls back to the rolling last 7 days.
-  const isWeekView = sp.window !== undefined && sp.window !== "day";
-
-  // URLs use the version-stripped slug ("501", not "501-217"). next.config.ts
-  // answers old links with a real 308 before this renders; this stays as the backstop.
-  const slug = routeSlug(id);
-  if (id !== slug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`);
-  }
+  // The page has a day and a week view; any other window reads as the day.
+  const isWeekView = sp.window === "week";
 
   // Case-insensitive lookup: /route/nx1 > /route/NX1; unknown slug > 404.
   const canonSlug = await findCanonicalRouteSlug(slug);
   if (canonSlug === null) notFound();
-  if (canonSlug !== slug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(canonSlug)}${qs ? `?${qs}` : ""}`);
-  }
+  if (canonSlug !== slug) redirectKeepingQuery(routeHref(canonSlug), sp);
 
   // A train line retired by the CRL rename keeps its Route row, so /route/STH
   // resolves rather than 404s; send it to the line that replaced it, which reads
   // both lines' history. Only redirects once the successor has carried traffic.
   // next.config.ts sends the exact retired slugs first; this catches other cases (/route/sth).
   const successorSlug = await findSuccessorRouteSlug(slug);
-  if (successorSlug) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/route/${encodeURIComponent(successorSlug)}${qs ? `?${qs}` : ""}`);
-  }
+  if (successorSlug) redirectKeepingQuery(routeHref(successorSlug), sp);
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
-  const today = await requestServiceDay();
-  clampDayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
-  dropTodayParam(`/route/${encodeURIComponent(slug)}`, sp, today);
-  const parsed = routeStatsQuery.safeParse(sp);
-  const thresholdSec = (parsed.success ? parsed.data : routeStatsQuery.parse({})).thresholdSec;
-  const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
-    ? (sp.tsort as TripSort)
-    : "off";
+  const now = await requestNow();
+  const today = nzServiceDayString(now);
+  const routePath = routeHref(slug);
+  if (!isWeekView) {
+    clampDayParam(routePath, sp, today);
+    dropTodayParam(routePath, sp, today);
+  }
+  const tripSort = parseTripSort(sp.tsort);
   const isReversed = sp.trev === "1";
   const hours = parseHourRange(sp.hours);
   // Re-derived rather than passed through, so an unreadable `hours` param drops
@@ -431,16 +308,13 @@ export default async function RoutePage({
     routeId: slug,
     from: range.start,
     to: range.end,
-    thresholdSec,
     hours,
   });
   const { route, summary, byStop } = stats;
   // Started here and awaited at the header, so it never holds up the stats.
-  const operatorsP = Promise.all([
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
-  ]);
+  const operatorsP = getOperatorDirectory();
   const routeMode = route?.mode ?? "BUS";
+  const school = isSchoolBus(route?.shortName, route?.longName);
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
     early_pct: summary?.early_pct ?? null,
@@ -456,8 +330,12 @@ export default async function RoutePage({
   // Week view period: an explicit ?period snaps to that week's seven service
   // days; the rolling default (no param) covers the last seven, today included.
   const periodParam = isWeekView ? resolveRequestedDay(sp.period) : null;
-  const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  const weekPeriodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
+  const { range: weekRange, label: weekPeriodLabel } = resolveRange(
+    "week",
+    periodParam ?? undefined,
+    now,
+  );
+  const weekFigureNote = periodParam ? weekPeriodLabel : "last 7 days";
 
   // Start the live AT calls without blocking the shell. They feed only the alert
   // banner, the diagram's alerted-stop highlights, and the trip board's LIVE
@@ -475,7 +353,7 @@ export default async function RoutePage({
       ? Promise.resolve<LiveVehicle[]>([])
       : getLiveVehicles().catch(() => []);
   // Narrowed to this route and handed to the board unresolved: the rows, the
-  // sort chips and the pager are all already in hand, so only the LIVE badges
+  // sort chips and the show-more link are all already in hand, so only the LIVE badges
   // wait on AT. `vehiclesPromise` already swallows its own failure, so this
   // cannot reject.
   const liveTripIdsPromise = vehiclesPromise.then(
@@ -492,11 +370,10 @@ export default async function RoutePage({
   const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds, tripWaits] =
     await Promise.all([
       isWeekView
-        ? Promise.resolve([] as Awaited<ReturnType<typeof getWorstTripsOfDay>>)
-        : getWorstTripsOfDay({
+        ? Promise.resolve([] as Awaited<ReturnType<typeof getRouteTripStats>>)
+        : getRouteTripStats({
             routeId: slug,
             range,
-            thresholdSec,
             sort: tripSort,
             limit: TRIPS_FETCH_CAP,
           }),
@@ -504,7 +381,7 @@ export default async function RoutePage({
       getEarliestDataDay(1),
       // Rolling default covers the last seven service days, today included;
       // a fixed period uses its week, Monday 4am to Monday 4am.
-      getRouteDailyStats(slug, fixedWeekRange?.start, fixedWeekRange?.end),
+      getRouteDailyStats(slug, weekRange.start, weekRange.end),
       isWeekView
         ? Promise.resolve([] as Awaited<ReturnType<typeof getCancelledTrips>>)
         : getCancelledTrips(slug, range),
@@ -514,32 +391,15 @@ export default async function RoutePage({
         : getTripRiderWait(range),
     ]);
 
-  // Week stepper navigation - computed after earliestDay is available.
-  let weekPrevHref: string | null = null;
-  let weekNextHref: string | null = null;
-  if (isWeekView) {
-    /**
-     * Build a week link for this route, preserving the week window and direction.
-     * @param period - The week period, or null for the rolling current week.
-     * @returns The route week href.
-     */
-    const weekHref = (period: string | null): string =>
-      buildHref(`/route/${encodeURIComponent(slug)}`, {
-        window: "week",
-        period: period ?? undefined,
-        dir: sp.dir != null && /^\d+$/.test(sp.dir) ? sp.dir : undefined,
-      });
-    ({ prevHref: weekPrevHref, nextHref: weekNextHref } = resolveWeekNav({
-      periodParam,
-      earliestDay,
-      makeHref: weekHref,
-    }));
-  }
-
   const dayNav = dayRangeNav(shown, earliestDay, today);
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  // The window controls: the day stepper, or the week stepper built as every
+  // range page builds it. Their links carry the rest of the query from the URL.
+  const rangeNav = isWeekView
+    ? periodRangeNav(routePath, "week", sp.period, now, earliestDay, today).nav
+    : dayNav;
+  const linkDay = dayLinkParam(serviceDate, today);
   // A stop opens on the day shown; /stop has no week view, so the week view's stop links carry none.
-  const stopQuery = linkDay ? `?day=${linkDay}` : "";
+  const stopDay = linkDay;
 
   // Direction entries sorted by id. Carrying the direction alongside its id
   // means the active direction's variants are looked up once, below, rather
@@ -548,19 +408,18 @@ export default async function RoutePage({
     .map(([d, dir]): [number, { variants: RouteVariant[] }] => [Number(d), dir])
     .sort(([a], [b]) => a - b);
   const dirKeys = dirEntries.map(([d]) => d);
-  const requestedDir = sp.dir != null && /^\d+$/.test(sp.dir) ? Number(sp.dir) : null;
-  // An unknown ?dir falls back to the unfiltered "both" view.
+  const requestedDir = sp.heading != null && /^\d+$/.test(sp.heading) ? Number(sp.heading) : null;
+  // An unknown ?heading falls back to the unfiltered "both" view.
   const activeEntry =
     requestedDir == null ? null : (dirEntries.find(([d]) => d === requestedDir) ?? null);
   const activeDir = activeEntry?.[0] ?? null;
   const activeVariants = activeEntry?.[1].variants ?? null;
 
-  // How this page is being read: the direction, threshold and trip sort. The day
+  // How this page is being read: the direction, hours and trip sort. The day
   // stepper keeps the whole set; the direction chips and the trips board each
   // drop the one param they set themselves, so the three cannot drift apart.
   const viewParams: Record<string, string> = {
-    ...(activeDir != null ? { dir: String(activeDir) } : {}),
-    ...(sp.thresholdSec ? { thresholdSec: sp.thresholdSec } : {}),
+    ...(activeDir != null ? { heading: String(activeDir) } : {}),
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
     ...(hoursParam ? { hours: hoursParam } : {}),
@@ -569,14 +428,9 @@ export default async function RoutePage({
     sp,
     STOP_COLUMNS,
     "arrivals",
-    (p) => buildHref(`/route/${encodeURIComponent(slug)}`, { ...viewParams, day: linkDay, ...p }),
+    (p) => buildHref(routePath, { ...viewParams, day: linkDay, ...p }),
     STOP_SORT,
   );
-  // Stepping onto today drops `?day` so the URL stays canonical, but that link
-  // must still carry the filters.
-  const nextDayHref = dayNav.nextIsToday
-    ? buildHref(`/route/${encodeURIComponent(slug)}`, viewParams)
-    : undefined;
   // The chosen direction's GTFS ids: its own plus any merged into it, so a
   // shape or vehicle filed under an alias id stays with its direction.
   const activeDirIds =
@@ -612,7 +466,7 @@ export default async function RoutePage({
     Object.entries(tripWaits).map(([tripId, p]) => [tripId, p.waitSec]),
   );
 
-  // Week view: use neutral stop coloring (no day-specific delay data on the map).
+  // Week view: use neutral stop colouring (no day-specific delay data on the map).
   const weekMapStops = mapStops.map((s) => ({ ...s, avg_delay_sec: null, on_time_pct: null }));
   const weekSummary = aggregateWeek(weekDays);
   const weekPunctuality: PunctualityBreakdown = {
@@ -626,31 +480,26 @@ export default async function RoutePage({
     cancellations: "counted",
   };
 
-  // The chips set `dir` themselves, so everything else about the view carries.
-  const dirBase = new URLSearchParams();
-  if (isWeekView) {
-    dirBase.set("window", "week");
-    if (periodParam) dirBase.set("period", periodParam);
-  } else if (requestedDay) dirBase.set("day", requestedDay);
-  for (const [k, v] of Object.entries(viewParams)) if (k !== "dir") dirBase.set(k, v);
-
-  // The time chips set `hours` themselves, so everything else about the view
-  // carries - the same trick the direction chips use with `dir`.
-  const hoursBase = new URLSearchParams(dirBase);
-  hoursBase.delete("hours");
-  if (activeDir != null) hoursBase.set("dir", String(activeDir));
+  // The direction and time chips each set their own param over the rest of the
+  // view, so a chip changes one thing and carries everything else.
+  const viewBase: LinkQuery = {
+    ...(isWeekView ? { window: "week", period: periodParam } : { day: requestedDay }),
+    ...viewParams,
+  };
+  /**
+   * Link to this view in a different direction.
+   * @param dir - The direction id, or null for both.
+   * @returns The href.
+   */
+  const dirHref = (dir: number | null): string =>
+    buildHref(routePath, { ...viewBase, heading: dir == null ? undefined : String(dir) });
   /**
    * Link to this view with a different part of the day.
    * @param range - The range, or null for all day.
    * @returns The href.
    */
-  const hoursHref = (range: HourRange | null): string => {
-    const p = new URLSearchParams(hoursBase);
-    const value = hourRangeParam(range);
-    if (value) p.set("hours", value);
-    const qs = p.toString();
-    return `/route/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`;
-  };
+  const hoursHref = (range: HourRange | null): string =>
+    buildHref(routePath, { ...viewBase, hours: hourRangeParam(range) });
 
   const dirHeadsigns =
     activeVariants == null
@@ -711,13 +560,13 @@ export default async function RoutePage({
 
   const totalTrips = dirTrips.length;
   const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
-  const totalPages = Math.max(1, Math.ceil(boardRows.length / PAGE_SIZE));
-  const requestedPage = Number.parseInt(sp.tpage ?? "1", 10);
-  const tripPage = Math.min(
-    Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1),
-    totalPages,
-  );
-  const pageRows = boardRows.slice((tripPage - 1) * PAGE_SIZE, tripPage * PAGE_SIZE);
+  const shownRows = boardRows.slice(0, parseShown(sp.show));
+  // The shown runs' fleet labels, so a row names a vehicle as its own page does.
+  const fleet = await getFleet([
+    ...new Set(
+      shownRows.flatMap((r) => (r.kind === "run" && r.trip.vehicle_id ? [r.trip.vehicle_id] : [])),
+    ),
+  ]).catch(readFallback("route-fleet", new Map<string, FleetVehicle>()));
 
   // The board sets `tsort` itself, so everything else about the view carries.
   const tripPreserved: Record<string, string> = {
@@ -725,102 +574,60 @@ export default async function RoutePage({
   };
   for (const [k, v] of Object.entries(viewParams)) if (k !== "tsort") tripPreserved[k] = v;
 
-  const title = route?.shortName ?? slug;
-  // AT sets every train route's long name to its bare code ("STH", "S-C"), so
-  // the published line name is the only readable label the header can show.
-  const subtitle = route ? (lineName(route.mode, route.shortName) ?? route.longName) : null;
+  const title = route ? routeDisplayName({ ...route, slug }) : slug;
+  const subtitle = route ? routeSubtitle({ ...route, slug }) : null;
   const [operators, directory] = await operatorsP;
   const operator = operatorOf(operators[slug], directory);
 
   return (
     <main className="space-y-6">
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2.5 text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">
-              {route && (
-                <ModeIcon
-                  mode={route.mode}
-                  shortName={route.shortName}
-                  longName={route.longName}
-                  colour={route.colour}
-                  className="h-6 w-6"
-                />
-              )}
-              {title}
-            </h1>
-            {subtitle && subtitle !== title && (
-              <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
-            )}
-            {operator && (
-              <p className="mt-0.5 text-sm text-at-muted">
-                Run by{" "}
-                <Link
-                  href={buildHref(
-                    operatorHref(operator),
-                    isWeekView
-                      ? { window: "week", period: periodParam ?? undefined }
-                      : { day: requestedDay ?? undefined },
-                  )}
-                  className="text-at-shore hover:underline"
-                >
-                  {operator.name}
-                </Link>
-              </p>
-            )}
-            <p className="mt-0.5 text-sm">
+      <div className="flex flex-col gap-3">
+        <PageHeader
+          title={title}
+          icon={
+            route && (
+              <ModeIcon
+                mode={route.mode}
+                shortName={route.shortName}
+                longName={route.longName}
+                className="h-7 w-7"
+              />
+            )
+          }
+          subtitle={subtitle !== title ? subtitle : undefined}
+          actions={<RangeControls basePath={routePath} nav={rangeNav} windows={ROUTE_WINDOWS} />}
+        >
+          {operator && (
+            <p className="mt-0.5 text-sm text-at-muted">
+              Run by{" "}
               <Link
-                href={buildHref("/compare", {
-                  kind: "routes",
-                  ids: slug,
-                  ...(isWeekView
+                href={buildHref(
+                  operatorHref(operator),
+                  isWeekView
                     ? { window: "week", period: periodParam ?? undefined }
-                    : { day: requestedDay ?? undefined }),
-                })}
-                className="text-at-shore hover:underline"
+                    : { day: requestedDay ?? undefined },
+                )}
+                className="at-link"
               >
-                Compare with other routes
+                {operator.name}
               </Link>
             </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <ViewToggle
-              slug={slug}
-              isWeekView={isWeekView}
-              dayQuery={{
-                day: (isWeekView ? periodParam : requestedDay) ?? undefined,
-                dir: activeDir == null ? undefined : String(activeDir),
-                thresholdSec: sp.thresholdSec,
-                hours: hoursParam,
-              }}
-              weekQuery={{
-                period: (isWeekView ? periodParam : weekPeriodOf(serviceDate)) ?? undefined,
-                dir: activeDir == null ? undefined : String(activeDir),
-                thresholdSec: sp.thresholdSec,
-                hours: hoursParam,
-              }}
-            />
-            {isWeekView ? (
-              <RouteWeekNav
-                label={weekPeriodLabel}
-                prevHref={weekPrevHref}
-                nextHref={weekNextHref}
-              />
-            ) : (
-              <DayNav
-                basePath={`/route/${encodeURIComponent(slug)}`}
-                serviceDate={serviceDate}
-                preservedParams={viewParams}
-                hasPrev={dayNav.hasPrev}
-                atFloor={dayNav.atFloor}
-                hasNext={dayNav.hasNext}
-                nextHref={nextDayHref}
-                nextPending={dayNav.nextPending}
-                calendar={dayNav.calendar}
-              />
-            )}
-          </div>
-        </div>
+          )}
+          <p className="mt-0.5 text-sm">
+            <Link
+              href={buildHref("/compare", {
+                kind: "routes",
+                ids: slug,
+                ...(isWeekView
+                  ? { window: "week", period: periodParam ?? undefined }
+                  : { day: requestedDay ?? undefined }),
+              })}
+              className="at-link"
+            >
+              Compare with other routes
+            </Link>
+          </p>
+        </PageHeader>
         {/* An outage reads as a route with no schedule otherwise: the chips and
             the diagram simply would not be there, with nothing to say why. */}
         {view.patternFailed && (
@@ -834,13 +641,11 @@ export default async function RoutePage({
             dirKeys={dirKeys}
             activeDir={activeDir}
             labels={Object.fromEntries(
-              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d)]),
+              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d, routeMode)]),
             )}
             hrefs={{
-              both: routeDirHref(slug, dirBase, null),
-              ...Object.fromEntries(
-                dirKeys.map((d) => [String(d), routeDirHref(slug, dirBase, d)]),
-              ),
+              both: dirHref(null),
+              ...Object.fromEntries(dirKeys.map((d) => [String(d), dirHref(d)])),
             }}
           />
         )}
@@ -851,22 +656,18 @@ export default async function RoutePage({
             ...Object.fromEntries(TIME_PRESETS.map((p) => [p.key, hoursHref(p.range)])),
           }}
         />
-      </header>
+      </div>
 
       <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} live={isLiveView} />
 
       {isWeekView ? (
         <>
           {/* Week stats summary */}
-          <section className="border border-at-border bg-at-surface">
+          <Panel>
             <div className="grid grid-cols-2 sm:grid-cols-3">
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">
-                  {weekSummary?.events ?? 0}
-                </p>
-                <p className="mt-0.5 text-xs text-at-muted">{weekPeriodLabel.toLowerCase()}</p>
-              </div>
+              <StatCell label="Arrivals" note={weekFigureNote}>
+                {formatCount(weekSummary?.events ?? 0)}
+              </StatCell>
               <PunctualityStat
                 bare
                 variant="average"
@@ -882,15 +683,11 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={
-                  weekSummary?.on_time_pct == null
-                    ? UNKNOWN_VALUE
-                    : `${weekSummary.on_time_pct.toFixed(1)}%`
-                }
+                value={formatPct(weekSummary?.on_time_pct)}
                 breakdown={weekPunctuality}
               />
             </div>
-          </section>
+          </Panel>
 
           {/* The week figures come from per-route daily summaries, which split by
               neither direction nor part of day, so say so rather than imply they
@@ -911,22 +708,23 @@ export default async function RoutePage({
             mode={routeMode}
             label={weekPeriodLabel}
             dayHref={(date) =>
-              buildHref(`/route/${encodeURIComponent(slug)}`, {
-                day: date === today ? undefined : date,
-                dir: activeDir == null ? undefined : String(activeDir),
+              buildHref(routePath, {
+                day: dayLinkParam(date, today),
+                heading: activeDir == null ? undefined : String(activeDir),
               })
             }
           />
 
-          {/* Map and diagram with neutral stop coloring in week mode */}
+          {/* Map and diagram with neutral stop colouring in week mode */}
           <RouteMapDiagram
             stops={weekMapStops}
             routeLines={mapLines}
             routeId={slug}
             live={isLiveView}
             mode={routeMode}
+            school={school}
+            colour={route?.colour ?? null}
             filterDirectionIds={activeDirIds ?? undefined}
-            stopQuery=""
           />
           {/* Hidden rather than empty when the pattern failed to load: the
               diagram's own empty state reads "no stopping pattern yet", which
@@ -942,7 +740,6 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
-                stopQuery=""
               />
             </Suspense>
           )}
@@ -950,18 +747,10 @@ export default async function RoutePage({
       ) : (
         <>
           {/* Day stats summary */}
-          <section className="border border-at-border bg-at-surface">
+          <Panel>
             <div className="grid grid-cols-2 sm:grid-cols-4">
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">
-                  {summary?.events ?? 0}
-                </p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs tracking-zero text-at-muted uppercase">Trips</p>
-                <p className="text-2xl font-ultra tracking-zero tabular-nums">{totalTrips}</p>
-              </div>
+              <StatCell label="Arrivals">{formatCount(summary?.events ?? 0)}</StatCell>
+              <StatCell label="Trips">{formatCount(totalTrips)}</StatCell>
               <PunctualityStat
                 bare
                 variant="average"
@@ -977,11 +766,7 @@ export default async function RoutePage({
                 bare
                 variant="split"
                 label="On time"
-                value={
-                  summary?.on_time_pct == null
-                    ? UNKNOWN_VALUE
-                    : `${summary.on_time_pct.toFixed(1)}%`
-                }
+                value={formatPct(summary?.on_time_pct)}
                 breakdown={punctuality}
               />
             </div>
@@ -989,13 +774,13 @@ export default async function RoutePage({
                 one absence told two ways. Named here so a quiet day, a day the
                 filters emptied and a day with no data read differently. */}
             {summary === null && (
-              <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
-                No arrivals were recorded for this route
+              <EmptyState inset className="border-t border-at-border px-4 py-3">
+                No arrivals recorded for this route
                 {hours != null ? " in this part of the day" : " on this day"}, so there is nothing
                 to average.
-              </p>
+              </EmptyState>
             )}
-          </section>
+          </Panel>
 
           {/* What the direction chips do not reach. Both figures come from one
               getRouteStats call, which takes no direction at all, so "Trips"
@@ -1003,8 +788,8 @@ export default async function RoutePage({
               "On time" describe both. */}
           {activeDir != null && (
             <p className="text-xs text-at-muted">
-              Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map
-              and the diagram pick out this one.
+              Arrivals, Avg off by and On time cover both directions; Trips, the trips below, the
+              map and the diagram pick out this one.
             </p>
           )}
 
@@ -1013,19 +798,19 @@ export default async function RoutePage({
               liveTripIds={liveTripIdsPromise}
               routeId={slug}
               serviceDate={serviceDate}
-              rows={pageRows}
+              rows={shownRows}
+              total={boardRows.length}
               sort={tripSort}
               isReversed={isReversed}
               mode={routeMode}
-              basePath={`/route/${encodeURIComponent(slug)}`}
+              basePath={routePath}
               preservedParams={tripPreserved}
-              page={tripPage}
-              totalPages={totalPages}
               detouredTripIds={new Set(detouredTripIds)}
+              fleet={fleet}
             />
             {tripsCapped && (
               <p className="text-xs text-at-muted lg:col-span-2">
-                Showing the first {TRIPS_FETCH_CAP} runs of the day.
+                Showing the first {TRIPS_FETCH_CAP} trips of the day.
               </p>
             )}
             <RouteMapDiagram
@@ -1034,8 +819,10 @@ export default async function RoutePage({
               routeId={slug}
               live={isLiveView}
               mode={routeMode}
+              school={school}
+              colour={route?.colour ?? null}
               filterDirectionIds={activeDirIds ?? undefined}
-              stopQuery={stopQuery}
+              stopDay={stopDay}
             />
           </div>
 
@@ -1051,82 +838,81 @@ export default async function RoutePage({
                 mode={routeMode}
                 colour={route?.colour ?? null}
                 activeDir={activeDir}
-                stopQuery={stopQuery}
+                stopDay={stopDay}
               />
             </Suspense>
           )}
 
-          {byStop.length === 0 ? (
-            <section className="border border-at-border bg-at-surface px-4 py-3">
-              <h2 className="font-semibold">Stops</h2>
-              <p className="mt-1 text-sm text-at-muted">
-                No stop-level arrivals recorded for this route on this day.
-              </p>
-            </section>
-          ) : (
-            // Opened by a sort, which reloads the page and would otherwise fold
-            // the table the reader just sorted away.
-            <details
-              className="border border-at-border bg-at-surface"
-              open={sp.ssort !== undefined || sp.srev !== undefined}
-            >
-              {/* The heading goes inside the summary, which `summary` allows: as
-                  bare text it was the one section on the page with no heading in
-                  the outline, and only in the state that has something to say. */}
-              <summary className="cursor-pointer px-4 py-3">
-                <h2 className="inline font-semibold">Stops</h2>
-              </summary>
-              <div className="overflow-x-auto px-4 pb-4">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-at-shore-pale text-at-muted">
-                    <tr>
-                      <SortHeader {...stopSort.head("stop")} align="left" className="px-3 py-2">
+          <section aria-labelledby="route-stops" className="space-y-3">
+            <SectionHeading id="route-stops">Stops</SectionHeading>
+            {byStop.length === 0 ? (
+              <EmptyState>No stop-level arrivals recorded for this route on this day.</EmptyState>
+            ) : (
+              // Opened by a sort, which reloads the page and would otherwise fold
+              // the table the reader just sorted away. The heading sits outside
+              // the summary, which is a button to assistive tech and drops any
+              // heading inside it from the outline.
+              <details
+                className="group at-card"
+                open={sp.ssort !== undefined || sp.srev !== undefined}
+              >
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-at-shore select-none">
+                  {plural(byStop.length, "stop")} with arrivals
+                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <DataTable
+                  caption="Arrivals and delay at each stop"
+                  framed={false}
+                  className="border-t border-at-border"
+                >
+                  <thead>
+                    <tr className="at-th-row">
+                      <SortHeader {...stopSort.head("stop")} align="left">
                         Stop
                       </SortHeader>
-                      <SortHeader {...stopSort.head("arrivals")} className="px-3 py-2">
-                        Arrivals
-                      </SortHeader>
-                      <SortHeader {...stopSort.head("late")} className="px-3 py-2">
-                        Early or late
-                      </SortHeader>
+                      <SortHeader {...stopSort.head("arrivals")}>Arrivals</SortHeader>
+                      <SortHeader {...stopSort.head("delay")}>Early or late</SortHeader>
                     </tr>
                   </thead>
                   <tbody>
                     {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
-                      <tr
-                        key={s.stop_id}
-                        className="border-t border-at-border hover:bg-at-shore-pale"
-                      >
-                        <td className="px-3 py-2">
+                      <tr key={s.stop_id} className={ROW_CLASS}>
+                        <th scope="row" className={cn(CELL_CLASS, "text-left font-normal")}>
                           <Link
-                            href={`/stop/${encodeURIComponent(s.stop_id)}${stopQuery}`}
-                            className="font-semibold text-at-shore hover:underline"
+                            href={stopHref(s.stop_id, { day: stopDay })}
+                            className="at-link font-semibold"
                           >
                             {s.name}
                           </Link>
+                        </th>
+                        <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                          {formatCount(s.events)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{s.events}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {offScheduleValue(s.avg_delay_sec, null, routeMode).text}
+                        <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
+                          <OffScheduleValue
+                            signedSec={s.avg_delay_sec}
+                            absSec={null}
+                            mode={routeMode}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </DataTable>
                 {/* These rows and the strip above them are computed over
                     different populations: applyPenalty adds a visit per missed
                     stop to the strip's Arrivals, and no per-stop row takes a
                     share of it, so the column genuinely does not add up to the
                     figure above. Only worth saying when a penalty was applied. */}
                 {punctuality.cancellations === "counted" && (
-                  <p className="mt-2 text-xs text-at-muted">
+                  <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
                     Stop rows count measured arrivals only, so on a day with cancellations they add
                     up to less than Arrivals above, which counts each missed stop as a rider wait.
                   </p>
                 )}
-              </div>
-            </details>
-          )}
+              </details>
+            )}
+          </section>
         </>
       )}
     </main>
@@ -1194,7 +980,7 @@ async function RouteAlertBannerSection({
  * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
- * @param root0.stopQuery - Query each stop's link carries.
+ * @param root0.stopDay - The day each stop's link opens on.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
@@ -1206,7 +992,7 @@ async function RouteDiagramSection({
   colour,
   activeDir,
   live,
-  stopQuery,
+  stopDay,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
@@ -1216,7 +1002,7 @@ async function RouteDiagramSection({
   colour: string | null;
   activeDir: number | null;
   live: boolean;
-  stopQuery: string;
+  stopDay?: string;
 }): Promise<JSX.Element> {
   const strip = buildStrip({
     directions: view.directions,
@@ -1278,7 +1064,7 @@ async function RouteDiagramSection({
       side={side}
       alertRows={alertRows}
       marks={marks}
-      stopQuery={stopQuery}
+      stopDay={stopDay}
     />
   );
 }

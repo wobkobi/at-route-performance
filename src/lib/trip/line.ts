@@ -3,6 +3,7 @@
 // vehicle was recorded at that the timetable does not list placed where it came
 // in time, and each stop and leg given the state the drawing needs. Pure, so the
 // placement rules are tested without a page.
+import { pushTo } from "@/lib/collections";
 import type { ScheduledStop } from "@/lib/data/trips";
 import type { CancellationStage } from "@/lib/trip/cancellation";
 import type { TripStop } from "@/types/api";
@@ -151,7 +152,7 @@ export function buildTripLine(input: TripLineInput): TripLine {
   for (const x of extras) {
     let slot = -1;
     for (const i of recordedIdx) if (at(timetabled[i]!.rec!) <= at(x)) slot = i;
-    after.set(slot, [...(after.get(slot) ?? []), x]);
+    pushTo(after, slot, x);
   }
 
   const stops: LineStop[] = [...(after.get(-1) ?? []).map(offStop)];

@@ -5,40 +5,26 @@
 // or filter a card describes. Pure and unit-tested; the rendering and the data
 // reads live in the route handler.
 import { SITE_NAME } from "@/lib/copy";
+import { MODE_NOUN, parseMode, type Mode } from "@/lib/mode";
+import { pickParams, SECTION_PARAMS, VIEW_PARAMS } from "@/lib/page/filter-params";
 import { resolveRequestedDay, resolveRequestedMonth } from "@/lib/page/nav";
 import { parseRangeWindow, type RangeWindow } from "@/lib/page/range";
 import { routeSlug } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
-import { nzServiceDayString, serviceDayLabel } from "@/lib/time/service-day";
+import {
+  dayRangeLabel,
+  monthLabel,
+  nzServiceDayString,
+  parseInstantParam,
+  serviceDayLabel,
+  shiftDays,
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 
 /** Card canvas: the 1.91:1 Slack, Discord, X and LinkedIn all accept. */
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
-
-/** The modes a card can be filtered to. */
-const MODES = ["BUS", "TRAIN", "FERRY"] as const;
-export type CardMode = (typeof MODES)[number];
-
-/** Plural nouns for the eyebrow's filter. */
-const MODE_NOUNS: Record<CardMode, string> = { BUS: "Buses", TRAIN: "Trains", FERRY: "Ferries" };
-
-/** Month names for a `YYYY-MM` period. */
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 /** Longest id a card URL carries; anything longer is not a real route, trip or stop. */
 const ID_MAX = 96;
@@ -52,15 +38,6 @@ function cleanId(v: string | null | undefined): string | null {
   return v && v.length <= ID_MAX ? v : null;
 }
 
-/**
- * A mode param, or null for every mode.
- * @param v - The raw value.
- * @returns The mode, or null.
- */
-function parseMode(v: string | undefined): CardMode | null {
-  return MODES.find((m) => m === v) ?? null;
-}
-
 /** What the home page's card describes, validated. */
 export interface HomeCard {
   window: RangeWindow;
@@ -68,7 +45,7 @@ export interface HomeCard {
   day: string | null;
   /** The requested week (its Monday) or month (`YYYY-MM`), or null for the default. */
   period: string | null;
-  mode: CardMode | null;
+  mode: Mode | null;
   schools: SchoolFilter;
 }
 
@@ -137,7 +114,7 @@ export interface ShameCard {
   window: RangeWindow;
   day: string | null;
   period: string | null;
-  mode: CardMode | null;
+  mode: Mode | null;
   schools: SchoolFilter;
 }
 
@@ -183,12 +160,12 @@ export function parseRouteCard(
  * @returns The card state.
  */
 export function parseTripCard(id: string, tripId: string, d: string | undefined): TripCard {
-  const at = d ? new Date(d) : null;
+  const at = parseInstantParam(d);
   return {
     kind: "trip",
     id: routeSlug(id),
     tripId,
-    day: at && !Number.isNaN(at.getTime()) ? nzServiceDayString(at) : null,
+    day: at ? nzServiceDayString(at) : null,
   };
 }
 
@@ -204,26 +181,14 @@ export function parseStopCard(id: string, sp: { day?: string }): StopCard {
 }
 
 /**
- * Validate a shame board's query into its card. The boards read `window` as
- * week, month or (anything else) day, as `parseShameParams` does.
+ * Validate a shame board's query into its card. The boards take the home
+ * page's window and filters, so they parse the same way.
  * @param board - Which shame board.
  * @param sp - The page's raw query.
  * @returns The card state.
  */
 export function parseShameCard(board: ShameBoard, sp: HomeCardParams): ShameCard {
-  const window: RangeWindow = sp.window === "week" || sp.window === "month" ? sp.window : "day";
-  let period: string | null = null;
-  if (window === "week") period = resolveRequestedDay(sp.period);
-  if (window === "month") period = resolveRequestedMonth(sp.period);
-  return {
-    kind: "shame",
-    board,
-    window,
-    day: window === "day" ? resolveRequestedDay(sp.day) : null,
-    period,
-    mode: parseMode(sp.mode),
-    schools: parseSchoolFilter(sp.school),
-  };
+  return { kind: "shame", board, ...parseHomeCard(sp) };
 }
 
 /**
@@ -295,13 +260,7 @@ export function homeCardPath(sp: HomeCardParams): string {
  * @returns The card state.
  */
 export function parseHomeCardQuery(query: URLSearchParams): HomeCard {
-  return parseHomeCard({
-    window: query.get("window") ?? undefined,
-    day: query.get("day") ?? undefined,
-    period: query.get("period") ?? undefined,
-    mode: query.get("mode") ?? undefined,
-    school: query.get("school") ?? undefined,
-  });
+  return parseHomeCard(pickParams(query, SECTION_PARAMS));
 }
 
 /** Shame pages a card URL may name. */
@@ -324,20 +283,14 @@ export function parseCardQuery(query: URLSearchParams): Card {
    */
   const get = (k: string): string | undefined => query.get(k) ?? undefined;
   if (kind === "route" && id) {
-    return parseRouteCard(id, { window: get("window"), day: get("day"), period: get("period") });
+    return parseRouteCard(id, pickParams(query, VIEW_PARAMS));
   }
   if (kind === "trip" && id) {
     const tripId = cleanId(query.get("trip"));
     if (tripId) return { kind: "trip", id, tripId, day: resolveRequestedDay(get("day")) };
   }
   if (kind === "stop" && id) return parseStopCard(id, { day: get("day") });
-  const windowed: HomeCardParams = {
-    window: get("window"),
-    day: get("day"),
-    period: get("period"),
-    mode: get("mode"),
-    school: get("school"),
-  };
+  const windowed: HomeCardParams = pickParams(query, SECTION_PARAMS);
   const board = SHAME_BOARDS.find((b) => b === get("board"));
   if (kind === "shame" && board) return parseShameCard(board, windowed);
   const page = get("page");
@@ -354,20 +307,20 @@ export function parseCardQuery(query: URLSearchParams): Card {
  * @param schools - Which school services are counted.
  * @returns The label, or null.
  */
-export function cardFilterLabel(mode: CardMode | null, schools: SchoolFilter): string | null {
-  const noun = mode ? MODE_NOUNS[mode] : null;
+export function cardFilterLabel(mode: Mode | null, schools: SchoolFilter): string | null {
+  const noun = mode ? MODE_NOUN[mode] : null;
   if (schools === "only") return "School buses";
   if (schools === "exclude") return noun;
   return noun ? `${noun} incl. school` : "Incl. school services";
 }
 
 /**
- * A `YYYY-MM` month as "September 2026".
- * @param ym - The month.
+ * A week's days from its Monday, as `14 to 20 Sep`.
+ * @param monday - The week's Monday as `YYYY-MM-DD`.
  * @returns The label.
  */
-export function monthLabel(ym: string): string {
-  return `${MONTHS[Number(ym.slice(5, 7)) - 1] ?? ""} ${ym.slice(0, 4)}`;
+function weekOf(monday: string): string {
+  return dayRangeLabel(monday, shiftDays(monday, 6));
 }
 
 /**
@@ -385,7 +338,7 @@ export function homeCardTitle(c: HomeCard): string {
     when = c.day ? `on ${serviceDayLabel(c.day)}` : "today";
     verb = c.day ? "was it" : "is it";
   } else if (c.window === "week") {
-    when = c.period ? `the week of ${serviceDayLabel(c.period)}` : "over the last 7 days";
+    when = c.period ? `over ${weekOf(c.period)}` : "over the last 7 days";
     verb = c.period ? "was it" : "has it been";
   } else {
     when = c.period ? `in ${monthLabel(c.period)}` : "this month";
@@ -397,7 +350,7 @@ export function homeCardTitle(c: HomeCard): string {
 /**
  * The period a card names, as a title suffix: empty for the page's own
  * default (today, a run's latest day, the current week or month), otherwise
- * ", Sun 20 Sep", ", week of Mon 14 Sep" or ", September 2026". A route's week
+ * ", Sun 20 Sep", ", 14 to 20 Sep" or ", September 2026". A route's week
  * with no period is the rolling ", last 7 days".
  * @param card - The card state.
  * @returns The suffix.
@@ -405,7 +358,7 @@ export function homeCardTitle(c: HomeCard): string {
 export function cardWhenSuffix(card: SubjectCard | ShameCard | ListCard): string {
   if (card.kind === "route" && card.window === "week" && !card.period) return ", last 7 days";
   if ("window" in card && card.window === "week") {
-    return card.period ? `, week of ${serviceDayLabel(card.period)}` : "";
+    return card.period ? `, ${weekOf(card.period)}` : "";
   }
   if ("window" in card && card.window === "month") {
     return card.period ? `, ${monthLabel(card.period)}` : "";
@@ -429,9 +382,28 @@ const SHAME_HEADS: Record<ShameBoard, string> = {
 export function listCardTitle(card: ShameCard | ListCard): string {
   const filter = cardFilterLabel(card.mode, card.schools);
   let head: string;
-  if (card.kind === "shame") head = `${SHAME_HEADS[card.board]} ${card.window}`;
+  if (card.kind === "shame") head = shameHeading(card.board, card.window);
   else head = card.page === "routes" ? "Routes" : "Cancellations";
   return `${head}${cardWhenSuffix(card)}${filter ? ` (${filter})` : ""}`;
+}
+
+/**
+ * A shame or list page's shared-link card.
+ * @param card - The card state.
+ * @returns The card's title and image path.
+ */
+export function listShareCard(card: ShameCard | ListCard): ShareCard {
+  return { title: listCardTitle(card), path: cardPath(card) };
+}
+
+/**
+ * A shame page's plain heading for its window, without the period or filter.
+ * @param board - The board.
+ * @param window - The page's window.
+ * @returns The heading, e.g. "Worst routes of the week".
+ */
+export function shameHeading(board: ShameBoard, window: RangeWindow): string {
+  return `${SHAME_HEADS[board]} ${window}`;
 }
 
 /**
@@ -446,28 +418,51 @@ export function cardCacheControl(complete: boolean): string {
     : "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
 }
 
+/** A shared link's card: its title and its `/api/og` image path. */
+export interface ShareCard {
+  title: string;
+  path: string;
+}
+
 /**
- * The Open Graph and Twitter halves of a page's metadata, pointing both at
- * one card image.
- * @param title - The shared link's title.
- * @param description - The shared link's description.
- * @param path - The card's `/api/og` path.
- * @returns The `openGraph` and `twitter` metadata.
+ * The card a page with no card of its own shares: the home page's default
+ * (today, every mode), so no link goes out without an image.
+ * @returns The default card.
  */
-export function cardMetadata(
-  title: string,
-  description: string,
-  path: string,
-): Pick<Metadata, "openGraph" | "twitter"> {
-  const image = { url: path, width: CARD_WIDTH, height: CARD_HEIGHT, alt: title };
+export function defaultShareCard(): ShareCard {
+  return { title: homeCardTitle(parseHomeCard({})), path: homeCardPath({}) };
+}
+
+/**
+ * A page's metadata: the plain tab title and description, and the Open Graph
+ * and Twitter halves pointing at one card image. The tab keeps the page's own
+ * name; the shared link takes the card's title, which may add the period and
+ * filter. A page with no card shares {@link defaultShareCard} under its own
+ * title, and the image's alt text names what the image shows.
+ * @param page - The page's metadata.
+ * @param page.title - The tab title; left out on the home page, which takes the
+ *   layout's default (a template does not reach its own segment).
+ * @param page.description - The tab and shared-link description.
+ * @param page.card - The page's own card, when it has one.
+ * @returns The metadata.
+ */
+export function pageMetadata({
+  title,
+  description,
+  card,
+}: {
+  title?: string;
+  description: string;
+  card?: ShareCard;
+}): Metadata {
+  const image = card ?? defaultShareCard();
+  const shared = card?.title ?? title ?? SITE_NAME;
+  const images = [{ url: image.path, width: CARD_WIDTH, height: CARD_HEIGHT, alt: image.title }];
   return {
-    openGraph: {
-      title,
-      description,
-      siteName: SITE_NAME,
-      type: "website",
-      images: [image],
-    },
-    twitter: { card: "summary_large_image", title, description, images: [image] },
+    // A title key set to undefined would still replace the layout's default.
+    ...(title === undefined ? {} : { title }),
+    description,
+    openGraph: { title: shared, description, siteName: SITE_NAME, type: "website", images },
+    twitter: { card: "summary_large_image", title: shared, description, images },
   };
 }

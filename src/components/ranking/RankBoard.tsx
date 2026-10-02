@@ -3,15 +3,22 @@
 
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { DotSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
 import {
+  barPct,
+  formatCount,
+  formatPct,
   OFF_SCHEDULE_BAR_CLASS,
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
-  UNKNOWN_VALUE,
 } from "@/lib/format";
-import { routeSlug } from "@/lib/route/slug";
-import type { TopRouteRow } from "@/types/api";
+import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
+import { RANK_CLASS, ROUTE_NAME_CLASS } from "@/lib/page/row";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
+import type { RouteRow } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
@@ -27,9 +34,18 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
   // A literal dash rather than `UNKNOWN_VALUE`: this one means "held its place",
   // which is a known result, not an absent figure.
   if (delta === 0)
-    return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
+    return (
+      <span className="text-xs leading-none font-semibold text-at-muted">
+        <span aria-hidden>—</span>
+        <span className="sr-only">held its place</span>
+      </span>
+    );
   if (delta === null)
-    return <span className="text-xs leading-none font-semibold text-at-muted">new</span>;
+    return (
+      <span className="text-xs leading-none font-semibold text-at-muted">
+        new<span className="sr-only"> on the board</span>
+      </span>
+    );
   const up = delta > 0;
   return (
     <span className="flex items-center text-xs leading-none font-semibold text-at-muted tabular-nums">
@@ -38,18 +54,10 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
       ) : (
         <FaCaretDown aria-hidden className="h-3 w-3 shrink-0" />
       )}
+      <span className="sr-only">{up ? "up " : "down "}</span>
       {Math.abs(delta)}
     </span>
   );
-}
-
-/**
- * CSS width for a row's magnitude bar, clamped to the track.
- * @param pct - The row's share of the column's scale, as a percentage.
- * @returns A CSS width string.
- */
-function barWidth(pct: number): string {
-  return `${Math.min(100, Math.max(0, pct))}%`;
 }
 
 /**
@@ -60,7 +68,7 @@ function barWidth(pct: number): string {
  * @param row - The ranked row.
  * @returns Seconds, or 0 when the row has no figure at all.
  */
-function rowMagnitude(row: TopRouteRow): number {
+function rowMagnitude(row: RouteRow): number {
   return Math.abs(row.avg_abs_delay_sec ?? row.avg_delay_sec ?? 0);
 }
 
@@ -73,20 +81,16 @@ function rowMagnitude(row: TopRouteRow): number {
  */
 function DelayColourKey(): JSX.Element {
   const keys = [
+    { swatch: "bg-at-ontime", label: "On time" },
     { swatch: "bg-at-late", label: "Late" },
     { swatch: "bg-at-early", label: "Early" },
-    { swatch: "bg-at-ontime", label: "Inside the window" },
     { swatch: "bg-at-ink", label: "Mixed" },
   ];
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-at-muted">
-      {keys.map((k) => (
-        <span key={k.label} className="flex items-center gap-1">
-          <span aria-hidden className={cn("size-2 rounded-full", k.swatch)} />
-          {k.label}
-        </span>
-      ))}
-    </p>
+    <SwatchKey
+      className="mt-1"
+      items={keys.map((k) => ({ swatch: <DotSwatch className={k.swatch} />, label: k.label }))}
+    />
   );
 }
 
@@ -97,7 +101,7 @@ export interface RankBoardProps {
   /** Tailwind text-colour class for the heading accent. */
   accentClass: string;
   /** Ranked rows to show. */
-  rows: TopRouteRow[];
+  rows: RouteRow[];
   /** Which metric to render on the right. */
   metric: "delay" | "onTime";
   /**
@@ -107,10 +111,10 @@ export interface RankBoardProps {
    */
   caption?: string;
   /**
-   * Query each route link carries so the route opens on the window being
-   * viewed, built by `routeLinkQuery`. Omit for the route's default view.
+   * Params each route link carries so the route opens on the window being
+   * viewed, built by `routeLinkParams`. Omit for the route's default view.
    */
-  routeQuery?: string;
+  routeParams?: LinkQuery;
   /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
   deltas?: Map<string, number | null>;
   /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
@@ -128,6 +132,8 @@ export interface RankBoardProps {
    * window recorded nothing rather than that something was not enough.
    */
   minEvents?: number;
+  /** The heading level: `h3` under a band heading (the default), `h2` where the board is a page section itself. */
+  headingLevel?: "h2" | "h3";
 }
 
 /**
@@ -142,12 +148,13 @@ export interface RankBoardProps {
  * @param props.rows - Ranked rows.
  * @param props.metric - Whether the right column is a delay or on-time %.
  * @param props.caption - One line under the heading saying what the column is (optional).
- * @param props.routeQuery - Query each route link carries, from `routeLinkQuery` (optional).
+ * @param props.routeParams - Params each route link carries, from `routeLinkParams` (optional).
  * @param props.deltas - Per-route position deltas from the previous period (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.seeAllHref - Link to the full ranking (optional).
  * @param props.total - How many routes the full ranking holds (optional).
  * @param props.minEvents - The arrivals bar a route had to clear to be ranked (optional).
+ * @param props.headingLevel - The heading level.
  * @returns The board element.
  */
 export function RankBoard({
@@ -156,12 +163,13 @@ export function RankBoard({
   rows,
   metric,
   caption,
-  routeQuery,
+  routeParams,
   deltas,
   cancelled,
   seeAllHref,
   total,
   minEvents,
+  headingLevel = "h3",
 }: RankBoardProps): JSX.Element {
   // Off-schedule bars are scaled to the worst row on this board, so the top row
   // always fills its track and the ten rows read as a shape rather than as ten
@@ -169,7 +177,7 @@ export function RankBoard({
   const worst = Math.max(0, ...rows.map(rowMagnitude));
   return (
     <section className="bg-at-surface">
-      <h2 className={cn("mb-1 text-lg font-ultra tracking-zero", accentClass)}>
+      <SectionHeading as={headingLevel} className={cn("mb-1", accentClass)}>
         {seeAllHref ? (
           <Link
             href={seeAllHref}
@@ -178,13 +186,13 @@ export function RankBoard({
             <span>{title}</span>
             <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
             <span className="ml-auto text-sm font-normal text-at-muted">
-              See all{total !== undefined ? ` ${total}` : ""}
+              See all{total !== undefined ? ` ${formatCount(total)}` : ""}
             </span>
           </Link>
         ) : (
           title
         )}
-      </h2>
+      </SectionHeading>
       {/* Both boards reserve the same block, caption plus key, so the two row
           lists start level. The key only has something to say on the signed
           board, where the colour varies. */}
@@ -193,11 +201,11 @@ export function RankBoard({
         {metric === "delay" && <DelayColourKey />}
       </div>
       {rows.length === 0 ? (
-        <p className="text-base text-at-muted">
+        <EmptyState inset>
           {minEvents === undefined
             ? "No arrivals were recorded in this window, so there is nothing to rank."
             : `No route reached ${minEvents} arrivals in this window, so there is nothing to rank.`}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="striped border-t border-at-border">
           {rows.map((r, i) => {
@@ -206,13 +214,9 @@ export function RankBoard({
             const off = offScheduleValue(r.avg_delay_sec, r.avg_abs_delay_sec, r.mode);
             // An unknown share is the placeholder alone: a percent sign welded to
             // it read "—%", which looks like a measured figure that failed to print.
-            const value =
-              metric === "delay"
-                ? off.text
-                : r.on_time_pct === null
-                  ? UNKNOWN_VALUE
-                  : `${r.on_time_pct.toFixed(1)}%`;
-            const cancelledCount = cancelled?.get(routeSlug(r.route_id)) ?? 0;
+            const value = metric === "delay" ? off.text : formatPct(r.on_time_pct);
+            const cancelledCount = cancelled?.get(routeSlug(r.routeId)) ?? 0;
+            const subtitle = routeSubtitle(r);
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
             const barClass =
@@ -224,40 +228,36 @@ export function RankBoard({
                   ? (rowMagnitude(r) / worst) * 100
                   : 0;
             return (
-              <li key={r.route_id}>
+              <li key={r.routeId}>
                 {/* The whole row is the link, so the value/over area is clickable too. */}
                 <Link
-                  href={`/route/${encodeURIComponent(routeSlug(r.route_id))}${routeQuery ?? ""}`}
+                  href={routeHref(r.routeId, routeParams)}
                   className={cn(
-                    "-mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
+                    "group -mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",
                   )}
                 >
                   <span className="flex items-center gap-2">
                     {deltas ? (
-                      <span className="flex w-14 shrink-0 items-center">
-                        <span className="w-5 shrink-0 text-right text-at-muted tabular-nums">
-                          {i + 1}
-                        </span>
+                      <span className="flex w-15 shrink-0 items-center">
+                        <span className={RANK_CLASS}>{i + 1}</span>
                         <span className="flex w-9 shrink-0 items-center pl-0.5">
-                          <DeltaBadge delta={deltas.get(r.route_id)} />
+                          <DeltaBadge delta={deltas.get(r.routeId)} />
                         </span>
                       </span>
                     ) : (
-                      <span className="w-5 text-right text-at-muted tabular-nums">{i + 1}</span>
+                      <span className={RANK_CLASS}>{i + 1}</span>
                     )}
-                    <ModeIcon
-                      mode={r.mode}
-                      shortName={r.short_name}
-                      longName={r.long_name}
-                      colour={r.colour}
-                    />
-                    <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
-                      {r.short_name || r.long_name || r.route_id}
+                    <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
+                    <span className={cn("min-w-0 flex-1 truncate", ROUTE_NAME_CLASS)}>
+                      {routeDisplayName(r)}
                       {cancelledCount > 0 && (
                         <span className="ml-2 text-xs font-semibold text-at-late">
                           {cancelledCount} cancelled
                         </span>
+                      )}
+                      {subtitle && (
+                        <span className="ml-2 font-normal text-at-muted">{subtitle}</span>
                       )}
                     </span>
                     <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>
@@ -268,7 +268,7 @@ export function RankBoard({
                   {/* Decorative: the figure the bar is drawn from is printed on the
                       row beside it, in the colour the board's key names. */}
                   <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden bg-at-bg">
-                    <span className={barClass} style={{ width: barWidth(share) }} />
+                    <span className={barClass} style={{ width: `${barPct(share)}%` }} />
                   </span>
                 </Link>
               </li>

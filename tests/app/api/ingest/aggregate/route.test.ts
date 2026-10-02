@@ -74,6 +74,15 @@ describe("POST /api/ingest/aggregate", () => {
   it("refuses an impossible calendar date", async () => {
     const res = await POST(post("?date=2026-02-31"));
     expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_query" });
+    expect(mockedAggregateDay).not.toHaveBeenCalled();
+  });
+
+  it("answers in the error envelope when the catch-up reads fail", async () => {
+    mockedSummarised.mockRejectedValue(new Error("boom"));
+    const res = await POST(post());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error", message: "The request failed." });
     expect(mockedAggregateDay).not.toHaveBeenCalled();
   });
 

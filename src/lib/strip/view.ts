@@ -3,12 +3,12 @@
 // figure in each column, how its name reads, and the sentence a screen reader hears in place of
 // the drawing, with the day's closures and detours worked in. Pure and client-safe, so the version
 // chips can swap it without a server trip.
-import { formatDelay } from "@/lib/format";
+import { formatDelay, midSentence, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import type { MarkKind, MarkNote, SideMark, StripMarks } from "@/lib/strip/marks";
 import { rowFigure, type RouteStrip, type StripRow, type StripSide } from "@/lib/strip/route-strip";
 import type { StopFigures, StopSplit } from "@/lib/strip/stop-split";
-import { nzClockTime } from "@/lib/time/service-day";
+import { nzClockTime } from "@/lib/time/format";
 
 /**
  * One half of a stop's ring, and its figure column's tone.
@@ -117,16 +117,6 @@ function headings(down: SideEnds, up: SideEnds): [string, string] {
 }
 
 /**
- * A heading as it reads mid-sentence: "To the start" > "to the start". Only the first letter
- * changes, so a stop's name keeps its capitals.
- * @param heading - The heading.
- * @returns It with a lower-case first letter.
- */
-function midSentence(heading: string): string {
-  return heading.charAt(0).toLowerCase() + heading.slice(1);
-}
-
-/**
  * One direction's half of a row. A closure or detour keeps whatever figure the runs outside it
  * left, with a `*` for the note; with none left, the column names it instead of a dash.
  * @param row - The row.
@@ -145,7 +135,7 @@ function side(
   mode: string,
   mark: SideMark | null,
 ): SideView {
-  if (!stops) return { tone: "unserved", text: "-", mark: null };
+  if (!stops) return { tone: "unserved", text: UNKNOWN_VALUE, mark: null };
   const f = figures ? rowFigure(figures, row, dirIds) : null;
   const kind = mark?.kind ?? null;
   if (f) {
@@ -158,7 +148,7 @@ function side(
     };
   }
   if (kind) return { tone: "closed", text: kind === "closed" ? "closed" : "detour", mark: kind };
-  return { tone: "none", text: "-", mark: null };
+  return { tone: "none", text: UNKNOWN_VALUE, mark: null };
 }
 
 /**
@@ -168,7 +158,7 @@ function side(
  * @returns The phrase.
  */
 function phrase(s: SideView, perStop: boolean): string {
-  if (s.tone === "unserved") return "doesn't stop";
+  if (s.tone === "unserved") return "does not stop";
   if (s.tone === "closed") return s.mark === "closed" ? "closed" : "gone round on a detour";
   if (s.tone === "none") return perStop ? "no arrivals recorded" : "stops here";
   return s.mark ? `${s.text.slice(0, -1)}, with a closure or detour in the notes` : s.text;
@@ -213,13 +203,13 @@ function noteText(n: MarkNote, strip: RouteStrip, down: string, up: string): str
       : `${first} to ${last}`;
   const way = n.side === "both" ? "" : `, ${midSentence(n.side === "down" ? down : up)}`;
   // A detour's row keeps only its newest runs, so only a suspected one's count is whole.
-  const runs = n.runs === 1 ? "1 run" : `${n.runs} runs`;
+  const runs = plural(n.runs, "trip");
   const what: Record<MarkNote["kind"], string> = {
     closed: `closed ${when(n)}`,
-    detour: `runs went round it, ${when(n)}`,
+    detour: `trips went round it, ${when(n)}`,
     suspect: `${runs} went round it, ${when(n)}, too few in two hours to call a detour`,
-    announced: `a detour announced ${when(n)}, not yet seen on the runs`,
-    disputed: `a detour announced ${when(n)}, but the last runs through stayed on route`,
+    announced: `a detour announced ${when(n)}, not yet seen on the trips`,
+    disputed: `a detour announced ${when(n)}, but the last trips through stayed on route`,
   };
   const said =
     n.source === "skipped"

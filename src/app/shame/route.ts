@@ -3,6 +3,7 @@
 // the whole of it, so a reader arriving here is sent to the trips board with the
 // params those boards read.
 
+import { pickParams } from "@/lib/page/filter-params";
 import { SHAME_PARAMS } from "@/lib/page/shame";
 import { buildHref } from "@/lib/utils";
 import { NextResponse, type NextRequest } from "next/server";
@@ -21,13 +22,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * @returns A redirect to the trips board carrying the boards' own params.
  */
 export function GET(request: NextRequest): NextResponse {
-  const sp = request.nextUrl.searchParams;
-  const carried: Record<string, string> = {};
-  for (const key of SHAME_PARAMS) {
-    // A param repeated in the query yields its first value here; the boards read one.
-    const value = sp.get(key);
-    if (value !== null && value !== "") carried[key] = value;
-  }
+  const carried = pickParams(request.nextUrl.searchParams, SHAME_PARAMS);
   // A relative Location, as the page's own redirect emitted, so the destination
   // never depends on reading the deployment's host and scheme back off the request.
   return new NextResponse(null, {

@@ -8,9 +8,10 @@
 // on-time entries; and the shown-day resolver lazily imports the data layer so
 // these helpers stay pure and unit-testable.
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { clampRangeToDataStart, DATA_START_DAY } from "@/lib/time/data-start";
+import { DATA_START_DAY } from "@/lib/time/data-start";
 import { requestServiceDay } from "@/lib/time/request-now";
 import {
+  isRealDate,
   monthRangeLabel,
   nzLast7DaysRange,
   nzLocalHour,
@@ -21,17 +22,12 @@ import {
   nzWeekRange,
   nzWeekStart,
   SERVICE_START_HOUR,
+  shiftDays,
   shiftMonth,
-  shiftWeek,
-  weekRangeLabel,
+  weekLabel,
+  YM_RE,
   type DateRange,
 } from "@/lib/time/service-day";
-
-/** Matches an ISO `YYYY-MM-DD` date string, capturing year, month and day. */
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** Matches an ISO `YYYY-MM` month key with a real month number. */
-const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * Validate a `?period=` query value as an ISO `YYYY-MM` month key.
@@ -39,7 +35,7 @@ const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
  * @returns The value when it is a valid month key, else null.
  */
 export function resolveRequestedMonth(value: string | undefined): string | null {
-  return value && ISO_MONTH.test(value) ? value : null;
+  return value && YM_RE.test(value) ? value : null;
 }
 
 /**
@@ -51,15 +47,7 @@ export function resolveRequestedMonth(value: string | undefined): string | null 
  * @returns The value when it is a real calendar date, else null.
  */
 export function resolveRequestedDay(value: string | undefined): string | null {
-  if (!value) return null;
-  const [, ys, ms, ds] = ISO_DATE.exec(value) ?? [];
-  if (ys === undefined || ms === undefined || ds === undefined) return null;
-  const y = Number(ys);
-  const m = Number(ms);
-  const d = Number(ds);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  const real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-  return real ? value : null;
+  return value && isRealDate(value) ? value : null;
 }
 
 /**
@@ -175,27 +163,9 @@ export function fillServiceHours<H extends { hour: number }>(
   }));
 }
 
-/**
- * Resolve the active week window: a fixed calendar week when `?period=` is set,
- * else the rolling last seven service days.
- * @param periodParam - Validated ISO week-start date, or null for the rolling window.
- * @param now - The current instant (injectable for tests).
- * @returns The fixed week range (null when rolling) and the active range to query.
- */
-export function resolveActiveWeekRange(
-  periodParam: string | null,
-  now: Date = new Date(),
-): { fixedWeekRange: DateRange | null; activeWeekRange: DateRange } {
-  const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  return {
-    fixedWeekRange,
-    activeWeekRange: clampRangeToDataStart(fixedWeekRange ?? nzLast7DaysRange(now)),
-  };
-}
-
 /** The prev/next week-stepper links and the period label for a week view. */
 export interface WeekNav {
-  /** Human label for the active period ("Last 7 days" or "DD/MM to DD/MM"). */
+  /** Human label for the active period ("Last 7 days" or "21 to 27 Sep"). */
   periodLabel: string;
   /** Previous-week link, or null at the earliest data. */
   prevHref: string | null;
@@ -231,18 +201,18 @@ export function resolveWeekNav({
   now?: Date;
 }): WeekNav {
   const fixedWeekRange = periodParam ? nzWeekRange(periodParam) : null;
-  const periodLabel = fixedWeekRange ? weekRangeLabel(fixedWeekRange) : "Last 7 days";
+  const periodLabel = fixedWeekRange ? weekLabel(fixedWeekRange) : "Last 7 days";
   // Partial is about coverage, not reachability: the bounds below still come
   // from earliestDay, so a caller with an earliest day of its own keeps it.
   const partial =
     (fixedWeekRange ?? nzLast7DaysRange(now)).start < nzServiceDayRange(DATA_START_DAY).start;
   const thisWeekStart = nzWeekStart(now);
-  const prevWeek = shiftWeek(periodParam ?? thisWeekStart, -7);
+  const prevWeek = shiftDays(periodParam ?? thisWeekStart, -7);
   const earliestWeekStart = earliestDay ? nzWeekStart(earliestDay) : null;
   const prevHref = !earliestWeekStart || prevWeek >= earliestWeekStart ? makeHref(prevWeek) : null;
   let nextHref: string | null = null;
   if (periodParam) {
-    const nextWeek = shiftWeek(periodParam, 7);
+    const nextWeek = shiftDays(periodParam, 7);
     nextHref = nextWeek >= thisWeekStart ? makeHref(null) : makeHref(nextWeek);
   }
   return { periodLabel, prevHref, nextHref, partial };
@@ -285,45 +255,6 @@ export function resolveMonthNav({
   return { periodLabel, prevHref, nextHref, partial };
 }
 
-/** Resolved state for a week or month board view: range, label and stepper. */
-export interface RangeViewNav extends WeekNav {
-  /** Whether the month variant is active. */
-  isMonth: boolean;
-  /** Copy noun for the period ("week" / "month"). */
-  periodNoun: "week" | "month";
-  /** Validated period param (week-start date or month key), or null for the rolling default. */
-  periodParam: string | null;
-  /** The half-open window to query. */
-  activeRange: DateRange;
-}
-
-/**
- * Resolve everything a week/month board needs from its raw `?period=` value:
- * the validated period, the window to query, and the bounded stepper. Shared by
- * the three shame boards so the view plumbing lives in one place.
- * @param view - The active non-day view.
- * @param rawPeriod - The raw `?period=` query value, if any.
- * @param earliestDay - Earliest service day with data, or null when unknown.
- * @param makeHref - Builds a link for a period (null = the rolling default).
- * @returns The resolved view state.
- */
-export function resolveRangeView(
-  view: "week" | "month",
-  rawPeriod: string | undefined,
-  earliestDay: Date | null,
-  makeHref: (period: string | null) => string,
-): RangeViewNav {
-  const isMonth = view === "month";
-  const periodParam = isMonth ? resolveRequestedMonth(rawPeriod) : resolveRequestedDay(rawPeriod);
-  const activeRange = isMonth
-    ? clampRangeToDataStart(nzMonthRange(periodParam ?? undefined))
-    : resolveActiveWeekRange(periodParam).activeWeekRange;
-  const nav = isMonth
-    ? resolveMonthNav({ periodParam, earliestDay, makeHref })
-    : resolveWeekNav({ periodParam, earliestDay, makeHref });
-  return { isMonth, periodNoun: isMonth ? "month" : "week", periodParam, activeRange, ...nav };
-}
-
 /** The service day a day view shows. */
 export interface ShownDay {
   /** The shown service date (`YYYY-MM-DD`). */
@@ -357,7 +288,7 @@ export async function resolveShownDay(
   today?: string,
 ): Promise<ShownDay> {
   const now = today ?? (await requestServiceDay());
-  const yesterday = shiftWeek(now, -1);
+  const yesterday = shiftDays(now, -1);
   // Only the day before today steps onto today, so any other asked-for day
   // skips the open test.
   if (requestedDay && requestedDay !== yesterday) return shownDay(requestedDay, false);

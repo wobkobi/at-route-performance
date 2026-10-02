@@ -3,7 +3,8 @@
 // behind POST /api/ingest/cleanup. The run takes its storage as a small port so
 // a test can drive it with an in-memory fake; the route passes the Prisma one.
 import { prisma, runCommand } from "@/lib/db";
-import { nzServiceDayRange } from "@/lib/time/service-day";
+import { MS_PER_DAY, nzServiceDayRange } from "@/lib/time/service-day";
+import { cleanupFlagsQuery } from "@/lib/validate";
 
 /**
  * Retention floor in days. A request under this is refused outright, and
@@ -179,7 +180,7 @@ export const prismaCleanupStore: CleanupStore = {
  * @returns The cutoff instant.
  */
 export function cleanupCutoff(days: number, now: Date = new Date()): Date {
-  return nzServiceDayRange(new Date(now.getTime() - days * 86_400_000)).start;
+  return nzServiceDayRange(new Date(now.getTime() - days * MS_PER_DAY)).start;
 }
 
 /** A validated cleanup request. */
@@ -193,9 +194,14 @@ export interface CleanupParams {
   dryRun: boolean;
 }
 
-/** Why a cleanup request was refused. */
+/**
+ * Why a cleanup request was refused, and the status to answer with: 500 when
+ * the retention came from a missing or broken `RETENTION_DAYS` (the server's
+ * configuration), 400 when the request itself was wrong.
+ */
 export interface CleanupRefusal {
-  error: string;
+  status: 400 | 500;
+  message: string;
   hint?: string;
 }
 
@@ -210,49 +216,70 @@ export interface CleanupRefusal {
  * variable deletes a ten-year archive while reporting success.
  * @param url - The request URL.
  * @param envRetention - `RETENTION_DAYS` from the environment, if set.
- * @returns The params, or the refusal to send back as a 400.
+ * @returns The params, or the refusal to send back.
  */
 export function parseCleanupParams(
   url: URL,
   envRetention: string | undefined,
 ): { ok: true; params: CleanupParams } | { ok: false; refusal: CleanupRefusal } {
-  const force = url.searchParams.has("force");
-  const dryRun = url.searchParams.has("dryRun");
-  const source = url.searchParams.get("retentionDays") ?? envRetention;
-  if (!source?.trim()) {
+  const flags = cleanupFlagsQuery.safeParse({
+    force: url.searchParams.get("force") ?? undefined,
+    dryRun: url.searchParams.get("dryRun") ?? undefined,
+  });
+  // A bare or misspelt flag refuses rather than guessing: read as off, a bare
+  // `?dryRun` would delete for real.
+  if (!flags.success) {
     return {
       ok: false,
-      refusal: {
-        error: "RETENTION_DAYS is not set",
-        hint: "Set RETENTION_DAYS in the environment, or pass ?retentionDays=N. There is no default: a missing value refuses rather than deleting.",
-      },
+      refusal: { status: 400, message: "Invalid flag. force and dryRun take 1 or 0." },
     };
+  }
+  const { force, dryRun } = flags.data;
+  const queryRetention = url.searchParams.get("retentionDays");
+  const source = queryRetention ?? envRetention;
+  /**
+   * A refusal over the retention, blamed on the configuration when it came
+   * from the environment and on the request when it came from the query.
+   * @param message - What was wrong.
+   * @param hint - What to do about it.
+   * @returns The refusal.
+   */
+  const refuseRetention = (
+    message: string,
+    hint?: string,
+  ): { ok: false; refusal: CleanupRefusal } => ({
+    ok: false,
+    refusal: { status: queryRetention === null ? 500 : 400, message, hint },
+  });
+  if (!source?.trim()) {
+    return refuseRetention(
+      "RETENTION_DAYS is not set.",
+      "Set RETENTION_DAYS in the environment, or pass ?retentionDays=N. There is no default: a missing value refuses rather than deleting.",
+    );
   }
   const retentionDays = parseInt(source, 10);
   const summaryDaysParam = url.searchParams.get("summaryDays");
   const summaryDays = summaryDaysParam ? parseInt(summaryDaysParam, 10) : null;
 
   if (Number.isNaN(retentionDays) || retentionDays < 1) {
-    return { ok: false, refusal: { error: "Invalid retentionDays. Must be >= 1" } };
+    return refuseRetention("Invalid retentionDays. Must be >= 1.");
   }
   if (summaryDays !== null && (Number.isNaN(summaryDays) || summaryDays < 1)) {
-    return { ok: false, refusal: { error: "Invalid summaryDays. Must be >= 1" } };
+    return { ok: false, refusal: { status: 400, message: "Invalid summaryDays. Must be >= 1." } };
   }
   if (retentionDays < MIN_SAFE_RETENTION_DAYS) {
-    return {
-      ok: false,
-      refusal: {
-        error: `Retention of ${retentionDays} days is below the ${MIN_SAFE_RETENTION_DAYS}-day floor`,
-        hint: "?force=1 does not lift this. A value this low is a lost environment variable rather than an intention; move the floor deliberately if the archive really is meant to shrink.",
-      },
-    };
+    return refuseRetention(
+      `Retention of ${retentionDays} days is below the ${MIN_SAFE_RETENTION_DAYS}-day floor.`,
+      "?force=1 does not lift this. A value this low is a lost environment variable rather than an intention; move the floor deliberately if the archive really is meant to shrink.",
+    );
   }
   if (summaryDays !== null && summaryDays < FORCE_BELOW_DAYS && !force) {
     return {
       ok: false,
       refusal: {
-        error: `Summary retention < ${FORCE_BELOW_DAYS} days requires ?force=1 parameter`,
-        hint: "This prevents accidental aggressive deletion",
+        status: 400,
+        message: `Summary retention < ${FORCE_BELOW_DAYS} days requires ?force=1.`,
+        hint: "This prevents accidental aggressive deletion.",
       },
     };
   }
@@ -332,7 +359,7 @@ export function checkCleanupPlan(
     };
   }
   if (lastCutoff) {
-    const advance = (plan.cutoff.getTime() - lastCutoff.getTime()) / 86_400_000;
+    const advance = (plan.cutoff.getTime() - lastCutoff.getTime()) / MS_PER_DAY;
     if (advance > MAX_CUTOFF_ADVANCE_DAYS) {
       return {
         ok: false,

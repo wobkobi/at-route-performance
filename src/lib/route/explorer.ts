@@ -5,17 +5,25 @@
 // the defaults, so a filtered view is a shareable link.
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
-import { MIN_BOARD_EVENTS, MIN_MODE_EVENTS } from "@/lib/rankings";
+import { type Mode, parseMode } from "@/lib/mode";
+import { flipDir, type SortDir } from "@/lib/page/table-sort";
+import {
+  type DelayDirection,
+  MIN_BOARD_EVENTS,
+  MIN_MODE_EVENTS,
+  parseDelayDirection,
+} from "@/lib/rankings";
+import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
   schoolAllows,
   type SchoolFilter,
   schoolFilterParam,
 } from "@/lib/school-bus";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 
 /** One route on the Routes page: its window stats plus what the filters need. */
-export interface ExplorerRoute extends TopRouteRow {
+export interface ExplorerRoute extends RouteRow {
   /** Version-stripped route slug, for links and joins. */
   slug: string;
   /** Areas the route served over the last week of completed days. */
@@ -32,34 +40,25 @@ export interface ExplorerRoute extends TopRouteRow {
 
 /** A sortable measure. */
 export type ExplorerSort =
-  "route" | "on_time" | "off_by" | "delay" | "late" | "early" | "events" | "cancelled";
-
-/** Sort direction. */
-export type SortDir = "asc" | "desc";
+  "route" | "ontime" | "off" | "delay" | "late" | "early" | "arrivals" | "cancelled";
 
 /** Every sort with its label and the direction it opens in (the more telling end first). */
 export const EXPLORER_SORTS: ReadonlyArray<{ key: ExplorerSort; label: string; dir: SortDir }> = [
   { key: "route", label: "Route number", dir: "asc" },
-  { key: "on_time", label: "On time %", dir: "desc" },
-  { key: "off_by", label: "Average off by", dir: "desc" },
+  { key: "ontime", label: "On time %", dir: "desc" },
+  { key: "off", label: "Avg off by", dir: "desc" },
   { key: "delay", label: "Early or late", dir: "desc" },
   { key: "late", label: "Late %", dir: "desc" },
   { key: "early", label: "Early %", dir: "desc" },
-  { key: "events", label: "Arrivals", dir: "desc" },
+  { key: "arrivals", label: "Arrivals", dir: "desc" },
   { key: "cancelled", label: "Cancellations", dir: "desc" },
 ];
-
-/** Transport mode filter, or null for every mode. */
-export type ExplorerMode = "BUS" | "TRAIN" | "FERRY" | null;
-
-/** Which way a route runs off schedule on average, or null for either. */
-export type ExplorerLean = "late" | "early" | null;
 
 /** The Routes page's filter and sort state. */
 export interface ExplorerFilters {
   /** Free-text search over route number and name. */
   q: string;
-  mode: ExplorerMode;
+  mode: Mode | null;
   /** Areas to match; a route matches when it serves any of them. Empty matches every route. */
   areas: AreaKey[];
   /** Fare zones to match; a route matches when it serves any of them. Empty matches every route. */
@@ -68,7 +67,8 @@ export interface ExplorerFilters {
   op: string | null;
   /** Which school services count. */
   school: SchoolFilter;
-  lean: ExplorerLean;
+  /** Only routes running late, or early, on average; null for both. */
+  direction: DelayDirection;
   /** Only routes with enough arrivals to rank on the boards. */
   enoughData: boolean;
   /** Only routes with at least one cancellation. */
@@ -87,7 +87,7 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
   zones: [],
   op: null,
   school: "exclude",
-  lean: null,
+  direction: null,
   enoughData: false,
   cancelledOnly: false,
   runningNow: false,
@@ -114,17 +114,17 @@ export function parseExplorerFilters(sp: Record<string, string | undefined>): Ex
   const sort = EXPLORER_SORTS.some((s) => s.key === sp.sort)
     ? (sp.sort as ExplorerSort)
     : DEFAULT_FILTERS.sort;
-  const dir: SortDir = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : defaultDir(sort);
+  const dir = sp.rev === "1" ? flipDir(defaultDir(sort)) : defaultDir(sort);
   return {
     q: sp.q?.slice(0, 100) ?? "",
-    mode: sp.mode === "BUS" || sp.mode === "TRAIN" || sp.mode === "FERRY" ? sp.mode : null,
+    mode: parseMode(sp.mode),
     areas: [...new Set((sp.area ?? "").split(",").filter(isAreaKey))],
     zones: [...new Set((sp.zone ?? "").split(",").filter(isFareZoneKey))],
     // Checked only for shape: which operators exist is the rows' business, and
     // a slug no route carries simply matches nothing.
     op: /^[a-z0-9-]{1,60}$/.test(sp.op ?? "") ? sp.op! : null,
     school: parseSchoolFilter(sp.school),
-    lean: sp.lean === "late" || sp.lean === "early" ? sp.lean : null,
+    direction: parseDelayDirection(sp.dir),
     enoughData: sp.data === "1",
     cancelledOnly: sp.cancelled === "1",
     runningNow: sp.live === "1",
@@ -147,33 +147,13 @@ export function explorerQuery(f: ExplorerFilters): Record<string, string> {
   if (f.op) out.op = f.op;
   const school = schoolFilterParam(f.school);
   if (school) out.school = school;
-  if (f.lean) out.lean = f.lean;
+  if (f.direction) out.dir = f.direction;
   if (f.enoughData) out.data = "1";
   if (f.cancelledOnly) out.cancelled = "1";
   if (f.runningNow) out.live = "1";
   if (f.sort !== DEFAULT_FILTERS.sort) out.sort = f.sort;
-  if (f.dir !== defaultDir(f.sort)) out.dir = f.dir;
+  if (f.dir !== defaultDir(f.sort)) out.rev = "1";
   return out;
-}
-
-/** Routes the list opens with, and how many each "Show more" press adds. */
-export const PAGE_SIZE = 40;
-
-/** The query param holding how many rows the list is showing. */
-export const SHOWN_PARAM = "show";
-
-/**
- * Read how many rows the list was showing. Rounded up to a whole number of
- * pages so a hand-edited `show` still lands on a count the pager itself could
- * reach, and floored at one page. Nothing caps it: `shown` is only ever used to
- * slice, so a number past the end of the list simply shows all of it.
- * @param raw - The `show` param.
- * @returns The row count.
- */
-export function parseShown(raw: string | undefined): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= PAGE_SIZE) return PAGE_SIZE;
-  return Math.ceil(n / PAGE_SIZE) * PAGE_SIZE;
 }
 
 /** The query param names {@link explorerQuery} can write. */
@@ -184,11 +164,11 @@ export const EXPLORER_PARAMS = [
   "zone",
   "op",
   "school",
-  "lean",
   "data",
   "cancelled",
   "live",
   "sort",
+  "rev",
   "dir",
 ];
 
@@ -212,7 +192,7 @@ export function filterRoutes(
   const q = f.q.trim().toLowerCase();
   const minEvents = f.mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
   return rows.filter((r) => {
-    if (q && !`${r.short_name ?? ""} ${r.long_name} ${r.slug}`.toLowerCase().includes(q)) {
+    if (q && !`${r.shortName ?? ""} ${r.longName} ${r.slug}`.toLowerCase().includes(q)) {
       return false;
     }
     if (f.mode && r.mode !== f.mode) return false;
@@ -220,8 +200,8 @@ export function filterRoutes(
     if (f.zones.length > 0 && !r.zones.some((z) => f.zones.includes(z))) return false;
     if (f.op && r.operator !== f.op) return false;
     if (!schoolAllows(f.school, r.school)) return false;
-    if (f.lean === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
-    if (f.lean === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
+    if (f.direction === "late" && !((r.avg_delay_sec ?? 0) > 0)) return false;
+    if (f.direction === "early" && !((r.avg_delay_sec ?? 0) < 0)) return false;
     if (f.enoughData && r.events < minEvents) return false;
     if (f.cancelledOnly && r.cancelled === 0) return false;
     if (f.runningNow && running && !running.has(r.slug)) return false;
@@ -237,9 +217,9 @@ export function filterRoutes(
  */
 function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): number | null {
   switch (sort) {
-    case "on_time":
+    case "ontime":
       return r.on_time_pct;
-    case "off_by":
+    case "off":
       // As the Most off-schedule board: the signed average stands in when a row has no absolute one.
       return r.avg_abs_delay_sec ?? (r.avg_delay_sec === null ? null : Math.abs(r.avg_delay_sec));
     case "delay":
@@ -248,7 +228,7 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
       return r.late_pct ?? null;
     case "early":
       return r.early_pct ?? null;
-    case "events":
+    case "arrivals":
       return r.events;
     case "cancelled":
       return r.cancelled;
@@ -262,9 +242,7 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
  * @returns The standard sort contract.
  */
 function byName(a: ExplorerRoute, b: ExplorerRoute): number {
-  return (a.short_name ?? a.slug).localeCompare(b.short_name ?? b.slug, undefined, {
-    numeric: true,
-  });
+  return compareRouteNumbers(routeDisplayName(a), routeDisplayName(b));
 }
 
 /**
@@ -288,7 +266,7 @@ export function sortRoutes(
     const vb = sortValue(b, sort);
     if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
     const tie =
-      sort === "on_time" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
+      sort === "ontime" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
     return sign * (va - vb) || tie || byName(a, b);
   });
 }
@@ -309,12 +287,12 @@ export const EXPLORER_VIEWS: ReadonlyArray<{
   {
     key: "off",
     label: "Most off-schedule",
-    filters: { sort: "off_by", dir: "desc", enoughData: true },
+    filters: { sort: "off", dir: "desc", enoughData: true },
   },
   {
     key: "reliable",
     label: "Most reliable",
-    filters: { sort: "on_time", dir: "desc", enoughData: true },
+    filters: { sort: "ontime", dir: "desc", enoughData: true },
   },
 ];
 
@@ -337,12 +315,12 @@ export function activeView(f: ExplorerFilters): ExplorerView | null {
 /**
  * The Routes page query for a preset, keeping the given filters.
  * @param view - The preset.
- * @param keep - Filters to carry (mode, school services, lean, areas).
+ * @param keep - Filters to carry (mode, school services, late or early, areas).
  * @returns Param name to value.
  */
 export function viewQuery(
   view: ExplorerView,
-  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "lean" | "areas">> = {},
+  keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "direction" | "areas">> = {},
 ): Record<string, string> {
   const preset = EXPLORER_VIEWS.find((v) => v.key === view)?.filters ?? {};
   return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...preset });

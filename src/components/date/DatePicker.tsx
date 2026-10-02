@@ -4,37 +4,41 @@
 // so a reader can jump straight to a date instead of stepping one at a time.
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { PopoverPanel, usePopover } from "@/components/ui/Popover";
 import { cn } from "@/lib/cn";
+import type { RangeWindow } from "@/lib/page/range";
 import {
   monthPickPeriod,
   monthShort,
-  monthTitle,
   monthWeeks,
   weekPickPeriod,
   type PickerState,
 } from "@/lib/time/calendar";
-import { serviceDayLabel, shiftMonth } from "@/lib/time/service-day";
+import {
+  dayRangeLabel,
+  monthLabel,
+  monthOf,
+  serviceDayLabel,
+  shiftDays,
+  shiftMonth,
+  weekdayShort,
+  ymKey,
+} from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useId, useRef, useState, type JSX, type ReactNode } from "react";
 
-/** Weekday initials over the grid, Monday first. */
-const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+/** Weekday initials over the grid, Monday first, read off a known Monday's week. */
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
+  weekdayShort(shiftDays("2026-09-21", i)).charAt(0),
+);
 
 /** The panel's width from `sm` up (`sm:w-80`), for choosing which edge it anchors to. */
 const PANEL_WIDTH_PX = 320;
 
-/** A step button in the panel's header. */
+/** A step button in the panel's header: the stepper chip, as a button. */
 const STEP =
-  "inline-flex h-8 w-8 items-center justify-center border border-at-border text-at-ink hover:border-at-shore disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border";
+  "chip chip-icon chip-off disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border disabled:hover:text-at-ink";
 
 /**
  * A stepper's date label that opens a calendar. The Day view picks a day, the
@@ -45,9 +49,9 @@ const STEP =
  * @param props.mode - What a pick chooses: a day, a week or a month.
  * @param props.calendar - The bounds, today, and the shown window's days.
  * @param props.basePath - Page path the picks navigate to.
- * @param props.params - The page's other params, carried on every pick; the
+ * @param props.preservedParams - The page's other params, carried on every pick; the
  *   picker sets `day`, `window` and `period` itself.
- * @param props.title - Hover text for the label.
+ * @param props.hint - What the label covers, as hover text and the button's description.
  * @param props.className - Classes for the label button.
  * @param props.children - The label.
  * @returns The label and, while open, the calendar.
@@ -56,39 +60,30 @@ export function DatePicker({
   mode,
   calendar,
   basePath,
-  params,
-  title,
+  preservedParams,
+  hint,
   className,
   children,
 }: {
-  mode: "day" | "week" | "month";
+  mode: RangeWindow;
   calendar: PickerState;
   basePath: string;
-  params: Record<string, string>;
-  title?: string;
+  preservedParams: Record<string, string>;
+  hint?: string;
   className?: string;
   children: ReactNode;
 }): JSX.Element {
   const router = useRouter();
-  const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const popover = usePopover(buttonRef);
+  const hintId = useId();
   const [alignEnd, setAlignEnd] = useState(false);
   const { today, minDay, maxDay, from, to } = calendar;
   // The month (or, on the Month view, the year) the panel shows; opens on the
   // one holding the end of the shown window.
-  const [shown, setShown] = useState(to.slice(0, 7));
-  const minMonth = minDay.slice(0, 7);
-  const maxMonth = maxDay.slice(0, 7);
-
-  // A page navigated away from is held hidden rather than unmounted; close
-  // from a cleanup so the panel is not still open on the way back.
-  useEffect(() => {
-    if (!open) return;
-    panelRef.current?.focus();
-    return () => setOpen(false);
-  }, [open]);
+  const [shown, setShown] = useState(monthOf(to));
+  const minMonth = monthOf(minDay);
+  const maxMonth = monthOf(maxDay);
 
   /**
    * Open on the shown window's month, anchored to the label's right edge
@@ -98,25 +93,8 @@ export function DatePicker({
   const openPanel = (): void => {
     const box = buttonRef.current?.getBoundingClientRect();
     setAlignEnd(box ? box.left + PANEL_WIDTH_PX > window.innerWidth - 16 : false);
-    setShown(to.slice(0, 7));
-    setOpen(true);
-  };
-
-  /** Close and hand focus back to the label. */
-  const close = (): void => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
-
-  /**
-   * Close on Escape from the label or the panel.
-   * @param e - The key event.
-   */
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (open && e.key === "Escape") {
-      e.stopPropagation();
-      close();
-    }
+    setShown(monthOf(to));
+    popover.show();
   };
 
   /**
@@ -124,8 +102,8 @@ export function DatePicker({
    * @param set - The window params the pick sets.
    */
   const go = (set: Record<string, string | undefined>): void => {
-    setOpen(false);
-    router.push(buildHref(basePath, { ...params, ...set }), { scroll: false });
+    popover.hide();
+    router.push(buildHref(basePath, { ...preservedParams, ...set }), { scroll: false });
   };
 
   const year = shown.slice(0, 4);
@@ -141,7 +119,7 @@ export function DatePicker({
       />
     ) : (
       <PanelHeader
-        title={monthTitle(shown)}
+        title={monthLabel(shown)}
         prevLabel="Previous month"
         nextLabel="Next month"
         canPrev={shown > minMonth}
@@ -151,115 +129,112 @@ export function DatePicker({
     );
 
   return (
-    <div className="relative inline-flex" onKeyDown={onKeyDown}>
+    <div className="relative inline-flex" onKeyDown={popover.onKeyDown}>
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => (open ? close() : openPanel())}
+        onClick={() => (popover.open ? popover.close() : openPanel())}
         aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={panelId}
-        title={title}
+        aria-expanded={popover.open}
+        aria-controls={popover.panelId}
+        aria-describedby={hint ? hintId : undefined}
+        title={hint}
         className={cn(
-          "border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
-          open && "border-at-shore",
+          "inline-flex min-h-11 items-center justify-center border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
+          popover.open && "border-at-shore",
           className,
         )}
       >
         {children}
       </button>
-      {open && (
-        <>
-          {/* `pointerdown`, not `click`, as FilterMenu's backdrop: iOS Safari does
-              not reliably raise a click on a plain div. */}
-          <div className="fixed inset-0 z-40" onPointerDown={close} aria-hidden />
-          <div
-            ref={panelRef}
-            id={panelId}
-            role="dialog"
-            aria-label={mode === "day" ? "Choose a day" : `Choose a ${mode}`}
-            tabIndex={-1}
-            className={cn(
-              "fixed inset-x-3 bottom-3 z-50 border border-at-border bg-at-surface p-3 text-at-ink shadow-lg outline-none sm:absolute sm:inset-x-auto sm:top-full sm:bottom-auto sm:mt-1 sm:w-80",
-              alignEnd ? "sm:right-0" : "sm:left-0",
-            )}
-          >
-            {header}
-            {mode === "month" ? (
-              <div className="mt-3 grid grid-cols-3 gap-1">
-                {Array.from({ length: 12 }, (_, i) => {
-                  const ym = `${year}-${String(i + 1).padStart(2, "0")}`;
-                  const on = ym === from.slice(0, 7);
-                  return (
-                    <button
-                      key={ym}
-                      type="button"
-                      disabled={ym < minMonth || ym > maxMonth}
-                      aria-pressed={on}
-                      onClick={() =>
-                        go({ window: "month", period: monthPickPeriod(ym, today) ?? undefined })
-                      }
-                      className={cn("h-10 text-sm font-semibold", cellClass(on))}
-                    >
-                      {monthShort(ym)}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mt-3">
-                <div className="grid grid-cols-7 pb-1 text-center text-xs text-at-muted">
-                  {WEEKDAYS.map((d, i) => (
-                    <span key={i} aria-hidden>
-                      {d}
-                    </span>
-                  ))}
+      {hint && (
+        <span id={hintId} hidden>
+          {hint}
+        </span>
+      )}
+      <PopoverPanel
+        popover={popover}
+        role="dialog"
+        label={mode === "day" ? "Choose a day" : `Choose a ${mode}`}
+        align={alignEnd ? "end" : "start"}
+        className="p-3 sm:w-80"
+      >
+        {header}
+        {mode === "month" ? (
+          <div className="mt-3 grid grid-cols-3 gap-1">
+            {Array.from({ length: 12 }, (_, i) => {
+              const ym = ymKey(Number(year), i + 1);
+              const on = ym === monthOf(from);
+              return (
+                <button
+                  key={ym}
+                  type="button"
+                  disabled={ym < minMonth || ym > maxMonth}
+                  aria-pressed={on}
+                  onClick={() =>
+                    go({ window: "month", period: monthPickPeriod(ym, today) ?? undefined })
+                  }
+                  className={cn("h-11 text-sm font-semibold", cellClass(on))}
+                >
+                  {monthShort(ym)}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <div className="grid grid-cols-7 pb-1 text-center text-xs text-at-muted">
+              {WEEKDAYS.map((d, i) => (
+                <span key={i} aria-hidden>
+                  {d}
+                </span>
+              ))}
+            </div>
+            {monthWeeks(shown).map((week) =>
+              mode === "week" ? (
+                <WeekRow
+                  key={week[0]}
+                  week={week}
+                  month={shown}
+                  calendar={calendar}
+                  onPick={() =>
+                    go({
+                      window: "week",
+                      period: weekPickPeriod(week[0]!, today) ?? undefined,
+                    })
+                  }
+                />
+              ) : (
+                <div key={week[0]} className="grid grid-cols-7 gap-0.5 pb-0.5">
+                  {week.map((d) => {
+                    const on = d >= from && d <= to;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        disabled={d < minDay || d > maxDay}
+                        aria-pressed={on}
+                        aria-label={
+                          d === today ? `${serviceDayLabel(d)}, today` : serviceDayLabel(d)
+                        }
+                        onClick={() => go({ day: d === today ? undefined : d })}
+                        className={cn(
+                          "h-11 text-sm tabular-nums",
+                          cellClass(on),
+                          !on && monthOf(d) !== shown && "text-at-muted",
+                          d === today && !on && "font-semibold text-at-shore",
+                        )}
+                      >
+                        {Number(d.slice(8))}
+                      </button>
+                    );
+                  })}
                 </div>
-                {monthWeeks(shown).map((week) =>
-                  mode === "week" ? (
-                    <WeekRow
-                      key={week[0]}
-                      week={week}
-                      month={shown}
-                      calendar={calendar}
-                      onPick={() =>
-                        go({
-                          window: "week",
-                          period: weekPickPeriod(week[0]!, today) ?? undefined,
-                        })
-                      }
-                    />
-                  ) : (
-                    <div key={week[0]} className="grid grid-cols-7 gap-0.5 pb-0.5">
-                      {week.map((d) => {
-                        const on = d >= from && d <= to;
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            disabled={d < minDay || d > maxDay}
-                            aria-pressed={on}
-                            aria-label={serviceDayLabel(d)}
-                            onClick={() => go({ day: d === today ? undefined : d })}
-                            className={cn(
-                              "h-9 text-sm tabular-nums",
-                              cellClass(on),
-                              !on && d.slice(0, 7) !== shown && "text-at-muted",
-                              d === today && !on && "font-semibold text-at-shore",
-                            )}
-                          >
-                            {Number(d.slice(8))}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ),
-                )}
-              </div>
+              ),
             )}
           </div>
-        </>
-      )}
+        )}
+      </PopoverPanel>
     </div>
   );
 }
@@ -274,7 +249,7 @@ function cellClass(on: boolean): string {
   return cn(
     "border transition-colors disabled:cursor-not-allowed disabled:opacity-30",
     on
-      ? "border-at-shore bg-at-shore text-white"
+      ? "chip-on border-at-shore"
       : "border-transparent hover:border-at-shore enabled:hover:text-at-shore",
   );
 }
@@ -365,13 +340,17 @@ function WeekRow({
       type="button"
       disabled={disabled}
       aria-pressed={on}
-      aria-label={`Week of ${serviceDayLabel(first)}`}
+      aria-label={
+        first <= today && today <= last
+          ? `${dayRangeLabel(first, last)}, this week`
+          : dayRangeLabel(first, last)
+      }
       onClick={onPick}
       className={cn(
         "mb-0.5 grid w-full grid-cols-7 gap-0.5 border text-sm tabular-nums transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-30",
         on
-          ? "border-at-shore bg-at-shore text-white"
+          ? "chip-on border-at-shore"
           : "border-transparent enabled:hover:border-at-shore enabled:hover:bg-at-shore-pale",
       )}
     >
@@ -379,11 +358,11 @@ function WeekRow({
         <span
           key={d}
           className={cn(
-            "flex h-9 items-center justify-center",
+            "flex h-11 items-center justify-center",
             // Inside the rolling week the days that fall in it are filled on
             // their own, since it rarely lines up with a Monday-to-Sunday row.
-            !on && d >= from && d <= to && "bg-at-shore text-white",
-            !on && !(d >= from && d <= to) && d.slice(0, 7) !== month && "text-at-muted",
+            !on && d >= from && d <= to && "chip-on",
+            !on && !(d >= from && d <= to) && monthOf(d) !== month && "text-at-muted",
             !on && d === today && !(d >= from && d <= to) && "font-semibold text-at-shore",
           )}
         >

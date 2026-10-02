@@ -4,7 +4,8 @@
 // feed (MEX, say), or one run whose operator sends no trip updates - leaves its
 // trip page empty, so the map does not draw it.
 
-import { prisma, runCommand } from "@/lib/db";
+import { aggregateRows } from "@/lib/data/raw";
+import { INGEST_INTERVAL_SEC } from "@/lib/data/revalidate";
 import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { onARun } from "@/lib/live-routes";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -22,17 +23,15 @@ export async function getRecordedLiveTrips(): Promise<Set<string>> {
     async () => {
       const trips = [...new Set(onARun(await getLiveVehicles()).map((v) => v.tripId as string))];
       if (trips.length === 0) return [];
-      const res = (await runCommand(() =>
-        prisma.$runCommandRaw({
-          aggregate: "ArrivalEvent",
-          pipeline: [{ $match: { tripId: { $in: trips } } }, { $group: { _id: "$tripId" } }],
-          cursor: { batchSize: 10_000 },
-        }),
-      )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
-      return res.cursor.firstBatch.map((r) => r._id);
+      const res = await aggregateRows<{ _id: string }>(
+        "ArrivalEvent",
+        [{ $match: { tripId: { $in: trips } } }, { $group: { _id: "$tripId" } }],
+        10_000,
+      );
+      return res.map((r) => r._id);
     },
     ["live-recorded-trips"],
-    { revalidate: 120 },
+    { revalidate: INGEST_INTERVAL_SEC },
   )();
   return new Set(ids);
 }

@@ -3,19 +3,17 @@
 
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
-import { routeSlug } from "@/lib/route/slug";
+import { NoWorst, WorstCard, WorstCardBucket, WorstCardTitle } from "@/components/ui/WorstCard";
+import { routeHref } from "@/lib/page/hrefs";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { dayLinkParam } from "@/lib/time/day-url";
-import { nzHourLabel, weekdayShort } from "@/lib/time/service-day";
 import {
   HOURS_PARAM,
-  hourRangeClock,
   hourRangeParam,
   singleHourRange,
   type HourRange,
 } from "@/lib/time/time-of-day";
-import { buildHref } from "@/lib/utils";
 import type { ShameRouteRow } from "@/types/dashboard";
-import Link from "next/link";
 import type { JSX } from "react";
 
 /** Props for {@link WorstRouteCard}. */
@@ -75,37 +73,13 @@ export function WorstRouteCard({
   hours = null,
   live = false,
 }: WorstRouteCardProps): JSX.Element {
-  // Nothing ranked at all, which is not the green all-clear below.
-  if (!ranked) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-border bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-muted">Worst route</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">Nothing to rank yet</span>
-        <p className="text-sm text-at-muted">No route has enough arrivals in this period.</p>
-      </div>
-    );
+  // Nothing ranked is not the green all-clear: see NoWorst.
+  if (!ranked || !route) {
+    return <NoWorst eyebrow="Worst route" noun="route" ranked={ranked} when={when} />;
   }
-  // Routes ranked and none was past the late bound, so the board crowns nothing.
-  if (!route) {
-    return (
-      <div className="flex flex-col gap-1 border-l-2 border-at-ontime bg-at-surface py-3 pl-5">
-        <p className="at-eyebrow text-at-ontime">Worst route</p>
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">No shame {when}</span>
-        <p className="text-sm text-at-muted">
-          No route stood out {when}, so there is nothing to call out.
-        </p>
-      </div>
-    );
-  }
-  const name = route.short_name || route.long_name || routeSlug(route.route_id);
+  const name = routeDisplayName(route);
+  const subtitle = routeSubtitle(route);
 
-  // Week-view rows carry a service date and no meaningful hour; day rows are the
-  // other way round.
-  const bucket = route.date
-    ? `on ${weekdayShort(route.date)}`
-    : hours
-      ? `from ${hourRangeClock(hours, live)}`
-      : `in the ${nzHourLabel(route.hour)} hour`;
   // The day is dropped when it is today's, whose `?day` the route page
   // redirects away: a card naming today would have cost its reader a 307. A day
   // row's hour goes with it, since every figure above is that hour's and opening
@@ -113,34 +87,34 @@ export function WorstRouteCard({
   // A week row names a day instead, and its `hour` is a placeholder 0.
   const href =
     hrefProp ??
-    buildHref(`/route/${encodeURIComponent(routeSlug(route.route_id))}`, {
+    routeHref(route.routeId, {
       day: dayLinkParam(day),
       [HOURS_PARAM]: route.date ? undefined : hourRangeParam(hours ?? singleHourRange(route.hour)),
     });
   return (
-    <Link
-      href={href}
-      className="flex flex-col gap-1 border-l-2 border-at-late bg-at-surface py-3 pl-5 transition-colors hover:bg-at-late/5"
-    >
-      <p className="at-eyebrow text-at-late">Worst route</p>
+    <WorstCard tone="worst" eyebrow="Worst route" href={href}>
       <div className="flex flex-wrap items-center gap-2">
         <ModeIcon
           mode={route.mode}
-          shortName={route.short_name}
-          longName={route.long_name}
-          colour={route.colour}
+          shortName={route.shortName}
+          longName={route.longName}
           className="h-6 w-6"
         />
-        <span className="text-2xl font-ultra tracking-zero text-at-ink">{name}</span>
+        <WorstCardTitle>{name}</WorstCardTitle>
       </div>
+      {subtitle && <p className="text-sm text-at-muted">{subtitle}</p>}
       <OffScheduleLine
         signedSec={route.avg_delay_sec}
         absSec={route.avg_abs_delay_sec}
         mode={route.mode}
       />
-      <p className="text-xs text-at-muted tabular-nums">
-        {route.events} arrivals {bucket}
-      </p>
-    </Link>
+      <WorstCardBucket
+        events={route.events}
+        date={route.date}
+        hour={route.hour}
+        hours={hours}
+        live={live}
+      />
+    </WorstCard>
   );
 }

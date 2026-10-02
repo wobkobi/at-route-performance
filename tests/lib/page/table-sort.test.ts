@@ -70,13 +70,13 @@ describe("sortRows", () => {
 
 describe("sortParams", () => {
   it("flips the active column and starts others in their first direction", () => {
-    const active = { key: "runs", dir: "desc" as const };
+    const active = { key: "runs" as const, dir: "desc" as const };
     expect(sortParams(active, "runs", COLUMNS, "runs")).toEqual({ sort: "runs", rev: "1" });
     expect(sortParams(active, "name", COLUMNS, "runs")).toEqual({ sort: "name", rev: undefined });
   });
 
   it("drops both params for the default column in its first direction", () => {
-    const flipped = { key: "runs", dir: "asc" as const };
+    const flipped = { key: "runs" as const, dir: "asc" as const };
     expect(sortParams(flipped, "runs", COLUMNS, "runs")).toEqual({
       sort: undefined,
       rev: undefined,

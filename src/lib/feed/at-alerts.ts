@@ -4,10 +4,12 @@
 // single-trip alert is about, then selects the ones relevant to a given route, a
 // given stop, a given trip, or the whole network, and grades how loudly each
 // should be presented.
+import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route/slug";
-import { isObj, sleep } from "@/lib/utils";
+import { routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { SEC_PER_DAY } from "@/lib/time/service-day";
+import { isObj, retryDelay, sleep } from "@/lib/utils";
 
 export interface AlertTranslation {
   text: string;
@@ -79,6 +81,31 @@ export function cleanAlertHeader(text: string): string {
 
 /** How loudly an alert should be presented. */
 export type AlertSeverity = "severe" | "info";
+
+/**
+ * The badge each GTFS-RT `effect` gets, in capitals as status badges are.
+ * OTHER_EFFECT, UNKNOWN_EFFECT and NO_EFFECT are left out: a badge reading
+ * "other" tells a rider nothing the alert's own text does not.
+ */
+const EFFECT_LABEL: Readonly<Record<string, string>> = {
+  NO_SERVICE: "NO SERVICE",
+  REDUCED_SERVICE: "REDUCED SERVICE",
+  SIGNIFICANT_DELAYS: "MAJOR DELAYS",
+  DETOUR: "DETOUR",
+  ADDITIONAL_SERVICE: "EXTRA SERVICE",
+  MODIFIED_SERVICE: "CHANGED SERVICE",
+  STOP_MOVED: "STOP MOVED",
+  ACCESSIBILITY_ISSUE: "ACCESSIBILITY",
+};
+
+/**
+ * An alert effect's badge label.
+ * @param effect - AT's raw `effect` value ("NO_SERVICE"), if any.
+ * @returns The label, or null for no effect or one that names nothing useful.
+ */
+export function alertEffectLabel(effect: string | undefined): string | null {
+  return effect ? (EFFECT_LABEL[effect] ?? null) : null;
+}
 
 /**
  * GTFS-RT `effect` values that stop or substantially reroute a service. These
@@ -294,10 +321,12 @@ async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]
             select: { id: true, shortName: true },
           })
         : [];
-    const shortNames = new Map(routes.map((r) => [r.id, r.shortName ?? routeSlug(r.id)]));
+    const shortNames = new Map(
+      routes.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]),
+    );
     return alerts.map((a) => resolveAlertRoutes(a, tripRoutes, shortNames));
   } catch (err) {
-    console.warn("[AT Alerts] Route lookup failed", err instanceof Error ? err.message : err);
+    console.warn("[AT-ALERTS] Route lookup failed", err instanceof Error ? err.message : err);
     return alerts;
   }
 }
@@ -330,9 +359,9 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
 
       // Retry rate limiting (429) and transient server errors (5xx) with backoff
       if (res.status === 429 || res.status >= 500) {
-        const backoffMs = Math.min(60_000, 1000 * Math.pow(2, attempt)); // 1s, 2s, 4s, max 60s
+        const backoffMs = retryDelay(attempt);
         console.warn(
-          `[AT Alerts] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
+          `[AT-ALERTS] ${res.status} ${res.statusText}. Retrying in ${backoffMs}ms... (attempt ${attempt + 1}/${retries + 1})`,
         );
         if (attempt < retries) {
           await sleep(backoffMs);
@@ -355,8 +384,8 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
         attempt === 0 &&
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
-        console.warn(`[AT Alerts] ${lastError.message}. Retrying once...`);
-        await sleep(2000);
+        console.warn(`[AT-ALERTS] ${lastError.message}. Retrying once...`);
+        await sleep(retryDelay(attempt));
         continue;
       }
 
@@ -364,7 +393,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
     }
   }
 
-  throw lastError || new Error("AT Alerts fetch failed");
+  throw lastError ?? new Error("AT Alerts fetch failed");
 }
 
 /**
@@ -389,7 +418,7 @@ export function isAlertActive(alert: ServiceAlert, now: Date = new Date()): bool
  * closure AT announces on the Monday, without listing every recurring notice
  * booked months out.
  */
-export const UPCOMING_HORIZON_SEC = 7 * 86_400;
+export const UPCOMING_HORIZON_SEC = 7 * SEC_PER_DAY;
 
 /**
  * The next period of an alert that has yet to start at `now`, or null when
@@ -478,7 +507,7 @@ function getAlertSnapshot(): Promise<AlertSnapshot> {
       };
     },
     ["service-alerts-v2"],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 

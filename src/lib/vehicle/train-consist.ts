@@ -4,6 +4,8 @@
 // position but attaches the trip to only one of them. The other units arrive
 // with no trip, so a train's length is read off the trip-less units moving with it.
 
+import { metresBetween } from "@/lib/geo/distance";
+
 /** One train unit's reading from the vehicle feed. */
 export interface TrainUnit {
   id: string;
@@ -41,21 +43,6 @@ const MAX_BEARING_GAP = 30;
 const MAX_TIME_GAP_S = 60;
 
 /**
- * Ground distance between two readings in metres. An equirectangular
- * approximation, accurate to well under a metre over the few hundred metres
- * compared here.
- * @param a - First reading.
- * @param b - Second reading.
- * @returns Distance in metres.
- */
-function metresBetween(a: TrainUnit, b: TrainUnit): number {
-  const rad = Math.PI / 180;
-  const x = (b.lon - a.lon) * rad * Math.cos(((a.lat + b.lat) / 2) * rad);
-  const y = (b.lat - a.lat) * rad;
-  return Math.hypot(x, y) * 6_371_000;
-}
-
-/**
  * Whether two units read as one train: close enough, reported at about the same
  * time, and either both moving at the same speed and heading, or both standing
  * still close together.
@@ -67,7 +54,7 @@ function movesWith(a: TrainUnit, b: TrainUnit): boolean {
   if (a.timestamp != null && b.timestamp != null) {
     if (Math.abs(a.timestamp - b.timestamp) > MAX_TIME_GAP_S) return false;
   }
-  const d = metresBetween(a, b);
+  const d = metresBetween([a.lat, a.lon], [b.lat, b.lon]);
   const aStill = (a.speed ?? 0) < STILL_SPEED;
   const bStill = (b.speed ?? 0) < STILL_SPEED;
   if (aStill && bStill) return d <= STILL_LINK_M;
@@ -101,7 +88,11 @@ export function trainCars(leads: TrainUnit[], free: TrainUnit[]): Map<string, nu
         if (!unclaimed.has(f.id)) continue;
         const near = units.filter((u) => movesWith(u, f));
         if (near.length === 0) continue;
-        pairs.push({ leadId, unit: f, d: Math.min(...near.map((u) => metresBetween(u, f))) });
+        pairs.push({
+          leadId,
+          unit: f,
+          d: Math.min(...near.map((u) => metresBetween([u.lat, u.lon], [f.lat, f.lon]))),
+        });
       }
     }
     pairs.sort((a, b) => a.d - b.d);

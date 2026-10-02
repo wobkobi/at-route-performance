@@ -27,9 +27,9 @@ describe("vehicleStatus", () => {
 
   it("tells no data apart from on time", () => {
     expect(vehicleStatus(null, "BUS")).toEqual({
-      band: "unknown",
+      band: "none",
       label: null,
-      detail: "No live delay",
+      detail: "No reading",
     });
     expect(vehicleStatus(0, "BUS").detail).toBe("On time");
   });

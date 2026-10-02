@@ -14,14 +14,14 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
-import { ModeFilter, type ModeFilterValue } from "@/components/filter/ModeFilter";
+import { ModeFilter } from "@/components/filter/ModeFilter";
+import { ModeUsageFilter } from "@/components/filter/ModeUsageFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import {
   loadPeriodBatch,
   PeriodBoards,
-  PeriodModeFilter,
   PeriodRouteCard,
   PeriodStopCard,
   PeriodTripCard,
@@ -31,13 +31,13 @@ import {
 import { RankBoard } from "@/components/ranking/RankBoard";
 import { RankingFilterMenus } from "@/components/ranking/RankingFilterMenus";
 import { RankingFiltersNote } from "@/components/ranking/RankingFiltersNote";
-import { RankingsHeader } from "@/components/ranking/RankingsHeader";
 import { WorstRouteCard } from "@/components/ranking/WorstRouteCard";
 import { WorstStopCard } from "@/components/ranking/WorstStopCard";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
-import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION } from "@/lib/copy";
+import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, SITE_DESCRIPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
   getCancelledCount,
@@ -45,25 +45,27 @@ import {
   getFilteredCancellations,
   getFilteredRankings,
   getLatestEventDate,
-  getShameOfDay,
-  getShameRouteOfDay,
-  getShameRoutesInHours,
-  getShameRouteStreak,
-  getShameStopsInHours,
-  getShameTripsInHours,
-  getWorstStopsOfDay,
+  getRouteBoardInHours,
+  getRouteBoardOfDay,
+  getShameStreaks,
+  getStopBoardInHours,
+  getStopBoardOfDay,
+  getTripBoardInHours,
+  getTripBoardOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
-import { cardMetadata, homeCardPath, homeCardTitle, parseHomeCard } from "@/lib/og";
+import { modeWord, parseMode, type Mode } from "@/lib/mode";
+import { homeCardPath, homeCardTitle, pageMetadata, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import type { PeriodWindow } from "@/lib/page/range";
 import {
   dayRangeNav,
   overviewHeading,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   weekPeriodOf,
   windowPhrase,
 } from "@/lib/page/range";
@@ -73,21 +75,20 @@ import {
   hasRankingFilters,
   parseRankingFilters,
   rankingFilterParams,
-  routeQueryWithHours,
+  routeParamsWithHours,
 } from "@/lib/ranking-filters";
 import {
   deriveBoards,
   deriveOffSchedule,
   MIN_BOARD_EVENTS,
   MIN_MODE_EVENTS,
+  parseDelayDirection,
   summariseRows,
-  type DelayDirection,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
 import {
-  isSchoolBus,
   parseSchoolFilter,
-  schoolAllows,
+  rowAllowedBySchool,
   schoolDelta,
   schoolFilterParam,
   type SchoolFilter,
@@ -98,8 +99,8 @@ import { requestNow, requestServiceDay } from "@/lib/time/request-now";
 import {
   monthRangeLabel,
   nzLocalHour,
-  serviceDatesInRange,
   serviceDayLabel,
+  weekLabel,
   type DateRange,
 } from "@/lib/time/service-day";
 import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
@@ -125,7 +126,7 @@ interface HomeSearchParams {
   dir?: string;
   day?: string;
   hours?: string;
-  days?: string;
+  daytype?: string;
   area?: string;
 }
 
@@ -151,11 +152,10 @@ export async function generateMetadata({
     const { serviceDate } = await resolveShownDay(null, today);
     if (serviceDate !== today) card.day = serviceDate;
   }
-  return cardMetadata(
-    homeCardTitle(card),
-    "How on time Auckland's buses, trains and ferries ran, from AT's live feeds.",
-    homeCardPath(sp),
-  );
+  return pageMetadata({
+    description: SITE_DESCRIPTION,
+    card: { title: homeCardTitle(card), path: homeCardPath(sp) },
+  });
 }
 
 /**
@@ -165,12 +165,8 @@ export async function generateMetadata({
  * @param range - The window's range.
  * @returns The label.
  */
-function periodLabel(window: "week" | "month", range: DateRange): string {
-  if (window === "month") return monthRangeLabel(range);
-  const days = serviceDatesInRange(range);
-  const first = days[0];
-  const last = days.at(-1);
-  return first && last ? `${serviceDayLabel(first)} to ${serviceDayLabel(last)}` : "This week";
+function periodLabel(window: PeriodWindow, range: DateRange): string {
+  return window === "month" ? monthRangeLabel(range) : weekLabel(range);
 }
 
 /**
@@ -185,7 +181,7 @@ async function PeriodHome({
   window,
   sp,
 }: {
-  window: "week" | "month";
+  window: PeriodWindow;
   sp: HomeSearchParams;
 }): Promise<JSX.Element> {
   const { mode, dir, schools } = parseRankingsParams(sp);
@@ -239,18 +235,17 @@ async function PeriodHome({
   return (
     <main className="space-y-10">
       <section className="space-y-5">
-        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
-          {overviewHeading(nav, period)}
-        </h1>
+        <PageHeader size="hero" title={overviewHeading(nav, period)} />
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-at-border py-3">
           <RangeControls basePath="/" nav={nav} />
           <div className="flex flex-wrap items-center gap-3">
-            <Suspense
-              fallback={<ModeFilter active={mode} basePath="/" preservedParams={modePreserved} />}
-            >
-              <PeriodModeFilter batch={batch} active={mode} preservedParams={modePreserved} />
-            </Suspense>
+            <ModeUsageFilter
+              active={mode}
+              basePath="/"
+              preservedParams={modePreserved}
+              modes={batch.core.then((c) => c.availableModes)}
+            />
             <SchoolBusToggle value={schools} basePath="/" preservedParams={schoolPreserved} />
             <RankingFilterMenus
               basePath="/"
@@ -269,7 +264,7 @@ async function PeriodHome({
               mode: mode ?? undefined,
               school: schoolFilterParam(schools),
             })}
-            className="ml-auto text-sm font-semibold text-at-shore hover:underline"
+            className="at-link ml-auto text-sm font-semibold"
           >
             Day by day
           </Link>
@@ -299,9 +294,16 @@ async function PeriodHome({
       </section>
 
       <section className="space-y-4">
-        <RankingsHeader>
+        <SectionLink
+          title="Route rankings"
+          href={buildHref("/routes", {
+            window,
+            period: view.period,
+            ...viewQuery("all", { mode, school: schools, areas: filters.areas }),
+          })}
+        >
           <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-        </RankingsHeader>
+        </SectionLink>
         <Suspense fallback={<LoadingBlock label="Loading the route rankings" />}>
           <PeriodBoards batch={batch} view={view} />
         </Suspense>
@@ -348,10 +350,8 @@ export default async function Home({
   const today = await requestServiceDay();
   clampDayParam("/", sp, today);
   dropTodayParam("/", sp, today);
-  const mode = (
-    ["BUS", "TRAIN", "FERRY"].includes(sp.mode ?? "") ? sp.mode : null
-  ) as ModeFilterValue;
-  const dir = (["late", "early"].includes(sp.dir ?? "") ? sp.dir : null) as DelayDirection;
+  const mode = parseMode(sp.mode);
+  const dir = parseDelayDirection(sp.dir);
 
   // Service day from ?day, or the one every day page opens on (the current day
   // once it has opened, else the day before).
@@ -375,9 +375,7 @@ export default async function Home({
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
   const linkDay = dayLinkParam(serviceDate, today);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const visible = modeFiltered.filter((r) =>
-    schoolAllows(schools, isSchoolBus(r.short_name, r.long_name)),
-  );
+  const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need
@@ -426,7 +424,7 @@ export default async function Home({
     school: schoolFilterParam(schools),
     dir: dir ?? undefined,
   });
-  const routeQuery = routeQueryWithHours(routeLinkQuery("day", linkDay, null), filters.hours);
+  const routeParams = routeParamsWithHours(routeLinkParams("day", linkDay, null), filters.hours);
   // The hour under way today, so the time box can grey the hours still to come.
   const nowHour = linkDay === undefined ? nzLocalHour(await requestNow()) : null;
 
@@ -439,9 +437,7 @@ export default async function Home({
   return (
     <main className="space-y-10">
       <section className="space-y-5">
-        <h1 className="text-3xl leading-tight font-ultra tracking-zero text-at-ink sm:text-5xl">
-          {overviewHeading(nav, null)}
-        </h1>
+        <PageHeader size="hero" title={overviewHeading(nav, null)} />
 
         {/* Every control the page has, on one rule-bounded row. Stacked - window
             tabs, then the day stepper, then the mode chips, then the school
@@ -515,13 +511,19 @@ export default async function Home({
       </section>
 
       <section className="space-y-4">
-        <RankingsHeader>
+        <SectionLink
+          title="Route rankings"
+          href={buildHref("/routes", {
+            day: linkDay,
+            ...viewQuery("all", { mode, school: schools, areas: filters.areas }),
+          })}
+        >
           <DelayFilter active={dir} basePath="/" preservedParams={dirPreserved} />
-        </RankingsHeader>
+        </SectionLink>
 
         {mode && visible.every((r) => r.events < boardMin) && (
           <p className="text-sm text-at-muted">
-            Not enough {mode.charAt(0) + mode.slice(1).toLowerCase()} data for this day - try the{" "}
+            Not enough {modeWord(mode)} data for this day. Try the{" "}
             <Link
               href={buildHref("/", {
                 window: "week",
@@ -531,7 +533,7 @@ export default async function Home({
                 school: schoolFilterParam(schools),
                 dir,
               })}
-              className="underline"
+              className="at-link"
             >
               week
             </Link>{" "}
@@ -547,12 +549,12 @@ export default async function Home({
             metric="delay"
             caption={ON_TIME_CAPTION}
             cancelled={cancelledByRoute}
-            routeQuery={routeQuery}
+            routeParams={routeParams}
             total={offSchedule.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
               day: linkDay,
-              ...viewQuery("off", { mode, school: schools, lean: dir, areas: filters.areas }),
+              ...viewQuery("off", { mode, school: schools, direction: dir, areas: filters.areas }),
             })}
           />
           <RankBoard
@@ -561,7 +563,7 @@ export default async function Home({
             rows={boards.reliable.slice(0, BOARD_SIZE)}
             metric="onTime"
             caption={ON_TIME_SHARE_CAPTION}
-            routeQuery={routeQuery}
+            routeParams={routeParams}
             total={boards.reliable.length}
             minEvents={boardMin}
             seeAllHref={buildHref("/routes", {
@@ -625,7 +627,7 @@ async function HomeShameCards({
 }: {
   range: DateRange;
   serviceDate: string;
-  mode: ModeFilterValue;
+  mode: Mode | null;
   schools: SchoolFilter;
   linkDay: string | undefined;
   when: string;
@@ -635,9 +637,9 @@ async function HomeShameCards({
   if (hours) {
     const live = linkDay === undefined;
     const [trips, routes, stops] = await Promise.all([
-      getShameTripsInHours(range, filter, hours, TODAY_REVALIDATE),
-      getShameRoutesInHours(range, filter, hours, TODAY_REVALIDATE),
-      getShameStopsInHours(range, filter, hours, TODAY_REVALIDATE),
+      getTripBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+      getRouteBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+      getStopBoardInHours(range, filter, hours, TODAY_REVALIDATE),
     ]);
     const trip = crownedTop(trips.rows);
     const route = crownedTop(routes.rows);
@@ -646,7 +648,7 @@ async function HomeShameCards({
     const span = `from ${hourRangeClock(hours, live)} ${when}`;
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ShameOfDay trip={trip.row} ranked={trip.ranked} routeStreakDays={0} when={span} />
+        <ShameOfDay trip={trip.row} ranked={trip.ranked} when={span} />
         <WorstRouteCard
           route={route.row}
           ranked={route.ranked}
@@ -667,17 +669,20 @@ async function HomeShameCards({
     );
   }
   const [shameTrips, shameRoutes, shameStops] = await Promise.all([
-    getShameOfDay(range, filter, TODAY_REVALIDATE),
-    getShameRouteOfDay(range, filter, TODAY_REVALIDATE),
-    getWorstStopsOfDay(range, filter, TODAY_REVALIDATE),
+    getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
+    getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
+    getStopBoardOfDay(range, filter, TODAY_REVALIDATE),
   ]);
   const tripHours = filterLiveHours(shameTrips.hours, serviceDate);
   const trip = crownedRow(tripHours);
   const route = crownedRow(filterLiveHours(shameRoutes.hours, serviceDate));
   const stop = crownedRow(filterLiveHours(shameStops.hours, serviceDate));
-  // Needs the crowned run's route_id, so it runs after the parallel three.
-  const routeStreakDays = trip.row
-    ? await getShameRouteStreak(trip.row.route_id, range, TODAY_REVALIDATE)
+  // Needs the crowned trip's route, so it runs after the parallel three. The
+  // card's trip holds the day's crown, so that day starts the run.
+  const crownedDays = trip.row
+    ? 1 +
+      ((await getShameStreaks("trip", [trip.row.routeId], range, filter)).get(trip.row.routeId)
+        ?.prevCrownedDays ?? 0)
     : 0;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -686,7 +691,7 @@ async function HomeShameCards({
         trip={trip.row}
         ranked={trip.ranked}
         hours={tripHours}
-        routeStreakDays={routeStreakDays}
+        crownedDays={crownedDays}
         when={when}
       />
       <WorstRouteCard route={route.row} ranked={route.ranked} when={when} day={linkDay} />
