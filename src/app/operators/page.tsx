@@ -40,12 +40,7 @@ import {
 } from "@/lib/page/range";
 import { sortRows, tableSort, type SortColumn } from "@/lib/page/table-sort";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import {
-  isSchoolBus,
-  parseSchoolFilter,
-  rowAllowedBySchool,
-  schoolFilterParam,
-} from "@/lib/school-bus";
+import { parseSchoolFilter, rowAllowedBySchool, schoolFilterParam } from "@/lib/school-bus";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
@@ -162,7 +157,7 @@ export default async function OperatorsPage({
     cancelledBase && vehiclesBase
       ? new Map(
           operatorRows(
-            modeRows.filter((r) => !isSchoolBus(r.shortName, r.longName)),
+            modeRows.filter((r) => rowAllowedBySchool(r, "exclude")),
             operators,
             cancelledBase,
             vehiclesBase,

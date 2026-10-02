@@ -37,6 +37,7 @@ import {
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
   plural,
+  pluralNoun,
 } from "@/lib/format";
 import {
   cardFilterLabel,
@@ -662,9 +663,9 @@ export async function listCardData(card: ListCard): Promise<SubjectCardData> {
       lines:
         trips.length > 0
           ? [
-              `trip${trips.length === 1 ? "" : "s"} flagged cancelled, reinstated ones included`,
-              `${neverRan} never ran, ${cutShort} cut short`,
-              top ? `Most on ${top.name}: ${top.n}` : "",
+              `${pluralNoun(trips.length, "trip")} flagged cancelled, reinstated ones included`,
+              `${formatCount(neverRan)} never ran, ${formatCount(cutShort)} cut short`,
+              top ? `Most on ${top.name}: ${formatCount(top.n)}` : "",
             ].filter(Boolean)
           : ["No trip was flagged cancelled"],
     },

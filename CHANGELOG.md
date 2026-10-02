@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.54] - 2026-10-03
+
+### Changed
+
+- Typed mode filters, shared plural, time constants and retry delay where the consistency pass
+  missed them; tests for the map style helpers and page metadata.
+
 ## [2.41.53] - 2026-10-03
 
 ### Fixed

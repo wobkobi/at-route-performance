@@ -59,12 +59,7 @@ import {
   type SortParamNames,
 } from "@/lib/page/table-sort";
 import { compareRouteNumbers, routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
-import {
-  isSchoolBus,
-  parseSchoolFilter,
-  rowAllowedBySchool,
-  schoolFilterParam,
-} from "@/lib/school-bus";
+import { parseSchoolFilter, rowAllowedBySchool, schoolFilterParam } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -219,7 +214,7 @@ export default async function OperatorPage({
   const base =
     cancelledBase && vehiclesBase
       ? (operatorRows(
-          allRows.filter((r) => !isSchoolBus(r.shortName, r.longName)),
+          allRows.filter((r) => rowAllowedBySchool(r, "exclude")),
           operators,
           new Map(cancelledBase.map((c) => [c.slug, c.cancelled])),
           vehiclesBase,

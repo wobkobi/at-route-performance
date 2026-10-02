@@ -77,7 +77,7 @@ export const MIN_ROUTE_EVENTS_HOUR = 30;
  */
 function routeShamePipelineBase(
   range: DateRange,
-  mode: string | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   classified: boolean,
   groupKey: string,
@@ -141,7 +141,7 @@ interface ShameRouteRaw {
   routeId: string;
   shortName: string | null;
   longName: string | null;
-  mode: string | null;
+  mode: Mode | null;
   colour: string | null;
   events: number;
   avg_abs_delay_sec: number;

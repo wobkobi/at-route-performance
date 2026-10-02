@@ -4,11 +4,13 @@
 // trip id when it does not. Kept apart from the board modules so the ingest and
 // migration paths can take it without pulling a board's imports in behind it.
 
+import { SEC_PER_DAY, SEC_PER_HOUR } from "@/lib/time/service-day";
+
 /** GTFS `HH:MM:SS`; hours run past 23 for post-midnight trips. */
 const GTFS_TIME_RE = /^(\d{1,2}):([0-5]\d):([0-5]\d)$/;
 
 /** Latest start a GTFS time can sensibly carry (48h covers any extended time). */
-const MAX_GTFS_SEC = 48 * 3600;
+const MAX_GTFS_SEC = 2 * SEC_PER_DAY;
 
 /**
  * Seconds past the GTFS reference for a `HH:MM:SS` schedule time.
@@ -18,7 +20,7 @@ const MAX_GTFS_SEC = 48 * 3600;
 export function gtfsTimeSeconds(hms: string | null | undefined): number | null {
   const m = hms ? GTFS_TIME_RE.exec(hms) : null;
   if (!m) return null;
-  const sec = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  const sec = Number(m[1]) * SEC_PER_HOUR + Number(m[2]) * 60 + Number(m[3]);
   return sec < MAX_GTFS_SEC ? sec : null;
 }
 

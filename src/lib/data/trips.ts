@@ -55,6 +55,15 @@ const TRIP_SORTS: Record<TripSort, Record<string, 1 | -1>> = {
   departure: { scheduled_start: 1, _id: 1 },
 };
 
+/**
+ * Read a trip ordering from the URL (`?tsort`).
+ * @param raw - The param's value.
+ * @returns The ordering, or "off" (the board's default) when missing or unknown.
+ */
+export function parseTripSort(raw: string | undefined): TripSort {
+  return raw !== undefined && Object.hasOwn(TRIP_SORTS, raw) ? (raw as TripSort) : "off";
+}
+
 /** Raw worst-trips row before the `scheduled_start` date is normalised. */
 interface WorstTripRaw extends Omit<PerTripStat, "scheduled_start"> {
   scheduled_start: { $date: string } | string;

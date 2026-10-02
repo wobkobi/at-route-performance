@@ -3,6 +3,7 @@
 // from one chip row to the next, and back to a list the reader came from. One
 // place, so every control that carries params agrees on which ones.
 
+import type { Mode } from "@/lib/mode";
 import type { DelayDirection } from "@/lib/rankings";
 import { schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 
@@ -76,7 +77,7 @@ export function omitParams(sp: URLSearchParams, drop: readonly string[]): Record
 /** The three filters a board can carry, as the chip rows hold them. */
 export interface CarriedFilters {
   /** Active mode, or null for every mode. */
-  mode: string | null;
+  mode: Mode | null;
   /** Which school services count. */
   schools: SchoolFilter;
   /** Active delay direction, or null for both. */

@@ -18,6 +18,7 @@ import {
   type DateRange,
   mondayOf,
   monthLastDay,
+  monthOf,
   nzMonthKey,
   nzServiceDayString,
   parseYmd,
@@ -265,7 +266,7 @@ export function monthPeriodOf(
 ): string | null {
   const { y, mo } = parseYmd(serviceDate);
   const month = ymKey(y, mo);
-  return month >= today.slice(0, 7) ? null : month;
+  return month >= monthOf(today) ? null : month;
 }
 
 /**

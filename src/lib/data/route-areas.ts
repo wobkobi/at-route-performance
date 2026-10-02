@@ -46,7 +46,7 @@ function routeStopsOfDay(date: string): Promise<Record<string, string[]>> {
     },
     ["route-stops-of-day", date],
     date,
-    6 * 3600,
+    SIX_HOUR_REVALIDATE,
   );
 }
 

@@ -325,7 +325,8 @@ function buildNodes(
       if (nodeOf.has(id)) continue;
       const name = input.names.get(id) ?? id;
       const here = input.coords.get(id);
-      const same = byName.get(normName(name)) ?? [];
+      const key = normName(name);
+      const same = byName.get(key) ?? [];
       const hit = same.find((n) =>
         n.stopIds.some((o) => {
           const there = input.coords.get(o);
@@ -340,7 +341,7 @@ function buildNodes(
       const node: StopNode = { key: id, stopIds: [id], name, repeats: null };
       nodes.set(id, node);
       nodeOf.set(id, id);
-      byName.set(normName(name), [...same, node]);
+      pushTo(byName, key, node);
     }
   }
   return { nodeOf, nodes };

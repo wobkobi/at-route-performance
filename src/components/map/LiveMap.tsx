@@ -462,7 +462,7 @@ export default function LiveMap({
         }
         hereLayer.clearLayers();
         // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
-        const ink = cssVar("--color-at-ink");
+        const ink = cssVar("--color-at-ink") || PALETTE.ink;
         L.circle(here, {
           radius: pos.coords.accuracy,
           color: ink,

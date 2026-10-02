@@ -385,7 +385,7 @@ async function fetchAlerts(retries = 3): Promise<AtServiceAlerts> {
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
         console.warn(`[AT-ALERTS] ${lastError.message}. Retrying once...`);
-        await sleep(2000);
+        await sleep(retryDelay(attempt));
         continue;
       }
 

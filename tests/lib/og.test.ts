@@ -5,9 +5,12 @@ import {
   cardFilterLabel,
   cardPath,
   cardWhenSuffix,
+  defaultShareCard,
   homeCardPath,
   homeCardTitle,
   listCardTitle,
+  listShareCard,
+  pageMetadata,
   parseCardQuery,
   parseHomeCard,
   parseHomeCardQuery,
@@ -16,6 +19,7 @@ import {
   parseShameCard,
   parseStopCard,
   parseTripCard,
+  shameHeading,
 } from "@/lib/og";
 import { describe, expect, it } from "vitest";
 
@@ -193,5 +197,51 @@ describe("list cards", () => {
 
   it("falls back to the home card on an unknown page", () => {
     expect(reparse("/api/og?card=list&page=stops").kind).toBe("home");
+  });
+});
+
+describe("share cards", () => {
+  it("names a shame board's plain heading for its window", () => {
+    expect(shameHeading("route", "week")).toBe("Worst routes of the week");
+    expect(shameHeading("stop", "day")).toBe("Worst stops of the day");
+  });
+
+  it("gives a list page its own card path and title", () => {
+    const card = parseListCard("routes", { day: "2026-09-20", mode: "TRAIN" });
+    expect(listShareCard(card)).toEqual({ title: listCardTitle(card), path: cardPath(card) });
+  });
+
+  it("falls back to the home card for a page with none", () => {
+    expect(defaultShareCard()).toEqual({
+      title: homeCardTitle(parseHomeCard({})),
+      path: "/api/og?card=home",
+    });
+  });
+});
+
+describe("pageMetadata", () => {
+  it("keeps the tab title plain and shares the card's own title", () => {
+    const card = { title: "Worst trips of the day, Sun 20 Sep", path: "/api/og?card=shame" };
+    const meta = pageMetadata({ title: "Worst trips", description: "D.", card });
+    expect(meta.title).toBe("Worst trips");
+    expect(meta.openGraph).toMatchObject({
+      title: card.title,
+      description: "D.",
+      images: [{ url: card.path, width: 1200, height: 630, alt: card.title }],
+    });
+    expect(meta.twitter).toMatchObject({ card: "summary_large_image", title: card.title });
+  });
+
+  it("shares the default card under the page's own title when it has none", () => {
+    const meta = pageMetadata({ title: "Days", description: "D." });
+    const fallback = defaultShareCard();
+    expect(meta.openGraph).toMatchObject({
+      title: "Days",
+      images: [{ url: fallback.path, alt: fallback.title }],
+    });
+  });
+
+  it("leaves the title key out so the layout's default applies", () => {
+    expect("title" in pageMetadata({ description: "D." })).toBe(false);
   });
 });

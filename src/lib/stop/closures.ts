@@ -25,6 +25,7 @@ import {
   MS_PER_HOUR,
   nzServiceDayRange,
   SEC_PER_DAY,
+  SEC_PER_HOUR,
   SERVICE_START_HOUR,
 } from "@/lib/time/service-day";
 import { gtfsTimeSeconds } from "@/lib/trip/id";
@@ -37,7 +38,7 @@ import { gtfsTimeSeconds } from "@/lib/trip/id";
 export const TREND_RUNS = 3;
 
 /** The span, in seconds, that {@link TREND_RUNS} runs must fall within. */
-export const TREND_WINDOW_SEC = 2 * 3600;
+export const TREND_WINDOW_SEC = 2 * SEC_PER_HOUR;
 
 /** Runs in a row that end a seen or skipped state, or put an announced detour in doubt. */
 export const CLEAR_RUNS = 3;

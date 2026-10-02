@@ -46,7 +46,7 @@ import {
   getRouteStopSplit,
   getRouteTripStats,
   getTripRiderWait,
-  type TripSort,
+  parseTripSort,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import {
@@ -195,9 +195,6 @@ const STOP_SORT: SortParamNames = { sort: "ssort", rev: "srev" };
 /** The route page's windows: it has no month view. */
 const ROUTE_WINDOWS: readonly RangeWindow[] = ["day", "week"];
 
-/** Valid trip-sort values. */
-const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
-
 /**
  * A direction chip's label, from the busiest variant's headsign read the way
  * every trip row reads one ({@link boundFor}): origin dropped, shouting undone,
@@ -294,9 +291,7 @@ export default async function RoutePage({
     clampDayParam(routePath, sp, today);
     dropTodayParam(routePath, sp, today);
   }
-  const tripSort = (TRIP_SORTS as readonly string[]).includes(sp.tsort ?? "")
-    ? (sp.tsort as TripSort)
-    : "off";
+  const tripSort = parseTripSort(sp.tsort);
   const isReversed = sp.trev === "1";
   const hours = parseHourRange(sp.hours);
   // Re-derived rather than passed through, so an unreadable `hours` param drops

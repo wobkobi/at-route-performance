@@ -131,7 +131,7 @@ export async function fetchATTripUpdates(retries = 3): Promise<AtTripUpdates> {
         (lastError.name === "TimeoutError" || lastError.message.includes("fetch"))
       ) {
         console.warn(`[AT-API] ${lastError.message}. Retrying once...`);
-        await sleep(2000);
+        await sleep(retryDelay(attempt));
         continue;
       }
 

@@ -20,6 +20,18 @@ export function formatCount(n: number): string {
 }
 
 /**
+ * The noun alone for a count, singular only for exactly one, for a line whose
+ * count is printed somewhere else (a card's hero figure).
+ * @param n - The count.
+ * @param one - The singular noun.
+ * @param many - The plural, when it is not the singular plus "s".
+ * @returns The noun.
+ */
+export function pluralNoun(n: number, one: string, many = `${one}s`): string {
+  return n === 1 ? one : many;
+}
+
+/**
  * A count with its noun, singular only for exactly one ("1 trip", "12,345 arrivals").
  * @param n - The count.
  * @param one - The singular noun.
@@ -27,7 +39,7 @@ export function formatCount(n: number): string {
  * @returns The count and noun.
  */
 export function plural(n: number, one: string, many = `${one}s`): string {
-  return `${formatCount(n)} ${n === 1 ? one : many}`;
+  return `${formatCount(n)} ${pluralNoun(n, one, many)}`;
 }
 
 /**

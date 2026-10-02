@@ -105,6 +105,7 @@ export {
   getTripScheduledStops,
   getTripShape,
   getTripTimeline,
+  parseTripSort,
 } from "@/lib/data/trips";
 export type { RouteTripStatsParams, ScheduledStop, TripSort } from "@/lib/data/trips";
 export {

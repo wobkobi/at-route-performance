@@ -51,7 +51,7 @@ interface ShameTripRaw extends Omit<
   scheduled_start: { $date: string } | string;
   shortName?: string | null;
   longName?: string | null;
-  mode?: string | null;
+  mode?: Mode | null;
 }
 
 /**
@@ -302,7 +302,7 @@ export async function getTripBoardInHours(
  */
 function shamePipelineBase(
   range: DateRange,
-  mode: string | null,
+  mode: Mode | null,
   schools: SchoolFilter,
   classified: boolean,
 ): object[] {

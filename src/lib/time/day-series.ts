@@ -1,6 +1,7 @@
 // src/lib/time/day-series.ts
 // The per-day series behind the Day by day page: each service day's figures and
 // verdict, built the way the day view builds its strip so the two always agree.
+import type { Mode } from "@/lib/mode";
 import { summariseRows, visibleRows } from "@/lib/rankings";
 import { type SchoolFilter } from "@/lib/school-bus";
 import { dayVerdict, type VerdictBand } from "@/lib/verdict";
@@ -44,7 +45,7 @@ export function daySlot(
   date: string,
   today: string,
   data: DayData | null,
-  filter: { mode: string | null; schools: SchoolFilter },
+  filter: { mode: Mode | null; schools: SchoolFilter },
 ): DaySlot {
   if (date > today) return { kind: "future", date };
   if (!data) return { kind: "empty", date, cancelled: 0 };

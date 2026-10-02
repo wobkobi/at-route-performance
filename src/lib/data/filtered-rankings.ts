@@ -14,6 +14,7 @@ import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { getRiderWaitOfDates } from "@/lib/data/rider-wait";
 import { getRouteGeography } from "@/lib/data/route-areas";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
+import type { Mode } from "@/lib/mode";
 import {
   earlyTwoCounts,
   lateSum,
@@ -296,7 +297,7 @@ export interface FilteredCancellations {
 export async function getFilteredCancellations(
   range: DateRange,
   filters: RankingFilters,
-  base: { mode: string | null; schools: SchoolFilter },
+  base: { mode: Mode | null; schools: SchoolFilter },
 ): Promise<FilteredCancellations> {
   if (!hasRankingFilters(filters)) {
     throw new Error("getFilteredCancellations needs a filter; use the unfiltered counts");
