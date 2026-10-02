@@ -665,8 +665,8 @@ function RunsTable({
         </tbody>
       </DataTable>
       <p className="text-xs text-at-muted">
-        Length runs from the first recorded stop to the last. Off schedule is the average over the
-        trip&apos;s recorded stops.
+        Length runs from the first recorded stop to the last. Avg off by is how far off schedule the
+        trip was, averaged over its recorded stops.
       </p>
     </section>
   );

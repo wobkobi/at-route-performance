@@ -19,6 +19,7 @@ import { PunctualityStat, StatCell, type PunctualityBreakdown } from "@/componen
 import { RankBoard } from "@/components/ranking/RankBoard";
 import { StopSchedule } from "@/components/StopSchedule";
 import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
@@ -305,9 +306,9 @@ export default async function StopPage({
             returns no summary row only when nothing matched, so this names which
             it is rather than leaving the strip to be read either way. */}
         {summary === null && (
-          <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
-            No arrivals were recorded at this stop on this day, so there is nothing to average.
-          </p>
+          <EmptyState inset className="border-t border-at-border px-4 py-3">
+            No arrivals recorded at this stop on this day, so there is nothing to average.
+          </EmptyState>
         )}
       </Panel>
 

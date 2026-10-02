@@ -3,7 +3,7 @@
 // a table of the routes running, each with how its vehicles sit against the
 // on-time window. Read from AT's live feed, which the site caches for two minutes.
 
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { ModeFilter } from "@/components/filter/ModeFilter";
 import { LoadingBlock } from "@/components/Loading";
 import LiveMapWrapper from "@/components/map/LiveMapWrapper";
@@ -25,6 +25,7 @@ import { liveRoutes, liveTotals, type LiveRouteRow, type LiveSort } from "@/lib/
 import { parseMode, type Mode } from "@/lib/mode";
 import { pageMetadata } from "@/lib/og";
 import { routeHref } from "@/lib/page/hrefs";
+import { ROUTE_NAME_CLASS } from "@/lib/page/row";
 import {
   sortRows,
   tableSort,
@@ -127,7 +128,7 @@ export default async function LivePage({
       <section aria-labelledby="live-routes" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <SectionHeading id="live-routes">Routes running</SectionHeading>
-          <nav aria-label="Order by" className="flex flex-wrap gap-2">
+          <ChipGroup label="Order by">
             {(Object.keys(SORT_LABEL) as LiveSort[]).map((s) => (
               <ChipLink
                 key={s}
@@ -141,7 +142,7 @@ export default async function LivePage({
                 {SORT_LABEL[s]}
               </ChipLink>
             ))}
-          </nav>
+          </ChipGroup>
         </div>
         <Suspense fallback={<LoadingBlock label="Loading the routes running" />}>
           <LiveTable mode={mode} sort={sort} head={head} keep={keep} all={all} />
@@ -150,8 +151,8 @@ export default async function LivePage({
 
       <p className="text-xs text-at-muted">
         Each vehicle is placed on the same on-time window as the rest of the site, from the delay
-        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between runs are
-        left out, and one with no delay in the feed counts as running but in no band.
+        AT&apos;s trip feed gives for its next stop. {ON_TIME_WINDOW_NOTE} Vehicles between trips
+        are left out, and one with no delay in the feed counts as running but in no band.
       </p>
     </main>
   );
@@ -318,17 +319,14 @@ async function LiveTable({
             return (
               <tr key={r.slug} className={ROW_CLASS}>
                 <th scope="row" className="p-3 text-left font-normal">
-                  <Link
-                    href={routeHref(r.slug)}
-                    className="flex min-w-0 items-center gap-2 hover:underline"
-                  >
+                  <Link href={routeHref(r.slug)} className="group flex min-w-0 items-center gap-2">
                     <ModeIcon
                       mode={r.mode}
                       shortName={named.shortName ?? r.slug}
                       longName={named.longName}
                       className="h-4 w-4 shrink-0"
                     />
-                    <span className="font-semibold text-at-shore">{routeDisplayName(named)}</span>
+                    <span className={ROUTE_NAME_CLASS}>{routeDisplayName(named)}</span>
                     {subtitle && (
                       <span className="hidden truncate text-at-muted sm:inline">{subtitle}</span>
                     )}

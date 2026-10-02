@@ -12,6 +12,7 @@ import { ChipGroup, ChipLink } from "@/components/Chip";
 import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { CANCELLATION_TONE, CancellationBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ShowMore } from "@/components/ui/ShowMore";
@@ -155,7 +156,7 @@ export function CancelledTripList({
         // An empty list under a chosen stage is the chip's doing, not the
         // window's, so it names the chip and offers the way back out. The counts
         // on the chips say the same thing, but only to a reader who reads them.
-        <p className="text-sm text-at-muted">
+        <EmptyState inset>
           {stage !== null && trips.length > 0 ? (
             <>
               No trips at this stage.{" "}
@@ -169,9 +170,9 @@ export function CancelledTripList({
               .
             </>
           ) : (
-            "No trips were flagged cancelled in this window."
+            "No cancelled trips recorded in this window."
           )}
-        </p>
+        </EmptyState>
       ) : (
         <ol className="striped">
           {visible.slice(0, shown).map((t, i) => {

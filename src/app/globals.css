@@ -240,7 +240,7 @@
   @apply bg-at-safety text-at-ocean hover:brightness-95;
 }
 
-/* AT card: white, hairline border, rounded, flat (no shadow) - like at.govt.nz. */
+/* AT card: white, hairline border, square, flat (no shadow). */
 .at-card {
   @apply border border-at-border bg-at-surface;
 }
@@ -338,7 +338,7 @@
 .leaflet-tooltip.bus-delay-label {
   background: var(--color-at-surface);
   border: 1px solid var(--color-at-border);
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: none;
   padding: 1px 4px;
   font-size: 12px;

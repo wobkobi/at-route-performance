@@ -774,11 +774,11 @@ export default async function RoutePage({
                 one absence told two ways. Named here so a quiet day, a day the
                 filters emptied and a day with no data read differently. */}
             {summary === null && (
-              <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
-                No arrivals were recorded for this route
+              <EmptyState inset className="border-t border-at-border px-4 py-3">
+                No arrivals recorded for this route
                 {hours != null ? " in this part of the day" : " on this day"}, so there is nothing
                 to average.
-              </p>
+              </EmptyState>
             )}
           </Panel>
 
@@ -810,7 +810,7 @@ export default async function RoutePage({
             />
             {tripsCapped && (
               <p className="text-xs text-at-muted lg:col-span-2">
-                Showing the first {TRIPS_FETCH_CAP} runs of the day.
+                Showing the first {TRIPS_FETCH_CAP} trips of the day.
               </p>
             )}
             <RouteMapDiagram

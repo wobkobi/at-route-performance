@@ -47,7 +47,7 @@ const LABEL_CLASS = "at-eyebrow text-at-muted";
 function VerdictScale(): JSX.Element {
   return (
     <div className="mt-2 border-t border-at-border pt-2 text-xs">
-      <p className="font-semibold tracking-zero text-at-muted uppercase">The verdict</p>
+      <p className="at-eyebrow text-at-muted">The verdict</p>
       <ul className="mt-1 space-y-0.5">
         {VERDICT_BANDS.map((b, i) => (
           <li key={b.label} className="flex justify-between gap-2">

@@ -2,7 +2,7 @@
 // Hardest-worked vehicles: every bus, train and ferry ranked by how much it ran
 // over a day, week or month - time in service, runs and arrivals.
 
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { RangeControls } from "@/components/date/RangeControls";
 import { ModeFilter } from "@/components/filter/ModeFilter";
 import { OperatorSelect } from "@/components/filter/OperatorSelect";
@@ -263,12 +263,7 @@ export default async function VehiclesPage({
         />
       </div>
 
-      {/* Named from the visible label rather than by an aria-label repeating it,
-          which had a screen reader announce "Rank by" twice over. */}
-      <nav aria-labelledby="rank-by" className="flex flex-wrap items-center gap-2">
-        <span id="rank-by" className="at-eyebrow text-at-muted">
-          Rank by
-        </span>
+      <ChipGroup label="Rank by" showLabel>
         {(Object.keys(SORT_LABEL) as VehicleSort[]).map((s) => (
           <ChipLink
             key={s}
@@ -282,7 +277,7 @@ export default async function VehiclesPage({
             {SORT_LABEL[s]}
           </ChipLink>
         ))}
-      </nav>
+      </ChipGroup>
 
       {rows.length === 0 ? (
         <EmptyState>No vehicles recorded {windowPhrase(nav, period)}.</EmptyState>

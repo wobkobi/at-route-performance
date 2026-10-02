@@ -432,7 +432,7 @@ export function RouteExplorer({
                               if (!filters.areas.includes(a)) toggleArea(a);
                             }}
                             aria-pressed={filters.areas.includes(a)}
-                            className="bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
+                            className="hit-44 bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
                           >
                             {AREA_LABEL[a]}
                           </button>

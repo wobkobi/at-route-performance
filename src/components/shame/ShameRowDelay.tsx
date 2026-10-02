@@ -38,7 +38,7 @@ export function ShameRowDelay({
         <Hint
           align="end"
           hint={
-            "Some trips ran early, some ran late - this is the average distance from schedule, ignoring direction"
+            "Some trips ran early and some ran late, so this is the average distance from schedule, ignoring direction"
           }
           className="relative z-10 block"
         >

@@ -29,6 +29,7 @@ import { isMode, MODE_NOUN } from "@/lib/mode";
 import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
 import {
+  RANK_CLASS,
   TRIP_NAME_CLASS,
   TRIP_NAME_GROUP_CLASS,
   TRIP_ROW_CLASS,
@@ -211,7 +212,7 @@ export function WorstTripsBoard({
   detouredTripIds,
   fleet,
 }: WorstTripsBoardProps): JSX.Element {
-  const noun = isMode(mode) ? MODE_NOUN[mode] : "Services";
+  const noun = isMode(mode) ? MODE_NOUN[mode] : "Trips";
   // The board as it stands, for a run's link to hand back to this page.
   const tsort = sort === "off" ? undefined : sort;
   const view = tripBoardView({
@@ -270,9 +271,7 @@ export function WorstTripsBoard({
                       href={runHref(c.trip_id, c.scheduled_start ?? serviceDate)}
                       className={TRIP_ROW_LINK_CLASS}
                     >
-                      <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
-                        {row.rank}
-                      </span>
+                      <span className={RANK_CLASS}>{row.rank}</span>
                       <span className={TRIP_NAME_GROUP_CLASS}>
                         <span className={cn(TRIP_NAME_CLASS, "text-at-muted line-through")}>
                           {c.scheduled_start && (
@@ -308,9 +307,7 @@ export function WorstTripsBoard({
                     href={runHref(t.trip_id, t.scheduled_start)}
                     className={TRIP_ROW_LINK_CLASS}
                   >
-                    <span className="w-6 shrink-0 text-right text-at-muted tabular-nums">
-                      {row.rank}
-                    </span>
+                    <span className={RANK_CLASS}>{row.rank}</span>
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
                         <span

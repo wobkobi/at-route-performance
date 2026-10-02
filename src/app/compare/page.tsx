@@ -5,11 +5,12 @@
 // stop page's own summary. The picker is a plain GET form, so adding and
 // removing works as links and survives a reload or a shared URL.
 
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/date/RangeControls";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
@@ -365,13 +366,13 @@ export default async function ComparePage({
         actions={<RangeControls basePath="/compare" nav={nav} />}
       />
 
-      <nav aria-label="What to compare" className="flex flex-wrap gap-2">
+      <ChipGroup label="What to compare">
         {(["routes", "stops"] as const).map((k) => (
           <ChipLink key={k} href={buildHref("/compare", { ...view, kind: k })} active={kind === k}>
             {k === "routes" ? "Routes" : "Stops"}
           </ChipLink>
         ))}
-      </nav>
+      </ChipGroup>
 
       {columns.length > 0 && (
         <DataTable caption={`The ${kind} side by side`} tableClassName="w-full table-fixed">
@@ -448,15 +449,15 @@ export default async function ComparePage({
       )}
 
       {missing.length > 0 && (
-        <p className="text-sm text-at-muted">
-          Nothing recorded {phrase} for {missing.join(", ")}.{" "}
+        <EmptyState inset>
+          No arrivals recorded {phrase} for {missing.join(", ")}.{" "}
           <Link
             href={idsHref(ids.filter((i) => !missing.includes(i)).join(",") || null)}
             className="at-link font-semibold"
           >
             Take {missing.length === 1 ? "it" : "them"} out
           </Link>
-        </p>
+        </EmptyState>
       )}
 
       <Panel
@@ -494,10 +495,10 @@ export default async function ComparePage({
         )}
 
         {!full && q && candidates.length === 0 && (
-          <p className="text-sm text-at-muted">
+          <EmptyState inset>
             No {kind === "routes" ? `route ran ${phrase} matching` : "stop matches"} &ldquo;{q}
             &rdquo;.
-          </p>
+          </EmptyState>
         )}
         {!full && (candidates.length > 0 || suggestions.length > 0) && (
           <CandidateList

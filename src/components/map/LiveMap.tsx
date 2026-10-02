@@ -516,7 +516,7 @@ export default function LiveMap({
         type="button"
         onClick={locate}
         disabled={!ready || locating}
-        className="absolute right-2.5 bottom-7 z-10 flex items-center gap-1.5 border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
+        className="absolute right-2.5 bottom-7 z-10 flex min-h-11 items-center gap-1.5 border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
       >
         <LocateArrow className="text-at-shore" />
         {locating ? "Finding you…" : "Near me"}

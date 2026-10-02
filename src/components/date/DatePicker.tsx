@@ -36,9 +36,9 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
 /** The panel's width from `sm` up (`sm:w-80`), for choosing which edge it anchors to. */
 const PANEL_WIDTH_PX = 320;
 
-/** A step button in the panel's header. */
+/** A step button in the panel's header: the stepper chip, as a button. */
 const STEP =
-  "inline-flex size-11 items-center justify-center border border-at-border text-at-ink hover:border-at-shore disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border";
+  "chip chip-icon chip-off disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-at-border disabled:hover:text-at-ink";
 
 /**
  * A stepper's date label that opens a calendar. The Day view picks a day, the
@@ -249,7 +249,7 @@ function cellClass(on: boolean): string {
   return cn(
     "border transition-colors disabled:cursor-not-allowed disabled:opacity-30",
     on
-      ? "border-at-shore bg-at-shore text-white"
+      ? "chip-on border-at-shore"
       : "border-transparent hover:border-at-shore enabled:hover:text-at-shore",
   );
 }
@@ -350,7 +350,7 @@ function WeekRow({
         "mb-0.5 grid w-full grid-cols-7 gap-0.5 border text-sm tabular-nums transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-30",
         on
-          ? "border-at-shore bg-at-shore text-white"
+          ? "chip-on border-at-shore"
           : "border-transparent enabled:hover:border-at-shore enabled:hover:bg-at-shore-pale",
       )}
     >
@@ -361,7 +361,7 @@ function WeekRow({
             "flex h-11 items-center justify-center",
             // Inside the rolling week the days that fall in it are filled on
             // their own, since it rarely lines up with a Monday-to-Sunday row.
-            !on && d >= from && d <= to && "bg-at-shore text-white",
+            !on && d >= from && d <= to && "chip-on",
             !on && !(d >= from && d <= to) && monthOf(d) !== month && "text-at-muted",
             !on && d === today && !(d >= from && d <= to) && "font-semibold text-at-shore",
           )}

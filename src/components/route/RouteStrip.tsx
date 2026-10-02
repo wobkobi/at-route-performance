@@ -797,7 +797,7 @@ function StripKey({
           />
         </>
       ),
-      label: "Runs that way go round a closed stop",
+      label: "Trips that way go round a closed stop",
     });
   }
   if (view.present.stub) {

@@ -203,7 +203,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
     const week = aggregateWeek(await getRouteDailyStats(slug, fixed?.start, fixed?.end));
     const lastDay = fixed ? serviceDatesInRange(fixed).at(-1) : undefined;
     return {
-      eyebrow: `Route - ${fixed ? weekLabel(fixed) : "Last 7 days"}`,
+      eyebrow: `Route · ${fixed ? weekLabel(fixed) : "Last 7 days"}`,
       body: {
         route: glyph,
         name,
@@ -224,7 +224,7 @@ export async function routeCardData(card: RouteCard): Promise<SubjectCardData | 
 
   const summary = stats.summary;
   return {
-    eyebrow: `Route - ${serviceDayLabel(date)}`,
+    eyebrow: `Route · ${serviceDayLabel(date)}`,
     body: {
       route: glyph,
       name,
@@ -328,7 +328,7 @@ export async function stopCardData(card: StopCard): Promise<SubjectCardData | nu
   const { summary } = stats;
   const abs = summary?.avg_abs_delay_sec;
   return {
-    eyebrow: `Stop - ${serviceDayLabel(date)}`,
+    eyebrow: `Stop · ${serviceDayLabel(date)}`,
     body: {
       route: null,
       name: stats.stop.name,

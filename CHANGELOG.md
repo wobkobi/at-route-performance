@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.55] - 2026-10-03
+
+### Fixed
+
+- Route names in list rows are ink with a Shore hover and share one rank width; square corners on
+  the alert banner, split-bar popup and map labels; 44px targets on the area tags, filter Reset and
+  Near me; trip wording, separators and empty states made consistent where the pass missed them.
+
 ## [2.41.54] - 2026-10-03
 
 ### Changed

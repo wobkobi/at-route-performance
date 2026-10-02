@@ -21,7 +21,7 @@ import {
   getTripBoardOfWeek,
   PERIOD_REVALIDATE,
 } from "@/lib/data";
-import { MODE_NAME, type Mode } from "@/lib/mode";
+import { modeWord, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
 import type { PeriodWindow } from "@/lib/page/range";
 import { routeLinkParams } from "@/lib/page/range";
@@ -318,7 +318,7 @@ export async function PeriodBoards({
     <>
       {b.noModeData && mode && (
         <p className="text-sm text-at-muted">
-          Not enough {MODE_NAME[mode]} data for this period - try a wider window or switch back to
+          Not enough {modeWord(mode)} data for this period. Try a wider window or switch back to
           All.
         </p>
       )}

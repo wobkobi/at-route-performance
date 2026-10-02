@@ -178,7 +178,7 @@ export function SplitBar({
       {active && (
         <div
           role="status"
-          className="absolute top-5 left-0 z-30 max-w-xs rounded-md border border-at-border bg-at-surface p-3 text-sm shadow-lg"
+          className="absolute top-5 left-0 z-30 max-w-xs border border-at-border bg-at-surface p-3 text-sm shadow-lg"
         >
           <p className={cn("font-semibold", active.toneClass)}>
             {active.label} {formatPct(shares[active.key])}

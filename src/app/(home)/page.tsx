@@ -55,7 +55,7 @@ import {
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
-import { MODE_NAME, parseMode, type Mode } from "@/lib/mode";
+import { modeWord, parseMode, type Mode } from "@/lib/mode";
 import { homeCardPath, homeCardTitle, pageMetadata, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
 import { filterLiveHours, resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
@@ -523,7 +523,7 @@ export default async function Home({
 
         {mode && visible.every((r) => r.events < boardMin) && (
           <p className="text-sm text-at-muted">
-            Not enough {MODE_NAME[mode]} data for this day - try the{" "}
+            Not enough {modeWord(mode)} data for this day. Try the{" "}
             <Link
               href={buildHref("/", {
                 window: "week",

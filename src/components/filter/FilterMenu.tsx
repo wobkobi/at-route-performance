@@ -105,7 +105,7 @@ export function FilterMenu({
             type="button"
             onClick={onReset}
             disabled={!active}
-            className="at-link text-sm font-semibold disabled:text-at-muted disabled:no-underline"
+            className="at-link min-h-11 text-sm font-semibold disabled:text-at-muted disabled:no-underline"
           >
             Reset
           </button>

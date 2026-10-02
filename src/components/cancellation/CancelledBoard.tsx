@@ -8,9 +8,11 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { cn } from "@/lib/cn";
 import type { CancelledRouteRow } from "@/lib/data";
 import { plural } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
+import { RANK_CLASS, ROUTE_NAME_CLASS } from "@/lib/page/row";
 import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -58,12 +60,12 @@ export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps
               <li key={r.slug}>
                 <Link
                   href={routeHref(r.slug, routeParams)}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
+                  className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
-                  <span className="w-5 shrink-0 text-sm text-at-muted tabular-nums">{i + 1}</span>
+                  <span className={RANK_CLASS}>{i + 1}</span>
                   <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
                   <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-at-ink">{label}</span>
+                    <span className={cn("block", ROUTE_NAME_CLASS)}>{label}</span>
                     {subtitle && <span className="block text-xs text-at-muted">{subtitle}</span>}
                   </span>
                   <span className="shrink-0 font-ultra tracking-zero text-at-late tabular-nums">

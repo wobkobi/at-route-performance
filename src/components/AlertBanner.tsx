@@ -112,7 +112,7 @@ export function AlertBanner({
   return (
     <details
       className={cn(
-        "group rounded-lg border",
+        "group border",
         severe ? "border-at-disruption/30 bg-at-disruption/5" : "border-at-border bg-at-surface",
       )}
     >
@@ -136,7 +136,7 @@ export function AlertBanner({
           )}
         >
           {heading}
-          {pastWindow && <span className="font-normal"> - running now</span>}
+          {pastWindow && <span className="font-normal"> · running now</span>}
         </span>
         <span className={cn(badgeClass(severe ? "disruption" : "muted"), "tabular-nums")}>
           {alerts.length}

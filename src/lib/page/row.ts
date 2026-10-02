@@ -1,7 +1,19 @@
 // src/lib/page/row.ts
-// The row layout every list of trips shares - the shame board's run rows, its
-// cancelled rows and the /cancellations list - so the three line their columns up
-// and a reader crossing between them reads the same row.
+// The row layout the lists share: every list of trips (the shame board's trip
+// rows, its cancelled rows and the /cancellations list) and the rank and route
+// name of every route row, so a reader crossing between lists reads one row.
+
+/**
+ * A row's rank number. Wide enough for two digits, right-aligned so 9 and 10
+ * line up; the size comes from the row.
+ */
+export const RANK_CLASS = "w-6 shrink-0 text-right text-at-muted tabular-nums";
+
+/**
+ * A route's name in a list row: ink, turning Shore with the row's hover. The
+ * row's link carries `group`, since the whole row is the link.
+ */
+export const ROUTE_NAME_CLASS = "font-semibold text-at-ink group-hover:text-at-shore";
 
 /** The list item: a rule above every row but the first. */
 export const TRIP_ROW_CLASS = "border-t border-at-border first:border-0";

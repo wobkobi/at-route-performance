@@ -16,6 +16,7 @@ import {
   offScheduleValue,
 } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
+import { RANK_CLASS, ROUTE_NAME_CLASS } from "@/lib/page/row";
 import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
 import Link from "next/link";
@@ -232,25 +233,23 @@ export function RankBoard({
                 <Link
                   href={routeHref(r.routeId, routeParams)}
                   className={cn(
-                    "-mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
+                    "group -mx-2 block px-2 py-3 text-base transition-colors hover:bg-at-shore-pale",
                     i > 0 && "border-t border-at-border",
                   )}
                 >
                   <span className="flex items-center gap-2">
                     {deltas ? (
-                      <span className="flex w-14 shrink-0 items-center">
-                        <span className="w-5 shrink-0 text-right text-at-muted tabular-nums">
-                          {i + 1}
-                        </span>
+                      <span className="flex w-15 shrink-0 items-center">
+                        <span className={RANK_CLASS}>{i + 1}</span>
                         <span className="flex w-9 shrink-0 items-center pl-0.5">
                           <DeltaBadge delta={deltas.get(r.routeId)} />
                         </span>
                       </span>
                     ) : (
-                      <span className="w-5 text-right text-at-muted tabular-nums">{i + 1}</span>
+                      <span className={RANK_CLASS}>{i + 1}</span>
                     )}
                     <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
-                    <span className="min-w-0 flex-1 truncate font-semibold text-at-shore">
+                    <span className={cn("min-w-0 flex-1 truncate", ROUTE_NAME_CLASS)}>
                       {routeDisplayName(r)}
                       {cancelledCount > 0 && (
                         <span className="ml-2 text-xs font-semibold text-at-late">
