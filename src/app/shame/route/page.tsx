@@ -26,7 +26,7 @@ import {
   getRouteBoardOfDay,
   getRouteBoardOfWeek,
   getShameDayHours,
-  getShameRouteStreaksBatch,
+  getShameStreaks,
   MIN_ROUTE_EVENTS_HOUR,
   PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
@@ -189,7 +189,7 @@ async function RouteRangeBoard({
           flame={
             dayCount > 1 && (
               <FlameCount
-                tier="week"
+                kind="crown"
                 count={dayCount}
                 worst={isWorst}
                 label={`${name} was the worst route on ${dayCount} days in ${periodInPhrase(
@@ -249,11 +249,7 @@ async function RouteDayBoard({
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
-  const routeStreakMap = await getShameRouteStreaksBatch(
-    [...routeHourCounts.keys()],
-    range,
-    filter,
-  );
+  const routeStreakMap = await getShameStreaks("route", [...routeHourCounts.keys()], range, filter);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.routeId}` : null;
@@ -297,6 +293,7 @@ async function RouteDayBoard({
           flame={
             <ShameDayFlame
               name={name}
+              noun="route"
               worst={isWorst}
               hourCount={hourCount}
               streak={routeStreakMap.get(r.routeId)}

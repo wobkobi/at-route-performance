@@ -51,6 +51,15 @@
      this is about 5:1, level with late and on time. Fills and swatches keep
      the brand green. */
   --color-at-early-strong: #5b7a12;
+
+  /* The shame flame, one colour per thing it counts: hours on today's board,
+     days in a row on a board, and days a board crowned the route, which is the
+     late red. Three, not a heat ramp: warm steps on a 14px glyph run together,
+     and a colour that blends kinds of count means nothing fixed. Each is about
+     4.5:1 or better on white, since the count is written in it. */
+  --color-flame-hours: #a16207;
+  --color-flame-days: #c2410c;
+  --color-flame-crown: var(--color-at-late);
 }
 
 /* Family utilities */

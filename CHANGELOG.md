@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.49] - 2026-10-03
+
+### Fixed
+
+- Shame flames: one colour per thing they count (hours today, days in a row on the board, days
+  crowned worst) with the unit on the count ("3h", "4d"), in place of a five-step heat ramp that
+  ended in purple; each streak now counts the board it sits on, so the trips board no longer shows
+  the routes board's history, and the home card's "days in a row" line counts the days the trips
+  board crowned that route.
+
 ## [2.41.48] - 2026-10-03
 
 ### Fixed

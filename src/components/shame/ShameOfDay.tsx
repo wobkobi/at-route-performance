@@ -4,6 +4,7 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { NoWorst, WorstCard, WorstCardTitle } from "@/components/ui/WorstCard";
+import { cn } from "@/lib/cn";
 import { tripHref } from "@/lib/page/hrefs";
 import { routeDisplayName } from "@/lib/route/slug";
 import { nzClockTime } from "@/lib/time/format";
@@ -26,8 +27,8 @@ export interface ShameOfDayProps {
   when?: string;
   /** All hourly shame entries for the day, used to count this route's appearances. */
   hours?: ShameTrip[];
-  /** Consecutive days this route has been featured as worst shame trip. */
-  routeStreakDays?: number;
+  /** Days in a row, ending on the shown day, that this route had the day's worst trip. */
+  crownedDays?: number;
 }
 
 /**
@@ -42,7 +43,7 @@ export interface ShameOfDayProps {
  * @param props.href - Override link target (optional).
  * @param props.when - The shown window as words for the empty-state copy ("today" by default).
  * @param props.hours - All hourly entries for the day, used to count this route's appearances.
- * @param props.routeStreakDays - Consecutive days this route has been the worst shame trip.
+ * @param props.crownedDays - Days in a row, ending on the shown day, that this route had the day's worst trip.
  * @returns The banner element.
  */
 export function ShameOfDay({
@@ -51,7 +52,7 @@ export function ShameOfDay({
   href: hrefProp,
   when = "today",
   hours,
-  routeStreakDays = 0,
+  crownedDays = 0,
 }: ShameOfDayProps): JSX.Element {
   // Nothing ranked (no trip cleared SHAME_MIN_STOPS under the active filters)
   // is not the green all-clear: see NoWorst.
@@ -91,11 +92,10 @@ export function ShameOfDay({
           worst trip in {routeHourCount} of the day&apos;s hours
         </p>
       )}
-      {routeStreakDays >= 4 && (
-        <p className="text-sm font-bold text-at-late">Featured {routeStreakDays} days in a row</p>
-      )}
-      {routeStreakDays >= 2 && routeStreakDays < 4 && (
-        <p className="text-xs text-at-late">Featured {routeStreakDays} days in a row</p>
+      {crownedDays >= 2 && (
+        <p className={cn("text-at-late", crownedDays >= 4 ? "text-sm font-bold" : "text-xs")}>
+          Worst trip of the day on this route {crownedDays} days in a row
+        </p>
       )}
     </WorstCard>
   );

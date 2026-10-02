@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Hint } from "@/components/ui/Hint";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
+import type { ShameStreak, StreakBoard } from "@/lib/data";
+import { plural } from "@/lib/format";
 import type { HourSlot } from "@/lib/page/nav";
 import type { RouteDisplay } from "@/lib/route/slug";
 import {
@@ -257,56 +259,59 @@ export function ShameRowBody({
 
 /**
  * A day-board route's repeat-offender flame, the strongest that applies: the days
- * in a row it was the day's worst, else the days in a row it made the board, else
+ * in a row the board crowned it, else the days in a row it made the board, else
  * how many of the day's hours it took. Both streak labels count the hours it took
- * across the run.
+ * on this board across the run.
  * @param props - Component props.
  * @param props.name - The route's name, for the flame's label.
+ * @param props.noun - What the board ranks, for the crown label ("worst trip of the day").
  * @param props.worst - Whether this row holds the day's worst.
  * @param props.hourCount - How many of the day's hourly slots the route took.
- * @param props.streak - The route's run of earlier days on the board, if read.
+ * @param props.streak - The route's run of days on this board, if read.
  * @param props.hoursLabel - The hourly count's label, which each board words its own way.
  * @returns The flame, or null for a route in one hour with no streak.
  */
 export function ShameDayFlame({
   name,
+  noun,
   worst,
   hourCount,
   streak,
   hoursLabel,
 }: {
   name: string;
+  noun: StreakBoard;
   worst: boolean;
   hourCount: number;
-  streak: { count: number; prevHours: number; prevWorstOfDayDays: number } | undefined;
+  streak: ShameStreak | undefined;
   hoursLabel: string;
 }): JSX.Element | null {
-  const streakDays = streak?.count ?? 1;
-  const totalHours = hourCount + (streak?.prevHours ?? 0);
-  // Today counts towards the worst-of-the-day run only when this row holds it.
-  const worstOfDayStreak = (worst ? 1 : 0) + (streak?.prevWorstOfDayDays ?? 0);
-  if (worstOfDayStreak >= 2) {
+  const boardDays = streak?.days ?? 1;
+  const totalHours = plural(hourCount + (streak?.prevHours ?? 0), "hour");
+  // The shown day counts towards the crown run only when this row holds it.
+  const crownedDays = worst ? 1 + (streak?.prevCrownedDays ?? 0) : 0;
+  if (crownedDays >= 2) {
     return (
       <FlameCount
-        tier="streak"
-        count={worstOfDayStreak}
+        kind="crown"
+        count={crownedDays}
         worst={worst}
-        label={`${name}: worst of the day ${worstOfDayStreak} days in a row · ${totalHours} hours total`}
+        label={`${name}: worst ${noun} of the day ${crownedDays} days in a row · ${totalHours} on this board`}
       />
     );
   }
-  if (streakDays >= 2) {
+  if (boardDays >= 2) {
     return (
       <FlameCount
-        tier="streak"
-        count={streakDays}
+        kind="days"
+        count={boardDays}
         worst={worst}
-        label={`${name}: on the shame list ${streakDays} days in a row · ${totalHours} hours total`}
+        label={`${name}: on this board ${boardDays} days in a row · ${totalHours} in all`}
       />
     );
   }
   if (hourCount > 1) {
-    return <FlameCount tier="day" count={hourCount} worst={worst} label={hoursLabel} />;
+    return <FlameCount kind="hours" count={hourCount} worst={worst} label={hoursLabel} />;
   }
   return null;
 }

@@ -47,7 +47,7 @@ import {
   getLatestEventDate,
   getRouteBoardInHours,
   getRouteBoardOfDay,
-  getShameRouteStreak,
+  getShameStreaks,
   getStopBoardInHours,
   getStopBoardOfDay,
   getTripBoardInHours,
@@ -648,7 +648,7 @@ async function HomeShameCards({
     const span = `from ${hourRangeClock(hours, live)} ${when}`;
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ShameOfDay trip={trip.row} ranked={trip.ranked} routeStreakDays={0} when={span} />
+        <ShameOfDay trip={trip.row} ranked={trip.ranked} when={span} />
         <WorstRouteCard
           route={route.row}
           ranked={route.ranked}
@@ -677,9 +677,12 @@ async function HomeShameCards({
   const trip = crownedRow(tripHours);
   const route = crownedRow(filterLiveHours(shameRoutes.hours, serviceDate));
   const stop = crownedRow(filterLiveHours(shameStops.hours, serviceDate));
-  // Needs the crowned run's routeId, so it runs after the parallel three.
-  const routeStreakDays = trip.row
-    ? await getShameRouteStreak(trip.row.routeId, range, TODAY_REVALIDATE)
+  // Needs the crowned trip's route, so it runs after the parallel three. The
+  // card's trip holds the day's crown, so that day starts the run.
+  const crownedDays = trip.row
+    ? 1 +
+      ((await getShameStreaks("trip", [trip.row.routeId], range, filter)).get(trip.row.routeId)
+        ?.prevCrownedDays ?? 0)
     : 0;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -688,7 +691,7 @@ async function HomeShameCards({
         trip={trip.row}
         ranked={trip.ranked}
         hours={tripHours}
-        routeStreakDays={routeStreakDays}
+        crownedDays={crownedDays}
         when={when}
       />
       <WorstRouteCard route={route.row} ranked={route.ranked} when={when} day={linkDay} />

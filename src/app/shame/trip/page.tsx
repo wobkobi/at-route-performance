@@ -23,7 +23,7 @@ import {
   getFilterUsage,
   getLatestEventDate,
   getShameDayHours,
-  getShameRouteStreaksBatch,
+  getShameStreaks,
   getTripBoardInHours,
   getTripBoardOfDay,
   getTripBoardOfWeek,
@@ -193,7 +193,7 @@ async function TripRangeBoard({
           flame={
             dayCount > 1 && (
               <FlameCount
-                tier="week"
+                kind="crown"
                 count={dayCount}
                 worst={isWorst}
                 label={`${name} appeared as the worst trip on ${dayCount} days in ${periodWhen}`}
@@ -250,11 +250,7 @@ async function TripDayBoard({
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
-  const routeStreakMap = await getShameRouteStreaksBatch(
-    [...routeHourCounts.keys()],
-    range,
-    filter,
-  );
+  const routeStreakMap = await getShameStreaks("trip", [...routeHourCounts.keys()], range, filter);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.trip_id}` : null;
@@ -291,6 +287,7 @@ async function TripDayBoard({
           flame={
             <ShameDayFlame
               name={name}
+              noun="trip"
               worst={isWorst}
               hourCount={hourCount}
               streak={routeStreakMap.get(t.routeId)}

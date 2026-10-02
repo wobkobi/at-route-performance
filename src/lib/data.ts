@@ -72,8 +72,6 @@ export {
   getRouteBoardInHours,
   getRouteBoardOfDay,
   getRouteBoardOfWeek,
-  getShameRouteStreak,
-  getShameRouteStreaksBatch,
 } from "@/lib/data/shame-routes";
 export {
   MIN_STOP_EVENTS_HOUR,
@@ -82,6 +80,8 @@ export {
   getStopBoardOfDay,
   getStopBoardOfWeek,
 } from "@/lib/data/shame-stops";
+export { getShameStreaks } from "@/lib/data/shame-streaks";
+export type { ShameStreak, StreakBoard } from "@/lib/data/shame-streaks";
 export {
   SHAME_MIN_STOPS,
   SHAME_RANKED_LIMIT,
