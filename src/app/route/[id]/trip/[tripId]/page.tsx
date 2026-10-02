@@ -28,6 +28,7 @@ import {
   type GhostRunRow,
   type ScheduledStop,
 } from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import { formatCount } from "@/lib/format";
 import { metresBetween } from "@/lib/geo/distance";
 import { modeOrBus, modeWord } from "@/lib/mode";
@@ -36,6 +37,7 @@ import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
 import { isSchoolBus } from "@/lib/school-bus";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -52,6 +54,7 @@ import {
 import { tripBoardView } from "@/lib/trip/board";
 import { arrivedBeforeFlag, cancellationStage } from "@/lib/trip/cancellation";
 import { buildTripLine } from "@/lib/trip/line";
+import { vehicleName } from "@/lib/vehicle/detail";
 import type { TripStop } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -160,6 +163,12 @@ export default async function TripPage({
   if (!route && !scheduleFailed && timeline.stops.length === 0 && scheduledStops.length === 0) {
     notFound();
   }
+  // The fleet label the vehicle's own page goes by.
+  const fleet = vehicle_id
+    ? await getFleet([vehicle_id]).catch(
+        readFallback("trip-fleet", new Map<string, FleetVehicle>()),
+      )
+    : null;
   const routeMode = modeOrBus(route?.mode);
   const school = isSchoolBus(route?.shortName, route?.longName);
   const vehicleNoun = modeWord(routeMode);
@@ -292,7 +301,7 @@ export default async function TripPage({
             <>
               {" · "}
               <Link href={vehicleHref(vehicle_id, { day: linkDay })} className="at-link">
-                {vehicle_id}
+                {vehicleName(fleet?.get(vehicle_id)?.label, vehicle_id)}
               </Link>
             </>
           )}

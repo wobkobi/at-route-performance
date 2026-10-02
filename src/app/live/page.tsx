@@ -33,7 +33,7 @@ import {
   type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
-import { routeSlug, routeSubtitle } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -313,8 +313,8 @@ async function LiveTable({
         </thead>
         <tbody>
           {shown.map((r) => {
-            const route = routes.get(r.slug);
-            const name = route ? routeSubtitle({ ...route, slug: r.slug }) : null;
+            const named = { ...routes.get(r.slug), slug: r.slug };
+            const subtitle = routeSubtitle(named);
             return (
               <tr key={r.slug} className={ROW_CLASS}>
                 <th scope="row" className="p-3 text-left font-normal">
@@ -324,13 +324,13 @@ async function LiveTable({
                   >
                     <ModeIcon
                       mode={r.mode}
-                      shortName={route?.shortName ?? r.slug}
-                      longName={route?.longName}
+                      shortName={named.shortName ?? r.slug}
+                      longName={named.longName}
                       className="h-4 w-4 shrink-0"
                     />
-                    <span className="font-semibold text-at-shore">{r.slug}</span>
-                    {name && name !== r.slug && (
-                      <span className="hidden truncate text-at-muted sm:inline">{name}</span>
+                    <span className="font-semibold text-at-shore">{routeDisplayName(named)}</span>
+                    {subtitle && (
+                      <span className="hidden truncate text-at-muted sm:inline">{subtitle}</span>
                     )}
                   </Link>
                 </th>

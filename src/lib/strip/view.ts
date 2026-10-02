@@ -3,7 +3,7 @@
 // figure in each column, how its name reads, and the sentence a screen reader hears in place of
 // the drawing, with the day's closures and detours worked in. Pure and client-safe, so the version
 // chips can swap it without a server trip.
-import { formatDelay, plural, UNKNOWN_VALUE } from "@/lib/format";
+import { formatDelay, midSentence, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { delayBand } from "@/lib/on-time";
 import type { MarkKind, MarkNote, SideMark, StripMarks } from "@/lib/strip/marks";
 import { rowFigure, type RouteStrip, type StripRow, type StripSide } from "@/lib/strip/route-strip";
@@ -114,16 +114,6 @@ function headings(down: SideEnds, up: SideEnds): [string, string] {
     return ["One way round", "The other way round"];
   }
   return [down.to ? `To ${down.to}` : "To the end", up.to ? `To ${up.to}` : "To the start"];
-}
-
-/**
- * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
- * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
- * @param heading - The heading.
- * @returns It with a lower-case first letter.
- */
-export function midSentence(heading: string): string {
-  return heading.charAt(0).toLowerCase() + heading.slice(1);
 }
 
 /**

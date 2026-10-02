@@ -16,7 +16,7 @@ import {
   offScheduleValue,
 } from "@/lib/format";
 import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
-import { routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
 import Link from "next/link";
 import type { JSX } from "react";
@@ -205,6 +205,7 @@ export function RankBoard({
             // it read "—%", which looks like a measured figure that failed to print.
             const value = metric === "delay" ? off.text : formatPct(r.on_time_pct);
             const cancelledCount = cancelled?.get(routeSlug(r.routeId)) ?? 0;
+            const subtitle = routeSubtitle(r);
             const valueClass =
               metric === "onTime" ? "text-at-ontime" : OFF_SCHEDULE_TONE_CLASS[off.tone];
             const barClass =
@@ -245,6 +246,9 @@ export function RankBoard({
                         <span className="ml-2 text-xs font-semibold text-at-late">
                           {cancelledCount} cancelled
                         </span>
+                      )}
+                      {subtitle && (
+                        <span className="ml-2 font-normal text-at-muted">{subtitle}</span>
                       )}
                     </span>
                     <span className={cn("shrink-0 font-semibold tabular-nums", valueClass)}>

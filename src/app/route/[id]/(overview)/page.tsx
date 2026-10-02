@@ -56,7 +56,14 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getLiveVehicles, type LiveVehicle } from "@/lib/feed/vehicles";
-import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
+import {
+  formatCount,
+  formatDuration,
+  formatPct,
+  plural,
+  sentenceStart,
+  UNKNOWN_VALUE,
+} from "@/lib/format";
 import { cardPath, cardWhenSuffix, pageMetadata, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
 import { parseShown } from "@/lib/page/filter-params";
@@ -70,6 +77,7 @@ import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildRouteView, type RouteView } from "@/lib/route/view";
 import { aggregateWeek } from "@/lib/route/week";
 import { isSchoolBus } from "@/lib/school-bus";
+import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
@@ -84,6 +92,7 @@ import {
   type HourRange,
 } from "@/lib/time/time-of-day";
 import { buildTripBoardRows, sortRuns } from "@/lib/trip/board";
+import { boundFor } from "@/lib/trip/departure-label";
 import { buildHref } from "@/lib/utils";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
@@ -190,21 +199,21 @@ const ROUTE_WINDOWS: readonly RangeWindow[] = ["day", "week"];
 const TRIP_SORTS = ["off", "late", "early", "departure"] as const;
 
 /**
- * Full headsign label for a direction chip, taken from the busiest variant.
- * AT capitalises the connectives in some headsigns ("New Lynn To Lincoln Rd Via
- * Henderson") and not in others, so a mid-string "To" or "Via" is lowered to
- * keep the two chips of one route reading alike.
+ * A direction chip's label, from the busiest variant's headsign read the way
+ * every trip row reads one ({@link boundFor}): origin dropped, shouting undone,
+ * "To Lincoln Rd via Henderson".
  * @param variants - The direction's variants.
  * @param dirId - The direction id (for the fallback label).
- * @returns The headsign, or `Direction N` when none is available.
+ * @param mode - The route's mode; a train's platform numbers are dropped.
+ * @returns The label, or `Direction N` when no headsign names a place.
  */
-function directionLabel(variants: RouteVariant[], dirId: number): string {
+function directionLabel(variants: RouteVariant[], dirId: number, mode: string): string {
   const busiest = variants.reduce<RouteVariant | undefined>(
     (a, b) => (a === undefined || b.tripCount > a.tripCount ? b : a),
     undefined,
   );
-  const label = busiest?.headsign?.replace(/ (To|Via) /g, (m) => m.toLowerCase());
-  return label || `Direction ${dirId + 1}`;
+  const bound = boundFor(busiest?.headsign, mode);
+  return bound ? sentenceStart(bound) : `Direction ${dirId + 1}`;
 }
 
 /**
@@ -557,6 +566,12 @@ export default async function RoutePage({
   const totalTrips = dirTrips.length;
   const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
   const shownRows = boardRows.slice(0, parseShown(sp.show));
+  // The shown runs' fleet labels, so a row names a vehicle as its own page does.
+  const fleet = await getFleet([
+    ...new Set(
+      shownRows.flatMap((r) => (r.kind === "run" && r.trip.vehicle_id ? [r.trip.vehicle_id] : [])),
+    ),
+  ]).catch(readFallback("route-fleet", new Map<string, FleetVehicle>()));
 
   // The board sets `tsort` itself, so everything else about the view carries.
   const tripPreserved: Record<string, string> = {
@@ -631,7 +646,7 @@ export default async function RoutePage({
             dirKeys={dirKeys}
             activeDir={activeDir}
             labels={Object.fromEntries(
-              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d)]),
+              dirEntries.map(([d, dir]) => [d, directionLabel(dir.variants, d, routeMode)]),
             )}
             hrefs={{
               both: dirHref(null),
@@ -796,6 +811,7 @@ export default async function RoutePage({
               basePath={routePath}
               preservedParams={tripPreserved}
               detouredTripIds={new Set(detouredTripIds)}
+              fleet={fleet}
             />
             {tripsCapped && (
               <p className="text-xs text-at-muted lg:col-span-2">

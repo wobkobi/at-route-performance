@@ -190,3 +190,23 @@ export function offScheduleValue(
   // that rounds to exactly 0s still reads "on time".
   return { text: formatDelay(signed, { thresholdSec: 0 }), tone };
 }
+
+/**
+ * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
+ * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
+ * @param heading - The heading.
+ * @returns It with a lower-case first letter.
+ */
+export function midSentence(heading: string): string {
+  return heading.charAt(0).toLowerCase() + heading.slice(1);
+}
+
+/**
+ * A phrase as it reads at the start of a line: "to Britomart" > "To Britomart".
+ * Only the first letter changes, the reverse of {@link midSentence}.
+ * @param phrase - The phrase.
+ * @returns It with an upper-case first letter.
+ */
+export function sentenceStart(phrase: string): string {
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+}

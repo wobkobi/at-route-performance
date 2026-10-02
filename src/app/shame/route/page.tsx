@@ -66,7 +66,7 @@ import {
   type ShameFilter,
   type ShameSearchParams,
 } from "@/lib/page/shame";
-import { routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
@@ -184,6 +184,7 @@ async function RouteRangeBoard({
         <ShameRowBody
           route={r}
           subject={<ShameSubjectLink href={href}>{name}</ShameSubjectLink>}
+          subtitle={routeSubtitle(r)}
           worst={isWorst}
           flame={
             dayCount > 1 && (
@@ -291,6 +292,7 @@ async function RouteDayBoard({
         <ShameRowBody
           route={r}
           subject={<ShameSubjectLink href={href}>{name}</ShameSubjectLink>}
+          subtitle={routeSubtitle(r)}
           worst={isWorst}
           flame={
             <ShameDayFlame
@@ -379,6 +381,7 @@ async function RouteHoursBoard({
         <ShameRowBody
           route={r}
           subject={<span className="font-semibold text-at-ink">{routeDisplayName(r)}</span>}
+          subtitle={routeSubtitle(r)}
           worst={isWorst}
           detail={plural(r.events, "arrival")}
           figures={r}

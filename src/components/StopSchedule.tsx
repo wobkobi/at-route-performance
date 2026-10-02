@@ -199,10 +199,12 @@ export function StopSchedule({
                           href={tripHref(dep.routeId, dep.tripId, serviceDate)}
                           className="hover:text-at-shore hover:underline"
                         >
-                          {bound.destination ?? UNKNOWN_VALUE}
+                          {bound.destination ? `to ${bound.destination}` : UNKNOWN_VALUE}
                         </Link>
+                      ) : bound.destination ? (
+                        `to ${bound.destination}`
                       ) : (
-                        (bound.destination ?? UNKNOWN_VALUE)
+                        UNKNOWN_VALUE
                       )}
                       {bound.via !== null && (
                         <span className="block text-xs text-at-muted">via {bound.via}</span>

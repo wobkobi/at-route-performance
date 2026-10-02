@@ -6,6 +6,7 @@
 // mean different things.
 
 import { sumBy } from "@/lib/collections";
+import { sentenceStart } from "@/lib/format";
 import { isMode, modeWord } from "@/lib/mode";
 import { platformNoun } from "@/lib/stop/station-platforms";
 
@@ -76,5 +77,5 @@ export function stopGrain(
     return `${poleCount} ${modeLabel === null ? "" : `${modeLabel} `}${noun}s`;
   }
   const one = modeLabel === null ? noun : `${modeLabel} ${noun}`;
-  return one.charAt(0).toUpperCase() + one.slice(1);
+  return sentenceStart(one);
 }

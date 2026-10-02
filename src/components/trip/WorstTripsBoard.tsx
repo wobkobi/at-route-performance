@@ -45,6 +45,7 @@ import {
 } from "@/lib/trip/cancellation";
 import { boundFor } from "@/lib/trip/departure-label";
 import { buildHref } from "@/lib/utils";
+import { vehicleName } from "@/lib/vehicle/detail";
 import Link from "next/link";
 import { type JSX, Suspense } from "react";
 
@@ -101,6 +102,8 @@ export interface WorstTripsBoardProps {
   liveTripIds?: Promise<ReadonlySet<string>>;
   /** Trip ids whose vehicle left its route mid-run; those rows get an OFF ROUTE badge. */
   detouredTripIds?: ReadonlySet<string>;
+  /** Fleet register rows by vehicle id, so a row names a vehicle as its own page does. */
+  fleet?: ReadonlyMap<string, { label: string | null }>;
 }
 
 /**
@@ -192,6 +195,7 @@ const SORT_NOTE: Record<TripSort, string> = {
  * @param props.preservedParams - Query params to keep when changing the sort or length.
  * @param props.liveTripIds - Unresolved set of trip ids currently broadcasting a position.
  * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
+ * @param props.fleet - Fleet register rows by vehicle id, for the vehicles' names.
  * @returns The board element.
  */
 export function WorstTripsBoard({
@@ -206,6 +210,7 @@ export function WorstTripsBoard({
   preservedParams,
   liveTripIds,
   detouredTripIds,
+  fleet,
 }: WorstTripsBoardProps): JSX.Element {
   const noun = isMode(mode) ? MODE_NOUN[mode] : "Services";
   // The board as it stands, for a run's link to hand back to this page.
@@ -317,7 +322,9 @@ export function WorstTripsBoard({
                         </span>
                         <span className="text-at-muted">
                           {bound ? ` ${bound}` : ""}
-                          {t.vehicle_id ? ` · ${t.vehicle_id}` : ""}
+                          {t.vehicle_id
+                            ? ` · ${vehicleName(fleet?.get(t.vehicle_id)?.label, t.vehicle_id)}`
+                            : ""}
                           {t.cars ? ` · ${t.cars} cars` : ""}
                           {" · "}
                           {plural(t.stops, "stop")}

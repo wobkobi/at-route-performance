@@ -195,6 +195,8 @@ export function ShameSubjectLink({
  * @param props.route - The route, for its mode icon; omitted on stop rows.
  * @param props.subject - The subject's name: a {@link ShameSubjectLink} on a split
  *   row, plain text on a row that is one link.
+ * @param props.subtitle - The route's second name (`routeSubtitle`) after the badges,
+ *   if the row has one.
  * @param props.worst - Whether the row holds the board's worst, which earns the badge.
  * @param props.flame - The repeat-offender flame beside the badge, if any.
  * @param props.detail - The muted line under the name ("12 arrivals").
@@ -208,6 +210,7 @@ export function ShameSubjectLink({
 export function ShameRowBody({
   route,
   subject,
+  subtitle,
   worst,
   flame,
   detail,
@@ -216,6 +219,7 @@ export function ShameRowBody({
 }: {
   route?: Pick<RouteDisplay, "mode" | "shortName" | "longName">;
   subject: ReactNode;
+  subtitle?: string | null;
   worst: boolean;
   flame?: ReactNode;
   detail: ReactNode;
@@ -237,6 +241,7 @@ export function ShameRowBody({
           {subject}
           {worst && <ShameWorstBadge />}
           {flame}
+          {subtitle && <span className="min-w-0 truncate text-sm text-at-muted">{subtitle}</span>}
         </span>
         <span className="block text-xs text-at-muted tabular-nums">{detail}</span>
         {note && <span className="block text-xs text-at-muted">{note}</span>}

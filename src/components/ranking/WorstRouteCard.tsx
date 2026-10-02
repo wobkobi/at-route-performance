@@ -5,7 +5,7 @@ import { ModeIcon } from "@/components/ModeIcon";
 import { OffScheduleLine } from "@/components/OffScheduleLine";
 import { NoWorst, WorstCard, WorstCardBucket, WorstCardTitle } from "@/components/ui/WorstCard";
 import { routeHref } from "@/lib/page/hrefs";
-import { routeDisplayName } from "@/lib/route/slug";
+import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { dayLinkParam } from "@/lib/time/day-url";
 import {
   HOURS_PARAM,
@@ -78,6 +78,7 @@ export function WorstRouteCard({
     return <NoWorst eyebrow="Worst route" noun="route" ranked={ranked} when={when} />;
   }
   const name = routeDisplayName(route);
+  const subtitle = routeSubtitle(route);
 
   // The day is dropped when it is today's, whose `?day` the route page
   // redirects away: a card naming today would have cost its reader a 307. A day
@@ -101,6 +102,7 @@ export function WorstRouteCard({
         />
         <WorstCardTitle>{name}</WorstCardTitle>
       </div>
+      {subtitle && <p className="text-sm text-at-muted">{subtitle}</p>}
       <OffScheduleLine
         signedSec={route.avg_delay_sec}
         absSec={route.avg_abs_delay_sec}

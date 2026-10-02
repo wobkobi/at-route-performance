@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.46] - 2026-10-02
+
+### Fixed
+
+- Vehicles go by their fleet name on the trip header and the trips board, direction chips and the
+  stop schedule read "To Botany via Panmure", and route rows on the rankings, worst cards, shame and
+  live pages show the line name under the number.
+
 ## [2.41.45] - 2026-10-02
 
 ### Fixed

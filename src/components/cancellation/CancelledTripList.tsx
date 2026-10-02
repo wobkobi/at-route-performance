@@ -214,11 +214,7 @@ export function CancelledTripList({
                     <span className={TRIP_NAME_GROUP_CLASS}>
                       <span className={TRIP_NAME_CLASS}>
                         <span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>
-                        <span className="text-at-muted">
-                          {t.headsign
-                            ? ` ${boundFor(t.headsign, t.mode) ?? `to ${t.headsign}`}`
-                            : ""}
-                        </span>
+                        <span className="text-at-muted"> {boundFor(t.headsign, t.mode)}</span>
                       </span>
                       <CancellationBadge stage={t.stage} />
                     </span>

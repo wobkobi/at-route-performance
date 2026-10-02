@@ -13,6 +13,7 @@ import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
 import { cn } from "@/lib/cn";
+import { midSentence } from "@/lib/format";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
 import { routeColour } from "@/lib/route/colour";
@@ -30,7 +31,7 @@ import {
   type StripSide,
 } from "@/lib/strip/route-strip";
 import type { StopSplit } from "@/lib/strip/stop-split";
-import { midSentence, stripView, type HalfTone, type StripView } from "@/lib/strip/view";
+import { stripView, type HalfTone, type StripView } from "@/lib/strip/view";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";

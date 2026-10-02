@@ -58,7 +58,7 @@ import {
   type SortColumn,
   type SortParamNames,
 } from "@/lib/page/table-sort";
-import { compareRouteNumbers, routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { compareRouteNumbers, routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import {
   isSchoolBus,
   parseSchoolFilter,
@@ -247,6 +247,7 @@ export default async function OperatorPage({
     routes.set(s, {
       slug: s,
       name: routeDisplayName(r),
+      subtitle: routeSubtitle(r),
       long: r.longName,
       mode: r.mode,
       colour: r.colour,
@@ -261,6 +262,7 @@ export default async function OperatorPage({
     routes.set(c.slug, {
       slug: c.slug,
       name: routeDisplayName(c),
+      subtitle: routeSubtitle(c),
       long: c.longName ?? "",
       mode: c.mode,
       colour: c.colour,
@@ -404,8 +406,8 @@ export default async function OperatorPage({
                         >
                           {r.name}
                         </Link>
-                        {r.long && r.long !== r.name && (
-                          <span className="block truncate text-xs text-at-muted">{r.long}</span>
+                        {r.subtitle && (
+                          <span className="block truncate text-xs text-at-muted">{r.subtitle}</span>
                         )}
                       </span>
                     </span>
@@ -492,6 +494,8 @@ export default async function OperatorPage({
 interface OperatorRoute {
   slug: string;
   name: string;
+  /** The second line under the name, or null when it would repeat it. */
+  subtitle: string | null;
   long: string;
   mode: string;
   colour?: string | null;
