@@ -446,7 +446,13 @@ function PlatformTable({
                 <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
                   {formatCount(p.events)}
                 </td>
-                <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                <td
+                  className={cn(
+                    CELL_CLASS,
+                    "text-right tabular-nums",
+                    p.on_time_pct !== null && "text-at-ontime",
+                  )}
+                >
                   {formatPct(p.on_time_pct)}
                 </td>
                 <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>

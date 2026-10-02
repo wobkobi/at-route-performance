@@ -442,7 +442,11 @@ export function RouteExplorer({
                   </div>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
-                  <Figure size="sm" label="On time">
+                  <Figure
+                    size="sm"
+                    label="On time"
+                    className={r.on_time_pct === null ? undefined : "text-at-ontime"}
+                  >
                     {formatPct(r.on_time_pct)}
                   </Figure>
                   <Figure size="sm" label="Early or late">

@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.43] - 2026-10-02
+
+### Fixed
+
+- Delay bands read On time, Late, Early, No reading everywhere; on-time figures are always blue,
+  live map marks use the bright early green, and compare marks its best cell with a BEST badge.
+
 ## [2.41.42] - 2026-10-02
 
 ### Changed

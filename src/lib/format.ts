@@ -64,6 +64,12 @@ export interface FormatDelayOptions {
 /**
  * Render a signed schedule deviation as a human string with no decimals.
  * Negative is early, positive is late; zero components are dropped.
+ *
+ * The site-wide rule: a single trip's verdict at one stop (the trip line, a
+ * live vehicle) passes `mode`, so inside the mode's on-time window it reads "on
+ * time". An average passes `thresholdSec: 0` and always names its distance
+ * ("2m late"), coloured by the band it falls in, since "on time" over a mean of
+ * late and early arrivals would hide how far off they were.
  * @param sec - Signed deviation in seconds (negative early, positive late).
  * @param options - On-time rule: a `mode` (asymmetric on-time window) or a
  *   symmetric `thresholdSec`; below it the value reads "on time".

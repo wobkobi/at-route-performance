@@ -29,16 +29,17 @@ export function escapeHtml(s: string): string {
 }
 
 /**
- * A live vehicle's mark colour for each reading band. Early takes the darker
- * green, since vehicle dots and rings are small marks over a pale basemap where
- * the brand green is about 2.1:1; no reading stays muted so it never reads as on
- * time. The palette backs each token for a page whose stylesheet has not applied.
+ * A live vehicle's mark colour for each reading band. Dots and rings are filled
+ * marks, so early takes the bright green the site's other filled marks use (the
+ * darker green is for text and thin lines); no reading stays muted so it never
+ * reads as on time. The palette backs each token for a page whose stylesheet has
+ * not applied.
  * @returns Colour per band.
  */
 export function bandColours(): Record<ReadingBand, string> {
   return {
     late: cssVar("--color-at-late") || PALETTE.late,
-    early: cssVar("--color-at-early-strong") || PALETTE["early-strong"],
+    early: cssVar("--color-at-early") || PALETTE.early,
     ontime: cssVar("--color-at-ontime") || PALETTE.ontime,
     none: cssVar("--color-at-muted") || PALETTE.muted,
   };

@@ -133,7 +133,7 @@ export function DayChart({
                       title={`${serviceDayLabel(s.date)}${s.date === today ? " (so far)" : ""}: ${s.verdict?.label ?? ""}, ${formatPct(s.summary.on_time_pct)} on time`}
                       className={cn(
                         "block w-full hover:opacity-80",
-                        s.verdict?.barClass ?? "bg-at-muted",
+                        s.verdict?.barClass ?? "bg-at-border",
                         s.date === today && "opacity-60",
                       )}
                       style={{ height: `${plotHeight(s.summary.on_time_pct)}%` }}

@@ -180,7 +180,7 @@ function AverageDetail({
       <p className="at-eyebrow text-at-muted">Of the typical arrival</p>
       {split === null ? (
         <p className="mt-2 text-sm text-at-muted">
-          No arrivals in this window, so there is nothing to average.
+          No arrivals were recorded in this window, so there is nothing to average.
         </p>
       ) : (
         <>
@@ -376,7 +376,7 @@ export function PunctualityInfo({
                      nothing being known - the graphic said catastrophe while the
                      rows beside it said "—". Say it in words instead. */
               <p className="mt-2 text-sm text-at-muted">
-                No arrivals in this window, so there is no split to show.
+                No arrivals were recorded in this window, so there is no split to show.
               </p>
             ) : (
               <>

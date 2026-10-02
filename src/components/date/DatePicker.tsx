@@ -207,7 +207,9 @@ export function DatePicker({
                         type="button"
                         disabled={d < minDay || d > maxDay}
                         aria-pressed={on}
-                        aria-label={serviceDayLabel(d)}
+                        aria-label={
+                          d === today ? `${serviceDayLabel(d)}, today` : serviceDayLabel(d)
+                        }
                         onClick={() => go({ day: d === today ? undefined : d })}
                         className={cn(
                           "h-11 text-sm tabular-nums",
@@ -331,7 +333,11 @@ function WeekRow({
       type="button"
       disabled={disabled}
       aria-pressed={on}
-      aria-label={dayRangeLabel(first, last)}
+      aria-label={
+        first <= today && today <= last
+          ? `${dayRangeLabel(first, last)}, this week`
+          : dayRangeLabel(first, last)
+      }
       onClick={onPick}
       className={cn(
         "mb-0.5 grid w-full grid-cols-7 gap-0.5 border text-sm tabular-nums transition-colors",

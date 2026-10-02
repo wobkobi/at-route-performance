@@ -25,7 +25,7 @@ export interface VehicleStatus {
  */
 export function vehicleStatus(delaySec: number | null, mode: string): VehicleStatus {
   if (delaySec == null || !Number.isFinite(delaySec)) {
-    return { band: "none", label: null, detail: "No live delay" };
+    return { band: "none", label: null, detail: "No reading" };
   }
   const band = delayBand(delaySec, mode);
   // A zero threshold always names the distance, so "3m late" inside the window

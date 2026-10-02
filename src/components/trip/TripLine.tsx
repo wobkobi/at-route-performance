@@ -39,7 +39,7 @@ const PHONE_W = 294;
 const WIDE_W = 574;
 
 /** Tailwind fill class for a recorded stop's delay figure. */
-const BAND_TEXT = { late: "fill-at-late", early: "fill-at-early-strong", ontime: "fill-at-ink" };
+const BAND_TEXT = { late: "fill-at-late", early: "fill-at-early-strong", ontime: "fill-at-ontime" };
 /** Tailwind stroke class for a recorded stop's ring. */
 const BAND_RING = { late: "stroke-at-late", early: "stroke-at-early", ontime: "stroke-at-ontime" };
 

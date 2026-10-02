@@ -33,10 +33,10 @@ const LiveMap = dynamic(() => import("@/components/map/LiveMap"), {
 
 /** The dot toggles, in the order the key reads, each with its dot's colour. */
 const DOT_TOGGLES: ReadonlyArray<{ band: ReadingBand; label: string; dot: string }> = [
-  { band: "late", label: "Late", dot: "bg-at-late" },
   { band: "ontime", label: "On time", dot: "bg-at-ontime" },
-  { band: "early", label: "Early", dot: "bg-at-early-strong" },
-  { band: "none", label: "No delay", dot: "bg-at-muted" },
+  { band: "late", label: "Late", dot: "bg-at-late" },
+  { band: "early", label: "Early", dot: "bg-at-early" },
+  { band: "none", label: "No reading", dot: "bg-at-muted" },
 ];
 
 /**

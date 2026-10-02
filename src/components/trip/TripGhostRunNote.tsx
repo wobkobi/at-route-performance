@@ -49,7 +49,9 @@ export function TripGhostRunNote({
 }: TripGhostRunNoteProps): JSX.Element {
   const named = other?.label ?? null;
   const title =
-    kind === "hidden" ? "Reported under another run's number" : "No readings for this run";
+    kind === "hidden"
+      ? "Reported under another run's number"
+      : "No arrivals recorded for this trip";
   const body =
     kind === "hidden"
       ? named === null

@@ -209,16 +209,16 @@ async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element
     { label: "On a run", value: formatCount(t.vehicles) },
     { label: "Routes running", value: formatCount(t.routes) },
     {
-      label: "Late",
-      value: formatCount(t.late),
-      note: pct(t.late, timed),
-      tone: "text-at-late",
-    },
-    {
       label: "On time",
       value: formatCount(t.onTime),
       note: pct(t.onTime, timed),
       tone: "text-at-ontime",
+    },
+    {
+      label: "Late",
+      value: formatCount(t.late),
+      note: pct(t.late, timed),
+      tone: "text-at-late",
     },
     {
       label: "Early",
@@ -299,10 +299,10 @@ async function LiveTable({
               Route
             </SortHeader>
             <SortHeader {...head("running")}>Running</SortHeader>
-            <SortHeader {...head("late")}>Late</SortHeader>
             <SortHeader {...head("ontime")} className="hidden sm:table-cell">
               On time
             </SortHeader>
+            <SortHeader {...head("late")}>Late</SortHeader>
             <SortHeader {...head("early")} className="hidden sm:table-cell">
               Early
             </SortHeader>
@@ -335,10 +335,10 @@ async function LiveTable({
                   </Link>
                 </th>
                 <td className="p-3 text-right tabular-nums">{r.vehicles}</td>
+                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
                 <td className={cn("p-3 text-right tabular-nums", r.late > 0 && "text-at-late")}>
                   {r.late}
                 </td>
-                <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.onTime}</td>
                 <td className="hidden p-3 text-right tabular-nums sm:table-cell">{r.early}</td>
                 <td className="hidden p-3 text-right whitespace-nowrap md:table-cell">
                   <OffScheduleValue signedSec={r.avgDelaySec} absSec={null} mode={r.mode} />

@@ -70,9 +70,9 @@ function rowMagnitude(row: RouteRow): number {
  */
 function DelayColourKey(): JSX.Element {
   const keys = [
+    { swatch: "bg-at-ontime", label: "On time" },
     { swatch: "bg-at-late", label: "Late" },
     { swatch: "bg-at-early", label: "Early" },
-    { swatch: "bg-at-ontime", label: "Inside the window" },
     { swatch: "bg-at-ink", label: "Mixed" },
   ];
   return (

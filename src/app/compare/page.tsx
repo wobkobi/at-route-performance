@@ -8,6 +8,7 @@
 import { ChipLink } from "@/components/Chip";
 import { ModeIcon } from "@/components/ModeIcon";
 import { RangeControls } from "@/components/date/RangeControls";
+import { Badge } from "@/components/ui/Badge";
 import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
@@ -128,8 +129,8 @@ interface FigureRow {
 function figureRows(kind: CompareKind): FigureRow[] {
   return [
     { label: "On time", key: "on_time_pct", format: "pct", better: "high" },
-    { label: "Early", key: "early_pct", format: "pct", better: "low" },
     { label: "Late", key: "late_pct", format: "pct", better: "low" },
+    { label: "Early", key: "early_pct", format: "pct", better: "low" },
     { label: "Average off", key: "avg_abs_delay_sec", format: "duration", better: "low" },
     { label: "Arrivals", key: "events", format: "count", better: null },
     {
@@ -436,7 +437,7 @@ export default async function ComparePage({
                       )}
                     >
                       {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
-                      {best.has(i) && <span className="sr-only"> (best)</span>}
+                      {best.has(i) && <Badge tone="ok" label="BEST" className="ml-1.5" />}
                     </td>
                   ))}
                 </tr>
@@ -516,7 +517,7 @@ export default async function ComparePage({
         {kind === "routes"
           ? "A route's on-time share counts each cancelled trip as the wait for the next one, as on the route's own page. "
           : "A stop's figures cover every route calling there, and a station's cover all its platforms. "}
-        The best share or average in each row is picked out in blue.
+        The best share or average in each row is marked BEST.
       </p>
     </main>
   );

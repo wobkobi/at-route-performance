@@ -22,9 +22,9 @@ export function StopDotKey({
   lone?: boolean;
 }): JSX.Element {
   const items: SwatchKeyItem[] = [
-    { swatch: <DotSwatch className="bg-at-late" />, label: "late" },
-    { swatch: <DotSwatch className="bg-at-early" />, label: "early" },
-    { swatch: <DotSwatch className="bg-at-ontime" />, label: "on time" },
+    { swatch: <DotSwatch className="bg-at-ontime" />, label: "On time" },
+    { swatch: <DotSwatch className="bg-at-late" />, label: "Late" },
+    { swatch: <DotSwatch className="bg-at-early" />, label: "Early" },
   ];
   if (noReading) {
     items.push({
@@ -37,7 +37,7 @@ export function StopDotKey({
           }
         />
       ),
-      label: "no reading",
+      label: "No reading",
     });
   }
   return <SwatchKey items={items} />;
@@ -84,9 +84,9 @@ export function MapMarkKey({
       ),
       label: (
         <>
-          A vehicle on the route now, ringed in its delay colour (grey when the feed gives no
-          delay). The point shows which way it is heading, and a label beside it says how far off
-          schedule it is once it is outside the on-time window.
+          A vehicle on the route now, ringed in its delay colour (grey when there is no reading).
+          The point shows which way it is heading, and a label beside it says how far off schedule
+          it is once it is outside the on-time window.
         </>
       ),
     });

@@ -57,11 +57,11 @@ const HALF_STROKE: Record<HalfTone, string> = {
   unserved: "stroke-at-muted/60",
   closed: "stroke-at-muted/60",
 };
-/** Text class for each figure tone: only the stops off time stand out. */
+/** Text class for each figure tone: on time in its own colour, with the stops off time in bold. */
 const FIGURE_TEXT: Record<HalfTone, string> = {
   late: "font-semibold text-at-late",
   early: "font-semibold text-at-early-strong",
-  ontime: "text-at-muted",
+  ontime: "text-at-ontime",
   none: "text-at-muted",
   unserved: "text-at-muted",
   closed: "text-at-muted",
