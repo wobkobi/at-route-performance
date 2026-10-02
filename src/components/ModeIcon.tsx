@@ -2,7 +2,7 @@
 // The transport-mode icon, one colour per mode.
 
 import { cn } from "@/lib/cn";
-import { MODE_ICON_CLASS, MODE_ICON_HEX, MODE_NAME, modeOrBus } from "@/lib/mode";
+import { MODE_ICON_CLASS, MODE_ICON_HEX, MODE_NAME, modeOrBus, type Mode } from "@/lib/mode";
 import { isSchoolBus } from "@/lib/school-bus";
 import type { JSX } from "react";
 import type { IconType } from "react-icons";
@@ -46,13 +46,32 @@ export function modeGlyph(
   shortName?: string | null,
   longName?: string | null,
 ): ModeGlyph {
-  const m = modeOrBus(mode);
-  const colour = { colourClass: MODE_ICON_CLASS[m], hex: MODE_ICON_HEX[m] };
-  if (m === "TRAIN") return { Icon: FaSubway, ...colour, label: MODE_NAME.TRAIN };
-  if (m === "FERRY") return { Icon: FaShip, ...colour, label: MODE_NAME.FERRY };
-  if (isSchoolBus(shortName, longName)) return { Icon: FaBus, ...colour, label: "School bus" };
+  return glyphFor(modeOrBus(mode), isSchoolBus(shortName, longName));
+}
+
+/**
+ * The glyph for a mode once school-ness is known, for a caller holding a flag
+ * rather than the route's names (a live vehicle, a map). {@link modeGlyph} reads
+ * the flag from the names.
+ * @param mode - Route mode.
+ * @param school - Whether the route is a school service; only a bus takes it.
+ * @returns The glyph, its colour and its label.
+ */
+export function glyphFor(mode: Mode, school: boolean): ModeGlyph {
+  const colour = { colourClass: MODE_ICON_CLASS[mode], hex: MODE_ICON_HEX[mode] };
+  if (mode === "TRAIN") return { Icon: FaSubway, ...colour, label: MODE_NAME.TRAIN };
+  if (mode === "FERRY") return { Icon: FaShip, ...colour, label: MODE_NAME.FERRY };
+  if (school) return { Icon: FaBus, ...colour, label: "School bus" };
   return { Icon: FaBusAlt, ...colour, label: MODE_NAME.BUS };
 }
+
+/** Every glyph a route can take, once each, for the maps to copy their SVG from. */
+export const ALL_GLYPHS: readonly ModeGlyph[] = [
+  glyphFor("BUS", false),
+  glyphFor("BUS", true),
+  glyphFor("TRAIN", false),
+  glyphFor("FERRY", false),
+];
 
 /**
  * Transport-mode glyph drawn next to a route number: a bus, school bus, train

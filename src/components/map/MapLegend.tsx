@@ -1,7 +1,10 @@
 // src/components/map/MapLegend.tsx
 // The keys for the stop, route and trip maps: stop dot colours beside the
 // heading, and under the map what a live vehicle marker and an off-route line mean.
+import { glyphFor } from "@/components/ModeIcon";
 import { DotSwatch, SwatchKey, type SwatchKeyItem } from "@/components/ui/SwatchKey";
+import { VEHICLE_CHEVRON } from "@/lib/map/vehicle-marker";
+import type { Mode } from "@/lib/mode";
 import type { JSX } from "react";
 
 /**
@@ -45,22 +48,29 @@ export function StopDotKey({
 
 /**
  * What the map's other marks mean, under the map. The vehicle entry draws a small
- * copy of the marker (ring and heading chevron) so the words point at something
- * the reader can match; it must follow the marker drawn in StopMap.
+ * copy of the marker (ring, the route's glyph and the heading chevron) so the
+ * words point at something the reader can match; it must follow vehicleMarkerHtml.
  * @param props - Component props.
  * @param props.live - The map shows live vehicles.
  * @param props.offRoute - The map draws off-route readings.
+ * @param props.mode - The route's mode, for the marker's glyph.
+ * @param props.school - The route is a school service, which takes the school bus glyph.
  * @returns The key, or null when the map has neither.
  */
 export function MapMarkKey({
   live,
   offRoute = false,
+  mode = "BUS",
+  school = false,
 }: {
   live: boolean;
   offRoute?: boolean;
+  mode?: Mode;
+  school?: boolean;
 }): JSX.Element | null {
   const items: SwatchKeyItem[] = [];
   if (live) {
+    const { Icon } = glyphFor(mode, school);
     items.push({
       key: "live",
       swatch: (
@@ -72,8 +82,9 @@ export function MapMarkKey({
             className="fill-at-surface stroke-at-late"
             strokeWidth="3"
           />
+          <Icon x={10} y={10} size={20} className="text-at-late" />
           <path
-            d="M20 0.75 L27.5 10 L20 7 L12.5 10 Z"
+            d={VEHICLE_CHEVRON}
             transform="rotate(45 20 20)"
             className="fill-at-late stroke-at-surface"
             strokeWidth="1.5"

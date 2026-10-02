@@ -130,11 +130,28 @@ export interface LiveMapVehicle {
   lat: number;
   lon: number;
   delaySec: number | null;
+  /** Heading in whole degrees from north, or null when the feed gave none. */
+  bearing: number | null;
   cars: number | null;
   /** The route's operator code, which the popup names from the response's operator list; null when unrecorded. */
   operatorCode: string | null;
+  /** Whether the route is a school service, which takes the school bus glyph. */
+  school: boolean;
   /** Whether the trip has any history stored; the map never draws a trip with none. */
   stored: boolean;
+}
+
+/** The route facts {@link mapVehicles} joins onto the feed, each optional. */
+export interface MapVehicleLookups {
+  /** Route slug > operator code. */
+  operators?: Readonly<Record<string, string>>;
+  /**
+   * Trip ids with any history stored, or null when the lookup failed, which
+   * marks every trip stored so the map hides none.
+   */
+  stored?: ReadonlySet<string> | null;
+  /** Slugs of the school-service routes. */
+  school?: ReadonlySet<string>;
 }
 
 /**
@@ -143,31 +160,36 @@ export interface LiveMapVehicle {
  * its short code rather than its name for the same reason.
  * @param vehicles - Every vehicle in the feed.
  * @param modeOf - Route id > mode; a route missing from it counts as a bus.
- * @param operators - Route slug > operator code.
- * @param stored - Trip ids with any history stored, or null when the lookup
- *   failed, which marks every trip stored so the map hides none.
+ * @param lookups - Operators, stored trips and school routes.
+ * @param lookups.operators - Route slug > operator code.
+ * @param lookups.stored - Trip ids with any history stored, or null when the lookup failed.
+ * @param lookups.school - Slugs of the school-service routes.
  * @returns The map's vehicles.
  */
 export function mapVehicles(
   vehicles: readonly LiveVehicle[],
   modeOf: ReadonlyMap<string, string>,
-  operators: Readonly<Record<string, string>> = {},
-  stored: ReadonlySet<string> | null = null,
+  { operators = {}, stored = null, school }: MapVehicleLookups = {},
 ): LiveMapVehicle[] {
-  return onARun(vehicles).map((v) => ({
-    id: v.vehicleId,
-    label: v.label,
-    slug: routeSlug(v.routeId),
-    mode: modeOrBus(modeOf.get(v.routeId)),
-    tripId: v.tripId as string,
-    // Five decimals is about a metre, all a dot on a city map can show.
-    lat: Math.round(v.lat * 1e5) / 1e5,
-    lon: Math.round(v.lon * 1e5) / 1e5,
-    delaySec: v.delaySec,
-    cars: v.cars,
-    operatorCode: operators[routeSlug(v.routeId)] ?? null,
-    stored: stored === null || stored.has(v.tripId as string),
-  }));
+  return onARun(vehicles).map((v) => {
+    const slug = routeSlug(v.routeId);
+    return {
+      id: v.vehicleId,
+      label: v.label,
+      slug,
+      mode: modeOrBus(modeOf.get(v.routeId)),
+      tripId: v.tripId as string,
+      // Five decimals is about a metre, all a dot on a city map can show.
+      lat: Math.round(v.lat * 1e5) / 1e5,
+      lon: Math.round(v.lon * 1e5) / 1e5,
+      delaySec: v.delaySec,
+      bearing: v.bearing == null ? null : Math.round(v.bearing),
+      cars: v.cars,
+      operatorCode: operators[slug] ?? null,
+      school: school?.has(slug) ?? false,
+      stored: stored === null || stored.has(v.tripId as string),
+    };
+  });
 }
 
 /** Network-wide counts over the live rows, for the page's figure strip. */

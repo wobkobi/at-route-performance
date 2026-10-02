@@ -66,11 +66,21 @@ export const AUCKLAND_CENTRE: [number, number] = [-36.8485, 174.7633];
 export const MAP_POLL_MS = 120_000;
 
 /**
+ * Whether the reader has asked for reduced motion, for a map move made in script.
+ * @returns True when the reduced-motion media query matches.
+ */
+export function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
  * A Leaflet map with the site's basemap, before any view or layers. The wheel
  * zooms only on a settled mouse (see {@link wheelZoomOnHover}); one-finger drag
  * stays on for touch, since every page caps its map below the screen's height, so
  * a swipe above or below it still scrolls the page. Zoom snaps to quarter steps,
- * so a fitted frame fills its box rather than rounding down a whole level.
+ * so a fitted frame fills its box rather than rounding down a whole level. With
+ * reduced motion on ({@link reducedMotion}), zooms jump rather than ease, tiles
+ * and markers appear without fading, and a flung pan stops where it is let go.
  *
  * The site-wide Referrer-Policy is same-origin, which strips the Referer from
  * tile requests and fails a host-restricted CARTO key, so the tile layer sends
@@ -80,7 +90,15 @@ export const MAP_POLL_MS = 120_000;
  * @returns The map.
  */
 export function createBaseMap(L: typeof Leaflet, el: HTMLElement): Leaflet.Map {
-  const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0.25 });
+  const still = reducedMotion();
+  const map = L.map(el, {
+    scrollWheelZoom: false,
+    zoomSnap: 0.25,
+    zoomAnimation: !still,
+    fadeAnimation: !still,
+    markerZoomAnimation: !still,
+    inertia: !still,
+  });
   wheelZoomOnHover(map);
   L.tileLayer(
     cartoTileUrl(window.location.host, process.env.NEXT_PUBLIC_CARTO_API_KEY, VERCEL_KEY_HOSTS),

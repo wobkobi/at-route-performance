@@ -23,6 +23,8 @@ export interface RouteMapDiagramProps {
   live: boolean;
   /** Route mode (live-vehicle glyph + delay colour banding). */
   mode: string;
+  /** The route is a school service, whose vehicles take the school bus glyph. */
+  school: boolean;
   /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
   colour: string | null;
   /**
@@ -43,6 +45,7 @@ export interface RouteMapDiagramProps {
  * @param props.routeId - Route id for the saved viewport and live vehicles.
  * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
+ * @param props.school - Whether the route is a school service.
  * @param props.colour - The route's GTFS colour, for its lines.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
  * @param props.stopDay - The day a stop's popup link opens on.
@@ -54,6 +57,7 @@ export function RouteMapDiagram({
   routeId,
   live,
   mode,
+  school,
   colour,
   filterDirectionIds,
   stopDay,
@@ -80,13 +84,14 @@ export function RouteMapDiagram({
         routeId={routeId}
         live={live}
         mode={modeOrBus(mode)}
+        school={school}
         colour={colour}
         filterDirectionIds={filterDirectionIds}
         stopLinks
         stopDay={stopDay}
         className="h-[min(31.25rem,60svh)]"
       />
-      <MapMarkKey live={live} />
+      <MapMarkKey live={live} mode={modeOrBus(mode)} school={school} />
     </Panel>
   );
 }

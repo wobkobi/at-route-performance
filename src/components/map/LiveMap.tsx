@@ -4,26 +4,27 @@
 // colour, redrawn from /api/live every two minutes, over the road paths the
 // routes follow. Dots are drawn on one canvas rather than as DOM markers, since
 // a weekday peak puts well over a thousand vehicles on the map at once. Zoomed
-// in to street level, where a screen holds a few dozen, they become markers with
-// the mode's icon inside. The table under the map carries the same service for
+// in to street level, where a screen holds a few dozen, they become the route
+// maps' vehicle marker. The table under the map carries the same service for
 // keyboard and screen-reader readers, so the dots are not focusable.
 
 import { LocateArrow } from "@/components/icons";
-import { modeGlyph } from "@/components/ModeIcon";
+import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { glyphFor } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import type { LiveMapVehicle } from "@/lib/live-routes";
 import { coreBounds } from "@/lib/map/frame";
 import { nearbyFrame } from "@/lib/map/near-frame";
 import { shiftPixels } from "@/lib/map/shared-roads";
-import { bandColours, cssVar, escapeHtml } from "@/lib/map/style";
-import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap } from "@/lib/map/tiles";
+import { bandColours, bandTextColours, cssVar, escapeHtml } from "@/lib/map/style";
+import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap, reducedMotion } from "@/lib/map/tiles";
 import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
-import { MODES, MODE_NAME, type Mode } from "@/lib/mode";
+import { readGlyphs, vehicleIcon, vehiclePopupHtml } from "@/lib/map/vehicle-marker";
+import type { Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
-import { operatorHref, operatorOf, type Operator } from "@/lib/operators";
-import { routeHref, vehicleHref } from "@/lib/page/hrefs";
+import { operatorOf, type Operator } from "@/lib/operators";
+import { routeHref } from "@/lib/page/hrefs";
 import { PALETTE } from "@/lib/palette";
-import { liveRunHref } from "@/lib/vehicle/detail";
 import { vehicleStatus } from "@/lib/vehicle/status";
 import { startVisiblePoll } from "@/lib/visible-poll";
 import type { NetworkLine } from "@/types/api";
@@ -47,7 +48,8 @@ const NEAR_MAX_ZOOM = 17;
 const BASE_ZOOM = 11;
 
 /**
- * From this zoom the dots carry their mode's icon. That makes them DOM markers,
+ * From this zoom the dots become the route maps' vehicle marker: the mode's icon
+ * in a delay-coloured ring, with a heading chevron. That makes them DOM markers,
  * so only the vehicles in view are drawn: at street level a screen holds a few
  * dozen, where the whole region's thousand would stall the page.
  */
@@ -71,27 +73,23 @@ function lineStyle(mode: Mode, zoom: number, hover = false): { weight: number; o
 }
 
 /**
- * A vehicle's popup: its route and name, its delay in the words the route maps
- * use, its operator, and links to its run and its own page.
+ * A vehicle's popup, in the layout the route maps use.
  * @param v - The vehicle.
  * @param detail - Its delay line.
  * @param operators - The stored operators the feed's vehicles carry.
  * @returns Popup HTML.
  */
 function popupHtml(v: LiveMapVehicle, detail: string, operators: readonly Operator[]): string {
-  const name = `${MODE_NAME[v.mode]} ${v.label ?? v.id}`;
-  const cars = v.cars ? ` &middot; ${v.cars} cars` : "";
-  const run = liveRunHref({ routeId: v.slug, tripId: v.tripId });
-  const op = operatorOf(v.operatorCode, operators);
-  const runBy = op
-    ? `Run by <a href="${escapeHtml(operatorHref(op))}">${escapeHtml(op.name)}</a><br>`
-    : "";
-  return (
-    `<a href="${escapeHtml(routeHref(v.slug))}"><strong>Route ${escapeHtml(v.slug)}</strong></a><br>` +
-    `${escapeHtml(name)}${cars}<br>${escapeHtml(detail)}<br>${runBy}` +
-    `<a href="${escapeHtml(run)}">Open this run</a> &middot; ` +
-    `<a href="${escapeHtml(vehicleHref(v.id))}">This vehicle</a>`
-  );
+  return vehiclePopupHtml({
+    slug: v.slug,
+    routeId: v.slug,
+    vehicleId: v.id,
+    label: v.label,
+    cars: v.cars,
+    tripId: v.tripId,
+    detail,
+    operator: operatorOf(v.operatorCode, operators),
+  });
 }
 
 /**
@@ -372,12 +370,8 @@ export default function LiveMap({
     if (!m || !vehicles) return;
     const { L, map, layer, renderer } = m;
     const colour = bandColours();
-    const glyph = Object.fromEntries(
-      MODES.map((md) => [
-        md,
-        glyphRef.current?.querySelector(`[data-mode="${md}"]`)?.outerHTML ?? "",
-      ]),
-    ) as Record<Mode, string>;
+    const glyphColour = bandTextColours();
+    const glyphs = readGlyphs(glyphRef.current);
     const shown = vehicles.filter((v) => (!mode || v.mode === mode) && v.stored);
     const drawn = shown
       .map((v) => ({ v, status: vehicleStatus(v.delaySec, v.mode) }))
@@ -415,16 +409,13 @@ export default function LiveMap({
         }
         if (placed.has(v.id) || !view.contains([v.lat, v.lon])) continue;
         placed.add(v.id);
-        const size = v.mode === "BUS" ? 30 : 34;
-        const html =
-          `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;` +
-          `box-sizing:border-box;border-radius:9999px;border:2px solid #fff;color:#fff;` +
-          `font-size:${Math.round(size * 0.55)}px;box-shadow:0 1px 3px rgb(0 0 0 / 0.4);` +
-          `background:${colour[status.band]}">${glyph[v.mode]}</span>`;
-        L.marker([v.lat, v.lon], {
-          icon: L.divIcon({ className: "", html, iconSize: [size, size] }),
-          keyboard: false,
-        })
+        const icon = vehicleIcon(L, {
+          ring: colour[status.band],
+          glyphColour: glyphColour[status.band],
+          glyph: glyphs.get(glyphFor(v.mode, v.school).label) ?? null,
+          bearing: v.bearing,
+        });
+        L.marker([v.lat, v.lon], { icon, keyboard: false })
           .bindPopup(popupHtml(v, status.detail, operatorsRef.current))
           .addTo(layer);
       }
@@ -496,7 +487,12 @@ export default function LiveMap({
           pos.coords.accuracy,
           shown.map((v) => [v.lat, v.lon] as const),
         );
-        map.flyToBounds(frame, { padding: [24, 24], maxZoom: NEAR_MAX_ZOOM, duration: 0.8 });
+        map.flyToBounds(frame, {
+          padding: [24, 24],
+          maxZoom: NEAR_MAX_ZOOM,
+          duration: 0.8,
+          animate: !reducedMotion(),
+        });
       },
       (err) => {
         setLocating(false);
@@ -513,12 +509,7 @@ export default function LiveMap({
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
-      <div ref={glyphRef} hidden>
-        {MODES.map((md) => {
-          const { Icon } = modeGlyph(md);
-          return <Icon key={md} data-mode={md} />;
-        })}
-      </div>
+      <MapGlyphs ref={glyphRef} />
       {/* Clear of Leaflet's attribution in the corner below it. */}
       <button
         type="button"

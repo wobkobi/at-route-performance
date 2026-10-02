@@ -2,23 +2,31 @@
 // src/components/map/StopMap.tsx
 // Render a Leaflet map of stops and live vehicles with delay-coloured markers.
 
+import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { glyphFor } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
 import { delayColour } from "@/lib/delay-colour";
 import type { LiveVehicle } from "@/lib/feed/vehicles";
 import { UNKNOWN_VALUE, formatDelay, formatDuration } from "@/lib/format";
 import { arrowPlacements, dropRepeatArrows, type ArrowPlacement } from "@/lib/map/line-arrows";
-import { bandColours, cssVar, escapeHtml } from "@/lib/map/style";
-import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap } from "@/lib/map/tiles";
+import { bandColours, bandTextColours, cssVar, escapeHtml } from "@/lib/map/style";
+import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap, reducedMotion } from "@/lib/map/tiles";
 import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
-import { MODE_NAME, type Mode } from "@/lib/mode";
+import {
+  readGlyphs,
+  vehicleIcon,
+  vehiclePopupHtml,
+  type MarkerGlyph,
+} from "@/lib/map/vehicle-marker";
+import type { Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
-import { operatorHref, type Operator } from "@/lib/operators";
-import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
+import type { Operator } from "@/lib/operators";
+import { stopHref } from "@/lib/page/hrefs";
 import { PALETTE } from "@/lib/palette";
 import { routeColour } from "@/lib/route/colour";
 import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
-import { liveRunHref } from "@/lib/vehicle/detail";
+import { vehicleName } from "@/lib/vehicle/detail";
 import { vehicleStatus, vehiclesOnMap } from "@/lib/vehicle/status";
 import { startVisiblePoll } from "@/lib/visible-poll";
 import type * as Leaflet from "leaflet";
@@ -58,72 +66,6 @@ const STOP_FOCUS_ZOOM = 14;
 
 /** Zoom for a map with nothing to frame: the city around its centre. */
 const OVERVIEW_ZOOM = 12;
-
-/**
- * Inner SVG markup for each mode's vehicle glyph, scaled to fit the 20x20 glyph
- * area inside the 40x40 marker disc. Each icon is scaled evenly by 20 over its
- * longer side and centred along the shorter one, so none is stretched:
- *   BUS   (FaBusAlt) 512x512 - scale(20/512)
- *   TRAIN (FaSubway) 448x512 - scale(20/512), 17.5 wide, so shifted 1.25 right
- *   FERRY (FaShip)   640x512 - scale(20/640), 16 tall, so shifted 2 down
- */
-const MODE_GLYPHS: Record<Mode, string> = {
-  BUS:
-    '<g transform="scale(0.0390625)">' +
-    '<path d="M488 128h-8V80c0-44.8-99.2-80-224-80S32 35.2 32 80v48h-8c-13.25 0-24 10.74-24 24v80c0 13.25 10.75 24 24 24h8v160c0 17.67 14.33 32 32 32v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h192v32c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32v-32h6.4c16 0 25.6-12.8 25.6-25.6V256h8c13.25 0 24-10.75 24-24v-80c0-13.26-10.75-24-24-24zM160 72c0-4.42 3.58-8 8-8h176c4.42 0 8 3.58 8 8v16c0 4.42-3.58 8-8 8H168c-4.42 0-8-3.58-8-8V72zm-48 328c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32zm128-112H128c-17.67 0-32-14.33-32-32v-96c0-17.67 14.33-32 32-32h112v160zm32 0V128h112c17.67 0 32 14.33 32 32v96c0 17.67-14.33 32-32 32H272zm128 112c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32z"/>' +
-    "</g>",
-  TRAIN:
-    '<g transform="translate(1.25 0) scale(0.0390625)">' +
-    '<path d="M448 96v256c0 51.815-61.624 96-130.022 96l62.98 49.721C386.905 502.417 383.562 512 376 512H72c-7.578 0-10.892-9.594-4.957-14.279L130.022 448C61.82 448 0 403.954 0 352V96C0 42.981 64 0 128 0h192c65 0 128 42.981 128 96zM200 232V120c0-13.255-10.745-24-24-24H72c-13.255 0-24 10.745-24 24v112c0 13.255 10.745 24 24 24h104c13.255 0 24-10.745 24-24zm200 0V120c0-13.255-10.745-24-24-24H272c-13.255 0-24 10.745-24 24v112c0 13.255 10.745 24 24 24h104c13.255 0 24-10.745 24-24zm-48 56c-26.51 0-48 21.49-48 48s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48zm-256 0c-26.51 0-48 21.49-48 48s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48z"/>' +
-    "</g>",
-  FERRY:
-    '<g transform="translate(0 2) scale(0.03125)">' +
-    '<path d="M496.616 372.639l70.012-70.012c16.899-16.9 9.942-45.771-12.836-53.092L512 236.102V96c0-17.673-14.327-32-32-32h-64V24c0-13.255-10.745-24-24-24H248c-13.255 0-24 10.745-24 24v40h-64c-17.673 0-32 14.327-32 32v140.102l-41.792 13.433c-22.753 7.313-29.754 36.173-12.836 53.092l70.012 70.012C125.828 416.287 85.587 448 24 448c-13.255 0-24 10.745-24 24v16c0 13.255 10.745 24 24 24 61.023 0 107.499-20.61 143.258-59.396C181.677 487.432 216.021 512 256 512h128c39.979 0 74.323-24.568 88.742-59.396C508.495 491.384 554.968 512 616 512c13.255 0 24-10.745 24-24v-16c0-13.255-10.745-24-24-24-60.817 0-101.542-31.001-119.384-75.361zM192 128h256v87.531l-118.208-37.995a31.995 31.995 0 0 0-19.584 0L192 215.531V128z"/>' +
-    "</g>",
-};
-
-/**
- * A live-vehicle `divIcon`: a white disc ringed in the delay colour, the route's
- * mode glyph centred and upright, and (when a heading is known) a same-coloured
- * chevron over the top of the ring pointing the way the vehicle is travelling.
- * The chevron is the route arrows' shape, drawn after the disc with a white edge
- * so the ring cannot hide it and it reads over any tile; no chevron means the
- * feed gave no heading.
- * @param L - The Leaflet module.
- * @param opts - Marker options.
- * @param opts.colour - Delay colour for the ring, glyph, and arrow.
- * @param opts.mode - Route mode selecting the glyph (defaults to bus).
- * @param opts.bearing - Compass heading in degrees (0 = north), or null.
- * @returns A Leaflet divIcon.
- */
-function vehicleIcon(
-  L: typeof import("leaflet"),
-  opts: { colour: string; mode: Mode; bearing: number | null },
-): Leaflet.DivIcon {
-  const glyph = MODE_GLYPHS[opts.mode] ?? MODE_GLYPHS.BUS;
-  const arrow =
-    opts.bearing == null
-      ? ""
-      : `<g transform="rotate(${Math.round(opts.bearing)} 20 20)">` +
-        `<path d="M20 0.75 L27.5 10 L20 7 L12.5 10 Z" fill="${opts.colour}" stroke="#fff" ` +
-        `stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/></g>`;
-  const html =
-    `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">` +
-    `<circle cx="20" cy="20" r="14" fill="#fff" stroke="${opts.colour}" stroke-width="3"/>` +
-    `<g transform="translate(10 10)" fill="${opts.colour}">${glyph}</g>` +
-    arrow +
-    `</svg>`;
-  // The tooltip anchor sits just past the ring (radius 14 plus half the 3px
-  // stroke), so a label bound to the right starts beside the disc rather than
-  // over it. A divIcon's default anchor is its centre.
-  return L.divIcon({
-    className: "vehicle-marker",
-    html,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    tooltipAnchor: [16, 0],
-  });
-}
 
 /**
  * A chevron `divIcon` pointing along a route line's travel direction, in the
@@ -180,6 +122,10 @@ interface MapState {
   L: typeof import("leaflet");
   map: Leaflet.Map;
   colours: MapColours;
+  /** Each band's colour for a marker glyph, darker than the ring for early. */
+  glyphColours: Record<ReadingBand, string>;
+  /** The route glyphs, copied from the hidden icons by label. */
+  glyphs: Map<string, MarkerGlyph>;
   routeLayer: Leaflet.LayerGroup;
   /** Direction arrows, redrawn on every zoom so they stay evenly spaced on screen. */
   arrowLayer: Leaflet.LayerGroup;
@@ -196,7 +142,7 @@ interface MapState {
 /** A live vehicle's marker and what it last showed, so a poll changes only what moved. */
 interface VehicleEntry {
   marker: Leaflet.Marker;
-  /** Colour, mode and heading the icon was built from; a new icon only when they change. */
+  /** Band, glyph and heading the icon was built from; a new icon only when they change. */
   iconKey: string;
   label: string | null;
 }
@@ -225,49 +171,58 @@ function glide(marker: Leaflet.Marker): void {
  * is removed, and a new one is added.
  * @param state - The map state holding the vehicle layer and markers.
  * @param vehicles - The vehicles to show, already filtered to this map.
- * @param mode - The route's mode, which sets the glyph and the on-time window.
+ * @param route - The route the map shows.
+ * @param route.mode - Its mode, which sets the glyph and the on-time window.
+ * @param route.school - Whether it is a school service, which takes the school bus glyph.
  * @param op - The route's operator, for the popup's "Run by" line; null when unrecorded.
  */
 function syncVehicles(
   state: MapState,
   vehicles: LiveVehicle[],
-  mode: Mode,
+  { mode, school }: { mode: Mode; school: boolean },
   op: Operator | null,
 ): void {
-  const runBy = op
-    ? `<br>Run by <a href="${escapeHtml(operatorHref(op))}">${escapeHtml(op.name)}</a>`
-    : "";
-  const { L, colours } = state;
+  const { L, colours, glyphColours } = state;
+  const { label: glyphLabel } = glyphFor(mode, school);
+  const glyph = state.glyphs.get(glyphLabel) ?? null;
   const seen = new Set<string>();
   for (const veh of vehicles) {
     seen.add(veh.vehicleId);
     // One verdict for the ring, the label and the popup, on the same mode-aware
     // window as every figure on the page.
     const status = vehicleStatus(veh.delaySec, mode);
-    const colour = colours[status.band];
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
-    const iconKey = `${colour}|${mode}|${bearing}`;
-    const cars = veh.cars ? `${veh.cars} cars` : null;
-    // Links to what the vehicle is: its route, the run it is on, and itself. The
-    // same popup serves the route, trip, stop and vehicle pages, so one of the
-    // three may point back at the page it is on; that costs a line, not a wrong turn.
+    const iconKey = `${status.band}|${glyphLabel}|${bearing}`;
+    /**
+     * The marker's icon, built only for a new marker or a changed key.
+     * @returns The icon.
+     */
+    const icon = (): Leaflet.DivIcon =>
+      vehicleIcon(L, {
+        ring: colours[status.band],
+        glyphColour: glyphColours[status.band],
+        glyph,
+        bearing,
+      });
     const slug = routeSlug(veh.routeId);
-    const links = [
-      `<a href="${escapeHtml(routeHref(slug))}">Route ${escapeHtml(slug)}</a>`,
-      veh.tripId
-        ? `<a href="${escapeHtml(liveRunHref({ routeId: veh.routeId, tripId: veh.tripId }))}">This run</a>`
-        : null,
-      `<a href="${escapeHtml(vehicleHref(veh.vehicleId))}">This vehicle</a>`,
-    ].filter(Boolean);
-    const popup =
-      `<strong>${escapeHtml(veh.label ?? veh.vehicleId)}</strong>` +
-      (cars ? ` &middot; ${cars}` : "") +
-      `<br>${escapeHtml(status.detail)}` +
-      runBy +
-      `<br>${links.join(" &middot; ")}`;
+    const popup = vehiclePopupHtml({
+      slug,
+      routeId: veh.routeId,
+      vehicleId: veh.vehicleId,
+      label: veh.label,
+      cars: veh.cars,
+      tripId: veh.tripId,
+      detail: status.detail,
+      operator: op,
+    });
     // Leaflet makes each marker a focusable button, and the icon's svg is hidden
     // from assistive tech, so the name has to be set on the element itself.
-    const name = [`${MODE_NAME[mode]} ${veh.label ?? veh.vehicleId}`, cars, status.detail]
+    const name = [
+      `${glyphLabel} on route ${slug}`,
+      vehicleName(veh.label, veh.vehicleId),
+      veh.cars ? `${veh.cars} cars` : null,
+      status.detail,
+    ]
       .filter(Boolean)
       .join(", ");
 
@@ -275,10 +230,7 @@ function syncVehicles(
     if (!entry) {
       // Vehicles and route arrows share the marker pane, where Leaflet stacks by
       // latitude; the offset keeps every vehicle above every arrow.
-      const marker = L.marker([veh.lat, veh.lon], {
-        icon: vehicleIcon(L, { colour, mode, bearing }),
-        zIndexOffset: 1000,
-      });
+      const marker = L.marker([veh.lat, veh.lon], { icon: icon(), zIndexOffset: 1000 });
       if (status.label) marker.bindTooltip(status.label, VEHICLE_TOOLTIP);
       marker.bindPopup(popup);
       marker.addTo(state.vehicleLayer);
@@ -295,7 +247,7 @@ function syncVehicles(
     }
     // A divIcon reuses its element when replaced, so focus stays on the marker.
     if (entry.iconKey !== iconKey) {
-      marker.setIcon(vehicleIcon(L, { colour, mode, bearing }));
+      marker.setIcon(icon());
       entry.iconKey = iconKey;
     }
     if (entry.label !== status.label) {
@@ -507,6 +459,7 @@ function setInitialViewport(state: MapState, stops: MapStop[], routeLines: Route
  * @param root0.routeId - Route id, keying the live-vehicle poll.
  * @param root0.live - Poll and plot live vehicles; only for a view that covers now.
  * @param root0.mode - Route transport mode, selecting the live-vehicle glyph.
+ * @param root0.school - The route is a school service, whose vehicles take the school bus glyph.
  * @param root0.colour - The route's GTFS colour (hex, no hash), for its lines.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
@@ -523,6 +476,7 @@ export default function StopMap({
   routeId,
   live = false,
   mode = "BUS",
+  school = false,
   colour = null,
   selectedStopId,
   filterTripId,
@@ -537,6 +491,7 @@ export default function StopMap({
   routeId?: string;
   live?: boolean;
   mode?: Mode;
+  school?: boolean;
   colour?: string | null;
   selectedStopId?: string;
   filterTripId?: string;
@@ -547,14 +502,13 @@ export default function StopMap({
   className?: string;
 }): JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null);
+  // The route glyphs rendered once, hidden, so a vehicle marker can copy their SVG.
+  const glyphRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<MapState | null>(null);
   // Set once the async map setup has finished, so the vehicle poll can start.
   const [ready, setReady] = useState(false);
   // The last vehicle poll failed, so the positions shown (if any) are not current.
   const [vehiclesFailed, setVehiclesFailed] = useState(false);
-  // The mount-only vehicle poll words each vehicle's delay by mode; a ref keeps
-  // the current mode reachable without rebuilding the map when the prop changes.
-  const modeRef = useRef<Mode>(mode);
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
@@ -564,6 +518,7 @@ export default function StopMap({
     routeId,
     live,
     mode,
+    school,
     colour,
     selectedStopId,
     filterTripId,
@@ -579,6 +534,7 @@ export default function StopMap({
       routeId,
       live,
       mode,
+      school,
       colour,
       selectedStopId,
       filterTripId,
@@ -606,6 +562,8 @@ export default function StopMap({
         L,
         map,
         colours,
+        glyphColours: bandTextColours(),
+        glyphs: readGlyphs(glyphRef.current),
         routeLayer: L.layerGroup().addTo(map),
         arrowLayer: L.layerGroup().addTo(map),
         arrowSource: { lines: [], colour: PALETTE.shore, stops: [] },
@@ -663,7 +621,6 @@ export default function StopMap({
   // page, props are server-rendered and stable; on direction-filter changes the
   // page navigates, so this mainly guards against any parent re-renders.
   useEffect(() => {
-    modeRef.current = mode;
     const state = stateRef.current;
     if (!state) return;
     drawRouteLayer(state, routeLines, routeColour(mode, colour), stops);
@@ -681,7 +638,7 @@ export default function StopMap({
     const marker = state.markerById.get(selectedStopId);
     if (!marker) return;
     state.map.flyTo(marker.getLatLng(), Math.max(state.map.getZoom(), STOP_FOCUS_ZOOM), {
-      animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      animate: !reducedMotion(),
       duration: 0.4,
     });
     marker.openPopup();
@@ -707,6 +664,7 @@ export default function StopMap({
         filterTripId: pollFTrip,
         filterDirectionIds: pollFDirs,
         mode: pollMode,
+        school: pollSchool,
       } = latestRef.current;
       try {
         const res = await fetch(`/api/routes/${encodeURIComponent(routeId)}/vehicles`, {
@@ -728,7 +686,12 @@ export default function StopMap({
           lines: pollLines,
           stops: pollStops,
         });
-        syncVehicles(state, vehicles, pollMode, data.operator ?? null);
+        syncVehicles(
+          state,
+          vehicles,
+          { mode: pollMode, school: pollSchool },
+          data.operator ?? null,
+        );
       } catch {
         // An abort on cleanup is not a failure; anything else is.
         if (!signal.aborted) setVehiclesFailed(true);
@@ -758,6 +721,7 @@ export default function StopMap({
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
+      <MapGlyphs ref={glyphRef} />
       {vehiclesFailed && (
         <p
           role="status"

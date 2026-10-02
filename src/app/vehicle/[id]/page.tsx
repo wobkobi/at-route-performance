@@ -22,6 +22,7 @@ import {
   getEarliestDataDay,
   getLatestEventDate,
   getOperatorDirectory,
+  getRouteLabel,
   getRouteModeMap,
   getRouteNames,
   getTripScheduledStops,
@@ -60,6 +61,7 @@ import {
 import { sortRows, tableSort, type SortColumn, type SortParamNames } from "@/lib/page/table-sort";
 import { routeSlug } from "@/lib/route/slug";
 import type { MapStop } from "@/lib/route/view";
+import { isSchoolBus } from "@/lib/school-bus";
 import { getFleet, type FleetVehicle } from "@/lib/store/fleet";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { nzClockTime } from "@/lib/time/format";
@@ -256,7 +258,7 @@ export default async function VehiclePage({
   ];
   // The live run only belongs on the map of today; a past day shows that day alone.
   const liveOnMap = window === "day" && serviceDate === today && now?.tripId ? now : null;
-  const [names, liveMap, dayMap] = await Promise.all([
+  const [names, liveMap, dayMap, liveRoute] = await Promise.all([
     getRouteNames(routeIds),
     liveOnMap?.tripId
       ? liveRunMap(liveOnMap.routeId, liveOnMap.tripId, today)
@@ -264,8 +266,13 @@ export default async function VehiclePage({
     window === "day" && total
       ? getVehicleDayMap(id, serviceDate, TODAY_REVALIDATE)
       : Promise.resolve(null),
+    // Only for the live marker's glyph: without it a school bus draws as any other bus.
+    liveOnMap
+      ? getRouteLabel(routeSlug(liveOnMap.routeId)).catch(readFallback("vehicle-live-route", null))
+      : Promise.resolve(null),
   ]);
   const map = dayRunMap(dayMap, liveMap);
+  const liveSchool = isSchoolBus(liveRoute?.shortName, liveRoute?.longName);
   const routeParams = routeLinkParams(window, linkDay, period);
   const view = rangeViewParams(window, linkDay, period);
   // How the vehicles list was left. Every link that stays on this vehicle
@@ -337,6 +344,7 @@ export default async function VehiclePage({
             live={liveOnMap !== null}
             filterTripId={liveOnMap?.tripId ?? undefined}
             mode={mode ?? undefined}
+            school={liveSchool}
             stopLinks
             stopDay={linkDay}
             className="h-[min(25rem,60svh)]"
@@ -346,7 +354,7 @@ export default async function VehiclePage({
             how late it was there on average.
             {liveMap && " Stops still ahead on its current run have no reading yet."}
           </p>
-          <MapMarkKey live={liveOnMap !== null} offRoute={false} />
+          <MapMarkKey live={liveOnMap !== null} mode={mode ?? undefined} school={liveSchool} />
         </Panel>
       )}
 

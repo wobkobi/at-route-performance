@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.45] - 2026-10-02
+
+### Fixed
+
+- Both maps draw live vehicles as the same ringed marker with the route's icon and heading arrow,
+  school routes take the school bus icon, and every vehicle popup reads "Open this trip" / "This
+  vehicle"; map zoom and pan animations follow reduced motion
+
 ## [2.41.44] - 2026-10-02
 
 ### Fixed

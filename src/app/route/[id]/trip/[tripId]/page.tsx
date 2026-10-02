@@ -35,6 +35,7 @@ import { cardPath, pageMetadata, parseTripCard } from "@/lib/og";
 import { routeHref, stopHref, vehicleHref } from "@/lib/page/hrefs";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
 import { buildRouteView, type MapStop } from "@/lib/route/view";
+import { isSchoolBus } from "@/lib/school-bus";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
@@ -160,6 +161,7 @@ export default async function TripPage({
     notFound();
   }
   const routeMode = modeOrBus(route?.mode);
+  const school = isSchoolBus(route?.shortName, route?.longName);
   const vehicleNoun = modeWord(routeMode);
   // The ghost panels' link to the other run keeps this run's day.
   const linkD = d ?? day?.start.toISOString() ?? null;
@@ -374,12 +376,18 @@ export default async function TripPage({
                 label: `${nzClockTime(s.at)}, ${formatCount(s.distanceM)} metres off route`,
               }))}
               mode={route ? modeOrBus(route.mode) : undefined}
+              school={school}
               colour={route?.colour ?? null}
               stopLinks
               stopDay={linkDay}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
             />
-            <MapMarkKey live={isLiveRun} offRoute={(detour?.sightings.length ?? 0) > 0} />
+            <MapMarkKey
+              live={isLiveRun}
+              offRoute={(detour?.sightings.length ?? 0) > 0}
+              mode={routeMode}
+              school={school}
+            />
           </Panel>
         )}
 

@@ -44,3 +44,16 @@ export function bandColours(): Record<ReadingBand, string> {
     none: cssVar("--color-at-muted") || PALETTE.muted,
   };
 }
+
+/**
+ * A reading band's colour for a glyph or text drawn on white. The same as
+ * {@link bandColours} but for early, whose bright green is too pale for a glyph
+ * and takes the darker green the site's early text uses.
+ * @returns Colour per band.
+ */
+export function bandTextColours(): Record<ReadingBand, string> {
+  return {
+    ...bandColours(),
+    early: cssVar("--color-at-early-strong") || PALETTE["early-strong"],
+  };
+}

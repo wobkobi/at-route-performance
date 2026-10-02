@@ -69,6 +69,7 @@ import { withTripPenalty } from "@/lib/rider-wait";
 import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { buildRouteView, type RouteView } from "@/lib/route/view";
 import { aggregateWeek } from "@/lib/route/week";
+import { isSchoolBus } from "@/lib/school-bus";
 import { stripMarks } from "@/lib/strip/marks";
 import { buildStrip, type StripSide } from "@/lib/strip/route-strip";
 import { splitStopFigures } from "@/lib/strip/stop-split";
@@ -309,6 +310,7 @@ export default async function RoutePage({
   // Started here and awaited at the header, so it never holds up the stats.
   const operatorsP = getOperatorDirectory();
   const routeMode = route?.mode ?? "BUS";
+  const school = isSchoolBus(route?.shortName, route?.longName);
   const punctuality: PunctualityBreakdown = {
     on_time_pct: summary?.on_time_pct ?? null,
     early_pct: summary?.early_pct ?? null,
@@ -710,6 +712,7 @@ export default async function RoutePage({
             routeId={slug}
             live={isLiveView}
             mode={routeMode}
+            school={school}
             colour={route?.colour ?? null}
             filterDirectionIds={activeDirIds ?? undefined}
           />
@@ -805,6 +808,7 @@ export default async function RoutePage({
               routeId={slug}
               live={isLiveView}
               mode={routeMode}
+              school={school}
               colour={route?.colour ?? null}
               filterDirectionIds={activeDirIds ?? undefined}
               stopDay={stopDay}
