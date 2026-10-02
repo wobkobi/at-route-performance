@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.50] - 2026-10-03
+
+### Fixed
+
+- Copy reads one way site-wide: " · " between parts, "to" in ranges, "and", "AT", curly quotes,
+  "does not", "towards", "Most off-schedule", and short units in the footer clock ("1 min ago").
+
 ## [2.41.49] - 2026-10-03
 
 ### Fixed

@@ -347,10 +347,10 @@ export async function stopCardData(card: StopCard): Promise<SubjectCardData | nu
 /**
  * An eyebrow from its parts, dropping the empty ones.
  * @param parts - The heading, the period and the filter.
- * @returns "Worst run - Sun 20 Sep - Trains".
+ * @returns "Worst trip · Sun 20 Sep · Trains".
  */
 function eyebrowOf(...parts: (string | null)[]): string {
-  return parts.filter(Boolean).join(" - ");
+  return parts.filter(Boolean).join(" · ");
 }
 
 /**

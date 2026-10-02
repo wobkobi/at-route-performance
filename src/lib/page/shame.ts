@@ -164,7 +164,7 @@ export function parseShameParams(sp: ShameSearchParams): ParsedShameParams {
         ? MODE_NOUN[mode]
         : schools === "include"
           ? "All services"
-          : "Buses, trains & ferries";
+          : "Buses, trains and ferries";
   const view = parseRangeWindow(sp.window);
   const hours =
     view !== "day" ? null : sp.hours === WHOLE_DAY_PARAM ? WHOLE_DAY : parseHourRange(sp.hours);

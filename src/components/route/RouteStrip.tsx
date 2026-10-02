@@ -707,7 +707,7 @@ function StripKey({
     entries.push({
       key: "unserved",
       swatch: halves({ cls: "stroke-at-ontime" }, { cls: "stroke-at-muted/60", dash: "3 3" }),
-      label: "Dashed half: doesn't stop that way",
+      label: "Dashed half: does not stop that way",
     });
   }
   if (perStop && view.present.none) {

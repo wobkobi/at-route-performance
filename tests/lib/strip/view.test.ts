@@ -76,7 +76,7 @@ describe("stripView: route 65, three versions into Glen Innes", () => {
     expect(potters.up).toEqual({ tone: "unserved", text: UNKNOWN_VALUE, mark: null });
     expect(potters.bothWays).toBe(false);
     expect(potters.sentence).toBe(
-      "Potters Park: To Glen Innes Station, stops here; To the start, doesn't stop.",
+      "Potters Park: To Glen Innes Station, stops here; To the start, does not stop.",
     );
     expect(v.present.unserved).toBe(true);
     // No figures per stop (the week), so a stop with none recorded isn't flagged for the key.

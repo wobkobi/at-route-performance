@@ -20,7 +20,7 @@ describe("parseShameParams", () => {
     const p = parseShameParams({});
     expect(p.filter).toEqual({ mode: null, schools: "exclude", direction: null });
     expect(p.view).toBe("day");
-    expect(p.subtitle).toBe("Buses, trains & ferries");
+    expect(p.subtitle).toBe("Buses, trains and ferries");
   });
 
   it("reads a direction alongside the other filters", () => {

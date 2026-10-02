@@ -35,7 +35,7 @@ export default function ErrorPage({
     <main className="space-y-6">
       <PageHeader
         title="Something went wrong"
-        subtitle="This page could not be loaded. The database or the Auckland Transport feeds may be unreachable for a moment; the rest of the site should still work."
+        subtitle="This page could not be loaded. The database or the AT feeds may be unreachable for a moment; the rest of the site should still work."
       />
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={reset} className="at-btn at-btn-cta">

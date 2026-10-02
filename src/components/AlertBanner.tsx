@@ -69,7 +69,7 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
     alwaysDate || (start !== undefined && !isToday(start)) || (end !== undefined && !isToday(end));
 
   if (start !== undefined && end !== undefined) {
-    return `${nzClockWithDate(new Date(start * 1000), dated)} – ${nzClockWithDate(new Date(end * 1000), dated)}`;
+    return `${nzClockWithDate(new Date(start * 1000), dated)} to ${nzClockWithDate(new Date(end * 1000), dated)}`;
   }
   if (start !== undefined) return `From ${nzClockWithDate(new Date(start * 1000), dated)}`;
   if (end !== undefined) return `Until ${nzClockWithDate(new Date(end * 1000), dated)}`;
@@ -152,8 +152,8 @@ export function AlertBanner({
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>
         {pastWindow && (
           <p className="p-3 text-xs text-at-muted">
-            Auckland Transport publishes only current and upcoming alerts, so these are the ones
-            running now, not a record of what was disrupted in the period shown.
+            AT publishes only current and upcoming alerts, so these are the ones running now, not a
+            record of what was disrupted in the period shown.
           </p>
         )}
         {alerts.map((alert, i) => {

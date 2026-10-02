@@ -29,7 +29,7 @@ export default function GlobalError({
         <h1 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Something went wrong</h1>
         <p style={{ marginBottom: "1rem" }}>
           The site could not render this page. Reload to try again; if it keeps failing, the
-          database or the Auckland Transport feeds may be unreachable.
+          database or the AT feeds may be unreachable.
         </p>
         <button type="button" onClick={reset} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
           Try again

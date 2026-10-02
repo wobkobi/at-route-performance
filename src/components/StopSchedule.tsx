@@ -59,13 +59,13 @@ export interface StopScheduleProps {
  */
 function noticeFor(result: StopDepartures, serviceDate: string, shown: number): string | null {
   if (result.status === "unavailable") {
-    return "Could not reach Auckland Transport's timetable just now.";
+    return "Could not reach AT's timetable just now.";
   }
   if (result.status === "outside-feed") {
     // Generated from the live window rather than written down: AT publishes
     // about four months at a time and the start rolls forward with each
     // republish, so this sentence names different dates over time.
-    return `Auckland Transport publishes timetables from ${serviceDateLabel(result.window.start)} to ${serviceDateLabel(result.window.end)} only, so this day's timetable is gone. The figures above still cover it.`;
+    return `AT publishes timetables from ${serviceDateLabel(result.window.start)} to ${serviceDateLabel(result.window.end)} only, so this day's timetable is gone. The figures above still cover it.`;
   }
   // "No service" and "nothing a rider can board" are the same fact to a reader.
   if (result.status === "no-service" || result.departures.length === 0) {

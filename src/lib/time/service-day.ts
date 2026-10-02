@@ -490,13 +490,13 @@ export function gtfsServiceSeconds(hms: string): number | null {
 
 /**
  * What a service day covers, for the day stepper's tooltip: "Tue 22 Sep runs
- * from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it."
+ * from 4am to 4am Wed 23 Sep, so a trip after midnight still counts towards it."
  * @param ymd - Service date as `YYYY-MM-DD`.
  * @returns The sentence.
  */
 export function serviceDayWindowText(ymd: string): string {
   const start = nzHourLabel(SERVICE_START_HOUR);
-  return `${serviceDayLabel(ymd)} runs from ${start} to ${start} ${serviceDayLabel(shiftDays(ymd, 1))}, so a run after midnight still counts toward it.`;
+  return `${serviceDayLabel(ymd)} runs from ${start} to ${start} ${serviceDayLabel(shiftDays(ymd, 1))}, so a trip after midnight still counts towards it.`;
 }
 
 /**

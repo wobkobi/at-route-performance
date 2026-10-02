@@ -65,7 +65,7 @@ export default function NotFound(): JSX.Element {
             all three rather than asserting the one it cannot know. */}
         <PageHeader
           title="Page not found"
-          subtitle="That address doesn't match a page, a route or a stop. Everything the site has is below."
+          subtitle="That address does not match a page, a route or a stop. Everything the site has is below."
           className="justify-center"
         />
       </div>

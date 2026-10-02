@@ -49,7 +49,7 @@ export const instant = false;
 
 /** What a shared link to this page says under its title. */
 const DESCRIPTION =
-  "Every Auckland Transport trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.";
+  "Every AT trip flagged as cancelled: which never ran, which were cut short, and which ran anyway.";
 
 /**
  * Title and shared-link card, built from the query alone so the metadata
@@ -230,10 +230,10 @@ export default async function CancellationsPage({
       </div>
 
       <p className="text-xs text-at-muted">
-        A trip counts once AT&apos;s realtime feed flags it cancelled. &quot;Never ran&quot;
-        recorded no arrival before the flag; &quot;cut short&quot; recorded arrivals up to it and
-        none after; &quot;reinstated&quot; kept recording arrivals after it, so the cancellation was
-        reversed. Cancellations are only known from when capture began.
+        A trip counts once AT&apos;s realtime feed flags it cancelled. &ldquo;Never ran&rdquo;
+        recorded no arrival before the flag; &ldquo;Cut short&rdquo; recorded arrivals up to it and
+        none after; &ldquo;Reinstated&rdquo; kept recording arrivals after it, so the cancellation
+        was reversed. Cancellations are only known from when capture began.
       </p>
     </main>
   );

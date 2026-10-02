@@ -51,8 +51,7 @@ import type { JSX } from "react";
 export const instant = false;
 
 /** What a shared link to this page says under its title. */
-const DESCRIPTION =
-  "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.";
+const DESCRIPTION = "Every AT route's punctuality and cancellations, filtered by mode and area.";
 
 /**
  * Title and shared-link card, built from the query alone so the metadata

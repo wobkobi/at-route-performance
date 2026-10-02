@@ -100,7 +100,7 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
   }
   if (home && card.kind === "home") {
     const filter = cardFilterLabel(card.mode, card.schools);
-    const eyebrow = ["Network", home.when, filter].filter(Boolean).join(" - ");
+    const eyebrow = ["Network", home.when, filter].filter(Boolean).join(" · ");
     return render(
       <CardFrame eyebrow={eyebrow} logo={logo}>
         <VerdictBody summary={home.summary} />

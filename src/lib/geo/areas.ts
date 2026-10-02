@@ -22,8 +22,8 @@ export const AREAS: readonly KeyedLabel<AreaKey>[] = [
   { key: "west", label: "West" },
   { key: "east", label: "East" },
   { key: "south", label: "South" },
-  { key: "hibiscus-rodney", label: "Hibiscus Coast & Rodney" },
-  { key: "waiheke", label: "Waiheke & islands" },
+  { key: "hibiscus-rodney", label: "Hibiscus Coast and Rodney" },
+  { key: "waiheke", label: "Waiheke and islands" },
 ];
 
 /** Area key to its label. */

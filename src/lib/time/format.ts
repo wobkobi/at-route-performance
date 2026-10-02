@@ -65,7 +65,8 @@ const NZ_DAY_CLOCK = new Intl.DateTimeFormat("en-NZ", {
 });
 
 /** "2 minutes ago", "in 1 hour", "now". */
-const RELATIVE = new Intl.RelativeTimeFormat("en-NZ", { numeric: "auto" });
+/** Short units ("2 min ago"), as the footer's stalled line words its minutes. */
+const RELATIVE = new Intl.RelativeTimeFormat("en-NZ", { numeric: "auto", style: "short" });
 
 /**
  * Auckland-local clock time of an instant, "7:24 am".
@@ -107,8 +108,8 @@ export function formatGtfsTime(hms: string | null): string | null {
 }
 
 /**
- * How long ago (or until) an instant, in the coarsest unit that fits: "2
- * minutes ago", "in 1 hour", "now".
+ * How long ago (or until) an instant, in the coarsest unit that fits: "2 min
+ * ago", "in 1 hr", "now".
  * @param fromMs - The instant being described, in epoch ms.
  * @param nowMs - The reference "now", in epoch ms.
  * @returns The phrase.

@@ -87,7 +87,7 @@ const SORT_LABEL: Record<VehicleSort, string> = {
   hours: "Time in service",
   runs: "Trips",
   arrivals: "Arrivals",
-  off: "Most off schedule",
+  off: "Most off-schedule",
 };
 
 /** Query params for the vehicles page. */

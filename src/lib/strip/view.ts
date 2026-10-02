@@ -158,7 +158,7 @@ function side(
  * @returns The phrase.
  */
 function phrase(s: SideView, perStop: boolean): string {
-  if (s.tone === "unserved") return "doesn't stop";
+  if (s.tone === "unserved") return "does not stop";
   if (s.tone === "closed") return s.mark === "closed" ? "closed" : "gone round on a detour";
   if (s.tone === "none") return perStop ? "no arrivals recorded" : "stops here";
   return s.mark ? `${s.text.slice(0, -1)}, with a closure or detour in the notes` : s.text;

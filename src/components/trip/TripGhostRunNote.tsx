@@ -55,11 +55,11 @@ export function TripGhostRunNote({
   const body =
     kind === "hidden"
       ? named === null
-        ? `Auckland Transport reported this ${noun} under another trip's number, so these readings do not belong to this trip.`
-        : `Auckland Transport reported this ${noun} under another trip's number. These readings belong to the ${named} trip.`
+        ? `AT reported this ${noun} under another trip's number, so these readings do not belong to this trip.`
+        : `AT reported this ${noun} under another trip's number. These readings belong to the ${named} trip.`
       : named === null
-        ? `Auckland Transport reported this ${noun} under another trip's number, so nothing was recorded against this trip.`
-        : `Auckland Transport reported it under the ${named} trip's number, so nothing was recorded against this trip.`;
+        ? `AT reported this ${noun} under another trip's number, so nothing was recorded against this trip.`
+        : `AT reported it under the ${named} trip's number, so nothing was recorded against this trip.`;
 
   return (
     <TripNote tone="muted" title={title}>

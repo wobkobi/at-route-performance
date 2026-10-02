@@ -86,7 +86,7 @@ export const ON_TIME_SHARE_CAPTION = "Share of arrivals inside the on-time windo
  * where a description is also the share card's subtitle and a search snippet.
  */
 export const MEASURED_AGAINST =
-  "against Auckland Transport's published schedule, on this site's own on-time window.";
+  "against AT's published schedule, on this site's own on-time window.";
 
 /**
  * What a "day" means on every page that shows one.
@@ -99,4 +99,4 @@ export const MEASURED_AGAINST =
  * who does hover.
  */
 export const SERVICE_DAY_NOTE =
-  "A service day runs 4am to 4am, so a trip after midnight counts toward the day before.";
+  "A service day runs 4am to 4am, so a trip after midnight counts towards the day before.";

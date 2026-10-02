@@ -57,7 +57,7 @@ function VerdictScale(): JSX.Element {
                 ? `${b.floor}% or more`
                 : b.floor === 0
                   ? `under ${VERDICT_BANDS[i - 1]!.floor}%`
-                  : `${b.floor}-${VERDICT_BANDS[i - 1]!.floor}%`}
+                  : `${b.floor} to ${VERDICT_BANDS[i - 1]!.floor}%`}
             </span>
           </li>
         ))}

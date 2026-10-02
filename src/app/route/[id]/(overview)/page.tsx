@@ -243,7 +243,7 @@ export async function generateMetadata({
   if (route === null) return { title: "Route not found" };
   const name = route ? routeSubtitle({ ...route, slug }) : null;
   const label = route ? routeDisplayName({ ...route, slug }) : slug;
-  const title = route ? (name ? `${label} - ${name}` : label) : `Route ${slug}`;
+  const title = route ? (name ? `${label} · ${name}` : label) : `Route ${slug}`;
   const description = `On-time performance for ${name ?? label} ${MEASURED_AGAINST}`;
   return pageMetadata({
     title,
