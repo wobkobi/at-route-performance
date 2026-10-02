@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.51] - 2026-10-03
+
+### Fixed
+
+- Accessibility: en-NZ page language, named nav landmarks, the shame flame's label opens on tap and
+  focus, rank movement and LIVE badges read out their meaning, the date picker's explanation reaches
+  screen readers, the routes count is announced, and single-choice chips mark the current pick.
+
 ## [2.41.50] - 2026-10-03
 
 ### Fixed

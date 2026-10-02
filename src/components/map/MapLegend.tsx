@@ -74,7 +74,7 @@ export function MapMarkKey({
     items.push({
       key: "live",
       swatch: (
-        <svg viewBox="0 0 40 40" className="-mt-1 h-8 w-8 shrink-0" aria-hidden="true">
+        <svg viewBox="0 0 40 40" className="-mt-1 h-8 w-8 shrink-0" aria-hidden>
           <circle
             cx="20"
             cy="20"
@@ -108,7 +108,7 @@ export function MapMarkKey({
       swatch: (
         <span
           className="mt-2 inline-block w-4 shrink-0 border-t-2 border-dashed border-at-commercial"
-          aria-hidden="true"
+          aria-hidden
         />
       ),
       label: "Where the vehicle was seen off its route.",

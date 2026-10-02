@@ -66,9 +66,7 @@ export function SwatchKey({
  * @returns The dot.
  */
 export function DotSwatch({ className }: { className: string }): JSX.Element {
-  return (
-    <span aria-hidden="true" className={cn("inline-block size-2.5 rounded-full", className)} />
-  );
+  return <span aria-hidden className={cn("inline-block size-2.5 rounded-full", className)} />;
 }
 
 /**
@@ -97,7 +95,7 @@ export function SvgSwatch({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       className={className}
-      aria-hidden="true"
+      aria-hidden
       focusable="false"
     >
       {children}

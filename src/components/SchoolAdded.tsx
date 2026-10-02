@@ -16,10 +16,7 @@ export function SchoolAdded({ n }: { n: number | null | undefined }): JSX.Elemen
   if (!n || n <= 0) return null;
   const text = formatCount(n);
   return (
-    <span
-      className="ml-1.5 align-baseline text-xs font-semibold text-at-muted tabular-nums"
-      title={`${text} from school buses`}
-    >
+    <span className="ml-1.5 align-baseline text-xs font-semibold text-at-muted tabular-nums">
       +{text}
       <span className="sr-only"> from school buses</span>
     </span>

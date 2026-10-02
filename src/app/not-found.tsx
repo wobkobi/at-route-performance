@@ -80,7 +80,7 @@ export default function NotFound(): JSX.Element {
               href={href}
               className="at-card flex items-center gap-3 p-4 transition-colors hover:bg-at-shore-pale"
             >
-              <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0 text-at-shore" aria-hidden />
               <p className="font-semibold text-at-ink">{label}</p>
             </Link>
           );

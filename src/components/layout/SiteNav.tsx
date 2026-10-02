@@ -84,7 +84,10 @@ export function SiteNav(): JSX.Element {
   return (
     // Wrapped rather than scrolled: a tab past the edge of a scroll strip is one
     // a reader never finds.
-    <nav className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5 sm:gap-y-1 lg:gap-x-3">
+    <nav
+      aria-label="Main"
+      className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5 sm:gap-y-1 lg:gap-x-3"
+    >
       {/* Reading the query suspends a statically rendered page; plain links stand in. */}
       <Suspense fallback={<NavLinks params={new URLSearchParams()} />}>
         <NavLinksWithParams />

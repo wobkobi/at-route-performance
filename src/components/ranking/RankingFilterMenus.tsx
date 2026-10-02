@@ -62,7 +62,7 @@ function HourGrid({
             key={o.hour}
             type="button"
             disabled={o.disabled}
-            aria-pressed={o.hour === value}
+            aria-current={o.hour === value ? "true" : undefined}
             onClick={() => onPick(o.hour)}
             className={cn(
               "h-11 border text-xs font-semibold tabular-nums transition-colors",

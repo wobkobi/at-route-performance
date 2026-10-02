@@ -360,7 +360,7 @@ export function RouteExplorer({
             {filters.dir === "asc" ? "Low to high" : "High to low"}
             <SortArrow dir={filters.dir} className="ml-1.5" />
           </button>
-          <span className="ml-auto text-sm text-at-muted tabular-nums">
+          <span role="status" className="ml-auto text-sm text-at-muted tabular-nums">
             {sorted.length === baseCount
               ? `${baseCount} routes`
               : `${sorted.length} of ${baseCount} routes`}

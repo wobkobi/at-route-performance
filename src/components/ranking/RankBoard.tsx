@@ -33,9 +33,18 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
   // A literal dash rather than `UNKNOWN_VALUE`: this one means "held its place",
   // which is a known result, not an absent figure.
   if (delta === 0)
-    return <span className="text-xs leading-none font-semibold text-at-muted">—</span>;
+    return (
+      <span className="text-xs leading-none font-semibold text-at-muted">
+        <span aria-hidden>—</span>
+        <span className="sr-only">held its place</span>
+      </span>
+    );
   if (delta === null)
-    return <span className="text-xs leading-none font-semibold text-at-muted">new</span>;
+    return (
+      <span className="text-xs leading-none font-semibold text-at-muted">
+        new<span className="sr-only"> on the board</span>
+      </span>
+    );
   const up = delta > 0;
   return (
     <span className="flex items-center text-xs leading-none font-semibold text-at-muted tabular-nums">
@@ -44,6 +53,7 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
       ) : (
         <FaCaretDown aria-hidden className="h-3 w-3 shrink-0" />
       )}
+      <span className="sr-only">{up ? "up " : "down "}</span>
       {Math.abs(delta)}
     </span>
   );

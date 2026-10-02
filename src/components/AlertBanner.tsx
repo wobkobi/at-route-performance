@@ -112,14 +112,14 @@ export function AlertBanner({
   return (
     <details
       className={cn(
-        "group overflow-hidden rounded-lg border",
+        "group rounded-lg border",
         severe ? "border-at-disruption/30 bg-at-disruption/5" : "border-at-border bg-at-surface",
       )}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 p-3 select-none">
         {/* Exclamation icon */}
         <svg
-          aria-hidden="true"
+          aria-hidden
           className={cn("size-4 shrink-0", severe ? "text-at-disruption" : "text-at-muted")}
           viewBox="0 0 20 20"
           fill="currentColor"
@@ -188,6 +188,7 @@ export function AlertBanner({
                       className="underline hover:no-underline"
                     >
                       {headerText}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ) : (
                     headerText

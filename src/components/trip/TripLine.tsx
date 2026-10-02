@@ -233,7 +233,7 @@ function LineSvg({
     <svg
       width="100%"
       height={stops.length * ROW_H}
-      aria-hidden="true"
+      aria-hidden
       focusable="false"
       className="block overflow-visible"
     >

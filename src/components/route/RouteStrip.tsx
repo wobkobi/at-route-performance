@@ -279,11 +279,11 @@ export function RouteStrip({
       <SectionHeading className="mb-3">Line diagram</SectionHeading>
       {chips.length > 1 && (
         <ChipGroup label="Version" showLabel className="mb-4">
-          <ChipToggle on={version == null} onClick={() => setVersion(null)}>
+          <ChipToggle single on={version == null} onClick={() => setVersion(null)}>
             {chips.length === 2 ? "Both" : "All"}
           </ChipToggle>
           {chips.map((v) => (
-            <ChipToggle key={v.key} on={version === v.key} onClick={() => setVersion(v.key)}>
+            <ChipToggle single key={v.key} on={version === v.key} onClick={() => setVersion(v.key)}>
               {v.from} to {v.to}
             </ChipToggle>
           ))}
@@ -412,7 +412,7 @@ function Column({
     >
       {figures && (
         <div
-          aria-hidden="true"
+          aria-hidden
           className="col-span-full grid grid-cols-subgrid items-end border-b border-at-border pb-1.5 text-xs font-semibold text-at-muted"
         >
           <span />
@@ -433,7 +433,7 @@ function Column({
           data-strip
           width={nameX}
           height={drawH}
-          aria-hidden="true"
+          aria-hidden
           focusable="false"
           className="pointer-events-none absolute top-0 left-0 overflow-visible"
         >
@@ -516,20 +516,20 @@ function Column({
                   <Link
                     href={href}
                     tabIndex={-1}
-                    aria-hidden="true"
+                    aria-hidden
                     style={{ marginLeft: nameX }}
                     className={cn(nameClass, "hover:text-at-shore hover:underline")}
                   >
                     {breakable(row.name)}
                   </Link>
                 ) : (
-                  <span aria-hidden="true" style={{ paddingLeft: nameX }} className={nameClass}>
+                  <span aria-hidden style={{ paddingLeft: nameX }} className={nameClass}>
                     {breakable(row.name)}
                   </span>
                 )}
                 {figures && (
                   <span
-                    aria-hidden="true"
+                    aria-hidden
                     className={cn(
                       "text-right text-xs whitespace-nowrap tabular-nums sm:min-w-22 sm:text-sm",
                       FIGURE_TEXT[row.down.tone],
@@ -541,7 +541,7 @@ function Column({
                 )}
                 {figures && twoWay && (
                   <span
-                    aria-hidden="true"
+                    aria-hidden
                     className={cn(
                       "text-right text-xs whitespace-nowrap tabular-nums sm:min-w-22 sm:text-sm",
                       FIGURE_TEXT[row.up.tone],

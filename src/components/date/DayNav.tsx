@@ -109,7 +109,7 @@ export function DayNav({
           calendar={calendar}
           basePath={basePath}
           preservedParams={preservedParams}
-          title={`${serviceDayWindowText(serviceDate)}. Choose a date.`}
+          hint={`${serviceDayWindowText(serviceDate)}. Choose a date.`}
           className="min-w-24 px-2 py-1 text-center text-sm font-semibold tabular-nums"
         >
           {serviceDayLabel(serviceDate)}

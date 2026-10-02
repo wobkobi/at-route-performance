@@ -48,7 +48,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): JSX.Element {
   return (
-    <html lang="en">
+    <html lang="en-NZ">
       <body
         // Browser extensions (e.g. Grammarly) inject data-* attributes onto
         // <body> before hydration; suppress the resulting attribute mismatch.
@@ -124,7 +124,7 @@ export default function RootLayout({
                 affiliated with Auckland Transport.
               </p>
             </div>
-            <nav className="space-y-3 text-sm">
+            <nav aria-label="Explore" className="space-y-3 text-sm">
               <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">
                 Explore
               </h2>

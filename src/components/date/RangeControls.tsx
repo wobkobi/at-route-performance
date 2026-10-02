@@ -110,7 +110,7 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             calendar={nav.calendar}
             basePath={basePath}
             preservedParams={carried}
-            title={`Choose a ${nav.window}`}
+            hint={`Choose a ${nav.window}`}
             className="px-2 py-1 text-sm font-semibold tabular-nums"
           >
             {nav.label}

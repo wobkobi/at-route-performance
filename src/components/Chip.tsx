@@ -70,8 +70,9 @@ export function ChipLink({
 
 /**
  * A chip that toggles client state, for a control whose choice lives in the
- * component rather than in the URL. `aria-pressed` rather than `aria-current`,
- * because nothing is being navigated to.
+ * component rather than in the URL. `aria-pressed` by default, for a chip that
+ * switches something on or off; a row that picks one of several marks its pick
+ * with `aria-current` instead, as the URL chips do.
  * @param root0 - Props.
  * @param root0.on - Whether the chip is active.
  * @param root0.onClick - Toggle handler.
@@ -79,6 +80,8 @@ export function ChipLink({
  * @param root0.offClass - Classes for the inactive state, for a row whose off
  *   chips say more than "not chosen" (the live map's struck-through layers).
  * @param root0.disabled - Whether the chip can be pressed.
+ * @param root0.single - One choice of several (pressing it again changes nothing),
+ *   so the chosen one is current rather than pressed.
  * @param root0.className - Extra classes.
  * @param root0.children - The label.
  * @returns The chip button.
@@ -89,6 +92,7 @@ export function ChipToggle({
   activeClass = "chip-on",
   offClass = "chip-off",
   disabled,
+  single,
   className,
   children,
 }: {
@@ -97,13 +101,15 @@ export function ChipToggle({
   activeClass?: string;
   offClass?: string;
   disabled?: boolean;
+  single?: boolean;
   className?: string;
   children: ReactNode;
 }): JSX.Element {
   return (
     <button
       type="button"
-      aria-pressed={on}
+      aria-pressed={single ? undefined : on}
+      aria-current={single && on ? "true" : undefined}
       onClick={onClick}
       disabled={disabled}
       className={cn("chip", on ? activeClass : offClass, className)}

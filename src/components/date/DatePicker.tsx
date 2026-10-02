@@ -26,7 +26,7 @@ import {
 } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type JSX, type ReactNode } from "react";
+import { useId, useRef, useState, type JSX, type ReactNode } from "react";
 
 /** Weekday initials over the grid, Monday first, read off a known Monday's week. */
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
@@ -51,7 +51,7 @@ const STEP =
  * @param props.basePath - Page path the picks navigate to.
  * @param props.preservedParams - The page's other params, carried on every pick; the
  *   picker sets `day`, `window` and `period` itself.
- * @param props.title - Hover text for the label.
+ * @param props.hint - What the label covers, as hover text and the button's description.
  * @param props.className - Classes for the label button.
  * @param props.children - The label.
  * @returns The label and, while open, the calendar.
@@ -61,7 +61,7 @@ export function DatePicker({
   calendar,
   basePath,
   preservedParams,
-  title,
+  hint,
   className,
   children,
 }: {
@@ -69,13 +69,14 @@ export function DatePicker({
   calendar: PickerState;
   basePath: string;
   preservedParams: Record<string, string>;
-  title?: string;
+  hint?: string;
   className?: string;
   children: ReactNode;
 }): JSX.Element {
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const popover = usePopover(buttonRef);
+  const hintId = useId();
   const [alignEnd, setAlignEnd] = useState(false);
   const { today, minDay, maxDay, from, to } = calendar;
   // The month (or, on the Month view, the year) the panel shows; opens on the
@@ -136,7 +137,8 @@ export function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={popover.open}
         aria-controls={popover.panelId}
-        title={title}
+        aria-describedby={hint ? hintId : undefined}
+        title={hint}
         className={cn(
           "inline-flex min-h-11 items-center justify-center border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
           popover.open && "border-at-shore",
@@ -145,6 +147,11 @@ export function DatePicker({
       >
         {children}
       </button>
+      {hint && (
+        <span id={hintId} hidden>
+          {hint}
+        </span>
+      )}
       <PopoverPanel
         popover={popover}
         role="dialog"
