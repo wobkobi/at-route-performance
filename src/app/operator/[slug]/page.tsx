@@ -444,7 +444,7 @@ export default async function OperatorPage({
                   Vehicle
                 </SortHeader>
                 <SortHeader {...fleetSort.head("hours")}>In service</SortHeader>
-                <SortHeader {...fleetSort.head("runs")}>Runs</SortHeader>
+                <SortHeader {...fleetSort.head("runs")}>Trips</SortHeader>
                 <SortHeader {...fleetSort.head("off")} className="hidden sm:table-cell">
                   Avg off by
                 </SortHeader>

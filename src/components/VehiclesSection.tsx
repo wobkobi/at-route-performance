@@ -28,7 +28,7 @@ export function vehicleModesShown(mode: Mode | null): readonly Mode[] {
  * is counted by that unit and a unit coupled behind it is never seen.
  */
 export const TRAIN_COUNT_NOTE =
-  "Trains are counted by the unit carrying each run; a unit coupled behind it is not seen.";
+  "Trains are counted by the unit carrying each trip; a unit coupled behind it is not seen.";
 
 /**
  * One span's figures: an eyebrow naming the span on a hairline, then a figure

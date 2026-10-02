@@ -203,13 +203,13 @@ function noteText(n: MarkNote, strip: RouteStrip, down: string, up: string): str
       : `${first} to ${last}`;
   const way = n.side === "both" ? "" : `, ${midSentence(n.side === "down" ? down : up)}`;
   // A detour's row keeps only its newest runs, so only a suspected one's count is whole.
-  const runs = plural(n.runs, "run");
+  const runs = plural(n.runs, "trip");
   const what: Record<MarkNote["kind"], string> = {
     closed: `closed ${when(n)}`,
-    detour: `runs went round it, ${when(n)}`,
+    detour: `trips went round it, ${when(n)}`,
     suspect: `${runs} went round it, ${when(n)}, too few in two hours to call a detour`,
-    announced: `a detour announced ${when(n)}, not yet seen on the runs`,
-    disputed: `a detour announced ${when(n)}, but the last runs through stayed on route`,
+    announced: `a detour announced ${when(n)}, not yet seen on the trips`,
+    disputed: `a detour announced ${when(n)}, but the last trips through stayed on route`,
   };
   const said =
     n.source === "skipped"

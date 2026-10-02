@@ -83,6 +83,31 @@ export function cleanAlertHeader(text: string): string {
 export type AlertSeverity = "severe" | "info";
 
 /**
+ * The badge each GTFS-RT `effect` gets, in capitals as status badges are.
+ * OTHER_EFFECT, UNKNOWN_EFFECT and NO_EFFECT are left out: a badge reading
+ * "other" tells a rider nothing the alert's own text does not.
+ */
+const EFFECT_LABEL: Readonly<Record<string, string>> = {
+  NO_SERVICE: "NO SERVICE",
+  REDUCED_SERVICE: "REDUCED SERVICE",
+  SIGNIFICANT_DELAYS: "MAJOR DELAYS",
+  DETOUR: "DETOUR",
+  ADDITIONAL_SERVICE: "EXTRA SERVICE",
+  MODIFIED_SERVICE: "CHANGED SERVICE",
+  STOP_MOVED: "STOP MOVED",
+  ACCESSIBILITY_ISSUE: "ACCESSIBILITY",
+};
+
+/**
+ * An alert effect's badge label.
+ * @param effect - AT's raw `effect` value ("NO_SERVICE"), if any.
+ * @returns The label, or null for no effect or one that names nothing useful.
+ */
+export function alertEffectLabel(effect: string | undefined): string | null {
+  return effect ? (EFFECT_LABEL[effect] ?? null) : null;
+}
+
+/**
  * GTFS-RT `effect` values that stop or substantially reroute a service. These
  * are the ones worth interrupting a reader for; everything else is a notice.
  */

@@ -317,7 +317,7 @@ async function RouteDayBoard({
   const renderHourSlot = hourSlotRenderer(renderDayRow, {
     serviceDate,
     title: "No route fits this hour",
-    reason: `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting this hour`,
+    reason: `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from trips starting this hour`,
   });
 
   return (
@@ -398,7 +398,7 @@ async function RouteHoursBoard({
       emptyMessage={
         noHourStarted(hoursInRange(hours), serviceDate)
           ? notStartedMessage(hours)
-          : `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from runs starting ${hoursNoun(hours)}.`
+          : `No route had ${MIN_ROUTE_EVENTS_HOUR} arrivals from trips starting ${hoursNoun(hours)}.`
       }
       footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} routes.`}
       showFooter={total > rows.length}
@@ -490,7 +490,7 @@ export default async function RoutesShamePage({
         title={hours ? rankedTitle(hours) : shameHeading("route", "day")}
         subtitle={
           hours
-            ? `The most off-schedule routes over runs starting ${hoursNoun(hours)} · ${subtitle}`
+            ? `The most off-schedule routes over trips starting ${hoursNoun(hours)} · ${subtitle}`
             : `The most off-schedule route of each hour · ${subtitle}`
         }
         activeTab="route"

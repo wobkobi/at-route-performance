@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import { midSentence } from "@/lib/format";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
-import { routeColour } from "@/lib/route/colour";
+import { detourStrokeClass, routeColour } from "@/lib/route/colour";
 import type { StripMarks } from "@/lib/strip/marks";
 import {
   BYPASS_OFF,
@@ -75,34 +75,6 @@ const MARK_STROKE: Record<SegmentMark, { w: number; dash?: string }> = {
   stub: { w: 3, dash: "3 5" },
   announced: { w: 3, dash: "4 4" },
 };
-/** The detour orange's hue, in degrees. */
-const DETOUR_HUE = 32;
-
-/**
- * The detour marks' stroke class: the detour orange, or ink on a route whose own colour is near
- * that orange (the Outer Link), where an orange strand beside an orange line reads as the line.
- * Near means a hue within 25 degrees of it on a colour that isn't washed out, so a red line keeps
- * the orange.
- * @param hex - The route's line colour as `#rrggbb`.
- * @returns The class.
- */
-function detourClass(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
-    number,
-    number,
-    number,
-  ];
-  const max = Math.max(r, g, b);
-  const d = max - Math.min(r, g, b);
-  if (d < 0.25) return "stroke-at-commercial";
-  const hue =
-    max === r
-      ? (((g - b) / d + 6) % 6) * 60
-      : max === g
-        ? ((b - r) / d + 2) * 60
-        : ((r - g) / d + 4) * 60;
-  return Math.abs(hue - DETOUR_HUE) < 25 ? "stroke-at-ink" : "stroke-at-commercial";
-}
 /** One direction picked: the other direction's half of every ring, heading and figure recedes. */
 const DIM_HALF = {
   down: "group-data-[dir=up]/strip:stroke-at-border group-data-[dir=up]/strip:[stroke-dasharray:none]",
@@ -411,7 +383,7 @@ function Column({
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
   hrefOf: (i: number) => string | null;
 }): JSX.Element {
-  const detour = detourClass(lineHex);
+  const detour = detourStrokeClass(lineHex);
   const rowsH = col.rows.length * STRIP_ROW;
   const drawH = Math.max(rowsH, col.bottom + TERMINUS_R + RING_W);
   // Pieces off the picked version go first, so the line it runs along is drawn over their ends;
@@ -690,7 +662,7 @@ function StripKey({
   alert: boolean;
   lineHex: string;
 }): JSX.Element | null {
-  const detour = detourClass(lineHex);
+  const detour = detourStrokeClass(lineHex);
   const entries: Array<{ key: string; swatch: JSX.Element; label: string }> = [];
   /**
    * A half-ring swatch: the given halves on a white ring.
@@ -832,21 +804,21 @@ function StripKey({
     entries.push({
       key: "stub",
       swatch: stroke("stroke-at-muted", 3, "3 5"),
-      label: "No run used this stretch",
+      label: "No trip used this stretch",
     });
   }
   if (view.present.detour) {
     entries.push({
       key: "detour",
       swatch: stroke(detour, 4),
-      label: "Detour the runs took",
+      label: "Detour the trips took",
     });
   }
   if (view.present.suspect) {
     entries.push({
       key: "suspect",
       swatch: stroke(detour, 4, "6 4"),
-      label: "Detour seen on one or two runs",
+      label: "Detour seen on one or two trips",
     });
   }
   if (view.present.announced) {
@@ -858,7 +830,7 @@ function StripKey({
           {stroke(detour, 3, "4 4")}
         </>
       ),
-      label: "Detour announced, not yet seen on the runs",
+      label: "Detour announced, not yet seen on the trips",
     });
   }
   if (alert) {

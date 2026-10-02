@@ -172,7 +172,7 @@ export async function generateMetadata({
   const name = vehicleName(fleet.get(id)?.label ?? live.get(id)?.label, id);
   return pageMetadata({
     title: name,
-    description: `${name}: where it is now and how hard it was worked, run by run.`,
+    description: `${name}: where it is now and how hard it was worked, trip by trip.`,
   });
 }
 
@@ -350,9 +350,9 @@ export default async function VehiclePage({
             className="h-[min(25rem,60svh)]"
           />
           <p className="mt-2 text-xs text-at-muted">
-            Every run it made{serviceDate === today ? " so far" : ""}, with each stop coloured by
+            Every trip it made{serviceDate === today ? " so far" : ""}, with each stop coloured by
             how late it was there on average.
-            {liveMap && " Stops still ahead on its current run have no reading yet."}
+            {liveMap && " Stops still ahead on its current trip have no reading yet."}
           </p>
           <MapMarkKey live={liveOnMap !== null} mode={mode ?? undefined} school={liveSchool} />
         </Panel>
@@ -363,7 +363,7 @@ export default async function VehiclePage({
         {total ? (
           <FigureStrip>
             <Figure label="In service">{formatHours(total.serviceSec)}</Figure>
-            <Figure label="Runs">{formatCount(total.runs)}</Figure>
+            <Figure label="Trips">{formatCount(total.runs)}</Figure>
             <Figure label="Arrivals">{formatCount(total.arrivals)}</Figure>
             <Figure label="Avg off by">{formatDuration(total.avgOffSec)}</Figure>
             {rank && (
@@ -378,11 +378,11 @@ export default async function VehiclePage({
             )}
           </FigureStrip>
         ) : (
-          <EmptyState>No runs recorded for this vehicle {windowPhrase(nav, period)}.</EmptyState>
+          <EmptyState>No trips recorded for this vehicle {windowPhrase(nav, period)}.</EmptyState>
         )}
         {total && (
           <p className="text-xs text-at-muted">
-            Ranked by time in service against every vehicle that ran, school runs included.
+            Ranked by time in service against every vehicle that ran, school buses included.
             {mode === "TRAIN" && ` ${TRAIN_COUNT_NOTE}`}
           </p>
         )}
@@ -504,7 +504,7 @@ function LiveCard({
     const last = now?.seenAt ? new Date(now.seenAt * 1000) : register?.lastSeenAt;
     return (
       <EmptyState>
-        Not on a run right now.
+        Not on a trip right now.
         {last && ` Last seen ${lastSeenLabel(last, today)}.`}
       </EmptyState>
     );
@@ -525,7 +525,7 @@ function LiveCard({
         <div className="space-y-1">
           <p className="at-eyebrow flex items-center gap-2 text-at-muted">
             <LiveBadge />
-            On a run now
+            On a trip now
           </p>
           <p className="text-2xl font-ultra tracking-zero text-at-ink">
             Route{" "}
@@ -541,7 +541,7 @@ function LiveCard({
           href={liveRunHref({ routeId: now.routeId, tripId: now.tripId })}
           className="chip chip-on"
         >
-          Open this run
+          Open this trip
         </Link>
       </div>
       {facts.length > 0 && (
@@ -607,8 +607,8 @@ function RunsTable({
   );
   return (
     <section className="space-y-3">
-      <SectionHeading>Its runs</SectionHeading>
-      <DataTable caption="Each run that day">
+      <SectionHeading>Its trips</SectionHeading>
+      <DataTable caption="Each trip that day">
         <thead>
           <tr className="at-th-row">
             <SortHeader {...head("start")} align="left">
@@ -666,7 +666,7 @@ function RunsTable({
       </DataTable>
       <p className="text-xs text-at-muted">
         Length runs from the first recorded stop to the last. Off schedule is the average over the
-        run&apos;s recorded stops.
+        trip&apos;s recorded stops.
       </p>
     </section>
   );
@@ -729,7 +729,7 @@ function DaysTable({
               Day
             </SortHeader>
             <SortHeader {...head("hours")}>In service</SortHeader>
-            <SortHeader {...head("runs")}>Runs</SortHeader>
+            <SortHeader {...head("runs")}>Trips</SortHeader>
             <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
               Arrivals
             </SortHeader>

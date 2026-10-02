@@ -381,7 +381,7 @@ export interface ShameBoardProps<T> {
   keyOf: (item: T, index: number) => string;
   /** Message shown in place of the board when there are no rows. */
   emptyMessage: string;
-  /** Footer message shown under the board (e.g. "No runs were notably off schedule…"). */
+  /** Footer message shown under the board (e.g. "No trips were notably off schedule…"). */
   footerMessage?: string;
   /** Whether to show the footer. */
   showFooter?: boolean;

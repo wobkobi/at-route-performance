@@ -70,7 +70,7 @@ export const instant = false;
 export const metadata: Metadata = pageMetadata({
   title: "Hardest-worked vehicles",
   description:
-    "Auckland's buses, trains and ferries ranked by how hard they were worked: hours in service, runs and stops.",
+    "Auckland's buses, trains and ferries ranked by how hard they were worked: hours in service, trips and stops.",
 });
 
 /** The table's sortable columns; the chips above offer the four figures too. */
@@ -85,7 +85,7 @@ const COLUMNS: SortColumn<VehicleTotal>[] = [
 
 const SORT_LABEL: Record<VehicleSort, string> = {
   hours: "Time in service",
-  runs: "Runs",
+  runs: "Trips",
   arrivals: "Arrivals",
   off: "Most off schedule",
 };
@@ -297,7 +297,7 @@ export default async function VehiclesPage({
                 Vehicle
               </SortHeader>
               <SortHeader {...head("hours")}>In service</SortHeader>
-              <SortHeader {...head("runs")}>Runs</SortHeader>
+              <SortHeader {...head("runs")}>Trips</SortHeader>
               <SortHeader {...head("arrivals")} className="hidden sm:table-cell">
                 Arrivals
               </SortHeader>
@@ -374,9 +374,9 @@ export default async function VehiclesPage({
       </div>
 
       <p className="text-xs text-at-muted">
-        Time in service adds up each run from its first recorded stop to its last, so a layover
-        between runs does not count. Vehicles are named by their fleet label, or AT&apos;s feed id
-        until the feed has named them. LIVE marks a vehicle on a run now.
+        Time in service adds up each trip from its first recorded stop to its last, so a layover
+        between trips does not count. Vehicles are named by their fleet label, or AT&apos;s feed id
+        until the feed has named them. LIVE marks a vehicle on a trip now.
         {showsTrains && ` ${TRAIN_COUNT_NOTE}`}
       </p>
     </main>

@@ -50,16 +50,16 @@ export function TripGhostRunNote({
   const named = other?.label ?? null;
   const title =
     kind === "hidden"
-      ? "Reported under another run's number"
+      ? "Reported under another trip's number"
       : "No arrivals recorded for this trip";
   const body =
     kind === "hidden"
       ? named === null
-        ? `Auckland Transport reported this ${noun} under another run's number, so these readings do not belong to this trip.`
-        : `Auckland Transport reported this ${noun} under another run's number. These readings belong to the ${named} run.`
+        ? `Auckland Transport reported this ${noun} under another trip's number, so these readings do not belong to this trip.`
+        : `Auckland Transport reported this ${noun} under another trip's number. These readings belong to the ${named} trip.`
       : named === null
-        ? `Auckland Transport reported this ${noun} under another run's number, so nothing was recorded against this trip.`
-        : `Auckland Transport reported it under the ${named} run's number, so nothing was recorded against this trip.`;
+        ? `Auckland Transport reported this ${noun} under another trip's number, so nothing was recorded against this trip.`
+        : `Auckland Transport reported it under the ${named} trip's number, so nothing was recorded against this trip.`;
 
   return (
     <TripNote tone="muted" title={title}>
@@ -69,7 +69,7 @@ export function TripGhostRunNote({
           <>
             {" "}
             <Link href={tripHref(routeSlug, other.trip_id, day)} className="at-link">
-              See that run
+              See that trip
             </Link>
             .
           </>

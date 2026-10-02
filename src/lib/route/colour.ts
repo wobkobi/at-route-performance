@@ -29,3 +29,33 @@ export function routeColour(
 ): string {
   return brandColour(colour) ?? MODE_ICON_HEX[modeOrBus(mode)];
 }
+
+/** The detour orange's hue, in degrees. */
+const DETOUR_HUE = 32;
+
+/**
+ * The stroke class for a detour or off-timetable mark beside a route's line, on the route strip
+ * and the trip line: the detour orange, or ink on a route whose own colour is near that orange
+ * (the Outer Link), where an orange strand beside an orange line reads as the line.
+ * Near means a hue within 25 degrees of it on a colour that isn't washed out, so a red line keeps
+ * the orange.
+ * @param hex - The route's line colour as `#rrggbb`.
+ * @returns The class.
+ */
+export function detourStrokeClass(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
+    number,
+    number,
+    number,
+  ];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d < 0.25) return "stroke-at-commercial";
+  const hue =
+    max === r
+      ? (((g - b) / d + 6) % 6) * 60
+      : max === g
+        ? ((b - r) / d + 2) * 60
+        : ((r - g) / d + 4) * 60;
+  return Math.abs(hue - DETOUR_HUE) < 25 ? "stroke-at-ink" : "stroke-at-commercial";
+}

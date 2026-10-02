@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.48] - 2026-10-03
+
+### Fixed
+
+- One word for a single journey: "trip" replaces "run" and "service" across the site and share
+  cards; detour-bypassed stops read "Bypassed"; the trip line's key marks match what it draws, and
+  orange routes draw detours in ink there too; alert badges get readable effect names; the early
+  time preset is "Early morning".
+
 ## [2.41.47] - 2026-10-03
 
 ### Fixed

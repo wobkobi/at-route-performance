@@ -210,7 +210,7 @@ export function buildShameHref(
 }
 
 /**
- * How a ranked board's copy names its part of the day, after "runs starting".
+ * How a ranked board's copy names its part of the day, after "trips starting".
  * @param hours - The part of the day.
  * @returns "in this hour" for a single hour, "that day" for the whole day, else "in these hours".
  */

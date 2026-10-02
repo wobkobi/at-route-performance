@@ -295,7 +295,7 @@ export async function tripCardData(card: TripCard): Promise<SubjectCardData | nu
 
   const when = [date ? serviceDayLabel(date) : null, departing].filter(Boolean).join(", ");
   return {
-    eyebrow: when ? `Run - ${when}` : "Run",
+    eyebrow: when ? `Trip · ${when}` : "Trip",
     body: {
       route: route
         ? {
@@ -387,7 +387,7 @@ function offHero(signed: number, abs: number, mode: string): SubjectBodyProps["h
 
 /** Each shame card's heading and the noun its empty state uses. */
 const SHAME_HEADINGS = {
-  trip: { head: "Worst trip", noun: "run" },
+  trip: { head: "Worst trip", noun: "trip" },
   route: { head: "Worst route", noun: "route" },
   stop: { head: "Worst stop", noun: "stop" },
 } as const;
@@ -402,7 +402,7 @@ function nothingStoodOut(noun: string): SubjectBodyProps {
     route: null,
     name: null,
     subname: null,
-    hero: { text: "Nothing stood out", toneClass: "text-at-ontime" },
+    hero: { text: "No shame", toneClass: "text-at-ink" },
     lines: [`No ${noun} averaged more than ${formatDuration(ON_TIME_LATE_SEC)} off schedule`],
   };
 }
@@ -447,7 +447,7 @@ function runBody(t: ShameTrip, dated: boolean): SubjectBodyProps {
     hero: offHero(t.avg_delay_sec, t.avg_abs_delay_sec, t.mode),
     lines: [
       `on average across ${plural(t.stops, "stop")}`,
-      dated && t.date ? `The ${time} run on ${serviceDayLabel(t.date)}` : `The ${time} run`,
+      dated && t.date ? `The ${time} trip on ${serviceDayLabel(t.date)}` : `The ${time} trip`,
     ],
   };
 }

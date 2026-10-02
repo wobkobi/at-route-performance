@@ -134,7 +134,7 @@ function badgeKey(
     items.push({
       label: "OFF ROUTE",
       tone: "commercial",
-      meaning: "GPS put this vehicle well off its route mid-run",
+      meaning: "GPS put this vehicle well off its route mid-trip",
     });
   }
   const stages = new Set<CancellationStage>(
@@ -169,10 +169,10 @@ const SORTS: { key: TripSort; label: string }[] = [
  * untrue.
  */
 const SORT_NOTE: Record<TripSort, string> = {
-  off: "Ranked on distance from schedule, so a run 9m early sits beside one 9m late.",
-  late: "Ranked on the signed average, so a run 9m early sits at the opposite end from one 9m late.",
+  off: "Ranked on distance from schedule, so a trip 9m early sits beside one 9m late.",
+  late: "Ranked on the signed average, so a trip 9m early sits at the opposite end from one 9m late.",
   early:
-    "Ranked on the signed average, so a run 9m early sits at the opposite end from one 9m late.",
+    "Ranked on the signed average, so a trip 9m early sits at the opposite end from one 9m late.",
   departure: "In scheduled departure order.",
 };
 
@@ -333,7 +333,7 @@ export function WorstTripsBoard({
                         <Badge
                           tone="commercial"
                           label="OFF ROUTE"
-                          title="GPS put this vehicle well off its route mid-run"
+                          title="GPS put this vehicle well off its route mid-trip"
                         />
                       )}
                       {row.cancellation && <CancellationBadge stage={row.cancellation} />}

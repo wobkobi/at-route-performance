@@ -3,7 +3,7 @@
 import { modeGlyph } from "@/components/ModeIcon";
 import { MODE_ICON_CLASS, MODE_ICON_HEX, MODES } from "@/lib/mode";
 import { PALETTE } from "@/lib/palette";
-import { brandColour, routeColour } from "@/lib/route/colour";
+import { brandColour, detourStrokeClass, routeColour } from "@/lib/route/colour";
 import { describe, expect, it } from "vitest";
 
 describe("brandColour", () => {
@@ -52,5 +52,14 @@ describe("modeGlyph", () => {
 
   it("gives Link services the bus colour too", () => {
     expect(modeGlyph("BUS", "OUT").colourClass).toBe(MODE_ICON_CLASS.BUS);
+  });
+});
+
+describe("detourStrokeClass", () => {
+  it("swaps the detour orange for ink only on a line near that orange", () => {
+    expect(detourStrokeClass("#f39c12")).toBe("stroke-at-ink");
+    expect(detourStrokeClass("#e2231a")).toBe("stroke-at-commercial");
+    expect(detourStrokeClass("#0071bc")).toBe("stroke-at-commercial");
+    expect(detourStrokeClass("#8a8a8a")).toBe("stroke-at-commercial");
   });
 });

@@ -9,7 +9,7 @@ import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
 import { stopHref } from "@/lib/page/hrefs";
-import { routeColour } from "@/lib/route/colour";
+import { detourStrokeClass, routeColour } from "@/lib/route/colour";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
@@ -80,7 +80,7 @@ function rowFigure(s: LineStop, mode: string): RowFigure | null {
     return { text: formatDelay(s.recorded.deviation_sec, { mode }), className: BAND_TEXT[band] };
   }
   if (s.state === "not-served") return { text: "Not served", className: "fill-at-late" };
-  if (s.state === "skipped") return { text: "Skipped", className: "fill-at-muted" };
+  if (s.state === "skipped") return { text: "Bypassed", className: "fill-at-muted" };
   return null;
 }
 
@@ -99,7 +99,7 @@ function stopSentence(s: LineStop, mode: string): string {
   }
   const at = sched ? `scheduled ${sched}` : "scheduled";
   if (s.state === "not-served") return `${s.name}: ${at}, not served.`;
-  if (s.state === "skipped") return `${s.name}: ${at}, skipped by the detour.`;
+  if (s.state === "skipped") return `${s.name}: ${at}, bypassed by the detour.`;
   return `${s.name}: ${at}, no arrival recorded.`;
 }
 
@@ -166,7 +166,7 @@ export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.El
           </li>
         ))}
       </ol>
-      <LineKey present={present} />
+      <LineKey present={present} detourClass={detourStrokeClass(routeColour(mode, colour))} />
     </>
   );
 }
@@ -287,7 +287,7 @@ function LineSvg({
               strokeWidth={4}
               strokeDasharray="6 4"
               strokeLinecap="round"
-              className="stroke-at-commercial"
+              className={detourStrokeClass(lineHex)}
             />
           );
         }
@@ -392,15 +392,18 @@ function LineSvg({
  * @param props - Props.
  * @param props.present - Which states the line draws.
  * @param props.present.unrecorded - A timetabled stop with no arrival recorded.
- * @param props.present.skipped - A stop the run went around.
- * @param props.present.notServed - A stop the run never reached.
- * @param props.present.offTimetable - A stop the run made off its timetable.
- * @param props.present.ahead - A leg a live run has not reached yet.
+ * @param props.present.skipped - A stop the trip went around.
+ * @param props.present.notServed - A stop the trip never reached.
+ * @param props.present.offTimetable - A stop the trip made off its timetable.
+ * @param props.present.ahead - A leg a live trip has not reached yet.
+ * @param props.detourClass - The off-timetable legs' stroke class, as the line draws them.
  * @returns The key, or null when there is nothing to explain.
  */
 function LineKey({
   present,
+  detourClass,
 }: {
+  detourClass: string;
   present: {
     unrecorded: boolean;
     skipped: boolean;
@@ -454,20 +457,20 @@ function LineKey({
   if (present.offTimetable)
     entries.push({
       key: "off",
-      swatch: leg("stroke-at-commercial", 3, "4 3"),
+      swatch: leg(detourClass, 4, "6 4"),
       label: "Off the timetable's path",
     });
   if (present.skipped)
     entries.push({
       key: "skipped",
-      swatch: dot("stroke-at-muted", "2 2"),
-      label: "Skipped: the run went around it",
+      swatch: dot("stroke-at-muted", "2 2.7"),
+      label: "Bypassed: the trip went around it",
     });
   if (present.notServed)
     entries.push({
       key: "not-served",
       swatch: dot("stroke-at-late"),
-      label: "The run never reached this stop",
+      label: "The trip never reached this stop",
     });
   if (present.ahead)
     entries.push({ key: "ahead", swatch: leg("stroke-at-border", 4), label: "Not reached yet" });

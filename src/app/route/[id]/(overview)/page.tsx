@@ -793,8 +793,8 @@ export default async function RoutePage({
               "On time" describe both. */}
           {activeDir != null && (
             <p className="text-xs text-at-muted">
-              Arrivals, Avg off by and On time cover both directions; Trips, the runs below, the map
-              and the diagram pick out this one.
+              Arrivals, Avg off by and On time cover both directions; Trips, the trips below, the
+              map and the diagram pick out this one.
             </p>
           )}
 

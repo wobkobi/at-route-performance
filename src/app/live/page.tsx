@@ -47,7 +47,7 @@ export const instant = false;
 export const metadata: Metadata = pageMetadata({
   title: "Live now",
   description:
-    "Every Auckland bus, train and ferry on a run right now, on a map and by route, with how many are running late.",
+    "Every Auckland bus, train and ferry on a trip right now, on a map and by route, with how many are running late.",
 });
 
 /** Query params for the live page. */
@@ -101,7 +101,7 @@ export default async function LivePage({
     <main className="space-y-6">
       <PageHeader
         title="Live now"
-        subtitle="Every bus, train and ferry on a run right now. Refreshes every two minutes."
+        subtitle="Every bus, train and ferry on a trip right now. Refreshes every two minutes."
       />
 
       <ModeFilter
@@ -118,7 +118,7 @@ export default async function LivePage({
         <SectionHeading id="live-map">Where they are</SectionHeading>
         <LiveMapWrapper mode={mode} className="at-card h-[min(27.5rem,65svh)] sm:h-140" />
         <p className="text-xs text-at-muted">
-          Tap a dot for its run and vehicle, or a line for the routes on it. Buses are the small
+          Tap a dot for its trip and vehicle, or a line for the routes on it. Buses are the small
           dots, and each line is drawn in its route&apos;s colour. The buttons above the map show or
           hide each kind of dot and the lines.
         </p>
@@ -206,7 +206,7 @@ async function LiveFigures({ mode }: { mode: Mode | null }): Promise<JSX.Element
   const t = liveTotals(rows);
   const timed = t.late + t.onTime + t.early;
   const figures: Array<{ label: string; value: string; note?: string | null; tone?: string }> = [
-    { label: "On a run", value: formatCount(t.vehicles) },
+    { label: "On a trip", value: formatCount(t.vehicles) },
     { label: "Routes running", value: formatCount(t.routes) },
     {
       label: "On time",
@@ -285,7 +285,7 @@ async function LiveTable({
   if (rows.length === 0) {
     return (
       <EmptyState>
-        Nothing is on a run right now. Late at night the network runs few or no services.
+        Nothing is on a trip right now. Late at night the network runs few or no trips.
       </EmptyState>
     );
   }

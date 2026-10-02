@@ -106,7 +106,8 @@ function linePopupHtml(
 ): string {
   const rows = hits.map((line) => {
     const running = vehicles?.filter((v) => v.slug === line.slug).length ?? 0;
-    const count = vehicles === null ? "" : ` &middot; ${running === 0 ? "none" : running} on a run`;
+    const count =
+      vehicles === null ? "" : ` &middot; ${running === 0 ? "none" : running} on a trip`;
     // A square of the line's own colour, so a reader can match the row to the road.
     const swatch = `<span style="display:inline-block;width:0.6rem;height:0.6rem;margin-right:0.35rem;background:${escapeHtml(line.colour)}"></span>`;
     return (

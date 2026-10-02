@@ -32,7 +32,7 @@ async function LiveBadge({
   return (
     <Link
       href={liveRunHref({ routeId: v.routeId, tripId: v.tripId })}
-      title={`On a run now, route ${routeSlug(v.routeId)}`}
+      title={`On a trip now, route ${routeSlug(v.routeId)}`}
       className={cn(badgeClass("live"), "hover:underline")}
     >
       LIVE

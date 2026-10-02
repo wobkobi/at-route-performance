@@ -100,7 +100,7 @@ export async function generateMetadata({
   const card = parseShameCard("trip", sp);
   const { hours, view } = parseShameParams(sp);
   const description =
-    "The most off-schedule run of each hour or day on Auckland's buses, trains and ferries.";
+    "The most off-schedule trip of each hour or day on Auckland's buses, trains and ferries.";
   return pageMetadata({
     title: hours ? rankedTitle(hours) : shameHeading("trip", view),
     description,
@@ -179,7 +179,7 @@ async function TripRangeBoard({
             <ShameDayLabel
               date={t.date}
               href={shameDayListHref(BASE, dayLinkParam(t.date), filter)}
-              linkLabel={`Worst ${SHAME_RANKED_LIMIT} runs on ${serviceDayLabel(t.date)}`}
+              linkLabel={`Worst ${SHAME_RANKED_LIMIT} trips on ${serviceDayLabel(t.date)}`}
             />
           ) : (
             <span className="w-16 shrink-0" />
@@ -280,7 +280,7 @@ async function TripDayBoard({
             hour={t.hour}
             serviceDate={serviceDate}
             href={shameHourHref(BASE, linkDay, t.hour, filter)}
-            linkLabel={`Worst ${SHAME_RANKED_LIMIT} runs starting in the ${nzHourLabel(t.hour)} hour`}
+            linkLabel={`Worst ${SHAME_RANKED_LIMIT} trips starting in the ${nzHourLabel(t.hour)} hour`}
           />
         }
       >
@@ -306,8 +306,8 @@ async function TripDayBoard({
 
   const renderHourSlot = hourSlotRenderer(renderDayRow, {
     serviceDate,
-    title: "No run fits this hour",
-    reason: `No run starting this hour recorded ${SHAME_MIN_STOPS} stops`,
+    title: "No trip fits this hour",
+    reason: `No trip starting this hour recorded ${SHAME_MIN_STOPS} stops`,
   });
 
   return (
@@ -316,7 +316,7 @@ async function TripDayBoard({
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage={`No trips recorded ${dayWhen}.`}
-      footerMessage="No runs were notably off schedule during these hours."
+      footerMessage="No trips were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
     />
@@ -379,9 +379,9 @@ async function TripHoursBoard({
       emptyMessage={
         noHourStarted(hoursInRange(hours), serviceDate)
           ? notStartedMessage(hours)
-          : `No run with ${SHAME_MIN_STOPS} stops started ${hoursNoun(hours)}.`
+          : `No trip with ${SHAME_MIN_STOPS} stops started ${hoursNoun(hours)}.`
       }
-      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} runs.`}
+      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} trips.`}
       showFooter={total > rows.length}
       renderRow={renderRow}
     />
@@ -428,7 +428,7 @@ export default async function TripShamePage({
       <main className="space-y-6">
         <ShameHeader
           title={shameHeading("trip", view)}
-          subtitle={`The most off-schedule run of each day · ${subtitle}`}
+          subtitle={`The most off-schedule trip of each day · ${subtitle}`}
           activeTab="trip"
           tabHrefs={{
             trip: buildShameHref(BASE, rangeNav, filter),
@@ -470,8 +470,8 @@ export default async function TripShamePage({
         title={hours ? rankedTitle(hours) : shameHeading("trip", "day")}
         subtitle={
           hours
-            ? `The most off-schedule runs starting ${hoursNoun(hours)} · ${subtitle}`
-            : `The most off-schedule run of each hour · ${subtitle}`
+            ? `The most off-schedule trips starting ${hoursNoun(hours)} · ${subtitle}`
+            : `The most off-schedule trip of each hour · ${subtitle}`
         }
         activeTab="trip"
         tabHrefs={{

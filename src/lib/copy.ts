@@ -1,6 +1,7 @@
 // src/lib/copy.ts
 // Strings that appear on more than one surface. A name or a caveat with several
 // copies drifts, and the drift reaches a reader before it reaches a reviewer.
+// Glossary: one scheduled journey is a "trip" in all user copy, never a "run" or a "service".
 
 import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
 
@@ -98,4 +99,4 @@ export const MEASURED_AGAINST =
  * who does hover.
  */
 export const SERVICE_DAY_NOTE =
-  "A service day runs 4am to 4am, so a run after midnight counts toward the day before.";
+  "A service day runs 4am to 4am, so a trip after midnight counts toward the day before.";

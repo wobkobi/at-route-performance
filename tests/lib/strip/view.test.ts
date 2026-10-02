@@ -274,7 +274,7 @@ describe("stripView: the day's closures and detours on OUT", () => {
     expect(v.notes[0]).toMatch(/^Benfield Avenue, to Westfield Newmarket: closed from 9:00\spm\.$/);
   });
 
-  it("words a seen detour, and one too few runs took", () => {
+  it("words a seen detour, and one too few trips took", () => {
     const seen = closure({
       kind: "detour",
       source: "seen",
@@ -292,10 +292,10 @@ describe("stripView: the day's closures and detours on OUT", () => {
     expect(v.rows[benfield]!.down).toEqual({ tone: "closed", text: "detour", mark: "detour" });
     expect(v.rows[benfield]!.sentence).toContain("To Westfield Newmarket, gone round on a detour");
     expect(v.notes).toEqual([
-      "Between Ferndale House and Gladstone Primary, to Westfield Newmarket: runs went round it, all day. No alert announced it.",
+      "Between Ferndale House and Gladstone Primary, to Westfield Newmarket: trips went round it, all day. No alert announced it.",
     ]);
     const once = viewWith([{ ...seen, runs: 1, confirmed: false }]);
-    expect(once.notes[0]).toContain("1 run went round it, all day, too few in two hours");
+    expect(once.notes[0]).toContain("1 trip went round it, all day, too few in two hours");
     expect(once.present).toMatchObject({ suspect: true, detour: false });
   });
 });

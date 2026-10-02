@@ -2,6 +2,7 @@
 // Unit tests for the service-alert filters and severity grading in at-alerts.ts.
 
 import {
+  alertEffectLabel,
   alertPeriodToShow,
   alertSeverity,
   alertsForRoute,
@@ -289,5 +290,15 @@ describe("hasSevereAlert", () => {
   it("is false for an all-notice set, and for an empty one", () => {
     expect(hasSevereAlert([effectAlert("a", "OTHER_EFFECT")])).toBe(false);
     expect(hasSevereAlert([])).toBe(false);
+  });
+});
+
+describe("alertEffectLabel", () => {
+  it("names the effects a rider can act on, and nothing else", () => {
+    expect(alertEffectLabel("NO_SERVICE")).toBe("NO SERVICE");
+    expect(alertEffectLabel("SIGNIFICANT_DELAYS")).toBe("MAJOR DELAYS");
+    expect(alertEffectLabel("OTHER_EFFECT")).toBeNull();
+    expect(alertEffectLabel("SOMETHING_NEW")).toBeNull();
+    expect(alertEffectLabel(undefined)).toBeNull();
   });
 });

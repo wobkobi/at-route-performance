@@ -94,7 +94,7 @@ export async function generateMetadata({
   const dayPart =
     dAt && !Number.isNaN(dAt.getTime()) ? `, ${serviceDayLabel(nzServiceDayString(dAt))}` : "";
   const title = `${routeSlug(id)} trip${dayPart}`;
-  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} run ${MEASURED_AGAINST}`;
+  const description = `Stop-by-stop punctuality of one ${routeSlug(id)} trip ${MEASURED_AGAINST}`;
   return pageMetadata({
     title,
     description,
@@ -403,7 +403,7 @@ export default async function TripPage({
         {line.stops.length === 0 ? (
           <EmptyState className={scheduleFailed ? "text-at-late" : undefined}>
             {scheduleFailed
-              ? "This run's schedule could not be loaded, so its stops are missing. Reload to try again."
+              ? "This trip's schedule could not be loaded, so its stops are missing. Reload to try again."
               : "No stop records found for this trip."}
           </EmptyState>
         ) : (

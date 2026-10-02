@@ -32,7 +32,7 @@ export interface TimePreset {
  * stepping along the chips sees every arrival exactly once.
  */
 export const TIME_PRESETS: readonly TimePreset[] = [
-  { key: "early", label: "Early", range: { from: SERVICE_START_HOUR, to: 7 } },
+  { key: "early", label: "Early morning", range: { from: SERVICE_START_HOUR, to: 7 } },
   { key: "am-peak", label: "Morning peak", range: { from: 7, to: 9 } },
   { key: "midday", label: "Midday", range: { from: 9, to: 15 } },
   { key: "pm-peak", label: "Evening peak", range: { from: 15, to: 18 } },

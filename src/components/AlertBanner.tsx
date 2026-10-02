@@ -8,6 +8,7 @@ import { ChevronDown } from "@/components/icons";
 import { Badge, badgeClass } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import {
+  alertEffectLabel,
   alertPeriodToShow,
   alertSeverity,
   cleanAlertHeader,
@@ -173,6 +174,7 @@ export function AlertBanner({
           const period = alertPeriodToShow(alert);
           const periodText = periodLabel(period?.start, period?.end, pastWindow);
           const rowSevere = alertSeverity(alert) === "severe";
+          const effectLabel = alertEffectLabel(alert.effect);
 
           return (
             <div key={alert.id || i} className="space-y-1.5 p-3">
@@ -193,11 +195,8 @@ export function AlertBanner({
                 </p>
               )}
               {periodText && <p className="text-xs text-at-muted">{periodText}</p>}
-              {alert.effect && (
-                <Badge
-                  tone={rowSevere ? "disruption" : "muted"}
-                  label={alert.effect.replace(/_/g, " ")}
-                />
+              {effectLabel && (
+                <Badge tone={rowSevere ? "disruption" : "muted"} label={effectLabel} />
               )}
               {cleanDesc && <p className="text-sm leading-snug text-at-muted">{cleanDesc}</p>}
               {routeIds.length > 0 && (
