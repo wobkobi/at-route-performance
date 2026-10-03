@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.58] - 2026-10-03
+
+### Fixed
+
+- A route's branch lines on the live map now run along their own street to the junction and end on
+  the main line, where they used to stop up to 40 metres short and float; route 65's Walker Park
+  branch in Point Chevalier was the one seen. The map lines rebuild on the next load.
+
 ## [2.41.57] - 2026-10-03
 
 ### Fixed

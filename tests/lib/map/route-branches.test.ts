@@ -53,6 +53,33 @@ describe("routePaths", () => {
     expect(pathLength(branch)).toBeLessThan(900);
   });
 
+  it("runs a branch that leaves at an angle all the way onto the road it leaves and rejoins", () => {
+    // A 3 km trunk east, and a shorter pattern that bows north off it at 30
+    // degrees between 500 m and 1.5 km. Ending where the bow first comes within
+    // the covering distance would leave both ends floating short of the trunk.
+    const trunk = { points: line([0, 0], [3000, 0]), trips: 116 };
+    const bow = {
+      points: [
+        ...line([0, 0], [500, 0]),
+        ...line([500, 0], [1000, 289]).slice(1),
+        ...line([1000, 289], [1500, 0]).slice(1),
+        ...line([1500, 0], [2000, 0]).slice(1),
+      ],
+      trips: 88,
+    };
+    const paths = routePaths([trunk, bow]);
+    expect(paths).toHaveLength(2);
+    const branch = paths[1] ?? [];
+    /**
+     * How far north of the trunk a point sits.
+     * @param p - `[lat, lon]`.
+     * @returns Metres.
+     */
+    const north = (p: [number, number] | undefined): number => ((p?.[0] ?? NaN) - LAT) / LAT_PER_M;
+    expect(Math.abs(north(branch[0]))).toBeLessThan(1);
+    expect(Math.abs(north(branch.at(-1)))).toBeLessThan(1);
+  });
+
   it("leaves out a stretch shorter than the branch minimum, or of a rare pattern", () => {
     const trunk = { points: line([0, 0], [2000, 0]), trips: 100 };
     const jog = {
