@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.59] - 2026-10-03
+
+### Fixed
+
+- Tapping a segment of the home verdict bar opens its note under that segment, where it always
+  opened at the bar's left edge under the on-time blue; on a phone, where the note is wider than a
+  segment, it lines up with the bar's nearer end.
+
 ## [2.41.58] - 2026-10-03
 
 ### Fixed
