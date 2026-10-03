@@ -5,9 +5,8 @@
 // above it for which dots and lines the map draws.
 
 import { ChipGroup, ChipToggle } from "@/components/Chip";
-import { ModeIcon } from "@/components/ModeIcon";
 import { cn } from "@/lib/cn";
-import { MODE_NOUN, MODES, type Mode } from "@/lib/mode";
+import { MODES, type Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import dynamic from "next/dynamic";
 import { useState, type JSX } from "react";
@@ -68,15 +67,13 @@ function flip<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
  * The live map, sized by its wrapper so the placeholder and the map match, with
  * a row of toggles above it. The toggles double as the dots' colour key: each
  * shows or hides one delay band's dots, so the late vehicles can be picked out
- * of a peak's thousand; the mode toggles show or hide buses, trains and
- * ferries with their route lines, so the rail and ferry network can be seen
- * without the bus roads; and a last one hides the route lines altogether. They
+ * of a peak's thousand, and a last one hides the route lines altogether. They
  * are view settings for this visit, not filters, so they stay out of the URL.
- * The mode toggles only show when the page's own mode filter is off, since with
- * it on the map already holds one mode.
+ * Which vehicle types show is the page's own mode filter, which narrows the
+ * dots, the route lines and the table together.
  *
- * "All vehicles" is the master switch: with every band and mode on it hides
- * every dot, otherwise it turns every band and mode on. Vehicles on a trip with no history stored
+ * "All vehicles" is the master switch: with every band on it hides every dot,
+ * otherwise it turns every band on. Vehicles on a trip with no history stored
  * (every MEX trip, say) never draw, since the pages they link to are empty; a
  * trip's vehicle shows once its first arrival lands.
  * @param props - Component props.
@@ -94,10 +91,9 @@ export default function LiveMapWrapper({
   const [bands, setBands] = useState<ReadonlySet<ReadingBand>>(
     () => new Set(DOT_TOGGLES.map((t) => t.band)),
   );
-  const [modes, setModes] = useState<ReadonlySet<Mode>>(() => new Set(MODES));
   const [lines, setLines] = useState(true);
-  const everything = bands.size === DOT_TOGGLES.length && modes.size === MODES.length;
-  const shownModes = mode ? new Set([mode]) : modes;
+  const everything = bands.size === DOT_TOGGLES.length;
+  const modes: ReadonlySet<Mode> = new Set(mode ? [mode] : MODES);
 
   /**
    * Show or hide one band's dots.
@@ -107,14 +103,9 @@ export default function LiveMapWrapper({
     setBands((prev) => flip(prev, band));
   };
 
-  /** Turn every band and mode on, or with all of them on, hide every dot. */
+  /** Turn every band on, or with all of them on, hide every dot. */
   const toggleAll = (): void => {
-    if (everything) {
-      setBands(new Set());
-      return;
-    }
-    setBands(new Set(DOT_TOGGLES.map((t) => t.band)));
-    setModes(new Set(MODES));
+    setBands(everything ? new Set() : new Set(DOT_TOGGLES.map((t) => t.band)));
   };
 
   return (
@@ -136,25 +127,6 @@ export default function LiveMapWrapper({
             </ChipToggle>
           );
         })}
-        {!mode && (
-          <>
-            <span aria-hidden className="mx-1 hidden h-5 w-px bg-at-border sm:inline-block" />
-            {MODES.map((m) => {
-              const on = modes.has(m);
-              return (
-                <ChipToggle
-                  key={m}
-                  on={on}
-                  onClick={() => setModes((prev) => flip(prev, m))}
-                  {...TOGGLE}
-                >
-                  <ModeIcon mode={m} decorative className={cn("h-4 w-4", !on && "opacity-30")} />
-                  {MODE_NOUN[m]}
-                </ChipToggle>
-              );
-            })}
-          </>
-        )}
         {/* Hidden on phones, where the row wraps and it would lead the second line. */}
         <span aria-hidden className="mx-1 hidden h-5 w-px bg-at-border sm:inline-block" />
         <ChipToggle on={lines} onClick={() => setLines((v) => !v)} {...TOGGLE}>
@@ -166,7 +138,7 @@ export default function LiveMapWrapper({
         </ChipToggle>
       </ChipGroup>
       <div className={className}>
-        <LiveMap modes={shownModes} bands={bands} showLines={lines} className="h-full w-full" />
+        <LiveMap modes={modes} bands={bands} showLines={lines} className="h-full w-full" />
       </div>
     </div>
   );

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.43.1] - 2026-10-04
+
+### Fixed
+
+- The live map's Buses, Trains and Ferries toggles are gone again: the page's own Mode filter
+  already narrows the dots, the route lines and the table, and the extra chips made the toggle row
+  run to four lines on a phone.
+
 ## [2.43.0] - 2026-10-03
 
 ### Added
