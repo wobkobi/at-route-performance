@@ -63,7 +63,12 @@ export function CancelledBoard({ rows, total, routeParams }: CancelledBoardProps
                   className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-at-shore-pale"
                 >
                   <span className={RANK_CLASS}>{i + 1}</span>
-                  <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
+                  <ModeIcon
+                    mode={r.mode}
+                    shortName={r.shortName}
+                    longName={r.longName}
+                    colour={r.colour}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className={cn("block", ROUTE_NAME_CLASS)}>{label}</span>
                     {subtitle && <span className="block text-xs text-at-muted">{subtitle}</span>}

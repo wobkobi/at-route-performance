@@ -324,6 +324,7 @@ async function LiveTable({
                       mode={r.mode}
                       shortName={named.shortName ?? r.slug}
                       longName={named.longName}
+                      colour={named.colour}
                       className="h-4 w-4 shrink-0"
                     />
                     <span className={ROUTE_NAME_CLASS}>{routeDisplayName(named)}</span>

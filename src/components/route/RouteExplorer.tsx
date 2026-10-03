@@ -408,6 +408,7 @@ export function RouteExplorer({
                     mode={r.mode}
                     shortName={r.shortName}
                     longName={r.longName}
+                    colour={r.colour}
                     className="mt-0.5 h-6 w-6"
                   />
                   <div className="min-w-0">

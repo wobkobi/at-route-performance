@@ -219,7 +219,7 @@ export function ShameRowBody({
   note,
   figures,
 }: {
-  route?: Pick<RouteDisplay, "mode" | "shortName" | "longName">;
+  route?: Pick<RouteDisplay, "mode" | "shortName" | "longName" | "colour">;
   subject: ReactNode;
   subtitle?: string | null;
   worst: boolean;
@@ -235,6 +235,7 @@ export function ShameRowBody({
           mode={route.mode}
           shortName={route.shortName}
           longName={route.longName}
+          colour={route.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
       )}

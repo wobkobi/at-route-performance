@@ -396,6 +396,7 @@ export default async function ComparePage({
                           mode={c.route.mode}
                           shortName={c.route.shortName}
                           longName={c.route.longName}
+                          colour={c.route.colour}
                           className="mt-0.5 h-4 w-4 shrink-0"
                         />
                       )}

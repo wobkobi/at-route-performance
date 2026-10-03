@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.57] - 2026-10-03
+
+### Fixed
+
+- Route icons take the route's own AT colour (green for the Inner Link, red for the Southern Line),
+  falling back to the mode's colour, and every single route's line, map and stop diagram is drawn in
+  Shore blue, so the icon says which route and the line reads the same everywhere. The live map
+  keeps each route's colour, since it draws them all at once.
+
 ## [2.41.56] - 2026-10-03
 
 ### Fixed

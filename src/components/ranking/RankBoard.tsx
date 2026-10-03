@@ -248,7 +248,12 @@ export function RankBoard({
                     ) : (
                       <span className={RANK_CLASS}>{i + 1}</span>
                     )}
-                    <ModeIcon mode={r.mode} shortName={r.shortName} longName={r.longName} />
+                    <ModeIcon
+                      mode={r.mode}
+                      shortName={r.shortName}
+                      longName={r.longName}
+                      colour={r.colour}
+                    />
                     <span className={cn("min-w-0 flex-1 truncate", ROUTE_NAME_CLASS)}>
                       {routeDisplayName(r)}
                       {cancelledCount > 0 && (
