@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.42.0] - 2026-10-03
+
+### Added
+
+- Zoomed in to suburb level on the live map, each vehicle is a bigger dot filled in its delay colour
+  with its bus, train or ferry icon in white, so the mode reads before street level, where the
+  ringed marker with its heading arrow still takes over. Zoomed out to the whole region the dots
+  stay small and plain.
+
 ## [2.41.60] - 2026-10-03
 
 ### Fixed

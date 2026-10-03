@@ -19,7 +19,12 @@ import { shiftPixels } from "@/lib/map/shared-roads";
 import { bandColours, bandTextColours, cssVar, escapeHtml } from "@/lib/map/style";
 import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap, reducedMotion } from "@/lib/map/tiles";
 import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
-import { readGlyphs, vehicleIcon, vehiclePopupHtml } from "@/lib/map/vehicle-marker";
+import {
+  readGlyphs,
+  vehicleDotIcon,
+  vehicleIcon,
+  vehiclePopupHtml,
+} from "@/lib/map/vehicle-marker";
 import type { Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import { operatorOf, type Operator } from "@/lib/operators";
@@ -54,6 +59,14 @@ const BASE_ZOOM = 11;
  * dozen, where the whole region's thousand would stall the page.
  */
 const ICON_ZOOM = 15;
+
+/**
+ * From this zoom up to {@link ICON_ZOOM} the canvas dots become bigger filled
+ * dots with the mode's glyph in white. They are DOM markers too, drawn as they
+ * come into view; a suburb's view holds a few hundred at most, where the whole
+ * region's thousand stay on the canvas as plain dots.
+ */
+const DOT_ICON_ZOOM = 13;
 
 /**
  * A road path's stroke at a zoom. Rail and ferry lines are few and long, so they
@@ -382,20 +395,21 @@ export default function LiveMap({
     // in, markers are added as vehicles come into view and never taken off until
     // the zoom drops back: clearing on each move would shut a popup the moment
     // Leaflet pans the map to fit it.
-    let drawnAs: "dots" | "icons" | null = null;
+    let drawnAs: "dots" | "dotIcons" | "icons" | null = null;
     const placed = new Set<string>();
     /** Draw the dots, or the in-view markers, for the current zoom. */
     const draw = (): void => {
-      const icons = map.getZoom() >= ICON_ZOOM;
-      if (!icons && drawnAs === "dots") return;
-      if ((icons ? "icons" : "dots") !== drawnAs) {
+      const zoom = map.getZoom();
+      const tier = zoom >= ICON_ZOOM ? "icons" : zoom >= DOT_ICON_ZOOM ? "dotIcons" : "dots";
+      if (tier === "dots" && drawnAs === "dots") return;
+      if (tier !== drawnAs) {
         layer.clearLayers();
         placed.clear();
-        drawnAs = icons ? "icons" : "dots";
+        drawnAs = tier;
       }
       const view = map.getBounds().pad(0.25);
       for (const { v, status } of drawn) {
-        if (!icons) {
+        if (tier === "dots") {
           L.circleMarker([v.lat, v.lon], {
             renderer,
             radius: v.mode === "BUS" ? 4 : 6,
@@ -410,12 +424,20 @@ export default function LiveMap({
         }
         if (placed.has(v.id) || !view.contains([v.lat, v.lon])) continue;
         placed.add(v.id);
-        const icon = vehicleIcon(L, {
-          ring: colour[status.band],
-          glyphColour: glyphColour[status.band],
-          glyph: glyphs.get(glyphFor(v.mode, v.school).label) ?? null,
-          bearing: v.bearing,
-        });
+        const glyph = glyphs.get(glyphFor(v.mode, v.school).label) ?? null;
+        const icon =
+          tier === "icons"
+            ? vehicleIcon(L, {
+                ring: colour[status.band],
+                glyphColour: glyphColour[status.band],
+                glyph,
+                bearing: v.bearing,
+              })
+            : vehicleDotIcon(L, {
+                fill: colour[status.band],
+                glyph,
+                size: v.mode === "BUS" ? 20 : 24,
+              });
         L.marker([v.lat, v.lon], { icon, keyboard: false })
           .bindPopup(popupHtml(v, status.detail, operatorsRef.current))
           .addTo(layer);
