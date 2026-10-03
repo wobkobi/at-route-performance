@@ -136,19 +136,19 @@ function linePopupHtml(
 /**
  * The network map.
  * @param props - Component props.
- * @param props.mode - Show one mode's vehicles, or null for every mode.
+ * @param props.modes - The modes whose vehicles and route lines are drawn.
  * @param props.bands - The delay bands whose dots are drawn.
  * @param props.showLines - Whether the route lines are drawn under the dots.
  * @param props.className - Height and size classes.
  * @returns The map container.
  */
 export default function LiveMap({
-  mode,
+  modes,
   bands,
   showLines,
   className,
 }: {
-  mode: Mode | null;
+  modes: ReadonlySet<Mode>;
   bands: ReadonlySet<ReadingBand>;
   showLines: boolean;
   className?: string;
@@ -351,7 +351,7 @@ export default function LiveMap({
     // Walked from the top of the draw order down, since each path is sent to the
     // back as it lands: the list comes buses first, and they must end up lowest.
     for (const line of [...lines].reverse()) {
-      if (mode && line.mode !== mode) continue;
+      if (!modes.has(line.mode)) continue;
       for (const run of line.runs) {
         const at: Leaflet.LatLng[] = [];
         for (let i = 0; i + 1 < run.path.length; i += 2) {
@@ -374,7 +374,7 @@ export default function LiveMap({
     return () => {
       map.off("zoomend", place);
     };
-  }, [lines, mode, ready, showLines]);
+  }, [lines, modes, ready, showLines]);
 
   // Redraw on each poll, on a mode change and on a toggle. An open popup closes
   // with its dot; a two-minute redraw is rare enough that keying dots by id is
@@ -386,7 +386,7 @@ export default function LiveMap({
     const colour = bandColours();
     const glyphColour = bandTextColours();
     const glyphs = readGlyphs(glyphRef.current);
-    const shown = vehicles.filter((v) => (!mode || v.mode === mode) && v.stored);
+    const shown = vehicles.filter((v) => modes.has(v.mode) && v.stored);
     const drawn = shown
       .map((v) => ({ v, status: vehicleStatus(v.delaySec, v.mode) }))
       .filter(({ status }) => bands.has(status.band));
@@ -457,7 +457,7 @@ export default function LiveMap({
     return () => {
       map.off("moveend", draw);
     };
-  }, [vehicles, mode, bands]);
+  }, [vehicles, modes, bands]);
 
   /**
    * Ask for the reader's position and fly to it, marking where they are with a
@@ -532,7 +532,7 @@ export default function LiveMap({
       framed.current = true;
       // Centred on the reader and wide enough for the nearest few vehicles (see
       // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
-      const shown = (vehiclesRef.current ?? []).filter((v) => !mode || v.mode === mode);
+      const shown = (vehiclesRef.current ?? []).filter((v) => modes.has(v.mode));
       const frame = nearbyFrame(
         [here.lat, here.lng],
         pos.coords.accuracy,

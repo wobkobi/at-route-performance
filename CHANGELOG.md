@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.43.0] - 2026-10-03
+
+### Added
+
+- The live map's toggle row gains Buses, Trains and Ferries, each hiding its vehicles and route
+  lines, so the rail and ferry network can be seen without the bus roads; All vehicles turns every
+  band and mode back on. They hide while the page's own mode filter is set.
+
 ## [2.42.0] - 2026-10-03
 
 ### Added
