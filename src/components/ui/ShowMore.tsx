@@ -13,7 +13,8 @@ export type ShowMoreProps = {
 } & ({ href: string; onClick?: never } | { onClick: () => void; href?: never });
 
 /**
- * The "Show 30 more of 112" button under a long list. Every list grows by the
+ * The "Show 30 more of 112" button under a long list, or "Show 13 more" once
+ * one more step shows the rest. Every list grows by the
  * same {@link LIST_PAGE_SIZE}, so the count always reads the same way.
  * @param props - Component props.
  * @param props.remaining - Rows still hidden.
@@ -23,7 +24,10 @@ export type ShowMoreProps = {
  * @returns The button, centred.
  */
 export function ShowMore({ remaining, className, href, onClick }: ShowMoreProps): JSX.Element {
-  const label = `Show ${Math.min(LIST_PAGE_SIZE, remaining)} more of ${formatCount(remaining)}`;
+  const label =
+    remaining > LIST_PAGE_SIZE
+      ? `Show ${LIST_PAGE_SIZE} more of ${formatCount(remaining)}`
+      : `Show ${formatCount(remaining)} more`;
   return (
     <div className={cn("flex justify-center", className)}>
       {href !== undefined ? (
