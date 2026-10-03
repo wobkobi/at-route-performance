@@ -441,6 +441,11 @@ export default function LiveMap({
    * Ask for the reader's position and fly to it, marking where they are with a
    * dot and a ring for how sure the browser is. Asked on the press rather than on
    * load: a prompt nobody asked for gets refused, and iOS only shows it after a tap.
+   *
+   * Two fixes are asked for at once. The network one (Wi-Fi or cell) usually
+   * lands in under a second and flies the map; the GPS one can take many seconds,
+   * or never come indoors, so when it does it only moves the dot and tightens the
+   * ring. Whichever lands, a fix less sure than the one shown is ignored.
    */
   const locate = (): void => {
     const m = mapRef.current;
@@ -451,60 +456,112 @@ export default function LiveMap({
     }
     setLocating(true);
     setLocateNote(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        const { L, map, hereLayer } = m;
-        const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
-          setLocateNote("You look to be outside Auckland, so there is nothing nearby to show.");
-          return;
+    const { L, map, hereLayer } = m;
+    let flown = false;
+    let best = Infinity;
+    let pending = 2;
+    let outside = false;
+    const OUTSIDE_NOTE = "You look to be outside Auckland, so there is nothing nearby to show.";
+
+    /**
+     * Mark a fix, and fly to the first one inside Auckland.
+     * @param pos - The browser's position.
+     */
+    const found = (pos: GeolocationPosition): void => {
+      pending--;
+      const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
+        outside = true;
+        if (!flown && pending === 0) {
+          setLocating(false);
+          setLocateNote(OUTSIDE_NOTE);
         }
-        hereLayer.clearLayers();
-        // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
-        const ink = cssVar("--color-at-ink") || PALETTE.ink;
-        L.circle(here, {
-          radius: pos.coords.accuracy,
-          color: ink,
-          weight: 1,
-          fillOpacity: 0.08,
-          interactive: false,
-        }).addTo(hereLayer);
-        L.circleMarker(here, {
-          radius: 7,
-          weight: 3,
-          color: PALETTE.surface,
-          fillColor: ink,
-          fillOpacity: 1,
-          interactive: false,
-        }).addTo(hereLayer);
-        // The reader chose this view, so the first poll must not frame it away.
-        framed.current = true;
-        // Centred on the reader and wide enough for the nearest few vehicles (see
-        // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
-        const shown = (vehiclesRef.current ?? []).filter((v) => !mode || v.mode === mode);
-        const frame = nearbyFrame(
-          [here.lat, here.lng],
-          pos.coords.accuracy,
-          shown.map((v) => [v.lat, v.lon] as const),
-        );
-        map.flyToBounds(frame, {
-          padding: [24, 24],
-          maxZoom: NEAR_MAX_ZOOM,
-          duration: 0.8,
-          animate: !reducedMotion(),
+        return;
+      }
+      if (pos.coords.accuracy >= best) return;
+      best = pos.coords.accuracy;
+      hereLayer.clearLayers();
+      // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
+      const ink = cssVar("--color-at-ink") || PALETTE.ink;
+      L.circle(here, {
+        radius: pos.coords.accuracy,
+        color: ink,
+        weight: 1,
+        fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(hereLayer);
+      // The dot is an HTML marker, not a circleMarker: Leaflet scales vector
+      // layers as a picture through a zoom, so the flight below blew a vector
+      // dot up to hundreds of pixels until it landed. A marker keeps its size.
+      L.marker(here, {
+        icon: L.divIcon({
+          className: "",
+          html: `<span aria-hidden="true" style="display:block;box-sizing:content-box;width:11px;height:11px;border:3px solid ${PALETTE.surface};border-radius:50%;background:${ink}"></span>`,
+          iconSize: [17, 17],
+          iconAnchor: [8.5, 8.5],
+        }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(hereLayer);
+      if (flown) return;
+      flown = true;
+      setLocating(false);
+      // The reader chose this view, so the first poll must not frame it away.
+      framed.current = true;
+      // Centred on the reader and wide enough for the nearest few vehicles (see
+      // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
+      const shown = (vehiclesRef.current ?? []).filter((v) => !mode || v.mode === mode);
+      const frame = nearbyFrame(
+        [here.lat, here.lng],
+        pos.coords.accuracy,
+        shown.map((v) => [v.lat, v.lon] as const),
+      );
+      // Leaflet stretches the overlay pane (vehicle dots, road lines, accuracy
+      // ring) as one picture through a flight, so four zoom levels blow 8px dots
+      // up into blurred blobs. Hide it until the flight ends; the renderers
+      // redraw on moveend in handlers added before this one, so it shows sharp.
+      const overlay = map.getPane("overlayPane");
+      if (overlay) {
+        overlay.style.opacity = "0";
+        map.once("moveend", () => {
+          overlay.style.opacity = "";
         });
-      },
-      (err) => {
-        setLocating(false);
-        setLocateNote(
-          err.code === err.PERMISSION_DENIED
+      }
+      map.flyToBounds(frame, {
+        padding: [24, 24],
+        maxZoom: NEAR_MAX_ZOOM,
+        duration: 0.8,
+        animate: !reducedMotion(),
+      });
+    };
+
+    /**
+     * Say why, once both asks have failed and nothing was found.
+     * @param err - The browser's error.
+     */
+    const failed = (err: GeolocationPositionError): void => {
+      pending--;
+      if (flown || pending > 0) return;
+      setLocating(false);
+      setLocateNote(
+        outside
+          ? OUTSIDE_NOTE
+          : err.code === err.PERMISSION_DENIED
             ? "Location is turned off for this site. Allow it in your browser's settings to zoom to where you are."
             : "Your location could not be found. Try again in a moment.",
-        );
-      },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
-    );
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(found, failed, {
+      enableHighAccuracy: false,
+      timeout: 10_000,
+      maximumAge: 300_000,
+    });
+    navigator.geolocation.getCurrentPosition(found, failed, {
+      enableHighAccuracy: true,
+      timeout: 20_000,
+      maximumAge: 60_000,
+    });
   };
 
   return (

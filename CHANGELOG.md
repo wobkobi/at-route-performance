@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.41.60] - 2026-10-03
+
+### Fixed
+
+- Near me asks for a quick Wi-Fi or cell fix and a GPS fix together: the quick one zooms the map in
+  under a second, and a later GPS fix only moves the dot and tightens its ring, where it used to
+  wait for GPS (up to 15 seconds, and often failing indoors). During the zoom-in the vehicle dots,
+  lines and accuracy ring are hidden and come back redrawn, and the location dot keeps its size,
+  where all of them used to swell into blurred blobs mid-flight.
+
 ## [2.41.59] - 2026-10-03
 
 ### Fixed
