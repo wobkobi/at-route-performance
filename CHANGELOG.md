@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.43.2] - 2026-10-04
+
+### Fixed
+
+- On the live map's suburb-zoom dots, an early vehicle's icon is drawn in dark ink instead of white,
+  since white on the bright early green was too faint to read (2.1:1, now 7.5:1). Dots in the other
+  colours keep white icons.
+
 ## [2.43.1] - 2026-10-04
 
 ### Fixed

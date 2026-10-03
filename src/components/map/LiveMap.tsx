@@ -62,7 +62,7 @@ const ICON_ZOOM = 15;
 
 /**
  * From this zoom up to {@link ICON_ZOOM} the canvas dots become bigger filled
- * dots with the mode's glyph in white. They are DOM markers too, drawn as they
+ * dots with the mode's glyph in white (ink on early green). They are DOM markers too, drawn as they
  * come into view; a suburb's view holds a few hundred at most, where the whole
  * region's thousand stay on the canvas as plain dots.
  */
@@ -436,6 +436,8 @@ export default function LiveMap({
             : vehicleDotIcon(L, {
                 fill: colour[status.band],
                 glyph,
+                // White on the bright early green is 2.1:1; ink is 7.5:1, as on the early badge.
+                glyphFill: status.band === "early" ? PALETTE.ink : "#fff",
                 size: v.mode === "BUS" ? 20 : 24,
               });
         L.marker([v.lat, v.lon], { icon, keyboard: false })

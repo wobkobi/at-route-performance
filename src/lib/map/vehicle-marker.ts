@@ -101,15 +101,17 @@ export function vehicleIcon(L: typeof Leaflet, o: VehicleMarkerOptions): Leaflet
 export interface VehicleDotOptions {
   /** Disc colour: the band's bright mark colour. */
   fill: string;
-  /** The route's glyph, drawn white, or null for a plain disc. */
+  /** The route's glyph, or null for a plain disc. */
   glyph: MarkerGlyph | null;
+  /** The glyph's colour: white, or ink on a fill too pale for white to read on. */
+  glyphFill: string;
   /** Width of the dot in pixels, white edge included. */
   size: number;
 }
 
 /**
  * The live map's mid-zoom vehicle: a disc filled in the delay colour with a white
- * edge and the route's glyph in white, bigger than the zoomed-out canvas dot so
+ * edge and the route's glyph inside, bigger than the zoomed-out canvas dot so
  * the glyph reads, smaller than the street-level marker so a suburb's worth fit.
  * @param L - The Leaflet module.
  * @param o - Dot options.
@@ -121,7 +123,7 @@ export function vehicleDotIcon(L: typeof Leaflet, o: VehicleDotOptions): Leaflet
   const g = Math.round(o.size * 0.55);
   const at = (o.size - g) / 2;
   const glyph = o.glyph
-    ? `<svg x="${at}" y="${at}" width="${g}" height="${g}" viewBox="${o.glyph.viewBox}" fill="#fff">${o.glyph.body}</svg>`
+    ? `<svg x="${at}" y="${at}" width="${g}" height="${g}" viewBox="${o.glyph.viewBox}" fill="${o.glyphFill}">${o.glyph.body}</svg>`
     : "";
   return L.divIcon({
     className: "vehicle-marker",
