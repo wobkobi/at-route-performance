@@ -1,6 +1,6 @@
 // src/components/trip/TripLine.tsx
 // The trip page's stop timeline drawn as a transit map: the run's stops on one
-// vertical line in the route's colour, with the stops it made off its timetable
+// vertical Shore line, with the stops it made off its timetable
 // on a spur beside it and the stops it went around bypassed.
 
 import { SvgSwatch, SwatchKey } from "@/components/ui/SwatchKey";
@@ -9,7 +9,7 @@ import { formatDelay, UNKNOWN_VALUE } from "@/lib/format";
 import { fitLabel, labelWidth } from "@/lib/label-width";
 import { delayBand } from "@/lib/on-time";
 import { stopHref } from "@/lib/page/hrefs";
-import { detourStrokeClass, routeColour } from "@/lib/route/colour";
+import { DETOUR_STROKE, ROUTE_LINE_STROKE } from "@/lib/route/colour";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
 import type { LineLeg, LineStop, TripLine as TripLineData } from "@/lib/trip/line";
 import Link from "next/link";
@@ -109,8 +109,6 @@ export interface TripLineProps {
   line: TripLineData;
   /** The route's mode, for the on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
-  colour: string | null;
   /** The day each stop's link opens on (the run's day), or undefined for today. */
   stopDay?: string;
 }
@@ -123,11 +121,10 @@ export interface TripLineProps {
  * @param props - See {@link TripLineProps}.
  * @param props.line - The line.
  * @param props.mode - The route's mode.
- * @param props.colour - The route's colour.
  * @param props.stopDay - The day each stop's link opens on.
  * @returns The timeline and its key.
  */
-export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.Element {
+export function TripLine({ line, mode, stopDay }: TripLineProps): JSX.Element {
   const present = {
     unrecorded: line.stops.some((s) => s.state === "unrecorded"),
     skipped: line.stops.some((s) => s.state === "skipped"),
@@ -138,24 +135,10 @@ export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.El
   return (
     <>
       <div className="sm:hidden">
-        <LineSvg
-          line={line}
-          mode={mode}
-          colour={colour}
-          width={PHONE_W}
-          compact
-          stopDay={stopDay}
-        />
+        <LineSvg line={line} mode={mode} width={PHONE_W} compact stopDay={stopDay} />
       </div>
       <div className="hidden sm:block">
-        <LineSvg
-          line={line}
-          mode={mode}
-          colour={colour}
-          width={WIDE_W}
-          compact={false}
-          stopDay={stopDay}
-        />
+        <LineSvg line={line} mode={mode} width={WIDE_W} compact={false} stopDay={stopDay} />
       </div>
       {/* The drawing's name links are out of the tab order; these are the ones a keyboard or
           screen reader reaches. */}
@@ -166,7 +149,7 @@ export function TripLine({ line, mode, colour, stopDay }: TripLineProps): JSX.El
           </li>
         ))}
       </ol>
-      <LineKey present={present} detourClass={detourStrokeClass(routeColour(mode, colour))} />
+      <LineKey present={present} />
     </>
   );
 }
@@ -190,7 +173,6 @@ function jumpsSkipped(stops: readonly LineStop[], leg: LineLeg): boolean {
  * @param props - Props.
  * @param props.line - The line.
  * @param props.mode - The route's mode.
- * @param props.colour - The route's colour.
  * @param props.width - The narrowest this layout is drawn (px).
  * @param props.compact - Shorter wording for the phone.
  * @param props.stopDay - The day each stop's link opens on.
@@ -199,14 +181,12 @@ function jumpsSkipped(stops: readonly LineStop[], leg: LineLeg): boolean {
 function LineSvg({
   line,
   mode,
-  colour,
   width,
   compact,
   stopDay,
 }: {
   line: TripLineData;
   mode: string;
-  colour: string | null;
   width: number;
   compact: boolean;
   stopDay?: string;
@@ -215,7 +195,6 @@ function LineSvg({
   const bowed = legs.map((g) => jumpsSkipped(stops, g));
   const hasSpur = stops.some((s) => s.offTimetable) || bowed.some(Boolean);
   const textX = hasSpur ? TEXT_X_SPUR : TEXT_X;
-  const lineHex = routeColour(mode, colour);
   /**
    * A stop's circle centre, down the drawing.
    * @param i - Line index.
@@ -287,7 +266,7 @@ function LineSvg({
               strokeWidth={4}
               strokeDasharray="6 4"
               strokeLinecap="round"
-              className={detourStrokeClass(lineHex)}
+              className={DETOUR_STROKE}
             />
           );
         }
@@ -298,7 +277,7 @@ function LineSvg({
             fill="none"
             strokeWidth={6}
             strokeLinecap="round"
-            style={{ stroke: lineHex }}
+            className={ROUTE_LINE_STROKE}
           />
         );
       })}
@@ -396,14 +375,11 @@ function LineSvg({
  * @param props.present.notServed - A stop the trip never reached.
  * @param props.present.offTimetable - A stop the trip made off its timetable.
  * @param props.present.ahead - A leg a live trip has not reached yet.
- * @param props.detourClass - The off-timetable legs' stroke class, as the line draws them.
  * @returns The key, or null when there is nothing to explain.
  */
 function LineKey({
   present,
-  detourClass,
 }: {
-  detourClass: string;
   present: {
     unrecorded: boolean;
     skipped: boolean;
@@ -457,7 +433,7 @@ function LineKey({
   if (present.offTimetable)
     entries.push({
       key: "off",
-      swatch: leg(detourClass, 4, "6 4"),
+      swatch: leg(DETOUR_STROKE, 4, "6 4"),
       label: "Off the timetable's path",
     });
   if (present.skipped)

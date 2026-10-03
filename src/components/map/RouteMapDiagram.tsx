@@ -25,8 +25,6 @@ export interface RouteMapDiagramProps {
   mode: string;
   /** The route is a school service, whose vehicles take the school bus glyph. */
   school: boolean;
-  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
-  colour: string | null;
   /**
    * When set, only live vehicles whose `directionId` is in this list are shown.
    * Pass all raw GTFS direction ids that alias to the active direction.
@@ -46,7 +44,6 @@ export interface RouteMapDiagramProps {
  * @param props.live - Whether to plot live vehicles.
  * @param props.mode - Route mode.
  * @param props.school - Whether the route is a school service.
- * @param props.colour - The route's GTFS colour, for its lines.
  * @param props.filterDirectionIds - Raw GTFS direction ids aliasing the active direction.
  * @param props.stopDay - The day a stop's popup link opens on.
  * @returns The map section.
@@ -58,7 +55,6 @@ export function RouteMapDiagram({
   live,
   mode,
   school,
-  colour,
   filterDirectionIds,
   stopDay,
 }: RouteMapDiagramProps): JSX.Element {
@@ -85,7 +81,6 @@ export function RouteMapDiagram({
         live={live}
         mode={modeOrBus(mode)}
         school={school}
-        colour={colour}
         filterDirectionIds={filterDirectionIds}
         stopLinks
         stopDay={stopDay}

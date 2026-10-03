@@ -74,6 +74,7 @@ export function ShameOfDay({
           mode={trip.mode}
           shortName={trip.shortName}
           longName={trip.longName}
+          colour={trip.colour}
           className="h-6 w-6"
         />
         <WorstCardTitle>{name}</WorstCardTitle>

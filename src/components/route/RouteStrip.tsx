@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import { midSentence } from "@/lib/format";
 import { stopHref } from "@/lib/page/hrefs";
 import { useUrlParam } from "@/lib/page/use-url-param";
-import { detourStrokeClass, routeColour } from "@/lib/route/colour";
+import { DETOUR_STROKE, ROUTE_LINE_STROKE } from "@/lib/route/colour";
 import type { StripMarks } from "@/lib/strip/marks";
 import {
   BYPASS_OFF,
@@ -103,8 +103,6 @@ export interface RouteStripProps {
   split: StopSplit | null;
   /** The route's mode, for its on-time window. */
   mode: string;
-  /** The route's GTFS colour (hex, no hash), or null for its mode's colour. */
-  colour: string | null;
   /** The side the page's direction chip picked, or null for both. */
   side: StripSide | null;
   /** Keys of the rows a live service alert names. */
@@ -127,7 +125,6 @@ export interface RouteStripProps {
  * @param props.strip - The strip.
  * @param props.split - The day's figures, or null.
  * @param props.mode - The route's mode.
- * @param props.colour - The route's colour.
  * @param props.side - The direction picked.
  * @param props.alertRows - Rows named in a live alert.
  * @param props.marks - The day's closures and detours, or null.
@@ -138,14 +135,12 @@ export function RouteStrip({
   strip,
   split,
   mode,
-  colour,
   side,
   alertRows,
   marks,
   stopDay,
 }: RouteStripProps): JSX.Element {
   const router = useRouter();
-  const lineHex = routeColour(mode, colour);
   const searchParams = useSearchParams();
   // Seeded from the live URL, since Back restores a page rendered before `ver` was written.
   // Only a key with a chip on screen counts: a minor version has none, and neither does a route
@@ -262,7 +257,6 @@ export function RouteStrip({
         twoWay={twoWay}
         figures={split != null}
         nameX={nameX}
-        lineHex={lineHex}
         alerts={alerts}
         active={active}
         setRef={(i, el) => {
@@ -301,13 +295,7 @@ export function RouteStrip({
         {layouts.two && (
           <div className="hidden gap-x-10 lg:grid lg:grid-cols-2">{copy("two", layouts.two)}</div>
         )}
-        <StripKey
-          view={view}
-          twoWay={twoWay}
-          perStop={split != null}
-          alert={hasAlert}
-          lineHex={lineHex}
-        />
+        <StripKey view={view} twoWay={twoWay} perStop={split != null} alert={hasAlert} />
       </div>
       {view.notes.length > 0 && (
         <div className="mt-3 border-t border-at-border pt-2 text-xs text-at-muted">
@@ -343,7 +331,6 @@ export function RouteStrip({
  * @param props.twoWay - Whether the route runs both ways.
  * @param props.figures - Whether there are figures per stop to show.
  * @param props.nameX - Where the names start (px).
- * @param props.lineHex - The route's line colour.
  * @param props.alerts - Keys of the rows an alert names.
  * @param props.active - The row in the tab order.
  * @param props.setRef - Keeps each row's element, for moving focus.
@@ -360,7 +347,6 @@ function Column({
   twoWay,
   figures,
   nameX,
-  lineHex,
   alerts,
   active,
   setRef,
@@ -375,7 +361,6 @@ function Column({
   twoWay: boolean;
   figures: boolean;
   nameX: number;
-  lineHex: string;
   alerts: ReadonlySet<string>;
   active: number;
   setRef: (i: number, el: HTMLLIElement | null) => void;
@@ -383,7 +368,6 @@ function Column({
   onKey: (e: KeyboardEvent<HTMLLIElement>, i: number) => void;
   hrefOf: (i: number) => string | null;
 }): JSX.Element {
-  const detour = detourStrokeClass(lineHex);
   const rowsH = col.rows.length * STRIP_ROW;
   const drawH = Math.max(rowsH, col.bottom + TERMINUS_R + RING_W);
   // Pieces off the picked version go first, so the line it runs along is drawn over their ends;
@@ -440,9 +424,13 @@ function Column({
           {pieces.map((p, i) => {
             const on = version == null || p.versions.includes(version);
             const stroke = p.mark ? MARK_STROKE[p.mark] : { w: LINE_W };
-            // The line and a closed stop's strand take the route's colour; the rest their own.
+            // The line and a closed stop's strand take the line's Shore; the rest their own.
             const own =
-              p.mark === "stub" ? "stroke-at-muted" : p.mark && p.mark !== "closed" ? detour : null;
+              p.mark === "stub"
+                ? "stroke-at-muted"
+                : p.mark && p.mark !== "closed"
+                  ? DETOUR_STROKE
+                  : null;
             return (
               <path
                 key={i}
@@ -452,8 +440,7 @@ function Column({
                 strokeDasharray={stroke.dash}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={!on ? "stroke-at-border" : (own ?? undefined)}
-                style={on && !own ? { stroke: lineHex } : undefined}
+                className={!on ? "stroke-at-border" : (own ?? ROUTE_LINE_STROKE)}
               />
             );
           })}
@@ -646,7 +633,6 @@ function Ring({
  * @param props.twoWay - Whether the rings are split.
  * @param props.perStop - Whether figures are shown per stop.
  * @param props.alert - Whether a stop is named in an alert.
- * @param props.lineHex - The route's line colour, for the line swatch.
  * @returns The key, or null when there is nothing to explain.
  */
 function StripKey({
@@ -654,15 +640,12 @@ function StripKey({
   twoWay,
   perStop,
   alert,
-  lineHex,
 }: {
   view: StripView;
   twoWay: boolean;
   perStop: boolean;
   alert: boolean;
-  lineHex: string;
 }): JSX.Element | null {
-  const detour = detourStrokeClass(lineHex);
   const entries: Array<{ key: string; swatch: JSX.Element; label: string }> = [];
   /**
    * A half-ring swatch: the given halves on a white ring.
@@ -748,7 +731,7 @@ function StripKey({
       key: "pass",
       swatch: (
         <>
-          <line x1={10} x2={10} y1={1} y2={19} strokeWidth={5} style={{ stroke: lineHex }} />
+          <line x1={10} x2={10} y1={1} y2={19} strokeWidth={5} className={ROUTE_LINE_STROKE} />
           <circle cx={10} cy={10} r={5} strokeWidth={3} className="fill-none stroke-at-border" />
         </>
       ),
@@ -757,7 +740,7 @@ function StripKey({
   }
   /**
    * A short horizontal stroke, for the strands and stretches.
-   * @param cls - Its stroke class, or none for the route's colour.
+   * @param cls - Its stroke class, or none for the line's.
    * @param w - Its width.
    * @param dash - Its dash pattern, if any.
    * @returns The line.
@@ -771,8 +754,7 @@ function StripKey({
       strokeWidth={w}
       strokeDasharray={dash}
       strokeLinecap="round"
-      className={cls ?? undefined}
-      style={cls ? undefined : { stroke: lineHex }}
+      className={cls ?? ROUTE_LINE_STROKE}
     />
   );
   if (view.present.closed) {
@@ -785,7 +767,7 @@ function StripKey({
             fill="none"
             strokeWidth={2.5}
             strokeLinejoin="round"
-            style={{ stroke: lineHex }}
+            className={ROUTE_LINE_STROKE}
           />
           <circle
             cx={7}
@@ -810,14 +792,14 @@ function StripKey({
   if (view.present.detour) {
     entries.push({
       key: "detour",
-      swatch: stroke(detour, 4),
+      swatch: stroke(DETOUR_STROKE, 4),
       label: "Detour the trips took",
     });
   }
   if (view.present.suspect) {
     entries.push({
       key: "suspect",
-      swatch: stroke(detour, 4, "6 4"),
+      swatch: stroke(DETOUR_STROKE, 4, "6 4"),
       label: "Detour seen on one or two trips",
     });
   }
@@ -827,7 +809,7 @@ function StripKey({
       swatch: (
         <>
           {stroke(null, 6)}
-          {stroke(detour, 3, "4 4")}
+          {stroke(DETOUR_STROKE, 3, "4 4")}
         </>
       ),
       label: "Detour announced, not yet seen on the trips",

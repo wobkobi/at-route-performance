@@ -590,6 +590,7 @@ export default async function RoutePage({
                 mode={route.mode}
                 shortName={route.shortName}
                 longName={route.longName}
+                colour={route.colour}
                 className="h-7 w-7"
               />
             )
@@ -723,7 +724,6 @@ export default async function RoutePage({
             live={isLiveView}
             mode={routeMode}
             school={school}
-            colour={route?.colour ?? null}
             filterDirectionIds={activeDirIds ?? undefined}
           />
           {/* Hidden rather than empty when the pattern failed to load: the
@@ -738,7 +738,6 @@ export default async function RoutePage({
                 view={view}
                 range={null}
                 mode={routeMode}
-                colour={route?.colour ?? null}
                 activeDir={activeDir}
               />
             </Suspense>
@@ -820,7 +819,6 @@ export default async function RoutePage({
               live={isLiveView}
               mode={routeMode}
               school={school}
-              colour={route?.colour ?? null}
               filterDirectionIds={activeDirIds ?? undefined}
               stopDay={stopDay}
             />
@@ -836,7 +834,6 @@ export default async function RoutePage({
                 view={view}
                 range={range}
                 mode={routeMode}
-                colour={route?.colour ?? null}
                 activeDir={activeDir}
                 stopDay={stopDay}
               />
@@ -977,7 +974,6 @@ async function RouteAlertBannerSection({
  * @param root0.range - The day to read figures, closures and detours per stop for, or null for the
  *   week, which has none.
  * @param root0.mode - The route's mode.
- * @param root0.colour - The route's GTFS colour, or null.
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
  * @param root0.stopDay - The day each stop's link opens on.
@@ -989,7 +985,6 @@ async function RouteDiagramSection({
   view,
   range,
   mode,
-  colour,
   activeDir,
   live,
   stopDay,
@@ -999,7 +994,6 @@ async function RouteDiagramSection({
   view: RouteView;
   range: DateRange | null;
   mode: string;
-  colour: string | null;
   activeDir: number | null;
   live: boolean;
   stopDay?: string;
@@ -1060,7 +1054,6 @@ async function RouteDiagramSection({
       strip={strip}
       split={split}
       mode={mode}
-      colour={colour}
       side={side}
       alertRows={alertRows}
       marks={marks}

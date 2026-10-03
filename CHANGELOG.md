@@ -32,6 +32,58 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.43.0] - 2026-10-03
+
+### Added
+
+- The live map's toggle row gains Buses, Trains and Ferries, each hiding its vehicles and route
+  lines, so the rail and ferry network can be seen without the bus roads; All vehicles turns every
+  band and mode back on. They hide while the page's own mode filter is set.
+
+## [2.42.0] - 2026-10-03
+
+### Added
+
+- Zoomed in to suburb level on the live map, each vehicle is a bigger dot filled in its delay colour
+  with its bus, train or ferry icon in white, so the mode reads before street level, where the
+  ringed marker with its heading arrow still takes over. Zoomed out to the whole region the dots
+  stay small and plain.
+
+## [2.41.60] - 2026-10-03
+
+### Fixed
+
+- Near me asks for a quick Wi-Fi or cell fix and a GPS fix together: the quick one zooms the map in
+  under a second, and a later GPS fix only moves the dot and tightens its ring, where it used to
+  wait for GPS (up to 15 seconds, and often failing indoors). During the zoom-in the vehicle dots,
+  lines and accuracy ring are hidden and come back redrawn, and the location dot keeps its size,
+  where all of them used to swell into blurred blobs mid-flight.
+
+## [2.41.59] - 2026-10-03
+
+### Fixed
+
+- Tapping a segment of the home verdict bar opens its note under that segment, where it always
+  opened at the bar's left edge under the on-time blue; on a phone, where the note is wider than a
+  segment, it lines up with the bar's nearer end.
+
+## [2.41.58] - 2026-10-03
+
+### Fixed
+
+- A route's branch lines on the live map now run along their own street to the junction and end on
+  the main line, where they used to stop up to 40 metres short and float; route 65's Walker Park
+  branch in Point Chevalier was the one seen. The map lines rebuild on the next load.
+
+## [2.41.57] - 2026-10-03
+
+### Fixed
+
+- Route icons take the route's own AT colour (green for the Inner Link, red for the Southern Line),
+  falling back to the mode's colour, and every single route's line, map and stop diagram is drawn in
+  Shore blue, so the icon says which route and the line reads the same everywhere. The live map
+  keeps each route's colour, since it draws them all at once.
+
 ## [2.41.56] - 2026-10-03
 
 ### Fixed

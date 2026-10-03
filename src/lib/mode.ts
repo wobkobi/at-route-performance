@@ -54,9 +54,9 @@ export function modeWord(mode: Mode, plural = false): string {
 }
 
 /**
- * Each mode's icon colour as a text class: one colour per mode, whatever the
- * route. Bus and train share AT Shore blue and are told apart by their glyphs;
- * ferry takes greeny-bluey.
+ * Each mode's icon colour as a text class, for a route AT gives no colour of its
+ * own and for an icon standing for the whole mode. Bus and train share AT Shore
+ * blue and are told apart by their glyphs; ferry takes greeny-bluey.
  */
 export const MODE_ICON_CLASS: Record<Mode, string> = {
   BUS: "text-at-shore",
@@ -64,7 +64,7 @@ export const MODE_ICON_CLASS: Record<Mode, string> = {
   FERRY: "text-at-greeny-bluey",
 };
 
-/** {@link MODE_ICON_CLASS} as hex, for the shared-link card and map lines. */
+/** {@link MODE_ICON_CLASS} as hex, for the shared-link card and the live map's lines. */
 export const MODE_ICON_HEX: Record<Mode, string> = {
   BUS: PALETTE.shore,
   TRAIN: PALETTE.shore,
