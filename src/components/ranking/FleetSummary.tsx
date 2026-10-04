@@ -208,7 +208,7 @@ export function FleetSummary({
           "grid grid-cols-2",
           verdict
             ? "gap-x-6 gap-y-5 border-t border-at-border pt-5 lg:grid-cols-4"
-            : "sm:grid-cols-3 lg:grid-cols-5",
+            : "sm:grid-cols-4",
         )}
       >
         <div className={cell}>
@@ -249,13 +249,17 @@ export function FleetSummary({
           </div>
           <div className="text-xs text-at-muted">Reinstated trips included</div>
         </div>
-        <div className={cell}>
-          <div className={LABEL_CLASS}>Routes</div>
-          <div className={valueClass}>
-            {formatCount(data.route_count)}
-            <SchoolAdded n={schoolAdded?.route_count} />
+        {/* The bordered strip sits over the Routes page's own "N of M routes"
+            count, which says the same number. */}
+        {verdict && (
+          <div className={cell}>
+            <div className={LABEL_CLASS}>Routes</div>
+            <div className={valueClass}>
+              {formatCount(data.route_count)}
+              <SchoolAdded n={schoolAdded?.route_count} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
       {/* A route with cancellations but no arrivals still counts under Routes, so
           the strip can read a real 0 beside four dashes - and a filter that

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.49.0] - 2026-10-05
+
+### Added
+
+- The Routes list packs more into less room: each row shows the live count, operator, areas and an
+  on-time, late and early split, the count sits in the filter row, and the duplicate Routes figure
+  is gone
+
 ## [2.48.0] - 2026-10-05
 
 ### Added

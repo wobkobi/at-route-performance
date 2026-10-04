@@ -15,8 +15,10 @@ import { ChevronDown, ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
 import { SortHeader } from "@/components/SortHeader";
+import { Badge } from "@/components/ui/Badge";
 import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MiniSplit } from "@/components/ui/MiniSplit";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { ShowMore } from "@/components/ui/ShowMore";
@@ -79,10 +81,13 @@ const TOGGLES = [
 ] as const;
 
 /** Padding for the figure columns a phone shows: narrower sides there, so Route keeps its room. */
-const PHONE_FIGURE = "px-2 py-3 sm:px-3";
+const PHONE_FIGURE = "px-2 py-2 sm:px-3";
+
+/** Padding for the figure columns only a wider screen shows. */
+const WIDE_FIGURE = "px-3 py-2";
 
 /** Columns in the table, the chevron's included, for the not-ranked divider's span. */
-const COLUMNS = 7;
+const COLUMNS = 9;
 
 /**
  * How many filters are set, for the phone's Filters button. Each menu counts
@@ -234,6 +239,8 @@ export function RouteExplorer({
     [rows, operators],
   );
 
+  const operatorName = useMemo(() => new Map(operators.map((o) => [o.slug, o.name])), [operators]);
+
   const isDefault = Object.keys(explorerQuery(filters)).length === 0;
   const setCount = activeFilterCount(filters);
   // The count is out of the routes the school-bus choice leaves, so the default
@@ -247,7 +254,7 @@ export function RouteExplorer({
   const firstUnranked = page.findIndex((r) => unranked(r, filters.sort, minEvents));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <FleetSummary data={hero} />
 
       <Panel aria-label="Search and filter routes" pad="sm" className="space-y-3">
@@ -368,6 +375,23 @@ export function RouteExplorer({
               ))}
             </FilterMenu>
           </div>
+          {/* Last in the row, pushed right; on a phone it wraps under the box. */}
+          <div className="flex w-full items-center justify-between gap-2 lg:ml-auto lg:w-auto">
+            <span role="status" className="text-sm text-at-muted tabular-nums">
+              {sorted.length === baseCount
+                ? `${formatCount(baseCount)} routes`
+                : `${formatCount(sorted.length)} of ${formatCount(baseCount)} routes`}
+            </span>
+            {!isDefault && (
+              <button
+                type="button"
+                onClick={() => update(DEFAULT_FILTERS)}
+                className="chip chip-off gap-1"
+              >
+                <span aria-hidden>×</span> Reset all
+              </button>
+            )}
+          </div>
         </div>
         {filters.runningNow && !runningSet && (
           <p role="status" className="text-xs text-at-muted">
@@ -376,22 +400,6 @@ export function RouteExplorer({
               : "AT's live feed could not be read just now, so every route is listed."}
           </p>
         )}
-        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-t border-at-border pt-3">
-          <span role="status" className="text-sm text-at-muted tabular-nums">
-            {sorted.length === baseCount
-              ? `${formatCount(baseCount)} routes`
-              : `${formatCount(sorted.length)} of ${formatCount(baseCount)} routes`}
-          </span>
-          {!isDefault && (
-            <button
-              type="button"
-              onClick={() => update(DEFAULT_FILTERS)}
-              className="chip chip-off gap-1"
-            >
-              <span aria-hidden>×</span> Reset all
-            </button>
-          )}
-        </div>
       </Panel>
 
       {sorted.length === 0 ? (
@@ -417,9 +425,23 @@ export function RouteExplorer({
               <SortHeader
                 onClick={() => sortBy("ontime")}
                 dir={dirOf("ontime")}
-                className={PHONE_FIGURE + " w-20 sm:w-24"}
+                className={PHONE_FIGURE + " w-20 sm:w-28"}
               >
                 On time
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("late")}
+                dir={dirOf("late")}
+                className={WIDE_FIGURE + " hidden w-22 lg:table-cell"}
+              >
+                Late
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("early")}
+                dir={dirOf("early")}
+                className={WIDE_FIGURE + " hidden w-22 lg:table-cell"}
+              >
+                Early
               </SortHeader>
               <SortHeader
                 onClick={() => sortBy("off")}
@@ -431,21 +453,21 @@ export function RouteExplorer({
               <SortHeader
                 onClick={() => sortBy("delay")}
                 dir={dirOf("delay")}
-                className="hidden w-36 sm:table-cell"
+                className={WIDE_FIGURE + " hidden w-32 sm:table-cell"}
               >
                 Early or late
               </SortHeader>
               <SortHeader
                 onClick={() => sortBy("arrivals")}
                 dir={dirOf("arrivals")}
-                className="hidden w-28 md:table-cell"
+                className={WIDE_FIGURE + " hidden w-26 md:table-cell"}
               >
                 Arrivals
               </SortHeader>
               <SortHeader
                 onClick={() => sortBy("cancelled")}
                 dir={dirOf("cancelled")}
-                className="hidden w-28 md:table-cell"
+                className={WIDE_FIGURE + " hidden w-26 md:table-cell"}
               >
                 Cancelled
               </SortHeader>
@@ -457,9 +479,11 @@ export function RouteExplorer({
           <tbody>
             {page.map((r, i) => {
               const thin = firstUnranked !== -1 && i >= firstUnranked;
-              // Bus long names are mostly the bare number, so the areas stand in
-              // as the second line where there is no name to show.
-              const second = routeSubtitle(r) ?? r.areas.map((a) => AREA_LABEL[a]).join(" · ");
+              const name = routeSubtitle(r);
+              const live = runningSet?.has(r.slug) ?? false;
+              const op = r.operator ? (operatorName.get(r.operator) ?? null) : null;
+              const where = r.areas.map((a) => AREA_LABEL[a]).join(", ");
+              const meta = [op, where].filter(Boolean).join(" · ");
               return [
                 i === firstUnranked && (
                   <tr key="unranked" className={cn(ROW_CLASS, "no-stripe")}>
@@ -476,7 +500,7 @@ export function RouteExplorer({
                     thin && "text-at-muted",
                   )}
                 >
-                  <th scope="row" className="p-3 text-left font-normal">
+                  <th scope="row" className="px-3 py-2 text-left font-normal">
                     <div className="flex items-start gap-2">
                       <ModeIcon
                         mode={r.mode}
@@ -486,15 +510,27 @@ export function RouteExplorer({
                         className="mt-px h-5 w-5 shrink-0"
                       />
                       <div className="min-w-0">
-                        {/* The link covers the row, so the whole row opens the route. */}
-                        <Link
-                          href={routeHref(r.slug, routeParams)}
-                          prefetch={false}
-                          className={cn(ROUTE_NAME_CLASS, "after:absolute after:inset-0")}
-                        >
-                          {routeDisplayName(r)}
-                        </Link>
-                        {second && <p className="line-clamp-2 text-xs text-at-muted">{second}</p>}
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {/* The link covers the row, so the whole row opens the route. */}
+                          <Link
+                            href={routeHref(r.slug, routeParams)}
+                            prefetch={false}
+                            className={cn(
+                              ROUTE_NAME_CLASS,
+                              "shrink-0 after:absolute after:inset-0",
+                            )}
+                          >
+                            {routeDisplayName(r)}
+                          </Link>
+                          {name && <span className="min-w-0 truncate text-at-muted">{name}</span>}
+                          {live && (
+                            <span className="shrink-0">
+                              <Badge tone="live" label="LIVE" />
+                              <span className="sr-only"> running now</span>
+                            </span>
+                          )}
+                        </div>
+                        {meta && <p className="truncate text-xs text-at-muted">{meta}</p>}
                       </div>
                     </div>
                   </th>
@@ -506,29 +542,39 @@ export function RouteExplorer({
                     )}
                   >
                     {formatPct(r.on_time_pct)}
+                    <MiniSplit shares={r} className="mt-1" />
+                  </td>
+                  <td className={cn(WIDE_FIGURE, "hidden text-right tabular-nums lg:table-cell")}>
+                    {formatPct(r.late_pct)}
+                  </td>
+                  <td className={cn(WIDE_FIGURE, "hidden text-right tabular-nums lg:table-cell")}>
+                    {formatPct(r.early_pct)}
                   </td>
                   <td className={cn(PHONE_FIGURE, "text-right whitespace-nowrap tabular-nums")}>
                     {r.avg_abs_delay_sec === null
                       ? UNKNOWN_VALUE
                       : formatDuration(r.avg_abs_delay_sec)}
                   </td>
-                  <td className="hidden p-3 text-right whitespace-nowrap sm:table-cell">
+                  <td
+                    className={cn(WIDE_FIGURE, "hidden text-right whitespace-nowrap sm:table-cell")}
+                  >
                     {/* A distance, never "on time": it sits beside an on-time %, and
                         the two read as disagreeing when this one says "on time". */}
                     <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
                   </td>
-                  <td className="hidden p-3 text-right tabular-nums md:table-cell">
+                  <td className={cn(WIDE_FIGURE, "hidden text-right tabular-nums md:table-cell")}>
                     {formatCount(r.events)}
                   </td>
                   <td
                     className={cn(
-                      "hidden p-3 text-right tabular-nums md:table-cell",
+                      WIDE_FIGURE,
+                      "hidden text-right tabular-nums md:table-cell",
                       r.cancelled > 0 && "text-at-late",
                     )}
                   >
                     {formatCount(r.cancelled)}
                   </td>
-                  <td className="py-3 pr-3 text-at-muted group-hover:text-at-shore">
+                  <td className="py-2 pr-3 text-at-muted group-hover:text-at-shore">
                     <ChevronRight className="h-4 w-4" />
                   </td>
                 </tr>,
