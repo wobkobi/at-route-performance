@@ -38,7 +38,7 @@ export const TRIP_PAGE_PARAM = "tpage";
 export const LIVE_ONLY_PARAM = "tlive";
 
 /** Trips per page of the board. */
-export const TRIP_PAGE_SIZE = 20;
+export const TRIP_PAGE_SIZE = 15;
 
 /**
  * The route page params that say how its trip board is being read: the travel

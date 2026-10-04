@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.49.1] - 2026-10-05
+
+### Changed
+
+- A route's trips board shows 15 trips a page
+
 ## [2.49.0] - 2026-10-05
 
 ### Added
