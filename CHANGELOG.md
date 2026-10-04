@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.46.1] - 2026-10-04
+
+### Fixed
+
+- On a phone, tapping the Routes or Compare search box or the Operator select no longer zooms the
+  page in: iOS Safari zooms on any field set under 16px, so these fields are 16px on a touch screen
+  and keep 14px under a mouse.
+
 ## [2.46.0] - 2026-10-04
 
 ### Added

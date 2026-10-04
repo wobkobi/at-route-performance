@@ -149,9 +149,12 @@
     @apply text-at-shore hover:underline;
   }
 
-  /* A select or search box. 44px tall, the site's smallest touch target. */
+  /* A select or search box. 44px tall, the site's smallest touch target. 16px
+     text on a touch screen: iOS Safari zooms the page in on focusing a field
+     set any smaller, and keys on the pointer rather than the width, since a
+     phone held sideways is wider than sm. */
   .at-field {
-    @apply min-h-11 border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore;
+    @apply min-h-11 border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore pointer-coarse:text-base;
   }
 
   /* The board row holding the worst of its board: a faint late tint, under any hover tint. */
