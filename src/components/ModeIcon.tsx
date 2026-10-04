@@ -18,7 +18,7 @@ export interface ModeIconProps {
   shortName?: string | null;
   /** Route long name, where the school `S###` code can live. */
   longName?: string | null;
-  /** The route's `route_color` (hex, no `#`); absent or unset draws the mode's colour. */
+  /** The route's `route_color` (hex, no `#`); absent or unset draws its brand or mode colour. */
   colour?: string | null;
   /** Extra classes; size defaults to `h-5 w-5`. */
   className?: string;
@@ -98,7 +98,7 @@ export function ModeIcon({
   decorative = false,
 }: ModeIconProps): JSX.Element {
   const { Icon, colourClass, label } = modeGlyph(mode, shortName, longName);
-  const own = brandColour(colour);
+  const own = brandColour(colour, shortName);
   return (
     <Icon
       {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": label })}

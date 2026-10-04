@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.45.2] - 2026-10-04
+
+### Fixed
+
+- NX1 and NX2 (Northern Express), WX1 (Western Express), AIR (AirportLink) and RBM (the Meadowbank
+  loop) take their brand colours on their icons, the live map's lines and share cards, since AT's
+  feed gives them none: dark blue, cyan, green, orange and the Eastern Line yellow. A colour AT
+  publishes for one of them later wins.
+
 ## [2.45.1] - 2026-10-04
 
 ### Fixed

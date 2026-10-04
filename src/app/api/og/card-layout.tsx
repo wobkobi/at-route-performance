@@ -213,7 +213,7 @@ export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName" | 
  */
 function Glyph({ route, size }: { route: GlyphRoute; size: number }): JSX.Element {
   const { Icon } = modeGlyph(route.mode, route.shortName, route.longName);
-  const hex = routeColour(route.mode, route.colour);
+  const hex = routeColour(route.mode, route.colour, route.shortName);
   const el = Icon({}) as ReactElement<{ attr?: { viewBox?: string }; children?: ReactNode }>;
   return (
     <svg viewBox={el.props.attr?.viewBox ?? "0 0 512 512"} width={size} height={size} fill={hex}>

@@ -22,6 +22,17 @@ describe("brandColour", () => {
     expect(brandColour("")).toBeNull();
     expect(brandColour(null)).toBeNull();
   });
+
+  it("gives an uncoloured branded service its brand colour", () => {
+    expect(brandColour("", "NX1")).toBe("#143F90");
+    expect(brandColour(null, "AIR")).toBe("#F7941E");
+    expect(brandColour(null, "RBM")).toBe("#FDB913");
+    expect(brandColour(null, "70")).toBeNull();
+  });
+
+  it("lets AT's own colour beat a brand colour", () => {
+    expect(brandColour("123456", "NX1")).toBe("#123456");
+  });
 });
 
 describe("routeColour", () => {
@@ -34,6 +45,10 @@ describe("routeColour", () => {
     expect(routeColour("TRAIN", "")).toBe(PALETTE.shore);
     expect(routeColour("FERRY", undefined)).toBe(PALETTE["greeny-bluey"]);
     expect(routeColour("TRAM", null)).toBe(PALETTE.shore);
+  });
+
+  it("puts a brand colour ahead of the mode's", () => {
+    expect(routeColour("BUS", null, "WX1")).toBe("#00843C");
   });
 });
 

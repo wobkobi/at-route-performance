@@ -140,7 +140,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
             top: trips,
             name: name && name !== slug ? name : null,
             mode: route.mode,
-            colour: routeColour(route.mode, route.colour),
+            colour: routeColour(route.mode, route.colour, route.shortName),
           };
           bySlug.set(slug, held);
         }
