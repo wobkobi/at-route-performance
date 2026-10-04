@@ -208,7 +208,6 @@ async function RouteRangeBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={shame.days}
       keyOf={(r, i) => r.date ?? String(i)}
       emptyMessage={`No routes recorded in ${periodInPhrase(periodNoun, periodParam)}.`}
@@ -319,7 +318,6 @@ async function RouteDayBoard({
 
   return (
     <ShameBoard
-      layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage={`No routes recorded ${dayWhen}.`}
@@ -389,7 +387,6 @@ async function RouteHoursBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={rows}
       keyOf={(r) => r.routeId}
       emptyMessage={

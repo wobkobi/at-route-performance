@@ -209,7 +209,6 @@ async function TripRangeBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={shame.days}
       keyOf={(t, i) => t.date ?? String(i)}
       emptyMessage={`No trips recorded in ${periodWhen}.`}
@@ -309,7 +308,6 @@ async function TripDayBoard({
 
   return (
     <ShameBoard
-      layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage={`No trips recorded ${dayWhen}.`}
@@ -370,7 +368,6 @@ async function TripHoursBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={rows}
       keyOf={(t) => t.trip_id}
       emptyMessage={

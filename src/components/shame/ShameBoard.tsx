@@ -33,7 +33,7 @@ const LABEL = "w-12 shrink-0 pt-px text-sm font-semibold tabular-nums";
 const STRETCHED =
   "text-at-shore after:absolute after:inset-0 group-hover:underline underline-offset-2";
 
-/** Anchor classes for a single-column row (mobile day list + week list). */
+/** Anchor classes for a single-column row (the phone list). */
 const MOBILE_ANCHOR =
   "flex items-start gap-3 border-t border-at-border px-4 py-3 transition-colors hover:bg-at-shore-pale";
 /** Anchor classes for a desktop grid cell (border lives on the `<li>`, cell is full-height). */
@@ -379,8 +379,6 @@ export function ShameEmptyHourRow({
 
 /** Props for {@link ShameBoard}. */
 export interface ShameBoardProps<T> {
-  /** "day" = responsive two-column hour grid; "week" = single-column list (days, or a ranked list). */
-  layout: "day" | "week";
   /** Rows to render (already filtered/ordered by the page). */
   items: T[];
   /** Stable React key for a row. */
@@ -396,13 +394,13 @@ export interface ShameBoardProps<T> {
 }
 
 /**
- * Shared board shell for the shame day/week views. Owns the surface container,
- * the empty state, the responsive layout (single-column on mobile and in the
- * week view; an explicit two-column CSS grid on desktop day views so column
- * dividers stay row-aligned), and the optional "none notably bad" footer. Each
- * page supplies `renderRow` for the entity-specific row body.
+ * Shared board shell for every shame list: the hours of a day, the days of a
+ * week or month, and a ranked list. Owns the surface container, the empty state,
+ * the responsive layout (single-column on mobile; an explicit two-column CSS
+ * grid from `md` so column dividers stay row-aligned), and the optional "none
+ * notably bad" footer. Each page supplies `renderRow` for the entity-specific
+ * row body.
  * @param props - Component props.
- * @param props.layout - "day" (hour grid) or "week" (day list).
  * @param props.items - Rows to render.
  * @param props.keyOf - Stable key for a row.
  * @param props.emptyMessage - Shown when there are no rows.
@@ -412,7 +410,6 @@ export interface ShameBoardProps<T> {
  * @returns The board element(s).
  */
 export function ShameBoard<T>({
-  layout,
   items,
   keyOf,
   emptyMessage,
@@ -429,23 +426,6 @@ export function ShameBoard<T>({
       {footerMessage}
     </Panel>
   );
-
-  if (layout === "week") {
-    return (
-      <>
-        <Panel as="div">
-          <ul className="striped">
-            {items.map((item, i) => (
-              <li key={keyOf(item, i)}>
-                {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-        {footer}
-      </>
-    );
-  }
 
   return (
     <>
@@ -467,7 +447,7 @@ export function ShameBoard<T>({
         <ul className="hidden md:grid md:grid-cols-2">
           {items.map((item, i) => {
             // Half the rows down each column (the extra one on the left), so a
-            // full day reads 12 and 12 rather than leaving a gap under one side.
+            // full day reads 12 and 12 and a ranked list 1 to 5 beside 6 to 10.
             const perCol = Math.ceil(items.length / 2);
             const isRight = i >= perCol;
             const rowIdx = isRight ? i - perCol : i;

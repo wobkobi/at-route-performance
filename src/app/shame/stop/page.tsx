@@ -202,7 +202,6 @@ async function StopRangeBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={shame.days}
       keyOf={(s) => s.date}
       emptyMessage={emptyBoardMessage(filter.direction, `in ${periodWhen}`)}
@@ -298,7 +297,6 @@ async function StopDayBoard({
 
   return (
     <ShameBoard
-      layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage={emptyBoardMessage(filter.direction, dayWhen)}
@@ -364,7 +362,6 @@ async function StopHoursBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={rows}
       keyOf={(s) => s.stop_id}
       emptyMessage={
