@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.50.0] - 2026-10-05
+
+### Added
+
+- Hardest-worked vehicles has a Live now filter listing only the vehicles on a trip now, ranked over
+  the day, week or month
+
 ## [2.49.4] - 2026-10-05
 
 ### Changed

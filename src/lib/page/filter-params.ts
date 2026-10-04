@@ -42,7 +42,15 @@ export function parseShown(raw: string | null | undefined): number {
  * carries these on every link that stays on it, so its back link returns to the
  * same list rather than the default board.
  */
-export const VEHICLE_LIST_PARAMS = ["mode", "school", "op", "sort", "rev", SHOWN_PARAM] as const;
+export const VEHICLE_LIST_PARAMS = [
+  "mode",
+  "school",
+  "op",
+  "live",
+  "sort",
+  "rev",
+  SHOWN_PARAM,
+] as const;
 
 /**
  * The named params that are set, in the order named. Only non-empty strings
