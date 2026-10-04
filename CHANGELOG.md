@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.45.1] - 2026-10-04
+
+### Fixed
+
+- Routes AT colours black (the Rakino, Rangitoto and Tiritiri ferries, and Te Huia) show their icon
+  in black instead of their mode's colour; black had been read as AT leaving the colour unset, which
+  it does by leaving the field empty.
+
 ## [2.45.0] - 2026-10-04
 
 ### Added

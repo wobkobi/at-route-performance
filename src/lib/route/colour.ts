@@ -1,5 +1,5 @@
-// A route's own colour (AT's `route_color` where it publishes a real one, else
-// its mode's), and the one colour every single route's line is drawn in.
+// A route's own colour (AT's `route_color` where it publishes one, else its
+// mode's), and the one colour every single route's line is drawn in.
 
 import { MODE_ICON_HEX, modeOrBus } from "@/lib/mode";
 import { PALETTE } from "@/lib/palette";
@@ -8,13 +8,15 @@ import { PALETTE } from "@/lib/palette";
 const HEX_COLOUR = /^[0-9a-f]{6}$/i;
 
 /**
- * A route's `route_color` as a CSS colour, or null when AT published none, a
- * malformed one, or `000000`, which AT's feed uses as "unset" rather than black.
+ * A route's `route_color` as a CSS colour, or null when AT published none or a
+ * malformed one. Black is a real colour here: AT leaves an unset route's field
+ * empty, and gives its black routes (the Rakino, Rangitoto and Tiritiri ferries
+ * among them) white text to go with it.
  * @param colour - The raw value, hex without `#`.
  * @returns `#rrggbb`, or null.
  */
 export function brandColour(colour: string | null | undefined): string | null {
-  return colour && HEX_COLOUR.test(colour) && colour !== "000000" ? `#${colour}` : null;
+  return colour && HEX_COLOUR.test(colour) ? `#${colour}` : null;
 }
 
 /**

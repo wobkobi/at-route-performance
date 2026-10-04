@@ -12,8 +12,11 @@ describe("brandColour", () => {
     expect(brandColour("F9A22E")).toBe("#F9A22E");
   });
 
-  it("treats black, malformed and missing values as no colour", () => {
-    expect(brandColour("000000")).toBeNull();
+  it("keeps black, which AT publishes for some routes", () => {
+    expect(brandColour("000000")).toBe("#000000");
+  });
+
+  it("treats malformed and missing values as no colour", () => {
     expect(brandColour("#f9a22e")).toBeNull();
     expect(brandColour("fff")).toBeNull();
     expect(brandColour("")).toBeNull();
@@ -28,7 +31,7 @@ describe("routeColour", () => {
 
   it("falls back to the mode's icon colour", () => {
     expect(routeColour("BUS", null)).toBe(PALETTE.shore);
-    expect(routeColour("TRAIN", "000000")).toBe(PALETTE.shore);
+    expect(routeColour("TRAIN", "")).toBe(PALETTE.shore);
     expect(routeColour("FERRY", undefined)).toBe(PALETTE["greeny-bluey"]);
     expect(routeColour("TRAM", null)).toBe(PALETTE.shore);
   });
