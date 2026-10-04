@@ -68,11 +68,15 @@ model Shape {
 // GTFS trip metadata (from trips.txt), keyed by AT trip_id. `shapeId` names the
 // road path the trip drives, which the realtime ingest measures vehicles against.
 model TripMeta {
-  id          String  @id @map("_id")
-  routeId     String?
-  headsign    String?
-  directionId Int?
-  shapeId     String?
+  id           String   @id @map("_id")
+  routeId      String?
+  headsign     String?
+  directionId  Int?
+  shapeId      String?
+  /// Up to three opening stops in order, never the last, for judging its departure (GTFS stop_times).
+  startStopIds String[]
+  /// The trip's last stop, for judging its arrival.
+  lastStopId   String?
 
   @@map("tripMeta")
 }

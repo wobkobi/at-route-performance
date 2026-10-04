@@ -158,7 +158,8 @@ export async function syncShapes(): Promise<{ upserted: number }> {
 
 /**
  * Fetch GTFS trip metadata from AT's full feed and upsert it into the
- * `tripMeta` collection (headsign, direction and shape keyed by trip_id).
+ * `tripMeta` collection (headsign, direction, shape, and opening and last
+ * stops, keyed by trip_id).
  * The zip leaves out every school route, so each route AT's API lists with no
  * zip trip is filled from the API instead; without those rows a school
  * route's line diagram cannot place an arrival in a direction. The same zip
@@ -190,6 +191,10 @@ export async function syncTripMeta(): Promise<{
         headsign: t.headsign,
         directionId: t.directionId,
         shapeId: t.shapeId,
+        // API-filled trips carry no stop times, so they leave any stored ends alone.
+        ...(t.startStopIds && t.lastStopId
+          ? { startStopIds: t.startStopIds, lastStopId: t.lastStopId }
+          : {}),
       },
     },
   }));

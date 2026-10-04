@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.51.0] - 2026-10-05
+
+### Added
+
+- The nightly timetable sync reads each trip's first stops and last stop from AT's stop times and
+  stores them with the trip, so a trip can be judged the way AT judges it: off its first stop on
+  time, into its last stop on time. The 100MB stop times file is read a piece at a time, so the
+  sync's memory stays small
+
 ## [2.50.1] - 2026-10-05
 
 ### Fixed
