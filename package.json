@@ -1,6 +1,6 @@
 {
   "name": "at-route-performance",
-  "version": "2.52.0",
+  "version": "2.52.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -30,7 +30,8 @@
       "prettier --write",
       "eslint --fix --max-warnings=0 --no-warn-ignored"
     ],
-    "**/*.{css,html,json,md,mjs,yml,yaml}": "prettier --write"
+    "**/*.{css,html,json,md,mjs,yml,yaml}": "prettier --write",
+    "prisma/schema.prisma": "prisma format --schema"
   },
   "browserslist": [
     "chrome >= 93",

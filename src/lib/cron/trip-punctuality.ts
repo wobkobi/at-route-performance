@@ -153,13 +153,12 @@ export function punctualityUpdateOps(
 }
 
 /**
- * Judge one completed service day's trips and store the tallies on its summary rows. Run
- * after the daily rollup, which writes the rows these update, and after the ghost pass, whose
- * hidden runs the read leaves out.
+ * Judge one service day's trips, reading only: the day's end readings and its cancellation
+ * flags, staged. The backfill's dry run prints this without writing.
  * @param date - Service date (`YYYY-MM-DD`).
- * @returns How many routes were tallied.
+ * @returns Counts per route id.
  */
-export async function writeTripPunctuality(date: string): Promise<number> {
+export async function tripPunctualityOfDay(date: string): Promise<Map<string, PunctualityCounts>> {
   const [trips, flagRows] = await Promise.all([
     aggregateRows<TripEndsRow>("ArrivalEvent", tripEndsPipeline(date)),
     prisma.cancelledTrip.findMany({
@@ -173,7 +172,18 @@ export async function writeTripPunctuality(date: string): Promise<number> {
     routeId: f.routeId,
     stage: stages.get(flagKey(f)) ?? "before",
   }));
-  const counts = routePunctuality(trips, flags);
+  return routePunctuality(trips, flags);
+}
+
+/**
+ * Judge one completed service day's trips and store the tallies on its summary rows. Run
+ * after the daily rollup, which writes the rows these update, and after the ghost pass, whose
+ * hidden runs the read leaves out.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns How many routes were tallied.
+ */
+export async function writeTripPunctuality(date: string): Promise<number> {
+  const counts = await tripPunctualityOfDay(date);
   if (counts.size === 0) return 0;
   const reply = await runCommand(() =>
     prisma.$runCommandRaw({
