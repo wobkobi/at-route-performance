@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.49.4] - 2026-10-05
+
+### Changed
+
+- On the shame boards a row's route or stop opens from anywhere on the row, and a separate "Worst
+  10" link under the hour or day opens that period's ranked list, so it is clear which link goes
+  where
+
 ## [2.49.3] - 2026-10-05
 
 ### Changed
