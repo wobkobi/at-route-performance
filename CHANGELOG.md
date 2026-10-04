@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.46.0] - 2026-10-04
+
+### Added
+
+- Searching the Routes page finds the branded buses and train lines by name ("city link", "outer
+  link", "tamaki", "northern express", "south city"), ignoring spaces, hyphens and macrons. Those
+  routes also show their name under the code wherever a route's second line is shown (CityLink,
+  InnerLink, OuterLink, TāmakiLink, AirportLink, Northern Express, Western Express), since AT's feed
+  names them only by the code.
+
 ## [2.45.2] - 2026-10-04
 
 ### Fixed

@@ -108,6 +108,22 @@ describe("filterRoutes", () => {
     expect(slugs(filterRoutes(rows, filters({ cancelledOnly: true })))).toEqual(["70"]);
   });
 
+  it("searches published names, ignoring spaces, hyphens and macrons", () => {
+    const named = [...rows, route("CTY"), route("TMK")];
+    /**
+     * The routes a search finds.
+     * @param q - The search text.
+     * @returns Their slugs.
+     */
+    const find = (q: string): string[] => slugs(filterRoutes(named, filters({ q })));
+    expect(find("city link")).toEqual(["CTY"]);
+    expect(find("CityLink")).toEqual(["CTY"]);
+    expect(find("tamaki")).toEqual(["TMK"]);
+    expect(find("northern express")).toEqual(["NX1"]);
+    expect(find("south city")).toEqual(["S-C"]);
+    expect(find("sc")).toEqual(["S-C"]);
+  });
+
   it("applies the boards' enough-data bar", () => {
     const thin = route("thin", { events: MIN_BOARD_EVENTS - 1 });
     expect(slugs(filterRoutes([thin], filters({ enoughData: true })))).toEqual([]);

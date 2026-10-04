@@ -13,6 +13,7 @@ import {
   MIN_MODE_EVENTS,
   parseDelayDirection,
 } from "@/lib/rankings";
+import { lineName } from "@/lib/route/line-name";
 import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
@@ -102,6 +103,33 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
  */
 export function defaultDir(sort: ExplorerSort): SortDir {
   return EXPLORER_SORTS.find((s) => s.key === sort)?.dir ?? "desc";
+}
+
+/**
+ * Fold text for search: lower case, macrons and other accents off, spaces and
+ * hyphens gone, so "city link" finds "CityLink", "tamaki" finds "TāmakiLink" and
+ * "sc" finds "S-C".
+ * @param s - The text.
+ * @returns The folded text.
+ */
+function searchFold(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "");
+}
+
+/**
+ * What the search box matches a route on: its code, AT's long name, its slug
+ * and its published line or service name, folded by {@link searchFold}. The "|"
+ * keeps a query from matching across two fields.
+ * @param r - The route.
+ * @returns The folded text.
+ */
+function searchText(r: ExplorerRoute): string {
+  const name = lineName(r.mode, r.shortName) ?? "";
+  return searchFold([r.shortName ?? "", r.longName, r.slug, name].join("|"));
 }
 
 /**
@@ -199,12 +227,10 @@ export function filterRoutes(
   f: ExplorerFilters,
   running: ReadonlySet<string> | null = null,
 ): ExplorerRoute[] {
-  const q = f.q.trim().toLowerCase();
+  const q = searchFold(f.q);
   const minEvents = minEventsFor(f.mode);
   return rows.filter((r) => {
-    if (q && !`${r.shortName ?? ""} ${r.longName} ${r.slug}`.toLowerCase().includes(q)) {
-      return false;
-    }
+    if (q && !searchText(r).includes(q)) return false;
     if (f.mode && r.mode !== f.mode) return false;
     if (f.areas.length > 0 && !r.areas.some((a) => f.areas.includes(a))) return false;
     if (f.zones.length > 0 && !r.zones.some((z) => f.zones.includes(z))) return false;

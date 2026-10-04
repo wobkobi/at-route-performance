@@ -64,10 +64,10 @@ export function routeDisplayName(r: RouteNameFields): string {
 }
 
 /**
- * The second line under a route's name: a train's published line name, else
- * AT's long name, or null when that would repeat the name itself. AT sets every
- * train route's long name to its bare code ("STH"), which is why the line name
- * comes first.
+ * The second line under a route's name: a train line's or branded bus
+ * service's published name, else AT's long name, or null when that would repeat
+ * the name itself. AT sets those routes' long names to their bare code ("STH",
+ * "CTY"), which is why the published name comes first.
  * @param r - The route.
  * @returns The subtitle, or null.
  */
