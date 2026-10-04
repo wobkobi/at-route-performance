@@ -589,7 +589,7 @@ export default async function RoutePage({
   const operator = operatorOf(operators[slug], directory);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <div className="flex flex-col gap-3">
         <PageHeader
           title={title}
@@ -866,7 +866,7 @@ export default async function RoutePage({
                 className="group at-card"
                 open={sp.ssort !== undefined || sp.srev !== undefined}
               >
-                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-at-shore select-none">
+                <summary className="flex tap-h cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold text-at-shore select-none">
                   {plural(byStop.length, "stop")} with arrivals
                   <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
                 </summary>

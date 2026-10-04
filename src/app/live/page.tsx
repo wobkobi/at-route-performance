@@ -99,7 +99,7 @@ export default async function LivePage({
   );
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Live now"
         subtitle="Every bus, train and ferry on a trip right now. Refreshes every two minutes."

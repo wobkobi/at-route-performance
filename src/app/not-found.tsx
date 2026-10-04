@@ -59,7 +59,7 @@ const ALL_ROUTES_HREF = buildHref("/routes", viewQuery("all"));
  */
 export default function NotFound(): JSX.Element {
   return (
-    <main className="space-y-10">
+    <main className="space-y-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-6xl font-ultra tracking-zero text-at-muted">404</p>
         {/* This page answers an unmatched path as well as a notFound() from a

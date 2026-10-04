@@ -225,7 +225,7 @@ export default async function VehiclesPage({
   const showsTrains = mode === null || mode === "TRAIN";
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Hardest-worked vehicles"
         subtitle={

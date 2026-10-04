@@ -140,7 +140,7 @@ export function DatePicker({
         aria-describedby={hint ? hintId : undefined}
         title={hint}
         className={cn(
-          "inline-flex min-h-11 items-center justify-center border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
+          "inline-flex tap-h items-center justify-center border border-transparent underline decoration-at-border decoration-dotted underline-offset-4 hover:border-at-shore hover:decoration-transparent",
           popover.open && "border-at-shore",
           className,
         )}

@@ -419,7 +419,7 @@ export default async function TripShamePage({
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
-      <main className="space-y-6">
+      <main className="space-y-4">
         <ShameHeader
           title={shameHeading("trip", view)}
           subtitle={`The most off-schedule trip of each day · ${subtitle}`}
@@ -459,7 +459,7 @@ export default async function TripShamePage({
   const linkDay = dayLinkParam(serviceDate, today);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <ShameHeader
         title={hours ? rankedTitle(hours) : shameHeading("trip", "day")}
         subtitle={

@@ -438,7 +438,7 @@ export default async function RoutesShamePage({
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
-      <main className="space-y-6">
+      <main className="space-y-4">
         <ShameHeader
           title={shameHeading("route", view)}
           subtitle={`The most off-schedule route of each day · ${subtitle}`}
@@ -479,7 +479,7 @@ export default async function RoutesShamePage({
   const linkDay = dayLinkParam(serviceDate, today);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <ShameHeader
         title={hours ? rankedTitle(hours) : shameHeading("route", "day")}
         subtitle={

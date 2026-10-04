@@ -270,7 +270,7 @@ export default async function TripPage({
   );
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <BackLink
         href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
@@ -370,7 +370,7 @@ export default async function TripPage({
           than a full-width strip, and the list no longer stretches across the page. */}
       <div
         className={cn(
-          "space-y-6",
+          "space-y-4",
           hasTripMap && "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0",
         )}
       >

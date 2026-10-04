@@ -32,7 +32,7 @@ export default function ErrorPage({
     console.error("[PAGE] Render failed", { error: error.message, digest: error.digest });
   }, [error]);
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Something went wrong"
         subtitle="This page could not be loaded. The database or the AT feeds may be unreachable for a moment; the rest of the site should still work."

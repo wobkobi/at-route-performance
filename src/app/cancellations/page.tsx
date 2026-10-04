@@ -168,7 +168,7 @@ export default async function CancellationsPage({
   const stagePreserved = { ...windowParams, ...(mode ? { mode } : {}), ...schoolParam };
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Cancellations"
         actions={<RangeControls basePath="/cancellations" nav={nav} />}

@@ -4,7 +4,7 @@ import type { ElementType, HTMLAttributes, JSX, ReactNode } from "react";
 /** A panel's inner padding: `sm` for boards and maps, `lg` for figure strips and notes. */
 export type PanelPad = "sm" | "lg";
 
-const PAD_CLASS: Record<PanelPad, string> = { sm: "p-4", lg: "px-6 py-5" };
+const PAD_CLASS: Record<PanelPad, string> = { sm: "p-3", lg: "px-4 py-3" };
 
 /** Props for {@link Panel}. */
 export interface PanelProps extends HTMLAttributes<HTMLElement> {

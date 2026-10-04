@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.49.3] - 2026-10-05
+
+### Changed
+
+- Tighter spacing across the site: smaller gaps between sections, a slimmer header and footer, and
+  chips, menus and buttons 36px tall with a mouse while staying 44px on a touch screen
+
 ## [2.49.2] - 2026-10-05
 
 ### Changed

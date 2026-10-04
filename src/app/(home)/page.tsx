@@ -240,7 +240,7 @@ async function PeriodHome({
 
   // The same three bands as the day view; see its render for the layout rule.
   return (
-    <main className="space-y-10">
+    <main className="space-y-6">
       <section className="space-y-5">
         <PageHeader size="hero" title={overviewHeading(nav, period)} />
 
@@ -442,7 +442,7 @@ export default async function Home({
   // chips sit on the rankings heading because they filter only the off-schedule
   // board.
   return (
-    <main className="space-y-10">
+    <main className="space-y-6">
       <section className="space-y-5">
         <PageHeader size="hero" title={overviewHeading(nav, null)} />
 

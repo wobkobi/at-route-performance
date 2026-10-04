@@ -341,7 +341,7 @@ export default async function ComparePage({
   const rows = figureRows(kind);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Compare"
         subtitle={`Up to ${MAX_COMPARE} ${kind} side by side, ${phrase}.`}

@@ -191,7 +191,7 @@ export default async function StopPage({
   };
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       {/* The worst-stops board is the only page on the site that lists stops, so
           it is the one way up from here. Without it a reader who arrived from a
           shame board or a route's stop table had the top bar and nothing else, and
@@ -323,7 +323,7 @@ export default async function StopPage({
       {/* The map shares a row with the worst-routes board on a wide screen: one
           stop's dot in a full-width strip is mostly empty street. The map takes
           the board's height. */}
-      <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         <Panel pad="sm" className="lg:flex lg:flex-col">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <SectionHeading>Where it is</SectionHeading>

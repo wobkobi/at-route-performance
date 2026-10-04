@@ -294,7 +294,7 @@ export default async function VehiclePage({
   const plate = register?.plate ?? now?.plate ?? null;
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <BackLink
         href={buildHref("/vehicles", { ...view, ...listState })}
         to="hardest-worked vehicles"
