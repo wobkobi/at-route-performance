@@ -52,6 +52,7 @@ describe("POST /api/ingest/aggregate", () => {
     mockedAggregateDay.mockResolvedValue({
       aggregated: 3,
       hourly: 40,
+      punctuality: 3,
       ghosts: { trips: 10, flagged: 2, hidden: 0 },
     });
     mockedSummarised.mockResolvedValue(true);
@@ -118,6 +119,7 @@ describe("POST /api/ingest/aggregate", () => {
       .mockResolvedValue({
         aggregated: 5,
         hourly: 60,
+        punctuality: 5,
         ghosts: { trips: 1, flagged: 0, hidden: 0 },
       });
     vi.useFakeTimers();

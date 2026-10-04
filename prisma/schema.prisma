@@ -278,6 +278,15 @@ model DailyRouteSummary {
   p50DelaySec    Float? // Median
   p95DelaySec    Float? // 95th percentile
   thresholdSec   Int // Threshold used for on-time calc (e.g., 300)
+  /// AT's trip measures (lib/trip/punctuality.ts), absent on days rolled up before them.
+  /// Trips with a departure read, and how many left inside the reliable window.
+  tripsDeparted  Int?
+  tripsReliable  Int?
+  /// Trips with a departure and an arrival read, and how many were punctual.
+  tripsTimed     Int?
+  tripsPunctual  Int?
+  /// Trips that never ran or were cut short, failures in both measures.
+  tripsCancelled Int?
   createdAt      DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id])
