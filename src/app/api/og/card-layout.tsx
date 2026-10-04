@@ -7,6 +7,7 @@ import { modeGlyph } from "@/components/ModeIcon";
 import { SITE_NAME } from "@/lib/copy";
 import { formatCount, formatDuration, formatPct } from "@/lib/format";
 import { isPaletteKey, PALETTE } from "@/lib/palette";
+import { routeColour } from "@/lib/route/colour";
 import type { RouteDisplay } from "@/lib/route/slug";
 import {
   dayVerdict,
@@ -198,10 +199,11 @@ export function VerdictBody({ summary }: { summary: FleetSummary }): JSX.Element
 }
 
 /** The route a subject card's badge is drawn for. */
-export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName">;
+export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName" | "colour">;
 
 /**
- * A route's mode glyph as inline SVG, in the colour the site's icon uses. The
+ * A route's mode glyph as inline SVG, in the colour the site's icon uses (the
+ * route's own, else its mode's). The
  * react-icons component reads a React context, which Satori cannot run, so it
  * is called once for its element and only the SVG paths inside are drawn.
  * @param props - Props.
@@ -210,7 +212,8 @@ export type GlyphRoute = Pick<RouteDisplay, "mode" | "shortName" | "longName">;
  * @returns The glyph.
  */
 function Glyph({ route, size }: { route: GlyphRoute; size: number }): JSX.Element {
-  const { Icon, hex } = modeGlyph(route.mode, route.shortName, route.longName);
+  const { Icon } = modeGlyph(route.mode, route.shortName, route.longName);
+  const hex = routeColour(route.mode, route.colour, route.shortName);
   const el = Icon({}) as ReactElement<{ attr?: { viewBox?: string }; children?: ReactNode }>;
   return (
     <svg viewBox={el.props.attr?.viewBox ?? "0 0 512 512"} width={size} height={size} fill={hex}>

@@ -99,7 +99,7 @@ export default async function LivePage({
   );
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Live now"
         subtitle="Every bus, train and ferry on a trip right now. Refreshes every two minutes."
@@ -324,6 +324,7 @@ async function LiveTable({
                       mode={r.mode}
                       shortName={named.shortName ?? r.slug}
                       longName={named.longName}
+                      colour={named.colour}
                       className="h-4 w-4 shrink-0"
                     />
                     <span className={ROUTE_NAME_CLASS}>{routeDisplayName(named)}</span>

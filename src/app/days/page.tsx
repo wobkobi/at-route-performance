@@ -172,7 +172,7 @@ export default async function DaysPage({
   dayRows.catch(() => undefined);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Day by day"
         actions={<RangeControls basePath="/days" nav={nav} windows={WINDOWS} />}

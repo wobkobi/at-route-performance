@@ -1,9 +1,10 @@
 // tests/lib/route/colour.test.ts
-// Route line colours, and the one-colour-per-mode icon they fall back to.
+// Route colours: a route's own (its icon, the live map) falling back to its
+// mode's, and the one Shore every single route's line is drawn in.
 import { modeGlyph } from "@/components/ModeIcon";
 import { MODE_ICON_CLASS, MODE_ICON_HEX, MODES } from "@/lib/mode";
 import { PALETTE } from "@/lib/palette";
-import { brandColour, detourStrokeClass, routeColour } from "@/lib/route/colour";
+import { brandColour, ROUTE_LINE_HEX, routeColour } from "@/lib/route/colour";
 import { describe, expect, it } from "vitest";
 
 describe("brandColour", () => {
@@ -11,12 +12,26 @@ describe("brandColour", () => {
     expect(brandColour("F9A22E")).toBe("#F9A22E");
   });
 
-  it("treats black, malformed and missing values as no colour", () => {
-    expect(brandColour("000000")).toBeNull();
+  it("keeps black, which AT publishes for some routes", () => {
+    expect(brandColour("000000")).toBe("#000000");
+  });
+
+  it("treats malformed and missing values as no colour", () => {
     expect(brandColour("#f9a22e")).toBeNull();
     expect(brandColour("fff")).toBeNull();
     expect(brandColour("")).toBeNull();
     expect(brandColour(null)).toBeNull();
+  });
+
+  it("gives an uncoloured branded service its brand colour", () => {
+    expect(brandColour("", "NX1")).toBe("#143F90");
+    expect(brandColour(null, "AIR")).toBe("#F7941E");
+    expect(brandColour(null, "RBM")).toBe("#FDB913");
+    expect(brandColour(null, "70")).toBeNull();
+  });
+
+  it("lets AT's own colour beat a brand colour", () => {
+    expect(brandColour("123456", "NX1")).toBe("#123456");
   });
 });
 
@@ -27,9 +42,13 @@ describe("routeColour", () => {
 
   it("falls back to the mode's icon colour", () => {
     expect(routeColour("BUS", null)).toBe(PALETTE.shore);
-    expect(routeColour("TRAIN", "000000")).toBe(PALETTE.shore);
+    expect(routeColour("TRAIN", "")).toBe(PALETTE.shore);
     expect(routeColour("FERRY", undefined)).toBe(PALETTE["greeny-bluey"]);
     expect(routeColour("TRAM", null)).toBe(PALETTE.shore);
+  });
+
+  it("puts a brand colour ahead of the mode's", () => {
+    expect(routeColour("BUS", null, "WX1")).toBe("#00843C");
   });
 });
 
@@ -50,16 +69,14 @@ describe("modeGlyph", () => {
     expect(school.colourClass).toBe(bus.colourClass);
   });
 
-  it("gives Link services the bus colour too", () => {
+  it("leaves a Link's own colour to the icon, keeping the bus colour as its fallback", () => {
     expect(modeGlyph("BUS", "OUT").colourClass).toBe(MODE_ICON_CLASS.BUS);
   });
 });
 
-describe("detourStrokeClass", () => {
-  it("swaps the detour orange for ink only on a line near that orange", () => {
-    expect(detourStrokeClass("#f39c12")).toBe("stroke-at-ink");
-    expect(detourStrokeClass("#e2231a")).toBe("stroke-at-commercial");
-    expect(detourStrokeClass("#0071bc")).toBe("stroke-at-commercial");
-    expect(detourStrokeClass("#8a8a8a")).toBe("stroke-at-commercial");
+describe("ROUTE_LINE_HEX", () => {
+  it("is Shore, the mode colour of bus and train", () => {
+    expect(ROUTE_LINE_HEX).toBe(PALETTE.shore);
+    expect(ROUTE_LINE_HEX).toBe(MODE_ICON_HEX.BUS);
   });
 });

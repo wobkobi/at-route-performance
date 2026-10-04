@@ -1,9 +1,10 @@
 // src/lib/route/line-name.ts
-// Human-readable names for Auckland's train lines. AT's GTFS feed
-// sets `route_long_name` to the bare code for every train route ("STH", "EAST"),
-// so the schedule offers nothing to display beyond the code itself. The City Rail
-// Link network that starts on 13 September 2026 renames the lines to codes that
-// read as even less ("S-C", "E-W", "O-W"), so both networks are mapped here.
+// Human-readable names for Auckland's train lines and branded bus services.
+// AT's GTFS feed sets `route_long_name` to the bare code for every one of them
+// ("STH", "CTY"), so the schedule offers nothing to display or search beyond the
+// code itself. The City Rail Link network that starts on 13 September 2026
+// renames the lines to codes that read as even less ("S-C", "E-W", "O-W"), so
+// both networks are mapped here.
 
 /**
  * Train-line code to its published name. Codes are AT's `route_short_name`.
@@ -32,13 +33,28 @@ const LINE_NAMES: Record<string, string> = {
   HUIA: "Te Huia",
 };
 
+/** Branded bus service code to its published name, written as AT brands it. */
+const BUS_NAMES: Record<string, string> = {
+  CTY: "CityLink",
+  INN: "InnerLink",
+  OUT: "OuterLink",
+  TMK: "TāmakiLink",
+  AIR: "AirportLink",
+  NX1: "Northern Express",
+  NX2: "Northern Express",
+  WX1: "Western Express",
+};
+
 /**
- * The published name for a train line, for display alongside its code.
- * @param mode - Route mode; only "TRAIN" resolves, so a bus route sharing a code can't match.
- * @param shortName - The route's short name (its line code).
- * @returns The line's name, or null when the mode isn't rail or the code is unknown.
+ * The published name for a train line or branded bus service, for display
+ * alongside its code and for search.
+ * @param mode - Route mode; each mode has its own names, so a route of another
+ *   mode sharing a code cannot match.
+ * @param shortName - The route's short name (its code).
+ * @returns The name, or null when the code has none for that mode.
  */
 export function lineName(mode: string, shortName: string | null | undefined): string | null {
-  if (mode !== "TRAIN" || !shortName) return null;
-  return LINE_NAMES[shortName.toUpperCase()] ?? null;
+  if (!shortName) return null;
+  const names = mode === "TRAIN" ? LINE_NAMES : mode === "BUS" ? BUS_NAMES : null;
+  return names?.[shortName.toUpperCase()] ?? null;
 }

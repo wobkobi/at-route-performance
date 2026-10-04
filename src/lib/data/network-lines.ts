@@ -140,7 +140,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
             top: trips,
             name: name && name !== slug ? name : null,
             mode: route.mode,
-            colour: routeColour(route.mode, route.colour),
+            colour: routeColour(route.mode, route.colour, route.shortName),
           };
           bySlug.set(slug, held);
         }
@@ -203,7 +203,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         .filter((l) => l.runs.length > 0)
         .sort((a, b) => MODE_ORDER[a.mode] - MODE_ORDER[b.mode]);
     },
-    ["network-lines-v11"],
+    ["network-lines-v12"],
     { revalidate: DAY_REVALIDATE },
   )();
 }

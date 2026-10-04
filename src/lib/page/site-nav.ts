@@ -15,6 +15,7 @@ export interface NavSection {
     | "/operators"
     | "/vehicles"
     | "/live"
+    | "/alerts"
     | "/shame/trip"
     | "/cancellations"
     | "/compare";
@@ -30,7 +31,7 @@ export interface NavSection {
 
 /**
  * The top bar's tabs in three groups, shown apart: the network as a whole over
- * time (the day, the days before it, right now), the things it is made of
+ * time (the day, the days before it, right now and its disruptions), the things it is made of
  * (routes, operators, vehicles), and the boards that pick out what went wrong,
  * with Compare beside them.
  */
@@ -39,6 +40,7 @@ export const NAV_GROUPS: readonly (readonly NavSection[])[] = [
     { href: "/", label: "Overview", under: [] },
     { href: "/days", label: "Days", under: [] },
     { href: "/live", label: "Live", under: [], carries: ["mode"] },
+    { href: "/alerts", label: "Alerts", under: [], carries: ["mode"] },
   ],
   [
     { href: "/routes", label: "Routes", under: ["/route/", "/stop/"] },
@@ -72,12 +74,13 @@ export interface SitePage {
  * Every page a reader can go to, in top-bar order: the footer's Explore list,
  * the 404 page's directory, the sitemap's sections and the nightly warm's pages. It differs from {@link NAV_SECTIONS} only in giving
  * the three worst-of boards one entry each where the top bar has a single Shame
- * tab, and in spelling out the two short tab labels.
+ * tab, and in spelling out the three short tab labels.
  */
 export const SITE_PAGES = [
   { href: "/", label: "Overview", takesDay: true },
   { href: "/days", label: "Day by day" },
   { href: "/live", label: "Live now", carries: ["mode"] },
+  { href: "/alerts", label: "Service alerts", carries: ["mode"] },
   { href: "/routes", label: "Routes", takesDay: true },
   { href: "/operators", label: "Operators", takesDay: true },
   { href: "/vehicles", label: "Vehicles", takesDay: true },

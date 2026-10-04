@@ -3,6 +3,7 @@
 // client as the reader changes a control and the tests can pin them down. The
 // filters round-trip through the query string, writing only what differs from
 // the defaults, so a filtered view is a shareable link.
+import { searchFold } from "@/lib/format";
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
 import { type Mode, parseMode } from "@/lib/mode";
@@ -13,6 +14,7 @@ import {
   MIN_MODE_EVENTS,
   parseDelayDirection,
 } from "@/lib/rankings";
+import { lineName } from "@/lib/route/line-name";
 import { compareRouteNumbers, routeDisplayName } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
@@ -105,6 +107,18 @@ export function defaultDir(sort: ExplorerSort): SortDir {
 }
 
 /**
+ * What the search box matches a route on: its code, AT's long name, its slug
+ * and its published line or service name, folded by {@link searchFold}. The "|"
+ * keeps a query from matching across two fields.
+ * @param r - The route.
+ * @returns The folded text.
+ */
+function searchText(r: ExplorerRoute): string {
+  const name = lineName(r.mode, r.shortName) ?? "";
+  return searchFold([r.shortName ?? "", r.longName, r.slug, name].join("|"));
+}
+
+/**
  * Read the filters from query params, falling back to the defaults for anything
  * missing or invalid.
  * @param sp - The raw query params.
@@ -173,8 +187,18 @@ export const EXPLORER_PARAMS = [
 ];
 
 /**
- * Keep the routes that pass every active filter. The enough-data bar is the
- * boards' own: lower for a single mode, so ferries can pass it.
+ * The arrivals a route needs before its figures rank: the boards' own bar,
+ * lower for a single mode so ferries can pass it.
+ * @param mode - The mode filter, or null for every mode.
+ * @returns The minimum arrivals.
+ */
+export function minEventsFor(mode: Mode | null): number {
+  return mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+}
+
+/**
+ * Keep the routes that pass every active filter. The enough-data bar is
+ * {@link minEventsFor}'s.
  * The running-now filter needs the live set, which streams in after the list:
  * until it arrives (null) that one filter is not applied, so the list is never
  * emptied by a feed that has not answered yet.
@@ -189,12 +213,10 @@ export function filterRoutes(
   f: ExplorerFilters,
   running: ReadonlySet<string> | null = null,
 ): ExplorerRoute[] {
-  const q = f.q.trim().toLowerCase();
-  const minEvents = f.mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  const q = searchFold(f.q);
+  const minEvents = minEventsFor(f.mode);
   return rows.filter((r) => {
-    if (q && !`${r.shortName ?? ""} ${r.longName} ${r.slug}`.toLowerCase().includes(q)) {
-      return false;
-    }
+    if (q && !searchText(r).includes(q)) return false;
     if (f.mode && r.mode !== f.mode) return false;
     if (f.areas.length > 0 && !r.areas.some((a) => f.areas.includes(a))) return false;
     if (f.zones.length > 0 && !r.zones.some((z) => f.zones.includes(z))) return false;
@@ -235,6 +257,29 @@ function sortValue(r: ExplorerRoute, sort: Exclude<ExplorerSort, "route">): numb
   }
 }
 
+/** The sorts by a rate or an average, which a handful of arrivals cannot be trusted on. */
+const FIGURE_SORTS: ReadonlySet<ExplorerSort> = new Set([
+  "ontime",
+  "off",
+  "delay",
+  "late",
+  "early",
+]);
+
+/**
+ * Whether a route sits out a sort's ranking: no value for it, or, on a rate or
+ * an average, too few arrivals for the figure to mean much. Counts (arrivals,
+ * cancellations) rank every route that has one.
+ * @param r - The route.
+ * @param sort - The sort.
+ * @param minEvents - The arrivals a route needs to rank, from {@link minEventsFor}.
+ * @returns True when the route is listed after the ranked ones.
+ */
+export function unranked(r: ExplorerRoute, sort: ExplorerSort, minEvents: number): boolean {
+  if (sort === "route") return false;
+  return sortValue(r, sort) === null || (FIGURE_SORTS.has(sort) && r.events < minEvents);
+}
+
 /**
  * Compare route names with numeric awareness, so 9 sorts before 100.
  * @param a - First route.
@@ -246,25 +291,40 @@ function byName(a: ExplorerRoute, b: ExplorerRoute): number {
 }
 
 /**
- * Sort routes by a measure. Routes with no value for it go last whichever way
- * the sort runs. Ties on on-time % go to the route less off schedule, as on the
- * Most reliable board; every other tie falls back to route number.
+ * Sort routes by a measure, in three tiers whichever way the sort runs: the
+ * ranked routes, then those with too few arrivals to rank (sorted the same way
+ * among themselves), then those with no value at all (by route number). So a
+ * 3-arrival route at 100% on time never heads the list. Ties on on-time % go to
+ * the route less off schedule, as on the Most reliable board; every other tie
+ * falls back to route number.
  * @param rows - The routes.
  * @param sort - The measure.
  * @param dir - The direction.
+ * @param minEvents - The arrivals a route needs to rank, from {@link minEventsFor}.
  * @returns A sorted copy.
  */
 export function sortRoutes(
   rows: readonly ExplorerRoute[],
   sort: ExplorerSort,
   dir: SortDir,
+  minEvents: number = MIN_BOARD_EVENTS,
 ): ExplorerRoute[] {
   const sign = dir === "asc" ? 1 : -1;
+  if (sort === "route") return [...rows].sort((a, b) => sign * byName(a, b));
+  /**
+   * A route's tier: 0 ranked, 1 too few arrivals, 2 no value.
+   * @param r - The route.
+   * @param v - Its value for the sort.
+   * @returns The tier.
+   */
+  const tier = (r: ExplorerRoute, v: number | null): number =>
+    v === null ? 2 : unranked(r, sort, minEvents) ? 1 : 0;
   return [...rows].sort((a, b) => {
-    if (sort === "route") return sign * byName(a, b);
     const va = sortValue(a, sort);
     const vb = sortValue(b, sort);
-    if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
+    const byTier = tier(a, va) - tier(b, vb);
+    if (byTier !== 0) return byTier;
+    if (va === null || vb === null) return byName(a, b);
     const tie =
       sort === "ontime" ? -sign * ((a.avg_abs_delay_sec ?? 0) - (b.avg_abs_delay_sec ?? 0)) : 0;
     return sign * (va - vb) || tie || byName(a, b);
@@ -275,42 +335,14 @@ export function sortRoutes(
 export type ExplorerView = "all" | "off" | "reliable";
 
 /**
- * The presets and the filters each sets. The two boards rank only routes with
- * enough data, as they do on the home page.
+ * The sort each preset opens on. The boards' enough-data bar needs no filter
+ * here: {@link sortRoutes} lists the routes under it after the ranked ones.
  */
-export const EXPLORER_VIEWS: ReadonlyArray<{
-  key: ExplorerView;
-  label: string;
-  filters: Pick<ExplorerFilters, "sort" | "dir" | "enoughData">;
-}> = [
-  { key: "all", label: "All routes", filters: { sort: "route", dir: "asc", enoughData: false } },
-  {
-    key: "off",
-    label: "Most off-schedule",
-    filters: { sort: "off", dir: "desc", enoughData: true },
-  },
-  {
-    key: "reliable",
-    label: "Most reliable",
-    filters: { sort: "ontime", dir: "desc", enoughData: true },
-  },
-];
-
-/**
- * The preset a filter state matches, if any.
- * @param f - The filters.
- * @returns The matching preset, or null for a custom sort.
- */
-export function activeView(f: ExplorerFilters): ExplorerView | null {
-  return (
-    EXPLORER_VIEWS.find(
-      (v) =>
-        v.filters.sort === f.sort &&
-        v.filters.dir === f.dir &&
-        v.filters.enoughData === f.enoughData,
-    )?.key ?? null
-  );
-}
+const VIEW_SORTS: Record<ExplorerView, Pick<ExplorerFilters, "sort" | "dir">> = {
+  all: { sort: "route", dir: "asc" },
+  off: { sort: "off", dir: "desc" },
+  reliable: { sort: "ontime", dir: "desc" },
+};
 
 /**
  * The Routes page query for a preset, keeping the given filters.
@@ -322,6 +354,5 @@ export function viewQuery(
   view: ExplorerView,
   keep: Partial<Pick<ExplorerFilters, "mode" | "school" | "direction" | "areas">> = {},
 ): Record<string, string> {
-  const preset = EXPLORER_VIEWS.find((v) => v.key === view)?.filters ?? {};
-  return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...preset });
+  return explorerQuery({ ...DEFAULT_FILTERS, ...keep, ...VIEW_SORTS[view] });
 }

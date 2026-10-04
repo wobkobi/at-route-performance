@@ -11,7 +11,7 @@
 // queries, but the banner itself is awaited: it sits above the KPI strip, and
 // streaming it in shoved the whole dashboard down as the reader arrived.
 
-import { AlertBanner } from "@/components/AlertBanner";
+import { AlertBanner, ALERTS_HREF, AlertsLine } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DelayFilter } from "@/components/filter/DelayFilter";
 import { ModeFilter } from "@/components/filter/ModeFilter";
@@ -54,7 +54,14 @@ import {
   getTripBoardOfDay,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getServiceAlerts, getUpcomingAlerts, networkWideAlerts } from "@/lib/feed/at-alerts";
+import {
+  alertsForMode,
+  getServiceAlerts,
+  getUpcomingAlerts,
+  hasSevereAlert,
+  networkWideAlerts,
+  type ServiceAlert,
+} from "@/lib/feed/at-alerts";
 import { modeWord, parseMode, type Mode } from "@/lib/mode";
 import { homeCardPath, homeCardTitle, pageMetadata, parseHomeCard } from "@/lib/og";
 import { preservedFilters } from "@/lib/page/filter-params";
@@ -233,7 +240,7 @@ async function PeriodHome({
 
   // The same three bands as the day view; see its render for the layout rule.
   return (
-    <main className="space-y-10">
+    <main className="space-y-6">
       <section className="space-y-5">
         <PageHeader size="hero" title={overviewHeading(nav, period)} />
 
@@ -365,11 +372,11 @@ export default async function Home({
   // Filters narrow the route lists. School services (S###) are left out unless
   // ?school=1 adds them or ?school=only keeps them alone.
   const schools = parseSchoolFilter(sp.school);
-  // Kick the alerts fetch off early so it overlaps the queries below; it is
-  // awaited at render (see the banner) rather than streamed, and its 5-minute
-  // cache means only the first request in a window pays AT's latency. The
-  // heavier "of the day" cards do still stream.
-  const alertsPromise = getServiceAlerts();
+  // Kick the alerts fetch off early so it overlaps the queries below. Today's
+  // alerts line streams it; a past day's banner awaits it at render.
+  // Its 5-minute cache means only the first request in a window pays AT's
+  // latency. Null when AT's feed did not answer.
+  const alertsPromise = getServiceAlerts().catch((): null => null);
   const earliestDay = await getEarliestDataDay(1);
   // Only pin ?day on route links for a past day; today's links stay clean so they
   // don't bounce through dropTodayParam's redirect (a 307 on every click).
@@ -435,7 +442,7 @@ export default async function Home({
   // chips sit on the rankings heading because they filter only the off-schedule
   // board.
   return (
-    <main className="space-y-10">
+    <main className="space-y-6">
       <section className="space-y-5">
         <PageHeader size="hero" title={overviewHeading(nav, null)} />
 
@@ -470,16 +477,15 @@ export default async function Home({
           </p>
         )}
 
-        <AlertBanner
-          alerts={networkWideAlerts(await alertsPromise)}
-          pastWindow={linkDay !== undefined}
-        />
-        {linkDay === undefined && (
-          <AlertBanner
-            alerts={networkWideAlerts(await getUpcomingAlerts().catch(() => []))}
-            heading="Coming up"
-            upcoming
-          />
+        {/* Today links to the Alerts page in one line. A past day keeps the
+            network-wide banner, labelled as running now: AT publishes no past
+            alerts, so a count of today's would read as that day's. */}
+        {linkDay === undefined ? (
+          <Suspense fallback={null}>
+            <HomeAlertsLine alertsPromise={alertsPromise} mode={mode} />
+          </Suspense>
+        ) : (
+          <AlertBanner alerts={networkWideAlerts((await alertsPromise) ?? [])} pastWindow />
         )}
 
         <FleetSummary data={heroData} verdict schoolAdded={schoolAdded} />
@@ -594,6 +600,38 @@ export default async function Home({
         </Suspense>
       </section>
     </main>
+  );
+}
+
+/**
+ * Today's one-line link to the Alerts page ({@link AlertsLine}), counting the
+ * alerts running now and coming up under the page's mode filter. Renders
+ * nothing when AT's feed did not answer: the Alerts tab says so itself.
+ * @param root0 - Props.
+ * @param root0.alertsPromise - The alerts running now, or null when AT's feed did not answer.
+ * @param root0.mode - Active mode filter, or null for every mode.
+ * @returns The line, or null.
+ */
+async function HomeAlertsLine({
+  alertsPromise,
+  mode,
+}: {
+  alertsPromise: Promise<ServiceAlert[] | null>;
+  mode: Mode | null;
+}): Promise<JSX.Element | null> {
+  const [running, upcoming] = await Promise.all([
+    alertsPromise,
+    getUpcomingAlerts().catch((): ServiceAlert[] => []),
+  ]);
+  if (!running) return null;
+  const now = alertsForMode(running, mode);
+  return (
+    <AlertsLine
+      href={buildHref(ALERTS_HREF, { mode: mode ?? undefined })}
+      running={now.length}
+      upcoming={alertsForMode(upcoming, mode).length}
+      severe={hasSevereAlert(now)}
+    />
   );
 }
 

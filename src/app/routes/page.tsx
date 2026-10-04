@@ -170,7 +170,7 @@ export default async function RoutesPage({
   const explorerRows = [...rows, ...cancelOnly].map(toExplorer);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader title="Routes" actions={<RangeControls basePath="/routes" nav={nav} />} />
 
       <RouteExplorer

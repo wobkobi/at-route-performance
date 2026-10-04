@@ -222,3 +222,18 @@ export function midSentence(heading: string): string {
 export function sentenceStart(phrase: string): string {
   return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 }
+
+/**
+ * Fold text for search: lower case, macrons and other accents off, spaces and
+ * hyphens gone, so "city link" finds "CityLink", "tamaki" finds "TāmakiLink" and
+ * "sc" finds "S-C".
+ * @param s - The text.
+ * @returns The folded text.
+ */
+export function searchFold(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "");
+}

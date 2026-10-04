@@ -208,7 +208,6 @@ async function RouteRangeBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={shame.days}
       keyOf={(r, i) => r.date ?? String(i)}
       emptyMessage={`No routes recorded in ${periodInPhrase(periodNoun, periodParam)}.`}
@@ -319,7 +318,6 @@ async function RouteDayBoard({
 
   return (
     <ShameBoard
-      layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
       emptyMessage={`No routes recorded ${dayWhen}.`}
@@ -389,7 +387,6 @@ async function RouteHoursBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={rows}
       keyOf={(r) => r.routeId}
       emptyMessage={
@@ -441,7 +438,7 @@ export default async function RoutesShamePage({
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
-      <main className="space-y-6">
+      <main className="space-y-4">
         <ShameHeader
           title={shameHeading("route", view)}
           subtitle={`The most off-schedule route of each day · ${subtitle}`}
@@ -482,7 +479,7 @@ export default async function RoutesShamePage({
   const linkDay = dayLinkParam(serviceDate, today);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <ShameHeader
         title={hours ? rankedTitle(hours) : shameHeading("route", "day")}
         subtitle={

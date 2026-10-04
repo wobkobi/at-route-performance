@@ -2,12 +2,13 @@
 // Unit tests for the Routes page filters and sorts.
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
 import {
-  activeView,
   DEFAULT_FILTERS,
   explorerQuery,
   filterRoutes,
+  minEventsFor,
   parseExplorerFilters,
   sortRoutes,
+  unranked,
   viewQuery,
   type ExplorerFilters,
   type ExplorerRoute,
@@ -107,6 +108,22 @@ describe("filterRoutes", () => {
     expect(slugs(filterRoutes(rows, filters({ cancelledOnly: true })))).toEqual(["70"]);
   });
 
+  it("searches published names, ignoring spaces, hyphens and macrons", () => {
+    const named = [...rows, route("CTY"), route("TMK")];
+    /**
+     * The routes a search finds.
+     * @param q - The search text.
+     * @returns Their slugs.
+     */
+    const find = (q: string): string[] => slugs(filterRoutes(named, filters({ q })));
+    expect(find("city link")).toEqual(["CTY"]);
+    expect(find("CityLink")).toEqual(["CTY"]);
+    expect(find("tamaki")).toEqual(["TMK"]);
+    expect(find("northern express")).toEqual(["NX1"]);
+    expect(find("south city")).toEqual(["S-C"]);
+    expect(find("sc")).toEqual(["S-C"]);
+  });
+
   it("applies the boards' enough-data bar", () => {
     const thin = route("thin", { events: MIN_BOARD_EVENTS - 1 });
     expect(slugs(filterRoutes([thin], filters({ enoughData: true })))).toEqual([]);
@@ -134,6 +151,37 @@ describe("sortRoutes", () => {
   it("puts routes with no value last in either direction", () => {
     expect(slugs(sortRoutes(rows, "ontime", "desc"))).toEqual(["25", "100", "9"]);
     expect(slugs(sortRoutes(rows, "ontime", "asc"))).toEqual(["100", "25", "9"]);
+  });
+
+  it("lists routes with too few arrivals after the ranked ones, before the empty ones", () => {
+    const mixed = [
+      route("thin", { on_time_pct: 100, events: MIN_BOARD_EVENTS - 1 }),
+      route("empty", { on_time_pct: null, events: 0 }),
+      route("solid", { on_time_pct: 60 }),
+      route("thinner", { on_time_pct: 50, events: 3 }),
+    ];
+    expect(slugs(sortRoutes(mixed, "ontime", "desc"))).toEqual([
+      "solid",
+      "thin",
+      "thinner",
+      "empty",
+    ]);
+    expect(slugs(sortRoutes(mixed, "ontime", "asc"))).toEqual([
+      "solid",
+      "thinner",
+      "thin",
+      "empty",
+    ]);
+    expect(unranked(mixed[0]!, "ontime", MIN_BOARD_EVENTS)).toBe(true);
+    expect(unranked(mixed[2]!, "ontime", MIN_BOARD_EVENTS)).toBe(false);
+  });
+
+  it("ranks every route on a count, and lowers the bar for one mode", () => {
+    const thin = route("thin", { events: 30 });
+    expect(unranked(thin, "arrivals", MIN_BOARD_EVENTS)).toBe(false);
+    expect(unranked(thin, "off", minEventsFor(null))).toBe(true);
+    expect(unranked(thin, "off", minEventsFor("FERRY"))).toBe(false);
+    expect(unranked(thin, "route", MIN_BOARD_EVENTS)).toBe(false);
   });
 });
 
@@ -173,20 +221,13 @@ describe("query round trip", () => {
 });
 
 describe("board presets", () => {
-  it("recognise the Most off-schedule and Most reliable boards", () => {
-    expect(activeView(DEFAULT_FILTERS)).toBe("all");
-    expect(activeView(filters({ sort: "off", dir: "desc", enoughData: true }))).toBe("off");
-    expect(activeView(filters({ sort: "ontime", dir: "desc", enoughData: true }))).toBe("reliable");
-    expect(activeView(filters({ sort: "ontime", dir: "desc" }))).toBeNull();
-  });
-
-  it("link to a board with the filters carried", () => {
+  it("link to a board's sort with the filters carried, leaving the thin routes listed last", () => {
     expect(viewQuery("reliable", { mode: "BUS", direction: "late" })).toEqual({
       mode: "BUS",
       dir: "late",
-      data: "1",
       sort: "ontime",
     });
+    expect(viewQuery("off")).toEqual({ sort: "off" });
     expect(viewQuery("all")).toEqual({});
   });
 

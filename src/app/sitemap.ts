@@ -26,6 +26,7 @@ const PRIORITY: Record<(typeof SITE_PAGES)[number]["href"], number> = {
   "/": 1,
   "/routes": 0.9,
   "/live": 0.8,
+  "/alerts": 0.6,
   "/cancellations": 0.7,
   "/shame/trip": 0.7,
   "/shame/route": 0.6,

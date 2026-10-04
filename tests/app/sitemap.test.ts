@@ -47,6 +47,7 @@ describe("sitemap", () => {
       "/",
       "/routes",
       "/live",
+      "/alerts",
       "/cancellations",
       "/days",
       "/vehicles",

@@ -184,7 +184,7 @@ export default async function OperatorsPage({
   const table = sortRows(ranked, COLUMNS, sort, (o) => o.events < MIN_BOARD_EVENTS);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Operators"
         subtitle="The companies AT contracts to run its routes, best on time first."

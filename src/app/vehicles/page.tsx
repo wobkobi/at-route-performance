@@ -104,12 +104,14 @@ interface VehiclesSearchParams {
   show?: string;
   /** Operator slug, to list only the vehicles that ran its routes. */
   op?: string;
+  /** "1" lists only the vehicles on a trip now. */
+  live?: string;
 }
 
 /**
  * Hardest-worked vehicles page.
  * @param root0 - Page props.
- * @param root0.searchParams - Window (`window`, `day`, `period`), filters (`mode`, `school`), sort (`sort`, `rev`) and `show`.
+ * @param root0.searchParams - Window (`window`, `day`, `period`), filters (`mode`, `school`, `op`, `live`), sort (`sort`, `rev`) and `show`.
  * @returns Page markup.
  */
 export default async function VehiclesPage({
@@ -129,6 +131,7 @@ export default async function VehiclesPage({
   const mode = parseMode(sp.mode);
   const schools = parseSchoolFilter(sp.school);
   const shown = parseShown(sp.show);
+  const liveOnly = sp.live === "1";
   const filter = { mode, schools };
   const [latest, earliest, [operators, directory]] = await Promise.all([
     getLatestEventDate(),
@@ -178,24 +181,29 @@ export default async function VehiclesPage({
     mode: mode ?? undefined,
     school: schoolFilterParam(schools),
     op: operator?.slug,
+    live: liveOnly ? "1" : undefined,
   };
   const { sort, head, keep } = tableSort(sp, COLUMNS, "hours", (p) =>
     buildHref("/vehicles", { ...view, ...filters, ...p }),
   );
+  // Started now and awaited per row, so AT's feed never holds up the board,
+  // unless the list is cut to the live vehicles and has to wait for it anyway.
+  const live = getLiveVehicleMap();
+  const liveNow = liveOnly ? await live : null;
   // Sorted in full before the page is cut, so Show more continues the same order.
   const ranked = sortRows(
     sortVehicles(
-      operator
-        ? vehicles.filter((v) => vehicleOps.get(v.vehicleId)?.includes(operator.code))
-        : vehicles,
+      vehicles.filter(
+        (v) =>
+          (!operator || vehicleOps.get(v.vehicleId)?.includes(operator.code)) &&
+          (!liveNow || liveNow.has(v.vehicleId)),
+      ),
       "hours",
     ),
     COLUMNS,
     sort,
   );
   const rows = ranked.slice(0, shown);
-  // Started now and awaited per row, so AT's feed never holds up the board.
-  const live = getLiveVehicleMap();
   const [names, fleet] = await Promise.all([
     getRouteNames([...new Set(rows.flatMap((v) => v.routes))]),
     getFleet(rows.map((v) => v.vehicleId)).catch(
@@ -210,22 +218,12 @@ export default async function VehiclesPage({
     { ...filters, ...keep, [SHOWN_PARAM]: shown > LIST_PAGE_SIZE ? String(shown) : undefined },
     VEHICLE_LIST_PARAMS,
   );
-  const modePreserved = stripUnset({
-    ...view,
-    school: filters.school,
-    op: filters.op,
-    ...keep,
-  });
-  const schoolPreserved = stripUnset({
-    ...view,
-    mode: filters.mode,
-    op: filters.op,
-    ...keep,
-  });
+  const modePreserved = stripUnset({ ...view, ...filters, mode: undefined, ...keep });
+  const schoolPreserved = stripUnset({ ...view, ...filters, school: undefined, ...keep });
   const showsTrains = mode === null || mode === "TRAIN";
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <PageHeader
         title="Hardest-worked vehicles"
         subtitle={
@@ -261,6 +259,17 @@ export default async function VehiclesPage({
           basePath="/vehicles"
           preservedParams={stripUnset({ ...view, ...filters, ...keep })}
         />
+        <ChipLink
+          href={buildHref("/vehicles", {
+            ...view,
+            ...filters,
+            ...keep,
+            live: liveOnly ? undefined : "1",
+          })}
+          active={liveOnly}
+        >
+          Live now
+        </ChipLink>
       </div>
 
       <ChipGroup label="Rank by" showLabel>
@@ -280,7 +289,11 @@ export default async function VehiclesPage({
       </ChipGroup>
 
       {rows.length === 0 ? (
-        <EmptyState>No vehicles recorded {windowPhrase(nav, period)}.</EmptyState>
+        <EmptyState>
+          {liveOnly
+            ? `No vehicle on a trip now ran ${windowPhrase(nav, period)}.`
+            : `No vehicles recorded ${windowPhrase(nav, period)}.`}
+        </EmptyState>
       ) : (
         <DataTable caption="Vehicles by time in service">
           <thead>

@@ -43,8 +43,6 @@ interface StopMapWrapperProps {
   mode?: Mode;
   /** The route is a school service, whose vehicles take the school bus glyph. */
   school?: boolean;
-  /** The route's GTFS colour (hex, no hash), for its lines; null for its mode's colour. */
-  colour?: string | null;
   /** When set, the map centres on this stop and opens its popup. */
   selectedStopId?: string;
   /** When set, only the live vehicle whose tripId matches is shown. */

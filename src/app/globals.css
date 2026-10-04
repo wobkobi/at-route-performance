@@ -96,6 +96,25 @@
 }
 
 /*
+  A control's floor: 36px with a mouse, 44px on a touch screen. A desktop row of
+  chips and menus stays compact while every fingertip target keeps the 44px the
+  site promises. Keyed on the pointer, not the width, so a tablet or a phone
+  held sideways still gets the touch size.
+*/
+@utility tap-h {
+  min-height: calc(var(--spacing) * 9);
+  @media (pointer: coarse) {
+    min-height: calc(var(--spacing) * 11);
+  }
+}
+@utility tap-w {
+  min-width: calc(var(--spacing) * 9);
+  @media (pointer: coarse) {
+    min-width: calc(var(--spacing) * 11);
+  }
+}
+
+/*
   Shared control and label classes. In the components layer, so a utility beside
   one (a margin, a hover) wins without a specificity fight.
 */
@@ -149,9 +168,12 @@
     @apply text-at-shore hover:underline;
   }
 
-  /* A select or search box. 44px tall, the site's smallest touch target. */
+  /* A select or search box, at the control floor (`tap-h`). 16px
+     text on a touch screen: iOS Safari zooms the page in on focusing a field
+     set any smaller, and keys on the pointer rather than the width, since a
+     phone held sideways is wider than sm. */
   .at-field {
-    @apply min-h-11 border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore;
+    @apply tap-h border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore pointer-coarse:text-base;
   }
 
   /* The board row holding the worst of its board: a faint late tint, under any hover tint. */
@@ -165,9 +187,9 @@
   }
 }
 
-/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. 44px tall, the site's smallest touch target. */
+/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters, at the control floor (`tap-h`). */
 .chip {
-  @apply inline-flex min-h-11 items-center px-3 py-1 text-sm font-semibold transition-colors;
+  @apply inline-flex tap-h items-center px-3 py-1 text-sm font-semibold transition-colors;
 }
 .chip-on {
   @apply bg-at-shore text-white;
@@ -178,20 +200,20 @@
 /*
   Icon-only chips: the day and period steppers hold a bare
   chevron, so `.chip`'s text padding left a 42x26 target on the controls the
-  whole archive is read through - a third of a fingertip. Squared up to 44px,
-  which grows those rows once rather than every chip on the site.
+  whole archive is read through - a third of a fingertip. Squared up to the
+  control floor, which grows those rows once rather than every chip on the site.
 */
 .chip-icon {
-  @apply min-h-11 min-w-11 justify-center;
+  @apply tap-h tap-w justify-center;
 }
 /*
   Holds the space of a stepper chevron that is not offered. Without it, reaching
-  the newest or oldest day collapsed a 44px chip plus the row's 4px gap and slid
-  the date and the window tabs beside it 48px sideways, on the one control a
+  the newest or oldest day collapsed a chip plus the row's 4px gap and slid the
+  date and the window tabs beside it sideways, on the one control a
   reader clicks repeatedly.
 */
 .step-slot {
-  @apply block min-h-11 min-w-11;
+  @apply block tap-h tap-w;
 }
 
 /*
@@ -234,7 +256,7 @@
    the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
    pairing from the brand guide). */
 .at-btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold transition;
+  @apply inline-flex tap-h items-center justify-center gap-1.5 px-4 py-1.5 text-sm font-semibold transition;
 }
 .at-btn-cta {
   @apply bg-at-safety text-at-ocean hover:brightness-95;
@@ -257,7 +279,7 @@
 /* Opens a section. The 2px ink rule is the heaviest mark on a page, so nothing
    else should use it: it is what tells a reader a new band has started. */
 .at-band {
-  @apply border-t-2 border-at-ink pt-4;
+  @apply border-t-2 border-at-ink pt-3;
 }
 
 /* The small caps label naming a figure, a section or a card's role. */

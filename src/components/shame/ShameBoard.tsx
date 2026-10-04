@@ -1,6 +1,7 @@
 // src/components/shame/ShameBoard.tsx
 // Shame board layout rendering rows as a mobile single-column list or a desktop two-column grid.
 
+import { ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FlameCount } from "@/components/shame/FlameCount";
 import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
@@ -9,7 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Hint } from "@/components/ui/Hint";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
-import type { ShameStreak, StreakBoard } from "@/lib/data";
+import { SHAME_RANKED_LIMIT, type ShameStreak, type StreakBoard } from "@/lib/data";
 import { plural } from "@/lib/format";
 import type { HourSlot } from "@/lib/page/nav";
 import type { RouteDisplay } from "@/lib/route/slug";
@@ -22,18 +23,20 @@ import {
 import Link from "next/link";
 import type { JSX, ReactNode } from "react";
 
-/** The label column's box, shared by the hour and rank labels so rows line up. */
-const LABEL = "w-12 shrink-0 pt-px text-sm font-semibold tabular-nums";
+/**
+ * The label column's box, shared by the hour, day and rank labels so rows line
+ * up. Wide enough for the "Worst 10" link under an hour or a day.
+ */
+const LABEL = "w-16 shrink-0 pt-px text-sm font-semibold tabular-nums";
 
 /**
- * A label that is its row's main link: its `::after` is stretched over the whole
- * row (the row is `relative`), so a press anywhere opens it, and only a lifted
- * {@link ShameSubjectLink} goes elsewhere.
+ * The row's main link: its `::after` is stretched over the whole row (the row is
+ * `relative`), so a press anywhere opens the subject the row names, and only a
+ * lifted {@link PeriodListLink} goes elsewhere.
  */
-const STRETCHED =
-  "text-at-shore after:absolute after:inset-0 group-hover:underline underline-offset-2";
+const STRETCHED = "after:absolute after:inset-0";
 
-/** Anchor classes for a single-column row (mobile day list + week list). */
+/** Anchor classes for a single-column row (the phone list). */
 const MOBILE_ANCHOR =
   "flex items-start gap-3 border-t border-at-border px-4 py-3 transition-colors hover:bg-at-shore-pale";
 /** Anchor classes for a desktop grid cell (border lives on the `<li>`, cell is full-height). */
@@ -49,15 +52,37 @@ export interface ShameRowContext {
 }
 
 /**
+ * The link from a day-board hour or a week-board day to its own ranked list,
+ * written out ("Worst 10") so it never reads as the row's own destination.
+ * Lifted over the row's stretched subject link, with a fingertip-sized hit area.
+ * @param props - Component props.
+ * @param props.href - The period's ranked list.
+ * @param props.label - The accessible name, naming the hour or day it ranks.
+ * @returns The link element.
+ */
+function PeriodListLink({ href, label }: { href: string; label: string }): JSX.Element {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className="hit-44 relative z-10 mt-0.5 inline-flex items-center text-xs font-semibold whitespace-nowrap text-at-shore hover:underline"
+    >
+      Worst {SHAME_RANKED_LIMIT}
+      <ChevronRight aria-hidden className="h-3 w-3" />
+    </Link>
+  );
+}
+
+/**
  * A day-board row's hour, such as "9am". The hours after midnight close the
  * board rather than open it, so each carries a tooltip naming the service day
- * it counts towards. Given an href, the hour is the row's main link (see
- * {@link ShameSplitRow}), opening the hour's ranked list from anywhere on the row.
+ * it counts towards. Given an href, a {@link PeriodListLink} under the hour opens
+ * the hour's ranked list.
  * @param props - Component props.
  * @param props.hour - Hour of day, 0-23.
  * @param props.serviceDate - The shown service date (`YYYY-MM-DD`).
- * @param props.href - Where the hour opens, or undefined for a plain label.
- * @param props.linkLabel - The link's accessible name, naming what it opens.
+ * @param props.href - The hour's ranked list, or undefined for a plain label.
+ * @param props.linkLabel - The ranked-list link's accessible name.
  * @returns The label element.
  */
 export function ShameHourLabel({
@@ -73,21 +98,20 @@ export function ShameHourLabel({
 }): JSX.Element {
   const afterMidnight = hour < SERVICE_START_HOUR;
   const note = afterMidnight ? afterMidnightNote(serviceDate) : undefined;
-  if (href) {
-    return (
-      <Link href={href} aria-label={linkLabel} title={note} className={cn(LABEL, STRETCHED)}>
-        {nzHourLabel(hour)}
-      </Link>
-    );
-  }
-  if (note) {
-    return (
-      <Hint align="start" hint={note} className={cn(LABEL, "relative z-10 text-at-muted")}>
-        {nzHourLabel(hour)}
-      </Hint>
-    );
-  }
-  return <span className={cn(LABEL, "text-at-muted")}>{nzHourLabel(hour)}</span>;
+  const tone = href ? "text-at-ink" : "text-at-muted";
+  const name = note ? (
+    <Hint align="start" hint={note} className={cn("relative z-10", tone)}>
+      {nzHourLabel(hour)}
+    </Hint>
+  ) : (
+    <span className={tone}>{nzHourLabel(hour)}</span>
+  );
+  return (
+    <span className={cn(LABEL, "flex flex-col items-start")}>
+      {name}
+      {href && <PeriodListLink href={href} label={linkLabel ?? nzHourLabel(hour)} />}
+    </span>
+  );
 }
 
 /**
@@ -102,12 +126,14 @@ export function ShameRankLabel({ rank }: { rank: number }): JSX.Element {
 }
 
 /**
- * A week or month board's day, such as "Thu 24/09", as the row's main link: it
- * opens the day's ranked list from anywhere on the row (see {@link ShameSplitRow}).
+ * A week or month board's day, "Thu" over "24/09", with a {@link PeriodListLink}
+ * under it to the day's ranked list. The day is always two lines, so it fits the
+ * hour label's column and every row lines up rather than only the widest
+ * weekdays wrapping.
  * @param props - Component props.
  * @param props.date - The service date (`YYYY-MM-DD`).
  * @param props.href - The day's ranked list.
- * @param props.linkLabel - The link's accessible name, naming what it opens.
+ * @param props.linkLabel - The ranked-list link's accessible name.
  * @returns The label element.
  */
 export function ShameDayLabel({
@@ -121,22 +147,23 @@ export function ShameDayLabel({
 }): JSX.Element {
   const [, m, d] = date.split("-");
   return (
-    <Link
-      href={href}
-      aria-label={linkLabel}
-      className={cn("w-16 shrink-0 pt-px text-sm font-semibold tabular-nums", STRETCHED)}
-    >
-      {weekdayShort(date)} {d}/{m}
-    </Link>
+    <span className={cn(LABEL, "flex flex-col items-start text-at-ink")}>
+      <span>{weekdayShort(date)}</span>
+      <span>
+        {d}/{m}
+      </span>
+      <PeriodListLink href={href} label={linkLabel} />
+    </span>
   );
 }
 
 /**
- * A row with two destinations. Links cannot nest, so the label (a linked
- * {@link ShameHourLabel} or {@link ShameDayLabel}) stretches its link over the
- * whole row, and the row's subject, a {@link ShameSubjectLink}, is lifted above
- * it. The row reads and hovers as one surface that opens the period's ranked
- * list; only a press on the subject opens the route, run or stop.
+ * A row with two destinations. Links cannot nest, so the row's subject, a
+ * {@link ShameSubjectLink}, stretches its link over the whole row, and the
+ * label's "Worst 10" link (a linked {@link ShameHourLabel} or
+ * {@link ShameDayLabel}) is lifted above it. The row reads and hovers as one
+ * surface that opens the route, trip or stop it names; only the written-out
+ * link under the label opens the period's ranked list.
  * @param props - Component props.
  * @param props.ctx - Surface context from the board.
  * @param props.label - The label column, whose link covers the row.
@@ -164,9 +191,9 @@ export function ShameSplitRow({
 }
 
 /**
- * A split row's subject (the route number, or the stop name), lifted above the
- * row's stretched list link so a press on it opens the subject itself. Dotted
- * underline so it reads as a link of its own inside a row that is one.
+ * A split row's subject (the route number, or the stop name), whose link is
+ * stretched over the whole row (see {@link ShameSplitRow}), so a press anywhere
+ * but the label's ranked-list link opens it.
  * @param props - Component props.
  * @param props.href - Where the subject opens.
  * @param props.children - The subject's name.
@@ -182,7 +209,10 @@ export function ShameSubjectLink({
   return (
     <Link
       href={href}
-      className="relative z-10 font-semibold text-at-ink underline decoration-at-border decoration-dotted underline-offset-4 hover:text-at-shore hover:decoration-at-shore hover:decoration-solid"
+      className={cn(
+        "font-semibold text-at-ink underline-offset-2 group-hover:text-at-shore group-hover:underline",
+        STRETCHED,
+      )}
     >
       {children}
     </Link>
@@ -219,7 +249,7 @@ export function ShameRowBody({
   note,
   figures,
 }: {
-  route?: Pick<RouteDisplay, "mode" | "shortName" | "longName">;
+  route?: Pick<RouteDisplay, "mode" | "shortName" | "longName" | "colour">;
   subject: ReactNode;
   subtitle?: string | null;
   worst: boolean;
@@ -235,6 +265,7 @@ export function ShameRowBody({
           mode={route.mode}
           shortName={route.shortName}
           longName={route.longName}
+          colour={route.colour}
           className="mt-0.5 h-5 w-5 shrink-0"
         />
       )}
@@ -378,8 +409,6 @@ export function ShameEmptyHourRow({
 
 /** Props for {@link ShameBoard}. */
 export interface ShameBoardProps<T> {
-  /** "day" = responsive two-column hour grid; "week" = single-column list (days, or a ranked list). */
-  layout: "day" | "week";
   /** Rows to render (already filtered/ordered by the page). */
   items: T[];
   /** Stable React key for a row. */
@@ -395,13 +424,13 @@ export interface ShameBoardProps<T> {
 }
 
 /**
- * Shared board shell for the shame day/week views. Owns the surface container,
- * the empty state, the responsive layout (single-column on mobile and in the
- * week view; an explicit two-column CSS grid on desktop day views so column
- * dividers stay row-aligned), and the optional "none notably bad" footer. Each
- * page supplies `renderRow` for the entity-specific row body.
+ * Shared board shell for every shame list: the hours of a day, the days of a
+ * week or month, and a ranked list. Owns the surface container, the empty state,
+ * the responsive layout (single-column on mobile; an explicit two-column CSS
+ * grid from `md` so column dividers stay row-aligned), and the optional "none
+ * notably bad" footer. Each page supplies `renderRow` for the entity-specific
+ * row body.
  * @param props - Component props.
- * @param props.layout - "day" (hour grid) or "week" (day list).
  * @param props.items - Rows to render.
  * @param props.keyOf - Stable key for a row.
  * @param props.emptyMessage - Shown when there are no rows.
@@ -411,7 +440,6 @@ export interface ShameBoardProps<T> {
  * @returns The board element(s).
  */
 export function ShameBoard<T>({
-  layout,
   items,
   keyOf,
   emptyMessage,
@@ -428,23 +456,6 @@ export function ShameBoard<T>({
       {footerMessage}
     </Panel>
   );
-
-  if (layout === "week") {
-    return (
-      <>
-        <Panel as="div">
-          <ul className="striped">
-            {items.map((item, i) => (
-              <li key={keyOf(item, i)}>
-                {renderRow(item, { surface: "mobile", anchorClass: MOBILE_ANCHOR })}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-        {footer}
-      </>
-    );
-  }
 
   return (
     <>
@@ -466,7 +477,7 @@ export function ShameBoard<T>({
         <ul className="hidden md:grid md:grid-cols-2">
           {items.map((item, i) => {
             // Half the rows down each column (the extra one on the left), so a
-            // full day reads 12 and 12 rather than leaving a gap under one side.
+            // full day reads 12 and 12 and a ranked list 1 to 5 beside 6 to 10.
             const perCol = Math.ceil(items.length / 2);
             const isRight = i >= perCol;
             const rowIdx = isRight ? i - perCol : i;

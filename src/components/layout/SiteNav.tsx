@@ -23,12 +23,13 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
       {NAV_GROUPS.map((group, i) => (
         // From lg up the tabs always make one row, and a rule divides the groups.
         // Below that they can wrap, and a rule would start a line wherever a
-        // group wrapped, so the groups are parted by space alone; on a phone each
-        // group takes a row of its own.
+        // group wrapped, so the groups are parted by space alone. On a phone the
+        // groups dissolve into one wrapped run of tabs: two rows rather than a
+        // row per group.
         <div
           key={group.map((s) => s.href).join(" ")}
           className={cn(
-            "flex flex-wrap items-center gap-0.5 sm:gap-1",
+            "contents sm:flex sm:flex-wrap sm:items-center sm:gap-1",
             i > 0 && "lg:border-l lg:border-at-border lg:pl-3",
           )}
         >
@@ -41,7 +42,7 @@ function NavLinks({ params }: { params: URLSearchParams }): JSX.Element {
             // link, since /route/20 > /routes is a real navigation.
             // px-2 below sm keeps each group to one row on a 360px phone.
             const className = cn(
-              "inline-flex min-h-11 shrink-0 items-center px-2 py-1.5 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
+              "inline-flex tap-h shrink-0 items-center px-2 py-1 text-xs font-semibold transition-colors sm:px-3 sm:text-sm",
               active ? "bg-at-shore text-white" : "text-at-ink hover:bg-at-shore-pale",
             );
             return pathname === s.href ? (
@@ -86,7 +87,7 @@ export function SiteNav(): JSX.Element {
     // a reader never finds.
     <nav
       aria-label="Main"
-      className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5 sm:gap-y-1 lg:gap-x-3"
+      className="flex min-w-0 flex-wrap items-center gap-0.5 sm:gap-x-4 sm:gap-y-1 lg:gap-x-3"
     >
       {/* Reading the query suspends a statically rendered page; plain links stand in. */}
       <Suspense fallback={<NavLinks params={new URLSearchParams()} />}>

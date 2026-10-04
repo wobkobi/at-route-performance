@@ -28,9 +28,17 @@ describe("lineName", () => {
     expect(lineName("TRAIN", "o-w")).toBe("Onehunga West Line");
   });
 
-  it("returns null for non-rail modes, so a bus sharing a code cannot match", () => {
+  it("names the branded bus services", () => {
+    expect(lineName("BUS", "CTY")).toBe("CityLink");
+    expect(lineName("BUS", "tmk")).toBe("TāmakiLink");
+    expect(lineName("BUS", "NX2")).toBe("Northern Express");
+  });
+
+  it("keeps each mode's names to its own routes", () => {
     expect(lineName("BUS", "STH")).toBeNull();
     expect(lineName("FERRY", "ONE")).toBeNull();
+    expect(lineName("TRAIN", "CTY")).toBeNull();
+    expect(lineName("FERRY", "OUT")).toBeNull();
   });
 
   it("returns null for unknown codes and missing short names", () => {

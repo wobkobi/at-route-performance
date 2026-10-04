@@ -270,7 +270,7 @@ export default async function TripPage({
   );
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <BackLink
         href={routeHref(slug, {
           // Today's day is left off, since the route page redirects it away.
@@ -289,6 +289,7 @@ export default async function TripPage({
               mode={route.mode}
               shortName={route.shortName}
               longName={route.longName}
+              colour={route.colour}
               className="h-7 w-7"
             />
           )
@@ -369,7 +370,7 @@ export default async function TripPage({
           than a full-width strip, and the list no longer stretches across the page. */}
       <div
         className={cn(
-          "space-y-6",
+          "space-y-4",
           hasTripMap && "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0",
         )}
       >
@@ -392,7 +393,6 @@ export default async function TripPage({
               }))}
               mode={route ? modeOrBus(route.mode) : undefined}
               school={school}
-              colour={route?.colour ?? null}
               stopLinks
               stopDay={linkDay}
               className="h-[min(25rem,60svh)] lg:h-[min(44rem,calc(100dvh-12rem))]"
@@ -414,12 +414,7 @@ export default async function TripPage({
           </EmptyState>
         ) : (
           <Panel pad="sm">
-            <TripLine
-              line={line}
-              mode={routeMode}
-              colour={route?.colour ?? null}
-              stopDay={linkDay}
-            />
+            <TripLine line={line} mode={routeMode} stopDay={linkDay} />
           </Panel>
         )}
       </div>

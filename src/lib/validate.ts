@@ -100,6 +100,8 @@ export const routeStatsQuery = z
 export const stopsQuery = z.object({
   limit: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(1000).default(200)),
   offset: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).default(0)),
+  /** A name or stop-code search; switches the endpoint from paging to searching. */
+  q: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(100).optional()),
 });
 
 /** Query parameters for the aggregate cron: one service date, or none for the catch-up. */

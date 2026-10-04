@@ -19,7 +19,12 @@ import { shiftPixels } from "@/lib/map/shared-roads";
 import { bandColours, bandTextColours, cssVar, escapeHtml } from "@/lib/map/style";
 import { AUCKLAND_CENTRE, MAP_POLL_MS, createBaseMap, reducedMotion } from "@/lib/map/tiles";
 import { usePopupLinkRouting } from "@/lib/map/use-popup-links";
-import { readGlyphs, vehicleIcon, vehiclePopupHtml } from "@/lib/map/vehicle-marker";
+import {
+  readGlyphs,
+  vehicleDotIcon,
+  vehicleIcon,
+  vehiclePopupHtml,
+} from "@/lib/map/vehicle-marker";
 import type { Mode } from "@/lib/mode";
 import type { ReadingBand } from "@/lib/on-time";
 import { operatorOf, type Operator } from "@/lib/operators";
@@ -54,6 +59,14 @@ const BASE_ZOOM = 11;
  * dozen, where the whole region's thousand would stall the page.
  */
 const ICON_ZOOM = 15;
+
+/**
+ * From this zoom up to {@link ICON_ZOOM} the canvas dots become bigger filled
+ * dots with the mode's glyph in white (ink on early green). They are DOM markers too, drawn as they
+ * come into view; a suburb's view holds a few hundred at most, where the whole
+ * region's thousand stay on the canvas as plain dots.
+ */
+const DOT_ICON_ZOOM = 13;
 
 /**
  * A road path's stroke at a zoom. Rail and ferry lines are few and long, so they
@@ -123,19 +136,19 @@ function linePopupHtml(
 /**
  * The network map.
  * @param props - Component props.
- * @param props.mode - Show one mode's vehicles, or null for every mode.
+ * @param props.modes - The modes whose vehicles and route lines are drawn.
  * @param props.bands - The delay bands whose dots are drawn.
  * @param props.showLines - Whether the route lines are drawn under the dots.
  * @param props.className - Height and size classes.
  * @returns The map container.
  */
 export default function LiveMap({
-  mode,
+  modes,
   bands,
   showLines,
   className,
 }: {
-  mode: Mode | null;
+  modes: ReadonlySet<Mode>;
   bands: ReadonlySet<ReadingBand>;
   showLines: boolean;
   className?: string;
@@ -338,7 +351,7 @@ export default function LiveMap({
     // Walked from the top of the draw order down, since each path is sent to the
     // back as it lands: the list comes buses first, and they must end up lowest.
     for (const line of [...lines].reverse()) {
-      if (mode && line.mode !== mode) continue;
+      if (!modes.has(line.mode)) continue;
       for (const run of line.runs) {
         const at: Leaflet.LatLng[] = [];
         for (let i = 0; i + 1 < run.path.length; i += 2) {
@@ -361,7 +374,7 @@ export default function LiveMap({
     return () => {
       map.off("zoomend", place);
     };
-  }, [lines, mode, ready, showLines]);
+  }, [lines, modes, ready, showLines]);
 
   // Redraw on each poll, on a mode change and on a toggle. An open popup closes
   // with its dot; a two-minute redraw is rare enough that keying dots by id is
@@ -373,7 +386,7 @@ export default function LiveMap({
     const colour = bandColours();
     const glyphColour = bandTextColours();
     const glyphs = readGlyphs(glyphRef.current);
-    const shown = vehicles.filter((v) => (!mode || v.mode === mode) && v.stored);
+    const shown = vehicles.filter((v) => modes.has(v.mode) && v.stored);
     const drawn = shown
       .map((v) => ({ v, status: vehicleStatus(v.delaySec, v.mode) }))
       .filter(({ status }) => bands.has(status.band));
@@ -382,20 +395,21 @@ export default function LiveMap({
     // in, markers are added as vehicles come into view and never taken off until
     // the zoom drops back: clearing on each move would shut a popup the moment
     // Leaflet pans the map to fit it.
-    let drawnAs: "dots" | "icons" | null = null;
+    let drawnAs: "dots" | "dotIcons" | "icons" | null = null;
     const placed = new Set<string>();
     /** Draw the dots, or the in-view markers, for the current zoom. */
     const draw = (): void => {
-      const icons = map.getZoom() >= ICON_ZOOM;
-      if (!icons && drawnAs === "dots") return;
-      if ((icons ? "icons" : "dots") !== drawnAs) {
+      const zoom = map.getZoom();
+      const tier = zoom >= ICON_ZOOM ? "icons" : zoom >= DOT_ICON_ZOOM ? "dotIcons" : "dots";
+      if (tier === "dots" && drawnAs === "dots") return;
+      if (tier !== drawnAs) {
         layer.clearLayers();
         placed.clear();
-        drawnAs = icons ? "icons" : "dots";
+        drawnAs = tier;
       }
       const view = map.getBounds().pad(0.25);
       for (const { v, status } of drawn) {
-        if (!icons) {
+        if (tier === "dots") {
           L.circleMarker([v.lat, v.lon], {
             renderer,
             radius: v.mode === "BUS" ? 4 : 6,
@@ -410,12 +424,22 @@ export default function LiveMap({
         }
         if (placed.has(v.id) || !view.contains([v.lat, v.lon])) continue;
         placed.add(v.id);
-        const icon = vehicleIcon(L, {
-          ring: colour[status.band],
-          glyphColour: glyphColour[status.band],
-          glyph: glyphs.get(glyphFor(v.mode, v.school).label) ?? null,
-          bearing: v.bearing,
-        });
+        const glyph = glyphs.get(glyphFor(v.mode, v.school).label) ?? null;
+        const icon =
+          tier === "icons"
+            ? vehicleIcon(L, {
+                ring: colour[status.band],
+                glyphColour: glyphColour[status.band],
+                glyph,
+                bearing: v.bearing,
+              })
+            : vehicleDotIcon(L, {
+                fill: colour[status.band],
+                glyph,
+                // White on the bright early green is 2.1:1; ink is 7.5:1, as on the early badge.
+                glyphFill: status.band === "early" ? PALETTE.ink : "#fff",
+                size: v.mode === "BUS" ? 20 : 24,
+              });
         L.marker([v.lat, v.lon], { icon, keyboard: false })
           .bindPopup(popupHtml(v, status.detail, operatorsRef.current))
           .addTo(layer);
@@ -435,12 +459,17 @@ export default function LiveMap({
     return () => {
       map.off("moveend", draw);
     };
-  }, [vehicles, mode, bands]);
+  }, [vehicles, modes, bands]);
 
   /**
    * Ask for the reader's position and fly to it, marking where they are with a
    * dot and a ring for how sure the browser is. Asked on the press rather than on
    * load: a prompt nobody asked for gets refused, and iOS only shows it after a tap.
+   *
+   * Two fixes are asked for at once. The network one (Wi-Fi or cell) usually
+   * lands in under a second and flies the map; the GPS one can take many seconds,
+   * or never come indoors, so when it does it only moves the dot and tightens the
+   * ring. Whichever lands, a fix less sure than the one shown is ignored.
    */
   const locate = (): void => {
     const m = mapRef.current;
@@ -451,60 +480,112 @@ export default function LiveMap({
     }
     setLocating(true);
     setLocateNote(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        const { L, map, hereLayer } = m;
-        const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
-          setLocateNote("You look to be outside Auckland, so there is nothing nearby to show.");
-          return;
+    const { L, map, hereLayer } = m;
+    let flown = false;
+    let best = Infinity;
+    let pending = 2;
+    let outside = false;
+    const OUTSIDE_NOTE = "You look to be outside Auckland, so there is nothing nearby to show.";
+
+    /**
+     * Mark a fix, and fly to the first one inside Auckland.
+     * @param pos - The browser's position.
+     */
+    const found = (pos: GeolocationPosition): void => {
+      pending--;
+      const here = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      if (!L.latLngBounds(AUCKLAND_BOUNDS).contains(here)) {
+        outside = true;
+        if (!flown && pending === 0) {
+          setLocating(false);
+          setLocateNote(OUTSIDE_NOTE);
         }
-        hereLayer.clearLayers();
-        // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
-        const ink = cssVar("--color-at-ink") || PALETTE.ink;
-        L.circle(here, {
-          radius: pos.coords.accuracy,
-          color: ink,
-          weight: 1,
-          fillOpacity: 0.08,
-          interactive: false,
-        }).addTo(hereLayer);
-        L.circleMarker(here, {
-          radius: 7,
-          weight: 3,
-          color: PALETTE.surface,
-          fillColor: ink,
-          fillOpacity: 1,
-          interactive: false,
-        }).addTo(hereLayer);
-        // The reader chose this view, so the first poll must not frame it away.
-        framed.current = true;
-        // Centred on the reader and wide enough for the nearest few vehicles (see
-        // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
-        const shown = (vehiclesRef.current ?? []).filter((v) => !mode || v.mode === mode);
-        const frame = nearbyFrame(
-          [here.lat, here.lng],
-          pos.coords.accuracy,
-          shown.map((v) => [v.lat, v.lon] as const),
-        );
-        map.flyToBounds(frame, {
-          padding: [24, 24],
-          maxZoom: NEAR_MAX_ZOOM,
-          duration: 0.8,
-          animate: !reducedMotion(),
+        return;
+      }
+      if (pos.coords.accuracy >= best) return;
+      best = pos.coords.accuracy;
+      hereLayer.clearLayers();
+      // Ink, which no vehicle dot uses: the on-time blue would pass for a bus.
+      const ink = cssVar("--color-at-ink") || PALETTE.ink;
+      L.circle(here, {
+        radius: pos.coords.accuracy,
+        color: ink,
+        weight: 1,
+        fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(hereLayer);
+      // The dot is an HTML marker, not a circleMarker: Leaflet scales vector
+      // layers as a picture through a zoom, so the flight below blew a vector
+      // dot up to hundreds of pixels until it landed. A marker keeps its size.
+      L.marker(here, {
+        icon: L.divIcon({
+          className: "",
+          html: `<span aria-hidden="true" style="display:block;box-sizing:content-box;width:11px;height:11px;border:3px solid ${PALETTE.surface};border-radius:50%;background:${ink}"></span>`,
+          iconSize: [17, 17],
+          iconAnchor: [8.5, 8.5],
+        }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(hereLayer);
+      if (flown) return;
+      flown = true;
+      setLocating(false);
+      // The reader chose this view, so the first poll must not frame it away.
+      framed.current = true;
+      // Centred on the reader and wide enough for the nearest few vehicles (see
+      // nearbyFrame). Short, so the zoom reads as a move rather than a flight.
+      const shown = (vehiclesRef.current ?? []).filter((v) => modes.has(v.mode));
+      const frame = nearbyFrame(
+        [here.lat, here.lng],
+        pos.coords.accuracy,
+        shown.map((v) => [v.lat, v.lon] as const),
+      );
+      // Leaflet stretches the overlay pane (vehicle dots, road lines, accuracy
+      // ring) as one picture through a flight, so four zoom levels blow 8px dots
+      // up into blurred blobs. Hide it until the flight ends; the renderers
+      // redraw on moveend in handlers added before this one, so it shows sharp.
+      const overlay = map.getPane("overlayPane");
+      if (overlay) {
+        overlay.style.opacity = "0";
+        map.once("moveend", () => {
+          overlay.style.opacity = "";
         });
-      },
-      (err) => {
-        setLocating(false);
-        setLocateNote(
-          err.code === err.PERMISSION_DENIED
+      }
+      map.flyToBounds(frame, {
+        padding: [24, 24],
+        maxZoom: NEAR_MAX_ZOOM,
+        duration: 0.8,
+        animate: !reducedMotion(),
+      });
+    };
+
+    /**
+     * Say why, once both asks have failed and nothing was found.
+     * @param err - The browser's error.
+     */
+    const failed = (err: GeolocationPositionError): void => {
+      pending--;
+      if (flown || pending > 0) return;
+      setLocating(false);
+      setLocateNote(
+        outside
+          ? OUTSIDE_NOTE
+          : err.code === err.PERMISSION_DENIED
             ? "Location is turned off for this site. Allow it in your browser's settings to zoom to where you are."
             : "Your location could not be found. Try again in a moment.",
-        );
-      },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
-    );
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(found, failed, {
+      enableHighAccuracy: false,
+      timeout: 10_000,
+      maximumAge: 300_000,
+    });
+    navigator.geolocation.getCurrentPosition(found, failed, {
+      enableHighAccuracy: true,
+      timeout: 20_000,
+      maximumAge: 60_000,
+    });
   };
 
   return (

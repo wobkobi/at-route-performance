@@ -311,7 +311,7 @@ export default async function OperatorPage({
   const schoolPreserved = stripUnset({ ...view, ...routeKeep, ...fleetKeep });
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <BackLink href={buildHref("/operators", { ...view, school })} to="operators" />
 
       <PageHeader
@@ -392,6 +392,7 @@ export default async function OperatorPage({
                         mode={r.mode}
                         shortName={r.name}
                         longName={r.long}
+                        colour={r.colour}
                         className="h-4 w-4 shrink-0"
                       />
                       <span className="min-w-0">

@@ -32,6 +32,200 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.50.0] - 2026-10-05
+
+### Added
+
+- Hardest-worked vehicles has a Live now filter listing only the vehicles on a trip now, ranked over
+  the day, week or month
+
+## [2.49.4] - 2026-10-05
+
+### Changed
+
+- On the shame boards a row's route or stop opens from anywhere on the row, and a separate "Worst
+  10" link under the hour or day opens that period's ranked list, so it is clear which link goes
+  where
+
+## [2.49.3] - 2026-10-05
+
+### Changed
+
+- Tighter spacing across the site: smaller gaps between sections, a slimmer header and footer, and
+  chips, menus and buttons 36px tall with a mouse while staying 44px on a touch screen
+
+## [2.49.2] - 2026-10-05
+
+### Changed
+
+- The shame boards' ranked, week and month lists sit in two columns on a wide screen, as the day
+  board does
+
+## [2.49.1] - 2026-10-05
+
+### Changed
+
+- A route's trips board shows 15 trips a page
+
+## [2.49.0] - 2026-10-05
+
+### Added
+
+- The Routes list packs more into less room: each row shows the live count, operator, areas and an
+  on-time, late and early split, the count sits in the filter row, and the duplicate Routes figure
+  is gone
+
+## [2.48.0] - 2026-10-05
+
+### Added
+
+- Compare's picker searches as you type, listing each route or stop with its mode icon, line name
+  and on-time share
+
+## [2.47.0] - 2026-10-05
+
+### Added
+
+- An Alerts page lists every service alert running now and coming up, with links to the stops and
+  routes each names; it has a nav tab, the home page a one-line count linking to it, and a stop's
+  own alerts open on its page
+
+## [2.46.2] - 2026-10-04
+
+### Fixed
+
+- The direction arrows along a route page's map line are small blue discs with a white ring and a
+  white chevron, instead of blue chevrons that sank into the line and left only their tips showing,
+  so they read as barbs on the line rather than arrows.
+
+## [2.46.1] - 2026-10-04
+
+### Fixed
+
+- On a phone, tapping the Routes or Compare search box or the Operator select no longer zooms the
+  page in: iOS Safari zooms on any field set under 16px, so these fields are 16px on a touch screen
+  and keep 14px under a mouse.
+
+## [2.46.0] - 2026-10-04
+
+### Added
+
+- Searching the Routes page finds the branded buses and train lines by name ("city link", "outer
+  link", "tamaki", "northern express", "south city"), ignoring spaces, hyphens and macrons. Those
+  routes also show their name under the code wherever a route's second line is shown (CityLink,
+  InnerLink, OuterLink, TāmakiLink, AirportLink, Northern Express, Western Express), since AT's feed
+  names them only by the code.
+
+## [2.45.2] - 2026-10-04
+
+### Fixed
+
+- NX1 and NX2 (Northern Express), WX1 (Western Express), AIR (AirportLink) and RBM (the Meadowbank
+  loop) take their brand colours on their icons, the live map's lines and share cards, since AT's
+  feed gives them none: dark blue, cyan, green, orange and the Eastern Line yellow. A colour AT
+  publishes for one of them later wins.
+
+## [2.45.1] - 2026-10-04
+
+### Fixed
+
+- Routes AT colours black (the Rakino, Rangitoto and Tiritiri ferries, and Te Huia) show their icon
+  in black instead of their mode's colour; black had been read as AT leaving the colour unset, which
+  it does by leaving the field empty.
+
+## [2.45.0] - 2026-10-04
+
+### Added
+
+- A route's page takes the home page's Time filter (From and To hour grids), and on a wide screen
+  its line diagram sits beside the trips board, so it is no longer a long scroll down. The trips
+  board pages 20 at a time with numbered page links instead of growing with Show more, and a Live
+  now chip narrows it to the trips with a vehicle on the road. The route map gains a Re-centre
+  button that brings the whole route back into view.
+
+## [2.44.0] - 2026-10-04
+
+### Added
+
+- The Routes page lists routes in a sortable table with fixed column widths, without rank numbers,
+  and on a phone its filters fold behind a Filters button so the list starts near the top of the
+  screen.
+
+## [2.43.3] - 2026-10-04
+
+### Fixed
+
+- A list's show-more button reads "Show 13 more" when that is everything left, not "Show 13 more of
+  13".
+
+## [2.43.2] - 2026-10-04
+
+### Fixed
+
+- On the live map's suburb-zoom dots, an early vehicle's icon is drawn in dark ink instead of white,
+  since white on the bright early green was too faint to read (2.1:1, now 7.5:1). Dots in the other
+  colours keep white icons.
+
+## [2.43.1] - 2026-10-04
+
+### Fixed
+
+- The live map's Buses, Trains and Ferries toggles are gone again: the page's own Mode filter
+  already narrows the dots, the route lines and the table, and the extra chips made the toggle row
+  run to four lines on a phone.
+
+## [2.43.0] - 2026-10-03
+
+### Added
+
+- The live map's toggle row gains Buses, Trains and Ferries, each hiding its vehicles and route
+  lines, so the rail and ferry network can be seen without the bus roads; All vehicles turns every
+  band and mode back on. They hide while the page's own mode filter is set.
+
+## [2.42.0] - 2026-10-03
+
+### Added
+
+- Zoomed in to suburb level on the live map, each vehicle is a bigger dot filled in its delay colour
+  with its bus, train or ferry icon in white, so the mode reads before street level, where the
+  ringed marker with its heading arrow still takes over. Zoomed out to the whole region the dots
+  stay small and plain.
+
+## [2.41.60] - 2026-10-03
+
+### Fixed
+
+- Near me asks for a quick Wi-Fi or cell fix and a GPS fix together: the quick one zooms the map in
+  under a second, and a later GPS fix only moves the dot and tightens its ring, where it used to
+  wait for GPS (up to 15 seconds, and often failing indoors). During the zoom-in the vehicle dots,
+  lines and accuracy ring are hidden and come back redrawn, and the location dot keeps its size,
+  where all of them used to swell into blurred blobs mid-flight.
+
+## [2.41.59] - 2026-10-03
+
+### Fixed
+
+- Tapping a segment of the home verdict bar opens its note under that segment, where it always
+  opened at the bar's left edge under the on-time blue; on a phone, where the note is wider than a
+  segment, it lines up with the bar's nearer end.
+
+## [2.41.58] - 2026-10-03
+
+### Fixed
+
+- A route's branch lines on the live map now run along their own street to the junction and end on
+  the main line, where they used to stop up to 40 metres short and float; route 65's Walker Park
+  branch in Point Chevalier was the one seen. The map lines rebuild on the next load.
+
+## [2.41.57] - 2026-10-03
+
+### Fixed
+
+- Route icons take the route's own AT colour (green for the Inner Link, red for the Southern Line),
+  falling back to the mode's colour, and every single route's line, map and stop diagram is drawn in
+  Shore blue, so the icon says which route and the line reads the same everywhere. The live map
+  keeps each route's colour, since it draws them all at once.
+
 ## [2.41.56] - 2026-10-03
 
 ### Fixed

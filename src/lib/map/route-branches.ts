@@ -34,6 +34,17 @@ const STEP_M = 20;
 /** The shortest branch drawn, in metres, so a loop around a terminus block or a bay entry adds nothing. */
 const MIN_BRANCH_M = 150;
 
+/** How near the drawn road a branch end must come to stop walking along its shape towards it, in metres. */
+const JOIN_M = 1;
+
+/**
+ * The furthest a branch end walks along its own shape towards the road it
+ * leaves, in metres. A street leaving at 15 degrees takes about 155 m to close
+ * the {@link COVER_M} gap; the cap keeps a long parallel approach from being
+ * drawn twice.
+ */
+const JOIN_WALK_M = 200;
+
 /** One of a route's shapes and how many trips follow it. */
 export interface RouteShape {
   /** `[lat, lon]` pairs. */
@@ -93,9 +104,11 @@ function densify(points: readonly [number, number][]): [number, number][] {
  * {@link MAIN_SHARE} of the busiest shape's trips), then, busiest first, every
  * stretch of at least {@link MIN_BRANCH_M} of another shape carrying at least
  * {@link BRANCH_SHARE} that lies beyond {@link COVER_M} of everything drawn so
- * far. A branch keeps one point either side of its stretch, so it meets the
- * road it leaves. The return direction of a branch is covered by the first
- * direction drawn, so each branch draws once.
+ * far. Each end of a branch follows its own shape back towards the road it
+ * leaves while it gets nearer, then finishes on that road, so it joins the
+ * drawn line rather than stopping where it first comes within {@link COVER_M}.
+ * The return direction of a branch is covered by the first direction drawn, so
+ * each branch draws once.
  * @param shapes - The route's shapes, each with two or more points.
  * @returns The paths, main shape first; empty when no shape has two points.
  */
@@ -115,17 +128,23 @@ export function routePaths(shapes: readonly RouteShape[]): [number, number][][] 
   }
   if (!main) return [];
 
-  // Covered points on a grid of COVER_M cells; a point reads the nine around its own.
+  // Covered points on a grid of COVER_M cells; a point reads the nine around its
+  // own. The drawn segments sit on the same grid, keyed by their end point, so a
+  // branch end can find the nearest spot on the road.
   const grid = new Map<string, [number, number][]>();
+  const segments = new Map<string, [number, number, number, number][]>();
   /**
-   * Mark a drawn path's points covered.
+   * Mark a drawn path's points covered and record its segments.
    * @param path - `[lat, lon]` pairs.
    */
   const cover = (path: readonly [number, number][]): void => {
+    let prev: [number, number] | null = null;
     for (const p of densify(path)) {
       const [x, y] = metres(p);
       const key = `${Math.floor(x / COVER_M)},${Math.floor(y / COVER_M)}`;
       pushTo(grid, key, [x, y]);
+      if (prev) pushTo(segments, key, [prev[0], prev[1], x, y]);
+      prev = [x, y];
     }
   };
   /**
@@ -146,6 +165,65 @@ export function routePaths(shapes: readonly RouteShape[]): [number, number][][] 
     }
     return false;
   };
+  /**
+   * The nearest spot on a drawn path. Reads two cells each way: a segment is at
+   * most {@link STEP_M} long, so one whose nearest spot is within 60 m keeps its
+   * end point inside that block.
+   * @param p - `[lat, lon]`.
+   * @returns The distance in metres and the spot as `[lat, lon]`; Infinity when nothing is that near.
+   */
+  const nearest = (p: [number, number]): { d: number; at: [number, number] } => {
+    const [x, y] = metres(p);
+    const gx = Math.floor(x / COVER_M);
+    const gy = Math.floor(y / COVER_M);
+    let best: { d: number; at: [number, number] } = { d: Infinity, at: p };
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (const [ax, ay, bx, by] of segments.get(`${gx + dx},${gy + dy}`) ?? []) {
+          const vx = bx - ax;
+          const vy = by - ay;
+          const t = Math.min(
+            1,
+            Math.max(0, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1)),
+          );
+          const cx = ax + t * vx;
+          const cy = ay + t * vy;
+          const d = Math.hypot(x - cx, y - cy);
+          if (d < best.d) best = { d, at: [cy / M_PER_DEG, cx / (M_PER_DEG * COS_LAT)] };
+        }
+      }
+    }
+    return best;
+  };
+  /**
+   * Where a branch end meets the drawn road. From the covered point beside the
+   * open stretch, step along the shape away from it while each step comes
+   * nearer the road (up to {@link JOIN_WALK_M}), so the branch runs into the
+   * junction along its own street, then take the road's nearest spot.
+   * @param pts - The shape's densified points.
+   * @param from - Index of the covered point beside the open stretch.
+   * @param step - -1 to walk back from a branch's start, 1 to walk on from its end.
+   * @returns The index the walk stopped at and the spot on the road.
+   */
+  const join = (
+    pts: readonly [number, number][],
+    from: number,
+    step: 1 | -1,
+  ): { i: number; at: [number, number] } => {
+    let i = from;
+    let near = nearest(pts[i] as [number, number]);
+    let walked = 0;
+    while (near.d > JOIN_M && walked < JOIN_WALK_M) {
+      const next = pts[i + step];
+      if (!next) break;
+      const closer = nearest(next);
+      if (closer.d >= near.d) break;
+      walked += pathLength([pts[i] as [number, number], next]);
+      i += step;
+      near = closer;
+    }
+    return { i, at: near.at };
+  };
 
   const paths: [number, number][][] = [main.points];
   cover(main.points);
@@ -163,7 +241,13 @@ export function routePaths(shapes: readonly RouteShape[]): [number, number][][] 
       let to = from;
       while (to + 1 < pts.length && open[to + 1]) to++;
       if (pathLength(pts.slice(from, to + 1)) >= MIN_BRANCH_M) {
-        const branch = pts.slice(Math.max(0, from - 1), Math.min(pts.length, to + 2));
+        const start = from > 0 ? join(pts, from - 1, -1) : null;
+        const end = to + 1 < pts.length ? join(pts, to + 1, 1) : null;
+        const branch: [number, number][] = [
+          ...(start ? [start.at] : []),
+          ...pts.slice(start?.i ?? from, (end?.i ?? to) + 1),
+          ...(end ? [end.at] : []),
+        ];
         paths.push(branch);
         cover(branch);
       }

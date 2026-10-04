@@ -72,7 +72,7 @@ export default function RootLayout({
         <header className="z-40 border-b-2 border-at-ink bg-at-surface sm:sticky sm:top-0">
           {/* Nine tabs need about 900px, so the nav takes a row of its own under
               the logo until the viewport leaves room beside it. */}
-          <div className="at-container flex flex-col gap-2 py-2 sm:py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+          <div className="at-container flex flex-col gap-2 py-2 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
             {/* The label is on the link, not the logo: the wordmark beside it is
                 hidden on a phone, so an empty alt there would leave the home link
                 with no accessible name, and naming the logo "Auckland Transport"
@@ -89,7 +89,7 @@ export default function RootLayout({
                 width={48}
                 height={48}
                 priority
-                className="h-9 w-auto sm:h-11"
+                className="h-9 w-auto"
               />
               {/* Always shown: the nav has a row of its own until there is room for
                   logo, name and tabs on one. */}
@@ -100,12 +100,12 @@ export default function RootLayout({
             <SiteNav />
           </div>
         </header>
-        <div id="main" className="at-container flex-1 py-8">
+        <div id="main" className="at-container flex-1 py-4 sm:py-6">
           {children}
         </div>
         {/* Dark Ocean footer with link columns + a legal sub-bar, like at.govt.nz. */}
         <footer className="bg-at-ocean text-white">
-          <div className="at-container grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="at-container grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {/* Decorative: the wordmark beside it is always visible here. */}

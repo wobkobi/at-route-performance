@@ -78,6 +78,16 @@ export function SplitBar({
   const shares = { onTime, late, early };
   const meaning = bandMeaning(mode);
   const active = shown === null ? null : SPLIT_BANDS.find((b) => b.key === shown)!;
+  // The note centres under its own segment (the shares before it, plus half its
+  // own), held inside the bar at either end; a bar narrower than the note gives
+  // a negative upper bound, and clamp() then settles on 0.
+  const before = active
+    ? SPLIT_BANDS.slice(0, SPLIT_BANDS.indexOf(active)).reduce(
+        (sum, b) => sum + Math.max(0, shares[b.key]),
+        0,
+      )
+    : 0;
+  const centre = active ? before + Math.max(0, shares[active.key]) / 2 : 0;
 
   // Each segment and figure carries its band in `data-band`, so one set of
   // handlers serves all six buttons.
@@ -178,7 +188,8 @@ export function SplitBar({
       {active && (
         <div
           role="status"
-          className="absolute top-5 left-0 z-30 max-w-xs border border-at-border bg-at-surface p-3 text-sm shadow-lg"
+          className="absolute top-5 z-30 w-xs max-w-full border border-at-border bg-at-surface p-3 text-sm shadow-lg"
+          style={{ left: `clamp(0px, calc(${centre}% - 10rem), calc(100% - 20rem))` }}
         >
           <p className={cn("font-semibold", active.toneClass)}>
             {active.label} {formatPct(shares[active.key])}

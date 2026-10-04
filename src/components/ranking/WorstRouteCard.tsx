@@ -98,6 +98,7 @@ export function WorstRouteCard({
           mode={route.mode}
           shortName={route.shortName}
           longName={route.longName}
+          colour={route.colour}
           className="h-6 w-6"
         />
         <WorstCardTitle>{name}</WorstCardTitle>
