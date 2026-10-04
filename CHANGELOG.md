@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.46.2] - 2026-10-04
+
+### Fixed
+
+- The direction arrows along a route page's map line are small blue discs with a white ring and a
+  white chevron, instead of blue chevrons that sank into the line and left only their tips showing,
+  so they read as barbs on the line rather than arrows.
+
 ## [2.46.1] - 2026-10-04
 
 ### Fixed

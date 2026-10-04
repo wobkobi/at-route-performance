@@ -68,8 +68,11 @@ const STOP_FOCUS_ZOOM = 14;
 const OVERVIEW_ZOOM = 12;
 
 /**
- * A chevron `divIcon` pointing along a route line's travel direction, in the
- * line's colour with a white edge so it reads over the line and any tile.
+ * A direction marker sitting on a route line: a disc in the line's colour with
+ * a white ring and a white chevron pointing the way of travel. A bare chevron in
+ * the line's colour sinks into the line, leaving only its wings showing as
+ * barbs; the ring sets the disc off the line and the white chevron reads at a
+ * glance.
  * @param L - The Leaflet module.
  * @param angle - Degrees clockwise from screen up.
  * @returns A Leaflet divIcon.
@@ -77,9 +80,9 @@ const OVERVIEW_ZOOM = 12;
 function arrowIcon(L: typeof import("leaflet"), angle: number): Leaflet.DivIcon {
   const html =
     `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">` +
-    `<g transform="rotate(${Math.round(angle)} 8 8)">` +
-    `<path d="M8 2 L13.5 12.5 L8 9.5 L2.5 12.5 Z" fill="${ROUTE_LINE_HEX}" stroke="#fff" ` +
-    `stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/></g></svg>`;
+    `<circle cx="8" cy="8" r="7" fill="${ROUTE_LINE_HEX}" stroke="#fff" stroke-width="1.5"/>` +
+    `<path d="M5 9.5 L8 6 L11 9.5" transform="rotate(${Math.round(angle)} 8 8)" fill="none" ` +
+    `stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   return L.divIcon({ className: "route-arrow", html, iconSize: [16, 16], iconAnchor: [8, 8] });
 }
 
@@ -88,10 +91,10 @@ const ARROW_SPACING_PX = 140;
 
 /**
  * Screen pixels an arrow keeps from the centre of a stop circle: the circle's
- * 8px (radius and ring) plus most of the arrow's own 8px half, so a chevron may
- * graze a ring but never cover a stop.
+ * 8px (radius and ring) plus the arrow disc's own 8px radius, so the two never
+ * overlap.
  */
-const ARROW_STOP_CLEARANCE_PX = 14;
+const ARROW_STOP_CLEARANCE_PX = 16;
 
 /** AT palette colours resolved once from CSS custom properties: each reading band's, then the rest. */
 interface MapColours extends Record<ReadingBand, string> {
