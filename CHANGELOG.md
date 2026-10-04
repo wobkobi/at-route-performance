@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.50.1] - 2026-10-05
+
+### Fixed
+
+- The verdict bar's note puts each share as a fraction people say ("about 2 in 5", "about 9 in 10",
+  "nearly all") instead of an exact "1 in 67" or an odd "11 in 12", so it reads as how often a rider
+  meets it
+
 ## [2.50.0] - 2026-10-05
 
 ### Added

@@ -52,6 +52,47 @@ export function formatPct(pct: number | null | undefined): string {
   return pct == null || !Number.isFinite(pct) ? UNKNOWN_VALUE : `${pct.toFixed(1)}%`;
 }
 
+/** "1 in N" denominators for a small share, so "1 in 70" never reads as "1 in 67". */
+const FEW_IN = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50, 60, 70, 80, 100];
+/** Denominators for a large share, kept to ones people say ("9 in 10", "19 in 20"). */
+const MOST_IN = [2, 3, 4, 5, 10, 20, 30, 50, 100];
+/** The fractions past "1 in N" worth saying, for a share between a fifth and a half. */
+const NON_UNIT: [number, number][] = [
+  [2, 5],
+  [3, 10],
+];
+
+/**
+ * A share as an everyday fraction ("about 2 in 5", "about 3 in 4"), so a note
+ * says how often a rider meets it rather than restating the percentage.
+ *
+ * Works on the smaller side of the split (the share, or what is left of it past
+ * half), picks the fraction nearest by relative error, and turns it back round
+ * for a share over half: 75% is 1 in 4 left over, so "3 in 4". Relative error
+ * keeps a small share honest (3% is "1 in 30", not "1 in 20"); a tie goes to the
+ * smaller denominator, so 45% reads "1 in 2" rather than "2 in 5". A large share
+ * takes only the denominators people say, so 92% is "9 in 10", not "11 in 12".
+ * @param pct - The share, 0-100.
+ * @returns The phrase; "nearly all" over 99%, null under 1%, where "1 in 150"
+ *   reads as more precise than the share it came from.
+ */
+export function shareFraction(pct: number): string | null {
+  if (!Number.isFinite(pct) || pct < 1) return null;
+  if (pct > 99) return "nearly all";
+  const most = pct > 50;
+  const minority = (most ? 100 - pct : pct) / 100;
+  const units = (most ? MOST_IN : FEW_IN).map((d): [number, number] => [1, d]);
+  const options = [...units, ...NON_UNIT].sort((a, b) => a[1] - b[1]);
+  let best: [number, number] = [1, 2];
+  let bestErr = Infinity;
+  for (const [n, d] of options) {
+    const err = Math.abs(n / d - minority) / minority;
+    if (err < bestErr - 1e-9) [best, bestErr] = [[n, d], err];
+  }
+  const [n, d] = best;
+  return `about ${most ? d - n : n} in ${d}`;
+}
+
 /**
  * A percentage clamped to a bar's track, for a CSS width or height.
  * @param pct - The percentage, or null (drawn empty).
