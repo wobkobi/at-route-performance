@@ -704,12 +704,28 @@ export default function StopMap({
     };
   }, [ready, live, routeId]);
 
+  /** Frame the route again after the reader has panned or zoomed away from it. */
+  const recentre = (): void => {
+    const state = stateRef.current;
+    if (!state) return;
+    setInitialViewport(state, latestRef.current.stops, latestRef.current.routeLines);
+  };
+
   // `isolate` keeps Leaflet's high pane z-indexes (200-700) in their own stacking
   // context so they don't paint over the sticky header.
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
       <MapGlyphs ref={glyphRef} />
+      {/* Clear of Leaflet's attribution in the corner below it. */}
+      <button
+        type="button"
+        onClick={recentre}
+        disabled={!ready}
+        className="absolute right-2.5 bottom-7 z-10 flex min-h-11 items-center border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
+      >
+        Re-centre
+      </button>
       {vehiclesFailed && (
         <p
           role="status"

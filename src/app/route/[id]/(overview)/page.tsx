@@ -12,7 +12,7 @@
 import { AlertBanner } from "@/components/AlertBanner";
 import { RangeControls } from "@/components/date/RangeControls";
 import { DirectionFilter } from "@/components/filter/DirectionFilter";
-import { TimeOfDayFilter } from "@/components/filter/TimeOfDayFilter";
+import { HourRangeFilter } from "@/components/filter/HourRangeFilter";
 import { ChevronDown } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
 import { RouteMapDiagram } from "@/components/map/RouteMapDiagram";
@@ -66,7 +66,6 @@ import {
 } from "@/lib/format";
 import { cardPath, cardWhenSuffix, pageMetadata, parseRouteCard } from "@/lib/og";
 import { operatorHref, operatorOf } from "@/lib/operators";
-import { parseShown } from "@/lib/page/filter-params";
 import { redirectKeepingQuery, routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
 import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import { dayRangeNav, periodRangeNav, type RangeWindow } from "@/lib/page/range";
@@ -84,21 +83,22 @@ import { splitStopFigures } from "@/lib/strip/stop-split";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestNow } from "@/lib/time/request-now";
 import { nzLocalHour, nzServiceDayString, type DateRange } from "@/lib/time/service-day";
+import { hourRangeParam, isHourInRange, parseHourRange } from "@/lib/time/time-of-day";
 import {
-  hourRangeParam,
-  isHourInRange,
-  parseHourRange,
-  TIME_PRESETS,
-  type HourRange,
-} from "@/lib/time/time-of-day";
-import { buildTripBoardRows, sortRuns } from "@/lib/trip/board";
+  buildTripBoardRows,
+  LIVE_ONLY_PARAM,
+  parseTripPage,
+  sortRuns,
+  TRIP_PAGE_SIZE,
+  type TripBoardRow,
+} from "@/lib/trip/board";
 import { boundFor } from "@/lib/trip/departure-label";
 import { buildHref } from "@/lib/utils";
 import type { RouteByStop, RouteVariant } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense, type JSX } from "react";
+import { Suspense, type ComponentProps, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
 // search params and its data above any Suspense boundary, so it is allowed to
@@ -166,8 +166,10 @@ const TRIPS_FETCH_CAP = 500;
 interface StatsSearchParams {
   day?: string;
   tsort?: string;
-  /** Trips the board is showing, in whole steps of the list length. */
-  show?: string;
+  /** The trip board's 1-based page. */
+  tpage?: string;
+  /** "1" lists only the trips running now, on a view that covers now. */
+  tlive?: string;
   /** Reverse the active sort direction when "1". */
   trev?: string;
   /** Travel direction id to narrow the page to; unset for both. */
@@ -348,6 +350,8 @@ export default async function RoutePage({
   // are now, and since AT reuses trip ids every day, a past run would pick up
   // today's LIVE badge.
   const isLiveView = isWeekView ? periodParam === null : serviceDate === today;
+  // Nothing on a past day is running, so the live-only filter only reads on today's board.
+  const liveOnly = !isWeekView && isLiveView && sp.tlive === "1";
   const vehiclesPromise =
     isWeekView || !isLiveView
       ? Promise.resolve<LiveVehicle[]>([])
@@ -420,6 +424,7 @@ export default async function RoutePage({
   // drop the one param they set themselves, so the three cannot drift apart.
   const viewParams: Record<string, string> = {
     ...(activeDir != null ? { heading: String(activeDir) } : {}),
+    ...(liveOnly ? { [LIVE_ONLY_PARAM]: "1" } : {}),
     ...(tripSort !== "off" ? { tsort: tripSort } : {}),
     ...(isReversed ? { trev: "1" } : {}),
     ...(hoursParam ? { hours: hoursParam } : {}),
@@ -493,13 +498,6 @@ export default async function RoutePage({
    */
   const dirHref = (dir: number | null): string =>
     buildHref(routePath, { ...viewBase, heading: dir == null ? undefined : String(dir) });
-  /**
-   * Link to this view with a different part of the day.
-   * @param range - The range, or null for all day.
-   * @returns The href.
-   */
-  const hoursHref = (range: HourRange | null): string =>
-    buildHref(routePath, { ...viewBase, hours: hourRangeParam(range) });
 
   const dirHeadsigns =
     activeVariants == null
@@ -560,19 +558,30 @@ export default async function RoutePage({
 
   const totalTrips = dirTrips.length;
   const tripsCapped = trips.length >= TRIPS_FETCH_CAP;
-  const shownRows = boardRows.slice(0, parseShown(sp.show));
-  // The shown runs' fleet labels, so a row names a vehicle as its own page does.
-  const fleet = await getFleet([
-    ...new Set(
-      shownRows.flatMap((r) => (r.kind === "run" && r.trip.vehicle_id ? [r.trip.vehicle_id] : [])),
-    ),
-  ]).catch(readFallback("route-fleet", new Map<string, FleetVehicle>()));
 
-  // The board sets `tsort` itself, so everything else about the view carries.
+  // The board sets `tsort`, `tlive` and `tpage` itself, so everything else about the view carries.
   const tripPreserved: Record<string, string> = {
     ...(requestedDay ? { day: requestedDay } : {}),
   };
   for (const [k, v] of Object.entries(viewParams)) if (k !== "tsort") tripPreserved[k] = v;
+  const boardProps: TripBoardSectionProps = {
+    rows: boardRows,
+    liveOnly,
+    liveTripIds: liveTripIdsPromise,
+    page: sp.tpage,
+    board: {
+      routeId: slug,
+      serviceDate,
+      sort: tripSort,
+      isReversed,
+      mode: routeMode,
+      basePath: routePath,
+      preservedParams: tripPreserved,
+      liveTripIds: liveTripIdsPromise,
+      detouredTripIds: new Set(detouredTripIds),
+      canFilterLive: isLiveView,
+    },
+  };
 
   const title = route ? routeDisplayName({ ...route, slug }) : slug;
   const subtitle = route ? routeSubtitle({ ...route, slug }) : null;
@@ -650,13 +659,16 @@ export default async function RoutePage({
             }}
           />
         )}
-        <TimeOfDayFilter
-          active={hours}
-          hrefs={{
-            all: hoursHref(null),
-            ...Object.fromEntries(TIME_PRESETS.map((p) => [p.key, hoursHref(p.range)])),
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <HourRangeFilter
+            basePath={routePath}
+            params={Object.fromEntries(
+              Object.entries(viewBase).map(([k, v]) => [k, v ?? undefined]),
+            )}
+            hours={hours}
+            nowHour={isLiveView && !isWeekView ? nzLocalHour(now) : null}
+          />
+        </div>
       </div>
 
       <RouteAlertBannerSection alertsPromise={alertsPromise} slug={slug} live={isLiveView} />
@@ -792,53 +804,54 @@ export default async function RoutePage({
             </p>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <WorstTripsBoard
-              liveTripIds={liveTripIdsPromise}
-              routeId={slug}
-              serviceDate={serviceDate}
-              rows={shownRows}
-              total={boardRows.length}
-              sort={tripSort}
-              isReversed={isReversed}
-              mode={routeMode}
-              basePath={routePath}
-              preservedParams={tripPreserved}
-              detouredTripIds={new Set(detouredTripIds)}
-              fleet={fleet}
-            />
-            {tripsCapped && (
-              <p className="text-xs text-at-muted lg:col-span-2">
-                Showing the first {TRIPS_FETCH_CAP} trips of the day.
-              </p>
-            )}
-            <RouteMapDiagram
-              stops={mapStops}
-              routeLines={mapLines}
-              routeId={slug}
-              live={isLiveView}
-              mode={routeMode}
-              school={school}
-              filterDirectionIds={activeDirIds ?? undefined}
-              stopDay={stopDay}
-            />
-          </div>
-
-          {/* Hidden, not empty, when the pattern failed - see the week view above. */}
-          {!view.patternFailed && (
-            <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
-              <RouteDiagramSection
-                alertsPromise={alertsPromise}
+          {/* The board on the left, the map and the line diagram stacked on the
+              right, so the diagram sits beside the board rather than below it. */}
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              {/* The live-only board waits on AT's realtime call to know which rows
+                  to list, so it streams in; the full board does not wait. */}
+              {liveOnly ? (
+                <Suspense fallback={<LoadingBlock label="Loading the live trips" />}>
+                  <TripBoardSection {...boardProps} />
+                </Suspense>
+              ) : (
+                <TripBoardSection {...boardProps} />
+              )}
+              {tripsCapped && (
+                <p className="text-xs text-at-muted">
+                  Showing the first {TRIPS_FETCH_CAP} trips of the day.
+                </p>
+              )}
+            </div>
+            <div className="min-w-0 space-y-4">
+              <RouteMapDiagram
+                stops={mapStops}
+                routeLines={mapLines}
+                routeId={slug}
                 live={isLiveView}
-                slug={slug}
-                view={view}
-                range={range}
                 mode={routeMode}
-                activeDir={activeDir}
+                school={school}
+                filterDirectionIds={activeDirIds ?? undefined}
                 stopDay={stopDay}
               />
-            </Suspense>
-          )}
+              {/* Hidden, not empty, when the pattern failed - see the week view above. */}
+              {!view.patternFailed && (
+                <Suspense fallback={<LoadingBlock label="Loading the stopping pattern" />}>
+                  <RouteDiagramSection
+                    alertsPromise={alertsPromise}
+                    live={isLiveView}
+                    slug={slug}
+                    view={view}
+                    range={range}
+                    mode={routeMode}
+                    activeDir={activeDir}
+                    stopDay={stopDay}
+                    narrow
+                  />
+                </Suspense>
+              )}
+            </div>
+          </div>
 
           <section aria-labelledby="route-stops" className="space-y-3">
             <SectionHeading id="route-stops">Stops</SectionHeading>
@@ -977,6 +990,7 @@ async function RouteAlertBannerSection({
  * @param root0.activeDir - The direction the page's chip picked, or null for both.
  * @param root0.live - Whether the page is showing the current day or window.
  * @param root0.stopDay - The day each stop's link opens on.
+ * @param root0.narrow - Drawn in a half-width column, so one column of stops at every width.
  * @returns The route line diagram.
  */
 async function RouteDiagramSection({
@@ -988,6 +1002,7 @@ async function RouteDiagramSection({
   activeDir,
   live,
   stopDay,
+  narrow = false,
 }: {
   alertsPromise: Promise<ServiceAlert[]>;
   slug: string;
@@ -997,6 +1012,7 @@ async function RouteDiagramSection({
   activeDir: number | null;
   live: boolean;
   stopDay?: string;
+  narrow?: boolean;
 }): Promise<JSX.Element> {
   const strip = buildStrip({
     directions: view.directions,
@@ -1058,6 +1074,64 @@ async function RouteDiagramSection({
       alertRows={alertRows}
       marks={marks}
       stopDay={stopDay}
+      narrow={narrow}
+    />
+  );
+}
+
+/** Props for {@link TripBoardSection}. */
+interface TripBoardSectionProps {
+  /** Every row of the day's board, in display order. */
+  rows: TripBoardRow[];
+  /** List only the trips running now. */
+  liveOnly: boolean;
+  /** Trip ids running now, from AT's realtime feed. */
+  liveTripIds: Promise<ReadonlySet<string>>;
+  /** The raw `tpage` param. */
+  page: string | undefined;
+  /** Everything else the board takes. */
+  board: Omit<
+    ComponentProps<typeof WorstTripsBoard>,
+    "rows" | "total" | "page" | "liveOnly" | "fleet"
+  >;
+}
+
+/**
+ * One page of the trip board: narrowed to the trips running now when asked,
+ * then cut to the page, with the page's vehicles named from the fleet register.
+ * @param props - See {@link TripBoardSectionProps}.
+ * @param props.rows - Every row of the day's board.
+ * @param props.liveOnly - List only the trips running now.
+ * @param props.liveTripIds - Trip ids running now.
+ * @param props.page - The raw page param.
+ * @param props.board - The board's other props.
+ * @returns The board.
+ */
+async function TripBoardSection({
+  rows,
+  liveOnly,
+  liveTripIds,
+  page: rawPage,
+  board,
+}: TripBoardSectionProps): Promise<JSX.Element> {
+  const live = liveOnly ? await liveTripIds : null;
+  const listed = live ? rows.filter((r) => r.kind === "run" && live.has(r.trip.trip_id)) : rows;
+  const page = parseTripPage(rawPage, Math.ceil(listed.length / TRIP_PAGE_SIZE));
+  const pageRows = listed.slice((page - 1) * TRIP_PAGE_SIZE, page * TRIP_PAGE_SIZE);
+  // The page's fleet labels, so a row names a vehicle as its own page does.
+  const fleet = await getFleet([
+    ...new Set(
+      pageRows.flatMap((r) => (r.kind === "run" && r.trip.vehicle_id ? [r.trip.vehicle_id] : [])),
+    ),
+  ]).catch(readFallback("route-fleet", new Map<string, FleetVehicle>()));
+  return (
+    <WorstTripsBoard
+      {...board}
+      rows={pageRows}
+      total={listed.length}
+      page={page}
+      liveOnly={liveOnly}
+      fleet={fleet}
     />
   );
 }

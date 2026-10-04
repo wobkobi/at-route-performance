@@ -32,6 +32,16 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.45.0] - 2026-10-04
+
+### Added
+
+- A route's page takes the home page's Time filter (From and To hour grids), and on a wide screen
+  its line diagram sits beside the trips board, so it is no longer a long scroll down. The trips
+  board pages 20 at a time with numbered page links instead of growing with Show more, and a Live
+  now chip narrows it to the trips with a vehicle on the road. The route map gains a Re-centre
+  button that brings the whole route back into view.
+
 ## [2.44.0] - 2026-10-04
 
 ### Added

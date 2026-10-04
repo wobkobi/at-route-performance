@@ -31,16 +31,44 @@ export type TripBoardRow =
 /** A running-trip row of {@link TripBoardRow}. */
 type RunRow = Extract<TripBoardRow, { kind: "run" }>;
 
+/** The trip board's page number, 1-based; page 1 leaves it off. */
+export const TRIP_PAGE_PARAM = "tpage";
+
+/** Set to "1" to list only the trips with a vehicle broadcasting now. */
+export const LIVE_ONLY_PARAM = "tlive";
+
+/** Trips per page of the board. */
+export const TRIP_PAGE_SIZE = 20;
+
 /**
  * The route page params that say how its trip board is being read: the travel
- * direction, the part of the day, the on-time threshold, and the board's sort,
- * sort direction and length. A run's link carries them and the trip page's back
+ * direction, the part of the day, the live-only filter, and the board's sort,
+ * sort direction and page. A run's link carries them and the trip page's back
  * link hands them back, so returning from a run lands on the board as it was
  * left. Every param the route page narrows the board with belongs here; `hours`
- * narrows which runs are listed, so leaving it out returned the reader to an
- * all-day board and gave the trip page an all-day route to describe.
+ * narrows which runs are listed, so leaving it out would return the reader to an
+ * all-day board and give the trip page an all-day route to describe.
  */
-export const TRIP_BOARD_VIEW_PARAMS = ["heading", "hours", "tsort", "trev", "show"] as const;
+export const TRIP_BOARD_VIEW_PARAMS = [
+  "heading",
+  "hours",
+  LIVE_ONLY_PARAM,
+  "tsort",
+  "trev",
+  TRIP_PAGE_PARAM,
+] as const;
+
+/**
+ * Read the board's page param, clamped to the pages there are, so a stale link
+ * to page 9 of a day that now has 3 opens the last page rather than an empty one.
+ * @param raw - The raw `tpage` value.
+ * @param totalPages - How many pages the board has (at least 1).
+ * @returns The 1-based page.
+ */
+export function parseTripPage(raw: string | string[] | undefined, totalPages: number): number {
+  const n = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : 1;
+  return Math.min(Math.max(n, 1), Math.max(totalPages, 1));
+}
 
 /**
  * The trip board's view params that are set in a query, and nothing else.

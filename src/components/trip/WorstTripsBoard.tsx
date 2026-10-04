@@ -1,16 +1,16 @@
 // src/components/trip/WorstTripsBoard.tsx
-// Sortable show-more list of a route's worst trips with delay bands. Sort
-// chips reset the list to its first rows and clicking the active chip toggles
-// its direction, while the show-more link keeps the active sort. Both are
-// client navigations that keep the scroll position, so a sort change or a
-// longer list swaps the board in place instead of reloading the
-// document behind the route skeleton. Rows arrive already laid out (see
+// Sortable, paged list of a route's worst trips with delay bands. Sort chips
+// and the live-only chip reset the list to its first page, and clicking the
+// active sort chip toggles its direction, while the page links keep the active
+// sort. All are client navigations, so a change swaps the board in place
+// instead of reloading the document behind the route skeleton; the page links
+// land on the top of the board. Rows arrive already laid out (see
 // lib/trip/board.ts): cancelled trips carry a NEVER RAN badge, and on the delay
 // sorts a rank and the wait a rider had for the next trip when that is known; a
 // run AT also flagged carries its stage (CUT SHORT or REINSTATED), a run whose
 // vehicle left its route an OFF ROUTE badge, running trips get a LIVE badge,
 // streamed in per row so AT's realtime call never holds up the chips or the
-// show-more link. The section is `min-w-0` because it sits in a grid, where it
+// page links. The section is `min-w-0` because it sits in a grid, where it
 // would otherwise grow to its truncating rows' full width on a phone.
 
 import { BadgeKey, type BadgeKeyItem } from "@/components/BadgeKey";
@@ -19,14 +19,13 @@ import { ChevronRight, SortArrow } from "@/components/icons";
 import { Badge, CANCELLATION_TONE, CancellationBadge, LiveBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { Pager } from "@/components/ui/Pager";
 import { Panel } from "@/components/ui/Panel";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { ShowMore } from "@/components/ui/ShowMore";
 import { cn } from "@/lib/cn";
 import type { TripSort } from "@/lib/data";
-import { formatDuration, plural } from "@/lib/format";
+import { formatCount, formatDuration, plural } from "@/lib/format";
 import { isMode, MODE_NOUN } from "@/lib/mode";
-import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { tripHref } from "@/lib/page/hrefs";
 import {
   RANK_CLASS,
@@ -37,7 +36,13 @@ import {
 } from "@/lib/page/row";
 import { nzClockTime } from "@/lib/time/format";
 import { afterMidnightNote, isAfterMidnight } from "@/lib/time/service-day";
-import { type TripBoardRow, tripBoardView } from "@/lib/trip/board";
+import {
+  LIVE_ONLY_PARAM,
+  TRIP_PAGE_PARAM,
+  TRIP_PAGE_SIZE,
+  type TripBoardRow,
+  tripBoardView,
+} from "@/lib/trip/board";
 import {
   CANCELLATION_BADGE,
   CANCELLATION_BADGE_MEANING,
@@ -55,8 +60,8 @@ import { type JSX, Suspense } from "react";
  *
  * The set is passed in unresolved and awaited here, one small boundary per row,
  * so the board itself renders from rows that are already in hand. Awaited a
- * level up it would put the sort chips and the show-more link behind AT's
- * realtime call: every sort or show-more click is a server navigation, so the controls that
+ * level up it would put the sort chips and the page links behind AT's realtime
+ * call: every sort or page click is a server navigation, so the controls that
  * triggered it would vanish into a skeleton until AT answered.
  * @param props - Component props.
  * @param props.tripId - The row's trip id.
@@ -81,19 +86,25 @@ export interface WorstTripsBoardProps {
   routeId: string;
   /** Service day the rows are from, as `YYYY-MM-DD`. Opens the run on that day. */
   serviceDate: string;
-  /** The rows shown so far (running and cancelled trips), in display order. */
+  /** This page's rows (running and cancelled trips), in display order. */
   rows: TripBoardRow[];
   /** How many rows the whole board has. */
   total: number;
+  /** The 1-based page shown. */
+  page: number;
+  /** Whether the board lists only the trips running now. */
+  liveOnly?: boolean;
+  /** Offer the live-only chip: the view covers now. */
+  canFilterLive?: boolean;
   /** Active ordering. */
   sort: TripSort;
   /** Whether the active sort direction is reversed from its default. */
   isReversed?: boolean;
   /** Route mode: heading noun + the mode's early/late colour banding. */
   mode?: string;
-  /** Page path the sort and show-more links point at (the route page). */
+  /** Page path the sort and page links point at (the route page). */
   basePath: string;
-  /** Query params to preserve on the links (`tsort` and `show` are set here). */
+  /** Query params to preserve on the links (`tsort`, `tlive` and `tpage` are set here). */
   preservedParams: Record<string, string>;
   /**
    * Trip ids currently running live; those rows get a LIVE badge. Passed
@@ -186,13 +197,16 @@ const SORT_NOTE: Record<TripSort, string> = {
  * @param props - Board props.
  * @param props.routeId - Route the trips belong to.
  * @param props.serviceDate - Service day the rows are from, as `YYYY-MM-DD`.
- * @param props.rows - The rows shown so far, in display order.
+ * @param props.rows - This page's rows, in display order.
  * @param props.total - How many rows the whole board has.
+ * @param props.page - The 1-based page shown.
+ * @param props.liveOnly - Whether the board lists only the trips running now.
+ * @param props.canFilterLive - Offer the live-only chip.
  * @param props.sort - The active ordering.
  * @param props.isReversed - Whether the active sort direction is reversed from its default.
  * @param props.mode - Route mode, for the heading noun + colour banding.
- * @param props.basePath - Page path the sort and show-more links point at.
- * @param props.preservedParams - Query params to keep when changing the sort or length.
+ * @param props.basePath - Page path the sort and page links point at.
+ * @param props.preservedParams - Query params to keep when changing the sort or page.
  * @param props.liveTripIds - Unresolved set of trip ids currently broadcasting a position.
  * @param props.detouredTripIds - Trip ids whose vehicle left its route mid-run.
  * @param props.fleet - Fleet register rows by vehicle id, for the vehicles' names.
@@ -203,6 +217,9 @@ export function WorstTripsBoard({
   serviceDate,
   rows,
   total,
+  page,
+  liveOnly = false,
+  canFilterLive = false,
   sort,
   isReversed = false,
   mode,
@@ -218,8 +235,21 @@ export function WorstTripsBoard({
   const view = tripBoardView({
     ...preservedParams,
     tsort,
-    [SHOWN_PARAM]: rows.length > LIST_PAGE_SIZE ? String(rows.length) : undefined,
+    [TRIP_PAGE_PARAM]: page > 1 ? String(page) : undefined,
   });
+  const totalPages = Math.ceil(total / TRIP_PAGE_SIZE);
+  const first = (page - 1) * TRIP_PAGE_SIZE + 1;
+  /**
+   * A page of the board, landing on its top rather than where the pager was.
+   * @param n - The 1-based page.
+   * @returns The href.
+   */
+  const pageHref = (n: number): string =>
+    `${buildHref(basePath, {
+      ...preservedParams,
+      tsort,
+      [TRIP_PAGE_PARAM]: n > 1 ? String(n) : undefined,
+    })}#trips`;
   /**
    * A run's trip page, carrying the board's view for the way back.
    * @param tripId - The run's trip id.
@@ -228,10 +258,23 @@ export function WorstTripsBoard({
    */
   const runHref = (tripId: string, at: string): string => tripHref(routeId, tripId, at, view);
   return (
-    <Panel pad="sm" className="min-w-0">
+    <Panel pad="sm" id="trips" className="min-w-0 scroll-mt-32">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <SectionHeading>{noun} of the day</SectionHeading>
         <div className="flex flex-wrap gap-1">
+          {canFilterLive && (
+            <ChipLink
+              href={buildHref(basePath, {
+                ...preservedParams,
+                tsort,
+                [LIVE_ONLY_PARAM]: liveOnly ? undefined : "1",
+              })}
+              active={liveOnly}
+              className="mr-2 text-xs"
+            >
+              Live now
+            </ChipLink>
+          )}
           {SORTS.map((s) => {
             const isActive = s.key === sort;
             // Clicking the active chip toggles direction; clicking an inactive
@@ -253,7 +296,11 @@ export function WorstTripsBoard({
         </div>
       </div>
       {rows.length === 0 ? (
-        <EmptyState inset>No trips recorded for this day yet.</EmptyState>
+        <EmptyState inset>
+          {liveOnly
+            ? "No trips on this route are live right now."
+            : "No trips recorded for this day yet."}
+        </EmptyState>
       ) : (
         <>
           <p className="mb-2 text-xs text-at-muted">{SORT_NOTE[sort]}</p>
@@ -355,16 +402,19 @@ export function WorstTripsBoard({
         </>
       )}
       <BadgeKey items={badgeKey(rows, detouredTripIds)} />
-      {rows.length < total && (
-        <ShowMore
-          remaining={total - rows.length}
-          href={buildHref(basePath, {
-            ...preservedParams,
-            tsort,
-            [SHOWN_PARAM]: String(rows.length + LIST_PAGE_SIZE),
-          })}
-          className="mt-3"
-        />
+      {totalPages > 1 && (
+        <>
+          <p className="mt-3 text-center text-xs text-at-muted tabular-nums">
+            {formatCount(first)} to {formatCount(first + rows.length - 1)} of {formatCount(total)}
+          </p>
+          <Pager
+            page={page}
+            totalPages={totalPages}
+            hrefOf={pageHref}
+            label="Trip pages"
+            className="mt-2"
+          />
+        </>
       )}
     </Panel>
   );

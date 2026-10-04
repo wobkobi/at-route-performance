@@ -111,6 +111,8 @@ export interface RouteStripProps {
   marks: StripMarks | null;
   /** The day a stop's link opens on, or undefined for today or the week. */
   stopDay?: string;
+  /** Drawn in a half-width column, where two columns of stops would crush the names. */
+  narrow?: boolean;
 }
 
 /**
@@ -129,6 +131,7 @@ export interface RouteStripProps {
  * @param props.alertRows - Rows named in a live alert.
  * @param props.marks - The day's closures and detours, or null.
  * @param props.stopDay - The day a stop's link opens on.
+ * @param props.narrow - Keep to one column at every width.
  * @returns The diagram section.
  */
 export function RouteStrip({
@@ -139,6 +142,7 @@ export function RouteStrip({
   alertRows,
   marks,
   stopDay,
+  narrow = false,
 }: RouteStripProps): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -165,12 +169,13 @@ export function RouteStrip({
       const s = bypassSpan(b);
       return [Math.floor(s.top), Math.ceil(s.bottom)];
     });
-    const breaks = strip.rows.length >= WIDE_MIN_ROWS ? pickBreaks(strip, 2, noBreak) : [];
+    const breaks =
+      !narrow && strip.rows.length >= WIDE_MIN_ROWS ? pickBreaks(strip, 2, noBreak) : [];
     return {
       one: layoutStrip(strip, [], DIMS, marks),
       two: breaks.length > 0 ? layoutStrip(strip, breaks, DIMS, marks) : null,
     };
-  }, [strip, marks]);
+  }, [strip, marks, narrow]);
   const alerts = useMemo(
     () => new Set([...alertRows, ...(marks?.alertRows ?? []).map((i) => strip.rows[i]!.key)]),
     [alertRows, marks, strip],

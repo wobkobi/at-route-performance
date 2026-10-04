@@ -1,7 +1,13 @@
 // tests/lib/trip/board.test.ts
 // Unit tests for placing cancelled trips on the route trip board, and the board view params.
 import type { CancelledTripRow } from "@/lib/data/cancelled";
-import { buildTripBoardRows, sortRuns, tripBoardView, type TripBoardRow } from "@/lib/trip/board";
+import {
+  buildTripBoardRows,
+  parseTripPage,
+  sortRuns,
+  tripBoardView,
+  type TripBoardRow,
+} from "@/lib/trip/board";
 import type { CancellationStage } from "@/lib/trip/cancellation";
 import type { PerTripStat } from "@/types/api";
 import { describe, expect, it } from "vitest";
@@ -216,10 +222,12 @@ describe("tripBoardView", () => {
         heading: "1",
         tsort: "late",
         trev: undefined,
+        tpage: "3",
+        tlive: "1",
         show: "60",
         mode: "BUS",
       }),
-    ).toEqual({ heading: "1", tsort: "late", show: "60" });
+    ).toEqual({ heading: "1", tsort: "late", tpage: "3", tlive: "1" });
   });
 
   it("skips a repeated param rather than guessing which value", () => {
@@ -228,5 +236,26 @@ describe("tripBoardView", () => {
 
   it("carries the part of the day, which narrows the board like the direction does", () => {
     expect(tripBoardView({ heading: "0", hours: "7-9" })).toEqual({ heading: "0", hours: "7-9" });
+  });
+});
+
+describe("parseTripPage", () => {
+  it("reads a page inside the board", () => {
+    expect(parseTripPage("2", 3)).toBe(2);
+  });
+
+  it("clamps a page past the end to the last page", () => {
+    expect(parseTripPage("9", 3)).toBe(3);
+  });
+
+  it("reads a missing, repeated or unreadable page as the first", () => {
+    expect(parseTripPage(undefined, 3)).toBe(1);
+    expect(parseTripPage(["2", "3"], 3)).toBe(1);
+    expect(parseTripPage("-1", 3)).toBe(1);
+    expect(parseTripPage("0", 3)).toBe(1);
+  });
+
+  it("gives page 1 for an empty board", () => {
+    expect(parseTripPage("4", 0)).toBe(1);
   });
 });
