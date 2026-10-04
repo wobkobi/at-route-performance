@@ -1,13 +1,18 @@
 // src/lib/feed/at-alerts.ts
 // Types, fetchers and filters for AT's GTFS-RT service-alerts feed:
 // fetches and normalises alerts (with retry and backoff), resolves the route a
-// single-trip alert is about, then selects the ones relevant to a given route, a
-// given stop, a given trip, or the whole network, and grades how loudly each
-// should be presented.
+// single-trip alert is about and the stop pages and modes every alert touches,
+// then selects the ones relevant to a given route, a given stop, a given trip,
+// a mode, a search or the whole network, and grades how loudly each should be
+// presented.
 import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
+import { mapRouteType } from "@/lib/feed/at-static";
+import { searchFold } from "@/lib/format";
 import { unstable_cache } from "@/lib/mem-cache";
+import { MODES, modeOrBus, type Mode } from "@/lib/mode";
 import { routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { STATION_PREFIX, stationId, stationName, type StationParts } from "@/lib/stop/station";
 import { SEC_PER_DAY } from "@/lib/time/service-day";
 import { isObj, retryDelay, sleep } from "@/lib/utils";
 
@@ -39,6 +44,14 @@ export interface InformedEntity {
   trip_id?: string;
 }
 
+/** A stop an alert names, as the page a rider opens: a platform's is its station's. */
+export interface AlertStop {
+  /** The stop page's id (`station:<parent>` for a platform). */
+  id: string;
+  /** The stop's name, or its station's for a platform. */
+  name: string;
+}
+
 export interface ServiceAlert {
   id: string;
   active_period: ActivePeriod[];
@@ -48,6 +61,13 @@ export interface ServiceAlert {
   header_text?: AlertText;
   description_text?: AlertText;
   url?: AlertText;
+  /** The stop pages the alert names ({@link resolveAlertStops}); absent until resolved. */
+  stops?: AlertStop[];
+  /**
+   * The modes the alert touches ({@link alertModes}); empty for one naming no
+   * route or mode, which every mode filter keeps. Absent until resolved.
+   */
+  modes?: Mode[];
 }
 
 export interface AtServiceAlerts {
@@ -287,22 +307,90 @@ export function resolveAlertRoutes(
   };
 }
 
+/** A Stop row as the alert lookup reads it. */
+export interface AlertStopRow extends StationParts {
+  name: string;
+  /** The number on the pole, to tell apart two stops an alert names alike. */
+  code?: string | null;
+}
+
 /**
- * {@link resolveAlertRoutes} over the whole feed, with the two lookups it needs:
- * the route of every unrouted trip entity, and the short name of every route a
- * trip resolves to or the text names. Best-effort: a failed lookup leaves the
- * alerts as the feed sent them, since a trip-level alert is kept off the
- * network-wide banner either way ({@link networkWideAlerts}).
- * @param alerts - The active alerts.
+ * The stop pages an alert names, in the feed's order without repeats. AT names
+ * raw platforms and poles ("2885-a4c2ec2f"), so a platform becomes its
+ * station's page and the platforms of one station collapse to one link. A stop
+ * the Stop table does not hold has no page and is left out. Two stops with one
+ * name (the two sides of a road) carry their pole numbers, so their links read
+ * apart.
+ * @param alert - The alert.
+ * @param rows - Stop rows by stop id.
+ * @param parents - Stop ids that are a station themselves (another stop names them as its parent).
+ * @returns The stop pages.
+ */
+export function resolveAlertStops(
+  alert: ServiceAlert,
+  rows: ReadonlyMap<string, AlertStopRow>,
+  parents: ReadonlySet<string>,
+): AlertStop[] {
+  const pages = new Map<string, AlertStop & { code?: string | null }>();
+  for (const { stop_id } of alert.informed_entity) {
+    const row = stop_id ? rows.get(stop_id) : undefined;
+    if (!stop_id || !row) continue;
+    const parent = parents.has(stop_id);
+    const id = parent ? `${STATION_PREFIX}${stop_id}` : stationId(stop_id, row.name, row);
+    if (pages.has(id)) continue;
+    const own = parent || id === stop_id;
+    pages.set(id, {
+      id,
+      name: own ? row.name : stationName(row.name, row),
+      code: own ? row.code : null,
+    });
+  }
+  const named = [...pages.values()];
+  return named.map(({ id, name, code }) =>
+    code && named.filter((p) => p.name === name).length > 1
+      ? { id, name: `${name} (${code})` }
+      : { id, name },
+  );
+}
+
+/**
+ * The modes an alert touches: each named route's, and each `route_type`'s.
+ * Empty for an alert naming neither (a network-wide notice, or stops alone).
+ * @param alert - The alert, with trip entities already routed ({@link resolveAlertRoutes}).
+ * @param routeModes - Mode by versioned route id.
+ * @returns The modes, in {@link MODES} order.
+ */
+export function alertModes(alert: ServiceAlert, routeModes: ReadonlyMap<string, Mode>): Mode[] {
+  const found = new Set<Mode>();
+  for (const e of alert.informed_entity) {
+    const mode = e.route_id ? routeModes.get(e.route_id) : undefined;
+    if (mode) found.add(mode);
+    if (e.route_type != null) found.add(mapRouteType(e.route_type));
+  }
+  return MODES.filter((m) => found.has(m));
+}
+
+/**
+ * The lookups every alert needs, run once over the whole feed: the route of each
+ * unrouted trip entity ({@link resolveAlertRoutes}), then the short name and
+ * mode of every route the alerts name, and the stop rows behind every stop they
+ * name ({@link resolveAlertStops}, {@link alertModes}). Best-effort: a failed
+ * lookup leaves the alerts as the feed sent them, with no stop links or modes,
+ * since a trip-level alert is kept off the network-wide banner either way
+ * ({@link networkWideAlerts}).
+ * @param alerts - The alerts to resolve.
  * @returns The alerts, resolved where the lookups allow.
  */
-async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]> {
+async function resolveFeed(alerts: ServiceAlert[]): Promise<ServiceAlert[]> {
   const tripIds = [
     ...new Set(
       alerts.flatMap((a) =>
         a.informed_entity.flatMap((e) => (e.trip_id && !e.route_id ? [e.trip_id] : [])),
       ),
     ),
+  ];
+  const stopIds = [
+    ...new Set(alerts.flatMap((a) => a.informed_entity.flatMap((e) => e.stop_id ?? []))),
   ];
   try {
     const metas =
@@ -313,20 +401,53 @@ async function resolveFeedRoutes(alerts: ServiceAlert[]): Promise<ServiceAlert[]
           })
         : [];
     const tripRoutes = new Map(metas.flatMap((m) => (m.routeId ? [[m.id, m.routeId]] : [])));
-    const mentioned = [...new Set([...tripRoutes.values(), ...alerts.flatMap(routeIdsInText)])];
-    const routes =
+    const mentioned = [
+      ...new Set([
+        ...tripRoutes.values(),
+        ...alerts.flatMap(routeIdsInText),
+        ...alerts.flatMap((a) => a.informed_entity.flatMap((e) => e.route_id ?? [])),
+      ]),
+    ];
+    const [routes, stops, children] = await Promise.all([
       mentioned.length > 0
-        ? await prisma.route.findMany({
+        ? prisma.route.findMany({
             where: { id: { in: mentioned } },
-            select: { id: true, shortName: true },
+            select: { id: true, shortName: true, mode: true },
           })
-        : [];
+        : [],
+      stopIds.length > 0
+        ? prisma.stop.findMany({
+            where: { id: { in: stopIds } },
+            select: { id: true, name: true, code: true, parentStation: true, platformCode: true },
+          })
+        : [],
+      stopIds.length > 0
+        ? prisma.stop.findMany({
+            where: { parentStation: { in: stopIds } },
+            select: { parentStation: true },
+            distinct: ["parentStation"],
+          })
+        : [],
+    ]);
     const shortNames = new Map(
       routes.map((r) => [r.id, routeDisplayName({ ...r, routeId: r.id })]),
     );
-    return alerts.map((a) => resolveAlertRoutes(a, tripRoutes, shortNames));
+    const routeModes = new Map(routes.map((r) => [r.id, modeOrBus(r.mode)]));
+    const stopRows = new Map(stops.map((s) => [s.id, s]));
+    const parents = new Set(children.flatMap((c) => c.parentStation ?? []));
+    return alerts.map((a) => {
+      const routed = resolveAlertRoutes(a, tripRoutes, shortNames);
+      return {
+        ...routed,
+        stops: resolveAlertStops(routed, stopRows, parents),
+        modes: alertModes(routed, routeModes),
+      };
+    });
   } catch (err) {
-    console.warn("[AT-ALERTS] Route lookup failed", err instanceof Error ? err.message : err);
+    console.warn(
+      "[AT-ALERTS] Route and stop lookup failed",
+      err instanceof Error ? err.message : err,
+    );
     return alerts;
   }
 }
@@ -479,7 +600,7 @@ interface AlertSnapshot {
 
 /**
  * Cached snapshot of the alerts running now and those coming up (300s TTL),
- * with each trip-level alert's route resolved ({@link resolveFeedRoutes}). AT
+ * with each alert's routes, stop pages and modes resolved ({@link resolveFeed}). AT
  * operators enter alerts manually so sub-minute freshness adds no value. The
  * longer window keeps alert AT API calls at ~2,000/week - well within the
  * 35,000/week quota when combined with vehicle and ingest traffic. One fetch
@@ -491,7 +612,7 @@ function getAlertSnapshot(): Promise<AlertSnapshot> {
     async () => {
       const feed = await fetchAlerts();
       const now = new Date();
-      const resolved = await resolveFeedRoutes(
+      const resolved = await resolveFeed(
         feed.alerts.filter((a) => isAlertActive(a, now) || isAlertUpcoming(a, now)),
       );
       const upcoming = resolved.filter((a) => !isAlertActive(a, now));
@@ -506,7 +627,7 @@ function getAlertSnapshot(): Promise<AlertSnapshot> {
         upcoming: upcoming.sort((a, b) => startOf(a) - startOf(b)),
       };
     },
-    ["service-alerts-v2"],
+    ["service-alerts-v3"],
     { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
@@ -548,18 +669,20 @@ export function alertsForRoute(alerts: ServiceAlert[], routeIds: string[]): Serv
  * Returns alerts that affect any of the given stops.
  *
  * Takes a list, not a single id, because a train station is one page backed by
- * several GTFS stops. The feed's `informed_entity.stop_id` only ever names a raw
- * platform, so matching a station's own canonical id against it never hits -
- * which left every station page showing no alerts at all, including during a
- * line closure.
+ * several GTFS stops. The feed's `informed_entity.stop_id` names a raw
+ * platform, so a station page passes its platforms' ids; its own page id
+ * matches too, through the stop pages the alert resolved to
+ * ({@link resolveAlertStops}), which catches an alert naming the station itself.
  * @param alerts - Pool of alerts to filter.
- * @param stopIds - Raw GTFS stop ids to match against informed entities.
+ * @param stopIds - Raw GTFS stop ids and stop page ids to match.
  * @returns Alerts that affect at least one of the given stops.
  */
 export function alertsForStop(alerts: ServiceAlert[], stopIds: string[]): ServiceAlert[] {
   const set = new Set(stopIds);
-  return alerts.filter((a) =>
-    a.informed_entity.some((e) => e.stop_id !== undefined && set.has(e.stop_id)),
+  return alerts.filter(
+    (a) =>
+      a.informed_entity.some((e) => e.stop_id !== undefined && set.has(e.stop_id)) ||
+      (a.stops ?? []).some((s) => set.has(s.id)),
   );
 }
 
@@ -596,7 +719,92 @@ export function alertsForTrip(
  * @returns Alerts with no route, stop, trip, or route-type constraints.
  */
 export function networkWideAlerts(alerts: ServiceAlert[]): ServiceAlert[] {
-  return alerts.filter((a) =>
-    a.informed_entity.every((e) => !e.route_id && e.route_type == null && !e.stop_id && !e.trip_id),
+  return alerts.filter(isNetworkWide);
+}
+
+/**
+ * Whether an alert names no route, stop, trip or mode ({@link networkWideAlerts}).
+ * @param alert - The alert.
+ * @returns True for a network-wide alert.
+ */
+export function isNetworkWide(alert: ServiceAlert): boolean {
+  return alert.informed_entity.every(
+    (e) => !e.route_id && e.route_type == null && !e.stop_id && !e.trip_id,
   );
+}
+
+/**
+ * The routes an alert names, one versioned id per route page: two feed versions
+ * of a route share a slug and a page, so the first one named stands for both.
+ * @param alert - The alert.
+ * @returns The route ids, in the feed's order.
+ */
+export function alertRouteIds(alert: ServiceAlert): string[] {
+  const bySlug = new Map<string, string>();
+  for (const { route_id } of alert.informed_entity) {
+    if (route_id && !bySlug.has(routeSlug(route_id))) bySlug.set(routeSlug(route_id), route_id);
+  }
+  return [...bySlug.values()];
+}
+
+/**
+ * The alerts a mode filter keeps: those touching the mode, and those touching
+ * no mode at all (a network-wide notice, or stops alone), which concern every
+ * rider.
+ * @param alerts - The alerts.
+ * @param mode - The mode, or null for every alert.
+ * @returns The alerts kept, in their order.
+ */
+export function alertsForMode(alerts: readonly ServiceAlert[], mode: Mode | null): ServiceAlert[] {
+  if (!mode) return [...alerts];
+  return alerts.filter((a) => !a.modes?.length || a.modes.includes(mode));
+}
+
+/**
+ * How widely an alert reaches, for {@link rankAlerts}: network-wide first, then
+ * a route or stop alert, then one about a single trip (a lone cancellation
+ * leaves the trips around it running).
+ * @param alert - The alert.
+ * @returns 0, 1 or 2, widest first.
+ */
+function alertScope(alert: ServiceAlert): number {
+  if (isNetworkWide(alert)) return 0;
+  return alert.informed_entity.every((e) => e.trip_id) ? 2 : 1;
+}
+
+/**
+ * Alerts in the order a reader should meet them: service-stopping ones first
+ * ({@link alertSeverity}), then the widest reaching ({@link alertScope}), then
+ * the one naming the most routes. Ties keep the feed's order.
+ * @param alerts - The alerts.
+ * @returns A sorted copy.
+ */
+export function rankAlerts(alerts: readonly ServiceAlert[]): ServiceAlert[] {
+  return [...alerts].sort(
+    (a, b) =>
+      Number(alertSeverity(b) === "severe") - Number(alertSeverity(a) === "severe") ||
+      alertScope(a) - alertScope(b) ||
+      alertRouteIds(b).length - alertRouteIds(a).length,
+  );
+}
+
+/**
+ * Whether an alert matches a search: its header, description, route codes or
+ * stop names, folded by {@link searchFold} so "victoria st" finds "Victoria
+ * Street" and "tamaki" finds "Tāmaki". The "|" keeps a query from matching
+ * across two fields.
+ * @param alert - The alert.
+ * @param q - The search text; blank matches every alert.
+ * @returns True when the alert matches.
+ */
+export function alertMatches(alert: ServiceAlert, q: string): boolean {
+  const query = searchFold(q);
+  if (!query) return true;
+  const fields = [
+    extractText(alert.header_text) ?? "",
+    extractText(alert.description_text) ?? "",
+    ...alertRouteIds(alert).map(routeSlug),
+    ...(alert.stops ?? []).map((s) => s.name),
+  ];
+  return searchFold(fields.join("|")).includes(query);
 }

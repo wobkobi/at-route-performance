@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.47.0] - 2026-10-05
+
+### Added
+
+- An Alerts page lists every service alert running now and coming up, with links to the stops and
+  routes each names; it has a nav tab, the home page a one-line count linking to it, and a stop's
+  own alerts open on its page
+
 ## [2.46.2] - 2026-10-04
 
 ### Fixed

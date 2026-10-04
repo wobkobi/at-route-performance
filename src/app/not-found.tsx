@@ -12,6 +12,7 @@ import type { IconType } from "react-icons";
 import {
   FaBalanceScale,
   FaBan,
+  FaBell,
   FaBroadcastTower,
   FaBuilding,
   FaBusAlt,
@@ -35,6 +36,7 @@ const ICONS: Record<(typeof SITE_PAGES)[number]["href"], IconType> = {
   "/operators": FaBuilding,
   "/vehicles": FaBusAlt,
   "/live": FaBroadcastTower,
+  "/alerts": FaBell,
   "/shame/trip": FaExclamationTriangle,
   "/shame/route": FaRoute,
   "/shame/stop": FaMapMarkerAlt,

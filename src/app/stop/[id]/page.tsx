@@ -273,7 +273,7 @@ export default async function StopPage({
 
       <StopAlertBanner
         alertsPromise={alertsPromise}
-        stopIds={stats.platform_ids}
+        stopIds={[...stats.platform_ids, id]}
         pastWindow={linkDay !== undefined}
       />
 
@@ -584,6 +584,7 @@ async function StopAlertBanner({
         alerts={alertsForStop(await alertsPromise, stopIds)}
         heading="Service alerts"
         pastWindow={pastWindow}
+        defaultOpen
       />
       <AlertBanner alerts={alertsForStop(upcoming, stopIds)} heading="Coming up" upcoming />
     </>

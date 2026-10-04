@@ -3,6 +3,7 @@
 // client as the reader changes a control and the tests can pin them down. The
 // filters round-trip through the query string, writing only what differs from
 // the defaults, so a filtered view is a shareable link.
+import { searchFold } from "@/lib/format";
 import { type AreaKey, isAreaKey } from "@/lib/geo/areas";
 import { type FareZoneKey, isFareZoneKey } from "@/lib/geo/fare-zones";
 import { type Mode, parseMode } from "@/lib/mode";
@@ -103,21 +104,6 @@ export const DEFAULT_FILTERS: ExplorerFilters = {
  */
 export function defaultDir(sort: ExplorerSort): SortDir {
   return EXPLORER_SORTS.find((s) => s.key === sort)?.dir ?? "desc";
-}
-
-/**
- * Fold text for search: lower case, macrons and other accents off, spaces and
- * hyphens gone, so "city link" finds "CityLink", "tamaki" finds "TāmakiLink" and
- * "sc" finds "S-C".
- * @param s - The text.
- * @returns The folded text.
- */
-function searchFold(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[\s-]+/g, "");
 }
 
 /**
