@@ -1,38 +1,40 @@
 // src/app/shame/trip/page.tsx
 // Shame-of-the-day page listing the most off-schedule run per hour (day view) or per day (week view).
 
-import { FlameCount } from "@/components/FlameCount";
 import { LoadingBlock } from "@/components/Loading";
-import { ModeIcon } from "@/components/ModeIcon";
+import { FlameCount } from "@/components/shame/FlameCount";
 import {
+  hourSlotRenderer,
   ShameBoard,
+  ShameDayFlame,
   ShameDayLabel,
-  ShameEmptyHourRow,
   ShameHourLabel,
   ShameRankLabel,
+  ShameRowBody,
   ShameSplitRow,
   ShameSubjectLink,
   type ShameRowContext,
 } from "@/components/shame/ShameBoard";
 import { ShameHeader } from "@/components/shame/ShameHeader";
-import { ShameRowDelay } from "@/components/shame/ShameRowDelay";
-import { ShameWorstBadge } from "@/components/shame/ShameWorstBadge";
 import { cn } from "@/lib/cn";
+import { countBy } from "@/lib/collections";
 import {
   getEarliestDataDay,
+  getFilterUsage,
   getLatestEventDate,
   getShameDayHours,
-  getShameOfDay,
-  getShameOfWeek,
-  getShameRouteStreaksBatch,
-  getShameTripsInHours,
+  getShameStreaks,
+  getTripBoardInHours,
+  getTripBoardOfDay,
+  getTripBoardOfWeek,
+  PERIOD_REVALIDATE,
   SHAME_MIN_STOPS,
   SHAME_RANKED_LIMIT,
   TODAY_REVALIDATE,
 } from "@/lib/data";
-import { getFilterUsage } from "@/lib/data/filter-usage";
-import { boundFor } from "@/lib/departure-label";
-import { cardMetadata, cardPath, listCardTitle, parseShameCard } from "@/lib/og";
+import { formatCount, plural } from "@/lib/format";
+import { cardPath, listShareCard, pageMetadata, parseShameCard, shameHeading } from "@/lib/og";
+import { tripHref } from "@/lib/page/hrefs";
 import {
   fillServiceHours,
   filterLiveHours,
@@ -40,13 +42,10 @@ import {
   resolveRequestedDay,
   resolveShownDay,
   serviceHourSpan,
-  type HourSlot,
-} from "@/lib/page-nav";
-import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/nav";
+import { dayRangeNav, periodInPhrase, periodRangeNav, windowPhrase } from "@/lib/page/range";
 import {
   buildShameHref,
-  countById,
   hoursNoun,
   isCrownable,
   notStartedMessage,
@@ -56,14 +55,16 @@ import {
   shameHourHref,
   shameHoursLabel,
   shameHoursParam,
-  WEEK_REVALIDATE,
   type ShameFilter,
   type ShameSearchParams,
-} from "@/lib/shame-page";
+} from "@/lib/page/shame";
+import { routeDisplayName } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
+import { nzClockTime } from "@/lib/time/format";
 import { requestServiceDay } from "@/lib/time/request-now";
-import { nzClockTime, nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
+import { nzHourLabel, serviceDayLabel, type DateRange } from "@/lib/time/service-day";
 import { hoursInRange, type HourRange } from "@/lib/time/time-of-day";
+import { boundFor } from "@/lib/trip/departure-label";
 import type { ShameTrip } from "@/types/dashboard";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -73,6 +74,15 @@ import { Suspense, type JSX } from "react";
 // search params and its data above any Suspense boundary, so it is allowed to
 // block. Removing this line is what converts the route.
 export const instant = false;
+
+/**
+ * The ranked board's heading, for the tab and the page alike.
+ * @param hours - The picked hours.
+ * @returns The heading.
+ */
+function rankedTitle(hours: HourRange): string {
+  return `Worst ${SHAME_RANKED_LIMIT} trips · ${shameHoursLabel(hours)}`;
+}
 
 /**
  * Title and shared-link card, built from the query alone so the metadata
@@ -88,13 +98,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const sp = (await searchParams) ?? {};
   const card = parseShameCard("trip", sp);
-  const { hours } = parseShameParams(sp);
-  const title = hours
-    ? `Worst ${SHAME_RANKED_LIMIT} trips · ${shameHoursLabel(hours)}`
-    : listCardTitle(card);
+  const { hours, view } = parseShameParams(sp);
   const description =
-    "The most off-schedule run of each hour or day on Auckland's buses, trains and ferries.";
-  return { title, description, ...cardMetadata(title, description, cardPath(card)) };
+    "The most off-schedule trip of each hour or day on Auckland's buses, trains and ferries.";
+  return pageMetadata({
+    title: hours ? rankedTitle(hours) : shameHeading("trip", view),
+    description,
+    card: hours ? { title: rankedTitle(hours), path: cardPath(card) } : listShareCard(card),
+  });
 }
 
 const BASE = "/shame/trip";
@@ -105,10 +116,25 @@ const BASE = "/shame/trip";
  * @param t - The shamed run.
  * @returns The trip-page URL.
  */
-function tripHref(t: ShameTrip): string {
-  return `/route/${encodeURIComponent(routeSlug(t.route_id))}/trip/${encodeURIComponent(
-    t.trip_id,
-  )}?d=${encodeURIComponent(t.scheduled_start)}`;
+function shamedTripHref(t: ShameTrip): string {
+  return tripHref(t.routeId, t.trip_id, t.scheduled_start);
+}
+
+/**
+ * A shamed trip's detail line: where it was bound, when it left and how many
+ * stops it recorded. Each piece keeps to one line when the row wraps.
+ * @param props - Component props.
+ * @param props.t - The shamed trip.
+ * @returns The line's content.
+ */
+function TripDetail({ t }: { t: ShameTrip }): JSX.Element {
+  return (
+    <>
+      {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
+      <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
+      <span className="whitespace-nowrap">{plural(t.stops, "stop")}</span>
+    </>
+  );
 }
 
 /**
@@ -118,24 +144,21 @@ function tripHref(t: ShameTrip): string {
  * @param root0 - Props.
  * @param root0.range - The active window.
  * @param root0.filter - Active mode/school filter.
- * @param root0.periodNoun - Copy noun for the period ("week" / "month").
  * @param root0.periodWhen - The period as the words that follow "in" ("the last 7 days").
  * @returns The populated board.
  */
 async function TripRangeBoard({
   range,
   filter,
-  periodNoun,
   periodWhen,
 }: {
   range: DateRange;
   filter: ShameFilter;
-  periodNoun: "week" | "month";
   periodWhen: string;
 }): Promise<JSX.Element> {
-  const shame = await getShameOfWeek(range, filter, WEEK_REVALIDATE);
+  const shame = await getTripBoardOfWeek(range, filter, PERIOD_REVALIDATE);
   const worstKey = shame.worst?.date ?? null;
-  const routeDayCounts = countById(shame.days, (d) => d.route_id);
+  const routeDayCounts = countBy(shame.days, (d) => d.routeId);
 
   /**
    * Render one range-view day row.
@@ -145,54 +168,40 @@ async function TripRangeBoard({
    */
   const renderWeekRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = t.date === worstKey;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
-    const dayCount = routeDayCounts.get(t.route_id) ?? 0;
+    const name = routeDisplayName(t);
+    const dayCount = routeDayCounts.get(t.routeId) ?? 0;
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           t.date ? (
             <ShameDayLabel
               date={t.date}
               href={shameDayListHref(BASE, dayLinkParam(t.date), filter)}
-              linkLabel={`Worst ${SHAME_RANKED_LIMIT} runs on ${serviceDayLabel(t.date)}`}
+              linkLabel={`Worst ${SHAME_RANKED_LIMIT} trips on ${serviceDayLabel(t.date)}`}
             />
           ) : (
             <span className="w-16 shrink-0" />
           )
         }
       >
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
-          colour={t.colour}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={tripHref(t)}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {dayCount > 1 && (
+        <ShameRowBody
+          route={t}
+          subject={<ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            dayCount > 1 && (
               <FlameCount
-                tier="week"
+                kind="crown"
                 count={dayCount}
                 worst={isWorst}
                 label={`${name} appeared as the worst trip on ${dayCount} days in ${periodWhen}`}
               />
-            )}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+            )
+          }
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </ShameSplitRow>
     );
@@ -200,10 +209,9 @@ async function TripRangeBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={shame.days}
       keyOf={(t, i) => t.date ?? String(i)}
-      emptyMessage={`No runs recorded for this ${periodNoun}.`}
+      emptyMessage={`No trips recorded in ${periodWhen}.`}
       renderRow={renderWeekRow}
     />
   );
@@ -235,17 +243,13 @@ async function TripDayBoard({
   linkDay: string | undefined;
 }): Promise<JSX.Element> {
   const [shame, dayHours] = await Promise.all([
-    getShameOfDay(range, filter, TODAY_REVALIDATE),
+    getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
     getShameDayHours(range, filter, TODAY_REVALIDATE),
   ]);
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
-  const routeHourCounts = countById(visibleHours, (h) => h.route_id);
-  const routeStreakMap = await getShameRouteStreaksBatch(
-    [...routeHourCounts.keys()],
-    range,
-    filter,
-  );
+  const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
+  const routeStreakMap = await getShameStreaks("trip", [...routeHourCounts.keys()], range, filter);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.trip_id}` : null;
@@ -260,101 +264,54 @@ async function TripDayBoard({
    */
   const renderDayRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const isWorst = worstKey === `${t.hour}-${t.trip_id}`;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
-    const hourCount = routeHourCounts.get(t.route_id) ?? 0;
-    const streakInfo = routeStreakMap.get(t.route_id);
-    const streakDays = streakInfo?.count ?? 1;
-    const totalHours = hourCount + (streakInfo?.prevHours ?? 0);
-    const worstOfDayStreak = (isWorst ? 1 : 0) + (streakInfo?.prevWorstOfDayDays ?? 0);
+    const name = routeDisplayName(t);
+    const hourCount = routeHourCounts.get(t.routeId) ?? 0;
     return (
       <ShameSplitRow
         ctx={ctx}
-        className={cn(isWorst && "bg-at-late/5")}
+        worst={isWorst}
         label={
           <ShameHourLabel
             hour={t.hour}
             serviceDate={serviceDate}
             href={shameHourHref(BASE, linkDay, t.hour, filter)}
-            linkLabel={`Worst ${SHAME_RANKED_LIMIT} runs starting in the ${nzHourLabel(t.hour)} hour`}
+            linkLabel={`Worst ${SHAME_RANKED_LIMIT} trips starting in the ${nzHourLabel(t.hour)} hour`}
           />
         }
       >
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
-          colour={t.colour}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <ShameSubjectLink href={tripHref(t)}>{name}</ShameSubjectLink>
-            {isWorst && <ShameWorstBadge />}
-            {worstOfDayStreak >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={worstOfDayStreak}
-                worst={isWorst}
-                label={`${name}: worst of the day ${worstOfDayStreak} days in a row · ${totalHours} hours total`}
-              />
-            ) : streakDays >= 2 ? (
-              <FlameCount
-                tier="streak"
-                count={streakDays}
-                worst={isWorst}
-                label={`${name}: on the shame list ${streakDays} days in a row · ${totalHours} hours total`}
-              />
-            ) : hourCount > 1 ? (
-              <FlameCount
-                tier="day"
-                count={hourCount}
-                worst={isWorst}
-                label={`${name} appeared in ${hourCount} hourly slots ${dayWhen}`}
-              />
-            ) : null}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+        <ShameRowBody
+          route={t}
+          subject={<ShameSubjectLink href={shamedTripHref(t)}>{name}</ShameSubjectLink>}
+          worst={isWorst}
+          flame={
+            <ShameDayFlame
+              name={name}
+              noun="trip"
+              worst={isWorst}
+              hourCount={hourCount}
+              streak={routeStreakMap.get(t.routeId)}
+              hoursLabel={`${name} appeared in ${hourCount} hourly slots ${dayWhen}`}
+            />
+          }
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </ShameSplitRow>
     );
   };
 
-  /**
-   * Render one hour of the day board: its worst run, or a line saying no
-   * run met the minimum sample that hour.
-   * @param slot - The hour and its row, if any.
-   * @param ctx - Surface context from the board.
-   * @returns The row element.
-   */
-  const renderHourSlot = (slot: HourSlot<ShameTrip>, ctx: ShameRowContext): JSX.Element =>
-    slot.row ? (
-      renderDayRow(slot.row, ctx)
-    ) : (
-      <ShameEmptyHourRow
-        hour={slot.hour}
-        serviceDate={serviceDate}
-        title="No run fits this hour"
-        reason={`No run starting this hour recorded ${SHAME_MIN_STOPS} stops`}
-        ctx={ctx}
-      />
-    );
+  const renderHourSlot = hourSlotRenderer(renderDayRow, {
+    serviceDate,
+    title: "No trip fits this hour",
+    reason: `No trip starting this hour recorded ${SHAME_MIN_STOPS} stops`,
+  });
 
   return (
     <ShameBoard
-      layout="day"
       items={visibleHours.length > 0 ? fillServiceHours(visibleHours, serviceDate, daySpan) : []}
       keyOf={(slot) => String(slot.hour)}
-      emptyMessage="No runs recorded for this day."
-      footerMessage="No runs were notably off schedule during these hours."
+      emptyMessage={`No trips recorded ${dayWhen}.`}
+      footerMessage="No trips were notably off schedule during these hours."
       showFooter={noneNotablyBad}
       renderRow={renderHourSlot}
     />
@@ -383,7 +340,7 @@ async function TripHoursBoard({
   filter: ShameFilter;
   hours: HourRange;
 }): Promise<JSX.Element> {
-  const { rows, total } = await getShameTripsInHours(range, filter, hours, TODAY_REVALIDATE);
+  const { rows, total } = await getTripBoardInHours(range, filter, hours, TODAY_REVALIDATE);
   const crowned = isCrownable(rows[0] ?? null);
 
   /**
@@ -395,32 +352,15 @@ async function TripHoursBoard({
   const renderRow = (t: ShameTrip, ctx: ShameRowContext): JSX.Element => {
     const rank = rows.indexOf(t) + 1;
     const isWorst = crowned && rank === 1;
-    const name = t.short_name || t.long_name || routeSlug(t.route_id);
     return (
-      <Link href={tripHref(t)} className={cn(ctx.anchorClass, isWorst && "bg-at-late/5")}>
+      <Link href={shamedTripHref(t)} className={cn(ctx.anchorClass, isWorst && "at-worst")}>
         <ShameRankLabel rank={rank} />
-        <ModeIcon
-          mode={t.mode}
-          shortName={t.short_name}
-          longName={t.long_name}
-          colour={t.colour}
-          className="mt-0.5 h-5 w-5 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-semibold text-at-ink">{name}</span>
-            {isWorst && <ShameWorstBadge />}
-          </span>
-          <span className="block text-xs text-at-muted tabular-nums">
-            {boundFor(t.headsign, t.mode)?.concat(" · ") ?? ""}
-            <span className="whitespace-nowrap">{nzClockTime(t.scheduled_start)}</span> ·{" "}
-            <span className="whitespace-nowrap">{t.stops} stops</span>
-          </span>
-        </span>
-        <ShameRowDelay
-          avgDelaySec={t.avg_delay_sec}
-          avgAbsDelaySec={t.avg_abs_delay_sec}
-          mode={t.mode}
+        <ShameRowBody
+          route={t}
+          subject={<span className="font-semibold text-at-ink">{routeDisplayName(t)}</span>}
+          worst={isWorst}
+          detail={<TripDetail t={t} />}
+          figures={t}
         />
       </Link>
     );
@@ -428,15 +368,14 @@ async function TripHoursBoard({
 
   return (
     <ShameBoard
-      layout="week"
       items={rows}
       keyOf={(t) => t.trip_id}
       emptyMessage={
         noHourStarted(hoursInRange(hours), serviceDate)
           ? notStartedMessage(hours)
-          : `No run with ${SHAME_MIN_STOPS} stops started ${hoursNoun(hours)}.`
+          : `No trip with ${SHAME_MIN_STOPS} stops started ${hoursNoun(hours)}.`
       }
-      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${total.toLocaleString("en-NZ")} runs.`}
+      footerMessage={`Showing the worst ${SHAME_RANKED_LIMIT} of ${formatCount(total)} trips.`}
       showFooter={total > rows.length}
       renderRow={renderRow}
     />
@@ -459,9 +398,11 @@ export default async function TripShamePage({
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
-  clampDayParam(BASE, sp, today);
-  dropTodayParam(BASE, sp, today);
   const { filter, view, subtitle, hours } = parseShameParams(sp);
+  if (view === "day") {
+    clampDayParam(BASE, sp, today);
+    dropTodayParam(BASE, sp, today);
+  }
 
   if (view !== "day") {
     // Cheap cached bounds for the stepper; the heavy per-day fan-out streams in
@@ -473,15 +414,15 @@ export default async function TripShamePage({
       range: activeRange,
       period: periodParam,
       nav: rangeControls,
-    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay);
+    } = periodRangeNav(BASE, view, sp.period, latest ?? new Date(), earliestDay, today);
     const periodNoun = view;
     const rangeNav = { window: view, period: periodParam ?? undefined };
 
     return (
-      <main className="space-y-6">
+      <main className="space-y-4">
         <ShameHeader
-          title={`Worst trips of the ${periodNoun}`}
-          subtitle={`The most off-schedule run of each day · ${subtitle}`}
+          title={shameHeading("trip", view)}
+          subtitle={`The most off-schedule trip of each day · ${subtitle}`}
           activeTab="trip"
           tabHrefs={{
             trip: buildShameHref(BASE, rangeNav, filter),
@@ -501,7 +442,6 @@ export default async function TripShamePage({
           <TripRangeBoard
             range={activeRange}
             filter={filter}
-            periodNoun={periodNoun}
             periodWhen={periodInPhrase(periodNoun, periodParam)}
           />
         </Suspense>
@@ -516,20 +456,16 @@ export default async function TripShamePage({
   ]);
   const { range, serviceDate } = shown;
   const dayNav = dayRangeNav(shown, earliestDay, today);
-  const linkDay = dayNav.isToday ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       <ShameHeader
-        title={
-          hours
-            ? `Worst ${SHAME_RANKED_LIMIT} trips · ${shameHoursLabel(hours)}`
-            : "Worst trips of the day"
-        }
+        title={hours ? rankedTitle(hours) : shameHeading("trip", "day")}
         subtitle={
           hours
-            ? `The most off-schedule runs starting ${hoursNoun(hours)} · ${subtitle}`
-            : `The most off-schedule run of each hour · ${subtitle}`
+            ? `The most off-schedule trips starting ${hoursNoun(hours)} · ${subtitle}`
+            : `The most off-schedule trip of each hour · ${subtitle}`
         }
         activeTab="trip"
         tabHrefs={{

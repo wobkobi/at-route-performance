@@ -10,14 +10,16 @@
 // once (src/lib/map/route-branches.ts), and routes of different colours on one
 // road are set side by side (src/lib/map/shared-roads.ts).
 
-import { routeColour } from "@/components/ModeIcon";
+import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getDirectoryRoutes } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
-import { lineName } from "@/lib/line-name";
+import { prisma } from "@/lib/db";
 import { type RouteShape, routePaths } from "@/lib/map/route-branches";
 import { laneRuns } from "@/lib/map/shared-roads";
 import { unstable_cache } from "@/lib/mem-cache";
-import { routeSlug } from "@/lib/route-slug";
+import { routeColour } from "@/lib/route/colour";
+import { lineName } from "@/lib/route/line-name";
+import { routeSlug } from "@/lib/route/slug";
 import type { NetworkLine } from "@/types/api";
 
 /** How far from the line a bend may sit before the overlay drops it, in metres. */
@@ -63,17 +65,11 @@ interface HeldLine {
  * @returns One row per route and shape, with its trip count.
  */
 async function tripsPerRouteShape(): Promise<RouteShapeTrips[]> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "tripMeta",
-      pipeline: [
-        { $match: { shapeId: { $type: "string" }, routeId: { $type: "string" } } },
-        { $group: { _id: { routeId: "$routeId", shapeId: "$shapeId" }, trips: { $sum: 1 } } },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: RouteShapeTrips[] } };
-  return res.cursor.firstBatch;
+  const res = await aggregateRows<RouteShapeTrips>("tripMeta", [
+    { $match: { shapeId: { $type: "string" }, routeId: { $type: "string" } } },
+    { $group: { _id: { routeId: "$routeId", shapeId: "$shapeId" }, trips: { $sum: 1 } } },
+  ]);
+  return res;
 }
 
 /**
@@ -86,19 +82,17 @@ async function tripsPerRouteShape(): Promise<RouteShapeTrips[]> {
  * @returns The ids with history.
  */
 async function routesWithHistory(ids: string[]): Promise<Set<string>> {
-  const res = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [{ $match: { routeId: { $in: ids } } }, { $group: { _id: "$routeId" } }],
-      cursor: { batchSize: 10_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: { _id: string }[] } };
-  return new Set(res.cursor.firstBatch.map((r) => r._id));
+  const res = await aggregateRows<{ _id: string }>(
+    "ArrivalEvent",
+    [{ $match: { routeId: { $in: ids } } }, { $group: { _id: "$routeId" } }],
+    10_000,
+  );
+  return new Set(res.map((r) => r._id));
 }
 
 /**
  * Every route's road paths, thinned for a whole-network overlay and tagged with
- * its mode and its icon's colour. Cached for a day: shapes and trip metadata
+ * its mode and its line colour. Cached for a day: shapes and trip metadata
  * only change when the GTFS sync runs.
  *
  * Feed-version republishes are folded to one line per slug - both versions of a
@@ -121,11 +115,11 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         // documents, against several hundred ids in a filter.
         prisma.shape.findMany({ select: { id: true, points: true } }),
       ]);
-      const routeById = new Map(routes.map((r) => [r.id, r]));
+      const routeById = new Map(routes.map((r) => [r.routeId, r]));
       const pointsById = new Map(shapes.map((s) => [s.id, s.points]));
       // By slug: a new feed version with no arrivals yet still has its route's history.
       const recorded = new Set(
-        [...(await routesWithHistory(routes.map((r) => r.id)))].map(routeSlug),
+        [...(await routesWithHistory(routes.map((r) => r.routeId)))].map(routeSlug),
       );
 
       // Gather every stored shape per slug, only where the route's mode is known:
@@ -145,8 +139,8 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
             shapes: held?.shapes ?? [],
             top: trips,
             name: name && name !== slug ? name : null,
-            mode: route.mode as NetworkLine["mode"],
-            colour: routeColour(route.mode, route.shortName, route.longName, route.colour),
+            mode: route.mode,
+            colour: routeColour(route.mode, route.colour, route.shortName),
           };
           bySlug.set(slug, held);
         }
@@ -209,7 +203,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         .filter((l) => l.runs.length > 0)
         .sort((a, b) => MODE_ORDER[a.mode] - MODE_ORDER[b.mode]);
     },
-    ["network-lines-v11"],
-    { revalidate: 86_400 },
+    ["network-lines-v12"],
+    { revalidate: DAY_REVALIDATE },
   )();
 }

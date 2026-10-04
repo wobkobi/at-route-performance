@@ -1,0 +1,249 @@
+// tests/lib/route/explorer.test.ts
+// Unit tests for the Routes page filters and sorts.
+import { MIN_BOARD_EVENTS } from "@/lib/rankings";
+import {
+  DEFAULT_FILTERS,
+  explorerQuery,
+  filterRoutes,
+  minEventsFor,
+  parseExplorerFilters,
+  sortRoutes,
+  unranked,
+  viewQuery,
+  type ExplorerFilters,
+  type ExplorerRoute,
+} from "@/lib/route/explorer";
+import { describe, expect, it } from "vitest";
+
+/**
+ * A route row with sensible defaults.
+ * @param slug - Route slug (also its short name).
+ * @param extra - Fields to override.
+ * @returns The row.
+ */
+function route(slug: string, extra: Partial<ExplorerRoute> = {}): ExplorerRoute {
+  return {
+    routeId: `${slug}-203`,
+    slug,
+    shortName: slug,
+    longName: `${slug} long name`,
+    mode: "BUS",
+    events: 500,
+    avg_delay_sec: 60,
+    avg_abs_delay_sec: 90,
+    on_time_pct: 80,
+    early_pct: 5,
+    late_pct: 15,
+    areas: ["central"],
+    zones: ["city"],
+    cancelled: 0,
+    school: false,
+    operator: null,
+    ...extra,
+  };
+}
+
+/**
+ * Filters from the defaults with some fields set.
+ * @param extra - Fields to set.
+ * @returns The filters.
+ */
+function filters(extra: Partial<ExplorerFilters>): ExplorerFilters {
+  return { ...DEFAULT_FILTERS, ...extra };
+}
+
+/**
+ * The slugs of some routes, in order.
+ * @param rows - The routes.
+ * @returns Their slugs.
+ */
+function slugs(rows: ExplorerRoute[]): string[] {
+  return rows.map((r) => r.slug);
+}
+
+describe("filterRoutes", () => {
+  const rows = [
+    route("NX1", { areas: ["central", "north"], zones: ["city", "lower-north-shore"] }),
+    route("70", {
+      areas: ["central", "east"],
+      avg_delay_sec: -30,
+      cancelled: 3,
+      operator: "howick-and-eastern",
+    }),
+    route("S-C", { mode: "TRAIN", areas: ["central", "south"] }),
+    route("046", { longName: "S046", school: true, events: 40 }),
+  ];
+
+  it("keeps routes serving any chosen fare zone", () => {
+    expect(slugs(filterRoutes(rows, filters({ zones: ["lower-north-shore"] })))).toEqual(["NX1"]);
+    expect(slugs(filterRoutes(rows, filters({ zones: ["waiheke", "city"] })))).toEqual([
+      "NX1",
+      "70",
+      "S-C",
+    ]);
+  });
+
+  it("keeps only the chosen operator's routes", () => {
+    expect(slugs(filterRoutes(rows, filters({ op: "howick-and-eastern" })))).toEqual(["70"]);
+    expect(slugs(filterRoutes(rows, filters({ op: "nobody" })))).toEqual([]);
+  });
+
+  it("hides school services unless asked", () => {
+    expect(slugs(filterRoutes(rows, DEFAULT_FILTERS))).toEqual(["NX1", "70", "S-C"]);
+    expect(slugs(filterRoutes(rows, filters({ school: "include" })))).toContain("046");
+    expect(slugs(filterRoutes(rows, filters({ school: "only" })))).toEqual(["046"]);
+  });
+
+  it("matches a route serving any chosen area", () => {
+    expect(slugs(filterRoutes(rows, filters({ areas: ["north", "south"] })))).toEqual([
+      "NX1",
+      "S-C",
+    ]);
+  });
+
+  it("filters by mode, direction, search and cancellations", () => {
+    expect(slugs(filterRoutes(rows, filters({ mode: "TRAIN" })))).toEqual(["S-C"]);
+    expect(slugs(filterRoutes(rows, filters({ direction: "early" })))).toEqual(["70"]);
+    expect(slugs(filterRoutes(rows, filters({ q: "nx" })))).toEqual(["NX1"]);
+    expect(slugs(filterRoutes(rows, filters({ cancelledOnly: true })))).toEqual(["70"]);
+  });
+
+  it("searches published names, ignoring spaces, hyphens and macrons", () => {
+    const named = [...rows, route("CTY"), route("TMK")];
+    /**
+     * The routes a search finds.
+     * @param q - The search text.
+     * @returns Their slugs.
+     */
+    const find = (q: string): string[] => slugs(filterRoutes(named, filters({ q })));
+    expect(find("city link")).toEqual(["CTY"]);
+    expect(find("CityLink")).toEqual(["CTY"]);
+    expect(find("tamaki")).toEqual(["TMK"]);
+    expect(find("northern express")).toEqual(["NX1"]);
+    expect(find("south city")).toEqual(["S-C"]);
+    expect(find("sc")).toEqual(["S-C"]);
+  });
+
+  it("applies the boards' enough-data bar", () => {
+    const thin = route("thin", { events: MIN_BOARD_EVENTS - 1 });
+    expect(slugs(filterRoutes([thin], filters({ enoughData: true })))).toEqual([]);
+  });
+
+  it("keeps the routes running now, and every route until the feed answers", () => {
+    const on = filters({ runningNow: true });
+    expect(slugs(filterRoutes(rows, on, new Set(["S-C"])))).toEqual(["S-C"]);
+    expect(slugs(filterRoutes(rows, on, null))).toEqual(["NX1", "70", "S-C"]);
+    expect(slugs(filterRoutes(rows, DEFAULT_FILTERS, new Set(["S-C"])))).toHaveLength(3);
+  });
+});
+
+describe("sortRoutes", () => {
+  const rows = [
+    route("100", { on_time_pct: 70 }),
+    route("9", { on_time_pct: null }),
+    route("25", { on_time_pct: 90 }),
+  ];
+
+  it("sorts route numbers numerically", () => {
+    expect(slugs(sortRoutes(rows, "route", "asc"))).toEqual(["9", "25", "100"]);
+  });
+
+  it("puts routes with no value last in either direction", () => {
+    expect(slugs(sortRoutes(rows, "ontime", "desc"))).toEqual(["25", "100", "9"]);
+    expect(slugs(sortRoutes(rows, "ontime", "asc"))).toEqual(["100", "25", "9"]);
+  });
+
+  it("lists routes with too few arrivals after the ranked ones, before the empty ones", () => {
+    const mixed = [
+      route("thin", { on_time_pct: 100, events: MIN_BOARD_EVENTS - 1 }),
+      route("empty", { on_time_pct: null, events: 0 }),
+      route("solid", { on_time_pct: 60 }),
+      route("thinner", { on_time_pct: 50, events: 3 }),
+    ];
+    expect(slugs(sortRoutes(mixed, "ontime", "desc"))).toEqual([
+      "solid",
+      "thin",
+      "thinner",
+      "empty",
+    ]);
+    expect(slugs(sortRoutes(mixed, "ontime", "asc"))).toEqual([
+      "solid",
+      "thinner",
+      "thin",
+      "empty",
+    ]);
+    expect(unranked(mixed[0]!, "ontime", MIN_BOARD_EVENTS)).toBe(true);
+    expect(unranked(mixed[2]!, "ontime", MIN_BOARD_EVENTS)).toBe(false);
+  });
+
+  it("ranks every route on a count, and lowers the bar for one mode", () => {
+    const thin = route("thin", { events: 30 });
+    expect(unranked(thin, "arrivals", MIN_BOARD_EVENTS)).toBe(false);
+    expect(unranked(thin, "off", minEventsFor(null))).toBe(true);
+    expect(unranked(thin, "off", minEventsFor("FERRY"))).toBe(false);
+    expect(unranked(thin, "route", MIN_BOARD_EVENTS)).toBe(false);
+  });
+});
+
+describe("query round trip", () => {
+  it("writes only what differs from the defaults and reads it back", () => {
+    const f = filters({
+      areas: ["west", "north"],
+      zones: ["isthmus", "city"],
+      op: "go-bus",
+      mode: "BUS",
+      sort: "off",
+      dir: "desc",
+    });
+    const q = explorerQuery(f);
+    expect(q).toEqual({
+      mode: "BUS",
+      area: "west,north",
+      zone: "isthmus,city",
+      op: "go-bus",
+      sort: "off",
+    });
+    expect(parseExplorerFilters(q)).toEqual(f);
+    expect(explorerQuery(DEFAULT_FILTERS)).toEqual({});
+  });
+
+  it("drops invalid values", () => {
+    expect(
+      parseExplorerFilters({
+        area: "mars,west",
+        zone: "moon",
+        sort: "vibes",
+        mode: "BOAT",
+        op: "<b>",
+      }),
+    ).toEqual(filters({ areas: ["west"] }));
+  });
+});
+
+describe("board presets", () => {
+  it("link to a board's sort with the filters carried, leaving the thin routes listed last", () => {
+    expect(viewQuery("reliable", { mode: "BUS", direction: "late" })).toEqual({
+      mode: "BUS",
+      dir: "late",
+      sort: "ontime",
+    });
+    expect(viewQuery("off")).toEqual({ sort: "off" });
+    expect(viewQuery("all")).toEqual({});
+  });
+
+  it("break an on-time tie towards the route less off schedule, as the board does", () => {
+    const rows = [
+      route("wobbly", { on_time_pct: 90, avg_abs_delay_sec: 200 }),
+      route("steady", { on_time_pct: 90, avg_abs_delay_sec: 50 }),
+    ];
+    expect(slugs(sortRoutes(rows, "ontime", "desc"))).toEqual(["steady", "wobbly"]);
+  });
+
+  it("rank a route with no absolute average by its signed one on off-by", () => {
+    const rows = [
+      route("abs", { avg_abs_delay_sec: 100 }),
+      route("signed", { avg_abs_delay_sec: null, avg_delay_sec: -300 }),
+    ];
+    expect(slugs(sortRoutes(rows, "off", "desc"))).toEqual(["signed", "abs"]);
+  });
+});

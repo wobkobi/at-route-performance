@@ -1,3 +1,5 @@
+import { pushTo } from "@/lib/collections";
+import { metresBetween } from "@/lib/geo/distance";
 // src/lib/stop/station-siblings.ts
 // Cross-links between the parents AT uses for one place. `station.ts` collapses
 // a parent's platforms into a single stop and deliberately stops there: two
@@ -33,9 +35,6 @@ export const SIBLING_MAX_METRES = 400;
  */
 const FACILITY_RE =
   /\s+(?:Train Station|Bus Station|Bus Interchange|Ferry Terminal|Interchange|Station|Terminal|Wharf)$/i;
-
-/** Metres per degree of latitude; the same local flat projection `off-route.ts` measures on. */
-const M_PER_DEG = 111_320;
 
 /** One of AT's parent stations, as the sibling rule needs to see it. */
 export interface StationPlace {
@@ -73,21 +72,6 @@ export function placeOf(name: string): string {
 }
 
 /**
- * Metres between two points, on the same local flat projection `off-route.ts`
- * measures on (ample at city scale, and this only decides a 400 m question).
- * @param aLat - First point's latitude.
- * @param aLon - First point's longitude.
- * @param bLat - Second point's latitude.
- * @param bLon - Second point's longitude.
- * @returns The distance in metres.
- */
-function metresBetween(aLat: number, aLon: number, bLat: number, bLon: number): number {
-  const north = (aLat - bLat) * M_PER_DEG;
-  const east = (aLon - bLon) * M_PER_DEG * Math.cos(((aLat + bLat) / 2) * (Math.PI / 180));
-  return Math.hypot(north, east);
-}
-
-/**
  * Work out, for every parent, which other parents to link as the same place.
  * Two parents are siblings when they share a place name, sit within
  * {@link SIBLING_MAX_METRES}, and **differ in name** - the last condition being
@@ -109,9 +93,7 @@ export function siblingsByStation(places: readonly StationPlace[]): Map<string, 
   for (const p of places) {
     const key = placeOf(p.name).toLowerCase();
     if (key === "") continue;
-    const group = byPlace.get(key);
-    if (group) group.push(p);
-    else byPlace.set(key, [p]);
+    pushTo(byPlace, key, p);
   }
 
   const out = new Map<string, StationSiblings>();
@@ -122,7 +104,8 @@ export function siblingsByStation(places: readonly StationPlace[]): Map<string, 
       const best = new Map<string, StationPlace>();
       for (const other of group) {
         if (other.id === self.id || other.name === self.name) continue;
-        if (metresBetween(self.lat, self.lon, other.lat, other.lon) > SIBLING_MAX_METRES) continue;
+        if (metresBetween([self.lat, self.lon], [other.lat, other.lon]) > SIBLING_MAX_METRES)
+          continue;
         const held = best.get(other.name);
         if (
           !held ||

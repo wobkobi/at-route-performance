@@ -4,6 +4,7 @@
 import {
   isSchoolBus,
   parseSchoolFilter,
+  rowAllowedBySchool,
   schoolAllows,
   schoolDelta,
   schoolFilterParam,
@@ -38,9 +39,9 @@ describe("isSchoolBus", () => {
 
 describe("schoolDelta", () => {
   const rows = [
-    { short_name: "70", long_name: "Botany to Britomart", events: 1000 },
-    { short_name: "046", long_name: "S046", events: 120 },
-    { short_name: "112", long_name: "S112", events: 80 },
+    { shortName: "70", longName: "Botany to Britomart", events: 1000 },
+    { shortName: "046", longName: "S046", events: 120 },
+    { shortName: "112", longName: "S112", events: 80 },
   ];
 
   it("counts the school routes and their arrivals, and the cancelled difference", () => {
@@ -74,5 +75,20 @@ describe("schoolAllows", () => {
     expect([schoolAllows("exclude", false), schoolAllows("exclude", true)]).toEqual([true, false]);
     expect([schoolAllows("include", false), schoolAllows("include", true)]).toEqual([true, true]);
     expect([schoolAllows("only", false), schoolAllows("only", true)]).toEqual([false, true]);
+  });
+});
+
+describe("rowAllowedBySchool", () => {
+  it("judges a row by the school code in either of its names", () => {
+    const school = { shortName: "046", longName: "S046D" };
+    const ordinary = { shortName: "70", longName: null };
+    expect([
+      rowAllowedBySchool(school, "exclude"),
+      rowAllowedBySchool(ordinary, "exclude"),
+    ]).toEqual([false, true]);
+    expect([rowAllowedBySchool(school, "only"), rowAllowedBySchool(ordinary, "only")]).toEqual([
+      true,
+      false,
+    ]);
   });
 });

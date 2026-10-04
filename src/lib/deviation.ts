@@ -16,6 +16,7 @@
 // A wide bound still guards the reads that cannot wait for classification: the
 // current service day, and a completed day whose nightly pass has not run yet.
 // Once every day in a window is classified the bound comes off.
+import { median } from "@/lib/collections";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -149,15 +150,13 @@ export function runDeviationLevel(observations: TripObservation[]): number | nul
 /**
  * Median of a set of signed deviations: the element at `floor(n / 2)` of the
  * sorted list. The nightly pass computes the same element inside its pipeline
- * (see `ghostLevelStages` in ghost-pass.ts), so both paths agree on a run's
+ * (see `ghostLevelStages` in cron/ghost-pass.ts), so both paths agree on a run's
  * level.
  * @param deviations - Signed deviations, one per place.
  * @returns The median, or null when the set is empty.
  */
 export function medianDeviation(deviations: number[]): number | null {
-  if (deviations.length === 0) return null;
-  const sorted = [...deviations].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)] ?? null;
+  return median(deviations, "upper");
 }
 
 /**

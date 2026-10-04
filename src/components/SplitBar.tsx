@@ -4,7 +4,8 @@
 // hover, focus or tap.
 
 import { cn } from "@/lib/cn";
-import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
+import { onTimeWindowMinutes, onTimeWindowPhrase } from "@/lib/copy";
+import { formatPct } from "@/lib/format";
 import { useState, type FocusEvent, type JSX, type PointerEvent } from "react";
 
 /** The three bands a measured arrival can fall in, in the order they are drawn. */
@@ -35,14 +36,13 @@ function oneIn(pct: number): string | null {
  * @returns One line per band.
  */
 function bandMeaning(mode: string | undefined): Record<BandKey, string> {
-  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
-  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
-  const ferry =
-    mode === undefined ? ` (ferries ${Math.round(earlyToleranceFor("FERRY") / 60)})` : "";
+  const { early, late } = onTimeWindowMinutes(mode);
+  const ferry = mode === undefined ? ` (ferries ${onTimeWindowMinutes("FERRY").early})` : "";
+  const ferries = mode === undefined ? ` (ferries: ${onTimeWindowPhrase("FERRY")})` : "";
   return {
-    onTime: `Between ${earlyMin} min early${ferry} and ${lateMin} min late.`,
-    late: `More than ${lateMin} min late, so riders waited longer than the timetable said.`,
-    early: `More than ${earlyMin} min early${ferry}, so a rider who arrived on time could have missed it.`,
+    onTime: `Within ${onTimeWindowPhrase(mode)}${ferries}.`,
+    late: `More than ${late} min late, so riders waited longer than the timetable said.`,
+    early: `More than ${early} min early${ferry}, so a rider who arrived on time could have missed it.`,
   };
 }
 
@@ -78,6 +78,16 @@ export function SplitBar({
   const shares = { onTime, late, early };
   const meaning = bandMeaning(mode);
   const active = shown === null ? null : SPLIT_BANDS.find((b) => b.key === shown)!;
+  // The note centres under its own segment (the shares before it, plus half its
+  // own), held inside the bar at either end; a bar narrower than the note gives
+  // a negative upper bound, and clamp() then settles on 0.
+  const before = active
+    ? SPLIT_BANDS.slice(0, SPLIT_BANDS.indexOf(active)).reduce(
+        (sum, b) => sum + Math.max(0, shares[b.key]),
+        0,
+      )
+    : 0;
+  const centre = active ? before + Math.max(0, shares[active.key]) / 2 : 0;
 
   // Each segment and figure carries its band in `data-band`, so one set of
   // handlers serves all six buttons.
@@ -139,14 +149,14 @@ export function SplitBar({
 
   return (
     <div className="relative lg:col-span-4">
-      <div className="flex h-3 overflow-hidden bg-at-bg">
+      <div className="flex h-3 bg-at-bg">
         {SPLIT_BANDS.map((b) => (
           <button
             key={b.key}
             type="button"
-            aria-label={`${b.label} ${shares[b.key].toFixed(1)}%`}
+            aria-label={`${b.label} ${formatPct(shares[b.key])}`}
             className={cn(
-              "h-full cursor-pointer transition-opacity",
+              "hit-44 h-full cursor-pointer transition-opacity",
               b.barClass,
               shown !== null && shown !== b.key && "opacity-40",
             )}
@@ -170,7 +180,7 @@ export function SplitBar({
           >
             <span className="at-eyebrow text-at-muted">{b.label}</span>
             <span className={cn("text-base font-semibold tabular-nums", b.toneClass)}>
-              {shares[b.key].toFixed(1)}%
+              {formatPct(shares[b.key])}
             </span>
           </button>
         ))}
@@ -178,10 +188,11 @@ export function SplitBar({
       {active && (
         <div
           role="status"
-          className="absolute top-5 left-0 z-30 max-w-xs rounded-md border border-at-border bg-at-surface p-3 text-sm shadow-lg"
+          className="absolute top-5 z-30 w-xs max-w-full border border-at-border bg-at-surface p-3 text-sm shadow-lg"
+          style={{ left: `clamp(0px, calc(${centre}% - 10rem), calc(100% - 20rem))` }}
         >
           <p className={cn("font-semibold", active.toneClass)}>
-            {active.label} {shares[active.key].toFixed(1)}%
+            {active.label} {formatPct(shares[active.key])}
             {oneIn(shares[active.key]) && (
               <span className="font-normal text-at-muted">
                 {" "}

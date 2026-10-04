@@ -8,12 +8,14 @@
 // nothing. The penalty joins the measured arrivals in every punctuality figure
 // that reads route rows (see applyPenalty).
 
-import type { CancellationStage } from "@/lib/cancellation";
+import { median, pushTo } from "@/lib/collections";
 import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { successorSlug } from "@/lib/route-lineage";
-import { routeSlug } from "@/lib/route-slug";
+import { successorSlug } from "@/lib/route/lineage";
+import { routeSlug } from "@/lib/route/slug";
+import { roundTenth } from "@/lib/stats";
 import { nzLocalHour } from "@/lib/time/service-day";
 import { isHourInRange, type HourRange } from "@/lib/time/time-of-day";
+import type { CancellationStage } from "@/lib/trip/cancellation";
 import type { PerTripStat } from "@/types/api";
 
 /**
@@ -74,20 +76,6 @@ export interface FlaggedTripPenalty extends TripPenalty {
 }
 
 /**
- * The median of a list of counts.
- * @param values - The counts.
- * @returns The median rounded to a whole stop, or null for an empty list.
- */
-function medianCount(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const value =
-    sorted.length % 2 === 1 ? sorted[mid] : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
-  return Math.round(value ?? 0);
-}
-
-/**
  * The rider-wait penalty of a day's cancellations, per route and per trip. The
  * next trip is the first run of the same route and direction scheduled after the
  * flagged one (any direction when the flag's is unknown); a trip's stop count is
@@ -105,7 +93,7 @@ export function riderWaitPenalties(
   const groups = new Map<string, DayRun[]>();
   for (const r of runs) {
     for (const key of [`${r.route}|${r.direction ?? "?"}`, `${r.route}|*`]) {
-      groups.set(key, [...(groups.get(key) ?? []), r]);
+      pushTo(groups, key, r);
     }
   }
   const runById = new Map(runs.map((r) => [r.tripId, r]));
@@ -123,8 +111,10 @@ export function riderWaitPenalties(
       (f.direction !== null ? groups.get(`${f.route}|${f.direction}`) : undefined) ??
       groups.get(`${f.route}|*`);
     const others = (group ?? []).filter((r) => !flaggedIds.has(r.tripId));
-    const median = medianCount(others.map((r) => r.stops));
-    if (median === null) continue;
+    const mid = median(others.map((r) => r.stops));
+    if (mid === null) continue;
+    // Rounded to a whole stop.
+    const stopCount = Math.round(mid);
     const next = others
       .map((r) => r.start)
       .filter((s) => s > start)
@@ -132,7 +122,7 @@ export function riderWaitPenalties(
     const waitSec =
       next === undefined ? WAIT_CAP_SEC : Math.min(WAIT_CAP_SEC, (next - start) / 1000);
     const served = f.stage === "mid-trip" ? (runById.get(f.tripId)?.stops ?? 0) : 0;
-    const events = Math.max(0, median - served);
+    const events = Math.max(0, stopCount - served);
     if (events === 0) continue;
     trips[f.tripId] = { waitSec, events, route: f.route, start };
     const p = (routes[f.route] ??= { events: 0, delaySec: 0, lateEvents: 0 });
@@ -206,24 +196,18 @@ export function applyPenalty<T extends PunctualityFields>(row: T, p: Penalty | u
   const e = row.events;
   const total = e + p.events;
   /**
-   * Round to one decimal.
-   * @param n - The value.
-   * @returns The rounded value.
-   */
-  const round1 = (n: number): number => Math.round(n * 10) / 10;
-  /**
    * A share of the combined visits, from a measured share plus penalty visits.
    * @param pct - The measured share, in percent.
    * @param extra - Penalty visits in the share.
    * @returns The combined share, in percent.
    */
   const share = (pct: number | null | undefined, extra: number): number =>
-    round1(((((pct ?? 0) / 100) * e + extra) / total) * 100);
+    roundTenth(((((pct ?? 0) / 100) * e + extra) / total) * 100);
   return {
     ...row,
     events: total,
-    avg_delay_sec: round1(((row.avg_delay_sec ?? 0) * e + p.delaySec) / total),
-    avg_abs_delay_sec: round1(((row.avg_abs_delay_sec ?? 0) * e + p.delaySec) / total),
+    avg_delay_sec: roundTenth(((row.avg_delay_sec ?? 0) * e + p.delaySec) / total),
+    avg_abs_delay_sec: roundTenth(((row.avg_abs_delay_sec ?? 0) * e + p.delaySec) / total),
     on_time_pct: share(row.on_time_pct, p.events - p.lateEvents),
     early_pct: share(row.early_pct, 0),
     late_pct: share(row.late_pct, p.lateEvents),
@@ -238,18 +222,18 @@ export function applyPenalty<T extends PunctualityFields>(row: T, p: Penalty | u
  * @param penalties - Route slug to penalty.
  * @returns The rows with their penalties folded in.
  */
-export function applyRoutePenalties<T extends PunctualityFields & { route_id: string }>(
+export function applyRoutePenalties<T extends PunctualityFields & { routeId: string }>(
   rows: readonly T[],
   penalties: Record<string, Penalty>,
 ): T[] {
-  const slugs = new Set(rows.map((r) => routeSlug(r.route_id)));
+  const slugs = new Set(rows.map((r) => routeSlug(r.routeId)));
   const bySlug: Record<string, Penalty> = {};
   for (const [slug, p] of Object.entries(penalties)) {
     const successor = successorSlug(slug);
     const key = !slugs.has(slug) && successor && slugs.has(successor) ? successor : slug;
     bySlug[key] = bySlug[key] ? addPenalties(bySlug[key], p) : p;
   }
-  return rows.map((r) => applyPenalty(r, bySlug[routeSlug(r.route_id)]));
+  return rows.map((r) => applyPenalty(r, bySlug[routeSlug(r.routeId)]));
 }
 
 /**
@@ -285,9 +269,8 @@ export function withTripPenalty<
   const extra = p.waitSec * p.events;
   return {
     ...run,
-    avg_delay_sec: Math.round((((run.avg_delay_sec ?? 0) * run.stops + extra) / total) * 10) / 10,
-    avg_abs_delay_sec:
-      Math.round((((run.avg_abs_delay_sec ?? 0) * run.stops + extra) / total) * 10) / 10,
+    avg_delay_sec: roundTenth(((run.avg_delay_sec ?? 0) * run.stops + extra) / total),
+    avg_abs_delay_sec: roundTenth(((run.avg_abs_delay_sec ?? 0) * run.stops + extra) / total),
     worst_delay_sec: Math.max(run.worst_delay_sec ?? 0, p.waitSec),
   };
 }

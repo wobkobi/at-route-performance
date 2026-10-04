@@ -8,7 +8,9 @@
 // exceed the external scheduler's 30s request timeout); the outcome is recorded
 // in IngestRun and the function logs.
 
-import { requireCronAuth } from "@/lib/auth";
+import { apiError } from "@/lib/api-error";
+import { requireCronAuth } from "@/lib/cron/auth";
+import { isDatabaseUnreachableError } from "@/lib/db";
 import { fetchCurrentGtfsVersion } from "@/lib/feed/at-versions";
 import { getSetting, setSetting } from "@/lib/feed/gtfs-settings";
 import { syncRoutes, syncStops } from "@/lib/feed/ingest";
@@ -74,17 +76,18 @@ async function runGtfsSync(startTime: number, version: string | null): Promise<v
  * Scheduled daily by the external scheduler (see docs/cron-setup.md). The
  * version gate answers synchronously; a real sync acknowledges with 202 and
  * runs after the response.
- * @param req - Incoming request; requires the CRON_SECRET bearer token.
- * @returns JSON `{ skipped, version }` when gated, else 202 `{ started, version }`.
+ * @param request - Incoming request; requires the CRON_SECRET bearer token.
+ * @returns JSON `{ skipped, reason, version }` when gated, else 202 `{ started,
+ *   version }`; 503 when the database is unreachable, 502 when the gate check fails otherwise.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
 
-  const denied = requireCronAuth(req);
+  const denied = requireCronAuth(request);
   if (denied) return denied;
 
   // ?force=1 bypasses the version gate for manual re-syncs.
-  const force = new URL(req.url).searchParams.get("force") === "1";
+  const force = new URL(request.url).searchParams.get("force") === "1";
 
   try {
     const version = await fetchCurrentGtfsVersion();
@@ -98,7 +101,11 @@ export async function POST(req: Request): Promise<NextResponse> {
           success: true,
           count: 0,
         });
-        return NextResponse.json({ skipped: true, version });
+        return NextResponse.json({
+          skipped: true,
+          reason: "The GTFS version is unchanged.",
+          version,
+        });
       }
     }
 
@@ -114,6 +121,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       success: false,
       error: msg,
     });
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // The message stays in the log and the IngestRun row. The gate reads AT's
+    // version endpoint and one stored setting, so anything but the database is AT's.
+    return isDatabaseUnreachableError(error)
+      ? apiError(503, "database_unreachable", "The database could not be reached.")
+      : apiError(502, "upstream_failed", "The GTFS version check failed.");
   }
 }

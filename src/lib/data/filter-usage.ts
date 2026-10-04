@@ -2,9 +2,10 @@
 // Which modes ran in a window, so the Mode box only offers a mode that changes
 // the figures.
 
-import { TODAY_REVALIDATE } from "@/lib/data/cache";
 import { getRankings } from "@/lib/data/rankings";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
+import { TODAY_REVALIDATE } from "@/lib/data/revalidate";
+import { logReadFailure } from "@/lib/db";
+import { MODES } from "@/lib/mode";
 import type { DateRange } from "@/lib/time/service-day";
 
 /** Which filter choices would change a window's figures. */
@@ -26,9 +27,10 @@ export interface FilterUsage {
  */
 export async function getFilterUsage(range: DateRange): Promise<FilterUsage> {
   try {
-    const rows = await getRankings(range, ON_TIME_LATE_SEC, TODAY_REVALIDATE);
+    const rows = await getRankings(range, TODAY_REVALIDATE);
     return { modes: new Set(rows.map((r) => r.mode)) };
-  } catch {
-    return { modes: new Set(["BUS", "TRAIN", "FERRY"]) };
+  } catch (err) {
+    logReadFailure("filter-usage", err);
+    return { modes: new Set(MODES) };
   }
 }

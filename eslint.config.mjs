@@ -10,6 +10,40 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+// Each ban is its own constant so a file exempt from one re-lists the others:
+// a per-file `no-restricted-syntax` replaces the whole array, so an exemption
+// that listed nothing would drop the timezone ban too.
+
+// The NZ timezone name lives in time/nz-tz.ts and reaches everything else as
+// NZ_TZ from time/service-day.ts, with the helpers built on it. Hardcoding the
+// literal is how a file ends up doing its own date maths, and how a DST bug gets in.
+const TIMEZONE_BAN = {
+  selector: "Literal[value='Pacific/Auckland']",
+  message: "Import NZ_TZ from @/lib/time/service-day instead of hardcoding the timezone.",
+};
+// The mode list is MODES in lib/mode.ts; a hand-written copy drifts from it.
+const MODE_LIST_BAN = {
+  selector:
+    "ArrayExpression[elements.length=3]:has(> Literal[value='BUS']):has(> Literal[value='TRAIN']):has(> Literal[value='FERRY'])",
+  message: "Use MODES from @/lib/mode instead of listing the modes by hand.",
+};
+// Without a locale the count follows the runtime's, so the server and a
+// browser can print different separators (a hydration mismatch).
+const LOCALE_BAN = {
+  selector: "CallExpression[callee.property.name='toLocaleString'][arguments.length=0]",
+  message: "Use formatCount from @/lib/format (en-NZ) instead of a bare toLocaleString().",
+};
+// Entity URLs come from the builders in lib/page/hrefs.ts, which slug the route
+// and encode the id. The regex matches a template part that is exactly
+// "/route/" (and the like). An esquery regex ends at its first slash, so the
+// slashes are written \x2F, which RegExp reads as "/". App code only: scripts
+// and tests build raw URLs on purpose, to check what the builders produce.
+const ENTITY_PATH_BAN = {
+  selector: "TemplateElement[value.raw=/^\\x2F(route|stop|vehicle|operator)\\x2F$/]",
+  message:
+    "Build entity links with routeHref/stopHref/vehicleHref/tripHref/operatorHref from @/lib/page/hrefs.",
+};
+
 export default defineConfig([
   // Core ESLint recommended rules - the Next presets do not include these.
   // Must come first: the eslint-recommended layer inside nextTs then switches
@@ -50,6 +84,14 @@ export default defineConfig([
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
+      // `??` over `||` where the left side is an object or number that may be
+      // missing, so a real 0 is never swapped for the fallback. Strings and
+      // booleans are left to `||`: `trim() || null` and the env fallbacks
+      // treat "" as missing on purpose.
+      "@typescript-eslint/prefer-nullish-coalescing": [
+        "error",
+        { ignorePrimitives: { string: true, boolean: true } },
+      ],
     },
   },
 
@@ -73,17 +115,12 @@ export default defineConfig([
       // Core hygiene: require === except the idiomatic `!= null` check
       eqeqeq: ["error", "smart"],
 
-      // The NZ timezone name lives in time/nz-tz.ts and reaches everything else
-      // as NZ_TZ from time/service-day.ts, with the helpers built on it.
-      // Hardcoding the literal is how a file ends up doing its own date maths,
-      // and how a DST bug gets in.
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "Literal[value='Pacific/Auckland']",
-          message: "Import NZ_TZ from @/lib/time/service-day instead of hardcoding the timezone.",
-        },
-      ],
+      "no-restricted-syntax": ["error", TIMEZONE_BAN, MODE_LIST_BAN, LOCALE_BAN],
+
+      // One way to write a type-only import, so the compiler can drop it.
+      // `typeof import("leaflet")` stays allowed: the maps load Leaflet with a
+      // dynamic import and type its module that way.
+      "@typescript-eslint/consistent-type-imports": ["error", { disallowTypeAnnotations: false }],
 
       // TS hygiene
       "@typescript-eslint/no-unused-vars": "error",
@@ -118,10 +155,52 @@ export default defineConfig([
     },
   },
 
-  // time/nz-tz.ts owns the timezone literal; everywhere else imports NZ_TZ.
+  // App code also builds its entity links through the href builders.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": ["error", TIMEZONE_BAN, MODE_LIST_BAN, LOCALE_BAN, ENTITY_PATH_BAN],
+    },
+  },
+
+  // Each owner of a banned form is exempt from its own ban only. operators.ts
+  // holds operatorHref, which hrefs.ts re-exports.
   {
     files: ["src/lib/time/nz-tz.ts"],
-    rules: { "no-restricted-syntax": "off" },
+    rules: { "no-restricted-syntax": ["error", MODE_LIST_BAN, LOCALE_BAN, ENTITY_PATH_BAN] },
+  },
+  {
+    files: ["src/lib/mode.ts"],
+    rules: { "no-restricted-syntax": ["error", TIMEZONE_BAN, LOCALE_BAN, ENTITY_PATH_BAN] },
+  },
+  {
+    files: ["src/lib/page/hrefs.ts", "src/lib/operators.ts"],
+    rules: { "no-restricted-syntax": ["error", TIMEZONE_BAN, MODE_LIST_BAN, LOCALE_BAN] },
+  },
+
+  // Pages and components read data through the lib/data.ts barrel, so a module
+  // can move inside lib/data/ without touching them. lib/ and tests/ import the
+  // modules directly, which keeps the barrel out of their import cycles.
+  {
+    files: ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{ group: ["@/lib/data/*"], message: "Import from @/lib/data (the barrel)." }],
+        },
+      ],
+    },
+  },
+
+  // API read failures log through logReadFailure/readFailed, which carry the
+  // alertable [DB-READ-FAILED] marker; a bare console.error skips it. The cron
+  // jobs (ingest/*, warm) log their own run failures under their own prefix,
+  // beside the IngestRun record, so they are left out.
+  {
+    files: ["src/app/api/**/*.{ts,tsx}"],
+    ignores: ["src/app/api/ingest/**", "src/app/api/warm/**"],
+    rules: { "no-console": ["error", { allow: ["log", "warn", "info"] }] },
   },
 
   // Tailwind class hygiene. Prettier (via prettier-plugin-tailwindcss) only

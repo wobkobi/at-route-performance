@@ -41,7 +41,7 @@ describe("getGhostRun", () => {
     expect(row?.label).toMatch(/4:16/);
     expect(row).toMatchObject({
       trip_id: STORED.tripId,
-      route_id: "712-221",
+      routeId: "712-221",
       service_date: "2026-09-14",
       level_sec: -5792,
       readings: 3,

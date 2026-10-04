@@ -22,7 +22,7 @@ the Routes list, the per-route and per-stop pages - is built from those two coll
   stay on measured arrivals. Cancellations are also counted as trips, on the Cancellations page.
 - **Areas** on the Routes page (Central, North Shore, West, East, South, Hibiscus Coast & Rodney,
   Waiheke & islands) come from where each route stopped over the last week, placed against
-  approximate boundaries in [`src/lib/areas.ts`](src/lib/areas.ts).
+  approximate boundaries in [`src/lib/geo/areas.ts`](src/lib/geo/areas.ts).
 - **Fare zones** come from AT's fare zone shapefile, tested against each stop's position, so a stop
   on an overlap is in both zones. AT's feeds carry no zone for a stop (see below).
 - **Detours** come from GPS, not alerts. Each ingest poll measures every bus and train part-way
@@ -69,7 +69,7 @@ the Routes list, the per-route and per-stop pages - is built from those two coll
 AT renames the train lines when the CRL opens on **13 September 2026**: `STH` becomes `S-C`, `ONE`
 becomes `O-W`, and `EAST` and `WEST` merge into `E-W`. Route reads aggregate each new line together
 with the lines it replaced, so the archive survives the rename, and retired slugs redirect to their
-successor - see [`src/lib/route-lineage.ts`](src/lib/route-lineage.ts). AT publishes the new ids as
+successor - see [`src/lib/route/lineage.ts`](src/lib/route/lineage.ts). AT publishes the new ids as
 `S-C-201`, `E-W-201` and `O-W-201`, and they land in static GTFS days before the first train, so a
 retired slug redirects (and the directory swaps the old line for the new) only once the successor
 has recorded an arrival.

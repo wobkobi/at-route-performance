@@ -5,7 +5,8 @@ import {
   parseRankingFilters,
   rankingFilterParams,
   rankingFiltersPhrase,
-  routeQueryWithHours,
+  rankingFiltersReach,
+  routeParamsWithHours,
   rowsInAreas,
   type FilterableCancellation,
   type RankingFilters,
@@ -17,13 +18,13 @@ const ROUTE_AREAS = { NX1: ["central", "north"], "70": ["central", "east"] } as 
 describe("parseRankingFilters", () => {
   it("reads all three and drops unreadable parts", () => {
     expect(
-      parseRankingFilters({ hours: "7-9", days: "sat", area: "north,bogus,north" }, false),
+      parseRankingFilters({ hours: "7-9", daytype: "sat", area: "north,bogus,north" }, false),
     ).toEqual({ hours: { from: 7, to: 9 }, days: "sat", areas: ["north"] });
-    expect(parseRankingFilters({ hours: "9-9", days: "x" }, false)).toEqual(NO_RANKING_FILTERS);
+    expect(parseRankingFilters({ hours: "9-9", daytype: "x" }, false)).toEqual(NO_RANKING_FILTERS);
   });
 
   it("ignores the day type on a single day", () => {
-    expect(parseRankingFilters({ days: "sun" }, true).days).toBeNull();
+    expect(parseRankingFilters({ daytype: "sun" }, true).days).toBeNull();
   });
 });
 
@@ -31,7 +32,7 @@ describe("rankingFilterParams", () => {
   it("round-trips through the parser and leaves unset params off", () => {
     const f: RankingFilters = { hours: { from: 22, to: 2 }, days: "weekday", areas: ["west"] };
     const params = rankingFilterParams(f);
-    expect(params).toEqual({ hours: "22-2", days: "weekday", area: "west" });
+    expect(params).toEqual({ hours: "22-2", daytype: "weekday", area: "west" });
     expect(parseRankingFilters(params, false)).toEqual(f);
     expect(rankingFilterParams(NO_RANKING_FILTERS)).toEqual({
       hours: undefined,
@@ -44,10 +45,10 @@ describe("rankingFilterParams", () => {
 });
 
 describe("rowsInAreas", () => {
-  const rows = [{ route_id: "NX1-203" }, { route_id: "70-201" }, { route_id: "S101-2" }];
+  const rows = [{ routeId: "NX1-203" }, { routeId: "70-201" }, { routeId: "S101-2" }];
 
   it("keeps routes serving any chosen area, matched by slug", () => {
-    expect(rowsInAreas(rows, ["north"], ROUTE_AREAS)).toEqual([{ route_id: "NX1-203" }]);
+    expect(rowsInAreas(rows, ["north"], ROUTE_AREAS)).toEqual([{ routeId: "NX1-203" }]);
     expect(rowsInAreas(rows, ["north", "east"], ROUTE_AREAS)).toHaveLength(2);
     expect(rowsInAreas(rows, [], ROUTE_AREAS)).toEqual(rows);
   });
@@ -56,7 +57,7 @@ describe("rowsInAreas", () => {
 describe("cancellationMatches", () => {
   // 7:30am in Auckland on Saturday 26 Sep (NZST, UTC+12).
   const trip: FilterableCancellation = {
-    route_id: "NX1",
+    slug: "NX1",
     mode: "BUS",
     school: false,
     service_date: "2026-09-26",
@@ -82,13 +83,17 @@ describe("cancellationMatches", () => {
   });
 });
 
-describe("routeQueryWithHours", () => {
-  it("adds the hours to an empty or existing query", () => {
-    expect(routeQueryWithHours("", { from: 7, to: 9 })).toBe("?hours=7-9");
-    expect(routeQueryWithHours("?day=2026-09-27", { from: 7, to: 9 })).toBe(
-      "?day=2026-09-27&hours=7-9",
-    );
-    expect(routeQueryWithHours("?day=2026-09-27", null)).toBe("?day=2026-09-27");
+describe("routeParamsWithHours", () => {
+  it("adds the hours after the other params, or leaves them unset", () => {
+    expect(routeParamsWithHours({}, { from: 7, to: 9 })).toEqual({ hours: "7-9" });
+    expect(routeParamsWithHours({ day: "2026-09-27" }, { from: 7, to: 9 })).toEqual({
+      day: "2026-09-27",
+      hours: "7-9",
+    });
+    expect(routeParamsWithHours({ day: "2026-09-27" }, null)).toEqual({
+      day: "2026-09-27",
+      hours: undefined,
+    });
   });
 });
 
@@ -108,5 +113,25 @@ describe("rankingFiltersPhrase", () => {
     const f = { ...NO_RANKING_FILTERS, hours: { from: 9, to: 4 } };
     expect(rankingFiltersPhrase(f, [], true)).toBe("9am to now");
     expect(rankingFiltersPhrase(f, [], false)).toBe("9am to end of day");
+  });
+});
+
+describe("rankingFiltersReach", () => {
+  const morning = { ...NO_RANKING_FILTERS, hours: { from: 7, to: 10 } };
+
+  it("says the whole day view follows a time of day", () => {
+    expect(rankingFiltersReach(morning, "day")).toBe("Everything on the page follows it.");
+  });
+
+  it("says the day's cards and vehicles keep every area", () => {
+    const text = rankingFiltersReach({ ...morning, areas: ["north"] }, "day");
+    expect(text).toContain("follow the time of day but cover every area");
+    const areaOnly = rankingFiltersReach({ ...NO_RANKING_FILTERS, areas: ["north"] }, "day");
+    expect(areaOnly).toContain("vehicle counts cover every area.");
+  });
+
+  it("says a week or month leaves the cards and vehicles whole", () => {
+    expect(rankingFiltersReach(morning, "week")).toContain("cover the whole week.");
+    expect(rankingFiltersReach(morning, "month")).toContain("cover the whole month.");
   });
 });

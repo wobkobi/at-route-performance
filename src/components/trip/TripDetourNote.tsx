@@ -1,0 +1,74 @@
+// src/components/trip/TripDetourNote.tsx
+// Note on the trip page when the vehicle's GPS left the trip's road path mid-run
+// (see lib/off-route.ts), with AT's own alert when one was active.
+
+import { TripNote } from "@/components/ui/TripNote";
+import { formatCount } from "@/lib/format";
+import type { Sighting } from "@/lib/off-route";
+import { nzClockTime } from "@/lib/time/format";
+import Link from "next/link";
+import type { JSX } from "react";
+
+/** Props for {@link TripDetourNote}. */
+export interface TripDetourNoteProps {
+  /** The confirming off-route readings, in time order (at least two). */
+  sightings: Sighting[];
+  /** An active reroute alert on the route at the time, or null. */
+  alert: string | null;
+  /** The stop nearest the furthest reading, with the link to its page, when the trip's stops are known. */
+  nearestStop: { name: string; href: string } | null;
+  /** What to call the vehicle ("bus", "train"). */
+  noun: string;
+}
+
+/**
+ * Explain that a run left its route: how far, when, near which stop, and
+ * whether AT had announced a detour.
+ * @param props - Component props.
+ * @param props.sightings - The confirming readings, in time order.
+ * @param props.alert - The active reroute alert, or null.
+ * @param props.nearestStop - The stop nearest the furthest reading, or null.
+ * @param props.noun - What to call the vehicle.
+ * @returns The note, or nothing when there are no readings to describe.
+ */
+export function TripDetourNote({
+  sightings,
+  alert,
+  nearestStop,
+  noun,
+}: TripDetourNoteProps): JSX.Element | null {
+  // Math.max of no readings is -Infinity, which would print as a distance.
+  if (sightings.length === 0) return null;
+  const furthest = Math.max(...sightings.map((s) => s.distanceM));
+  const first = sightings[0];
+  const last = sightings.at(-1);
+  const window =
+    first && last && first.at !== last.at
+      ? `between ${nzClockTime(first.at)} and ${nzClockTime(last.at)}`
+      : first
+        ? `at ${nzClockTime(first.at)}`
+        : "";
+  return (
+    <TripNote tone="commercial" title="Went off its route">
+      <p>
+        GPS put this {noun} up to {formatCount(furthest)} metres from its planned road path in{" "}
+        {sightings.length} readings {window}
+        {nearestStop && (
+          <>
+            , nearest{" "}
+            <Link href={nearestStop.href} className="at-link">
+              {nearestStop.name}
+            </Link>
+          </>
+        )}
+        , with stops served before and after.
+        {alert ? "" : " AT had no detour alert out for the route at the time."}
+      </p>
+      {alert && (
+        <p className="text-at-ink">
+          <span className="font-semibold">AT alert:</span> {alert}
+        </p>
+      )}
+    </TripNote>
+  );
+}

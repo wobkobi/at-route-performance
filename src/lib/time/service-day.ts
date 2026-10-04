@@ -7,7 +7,13 @@
 // is treated as a service date directly (for `?day=`). Weeks and months are
 // runs of whole service days, and rolling windows quantise to service-day
 // boundaries so they cache by day rather than by the instant.
-import { dmY } from "@/lib/format";
+import {
+  NZ_DATE,
+  NZ_DATE_HOUR_PARTS,
+  NZ_HOUR_PARTS,
+  NZ_WALL_PARTS,
+  UTC_WEEKDAY,
+} from "@/lib/time/format";
 import { NZ_TZ } from "@/lib/time/nz-tz";
 
 // Re-exported so callers take the timezone name and the helpers from one module.
@@ -19,11 +25,26 @@ export interface DateRange {
   end: Date;
 }
 
-/** Matches a `YYYY-MM-DD` date string, capturing year, month and day. */
-const YMD_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** Seconds in an hour. */
+export const SEC_PER_HOUR = 3600;
 
-/** Matches a `YYYY-MM` month key, capturing year and month. */
-const YM_RE = /^(\d{4})-(\d{2})$/;
+/** Seconds in a day: a GTFS time past this is a post-midnight run. */
+export const SEC_PER_DAY = 86_400;
+
+/** Milliseconds in an hour. */
+export const MS_PER_HOUR = 3_600_000;
+
+/**
+ * Milliseconds in a calendar day. Not a service day across a daylight-saving
+ * switch (23 or 25 hours): step dates with {@link shiftDays}, not this.
+ */
+export const MS_PER_DAY = 86_400_000;
+
+/** Matches a `YYYY-MM-DD` date string, capturing year, month and day. */
+export const YMD_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Matches a `YYYY-MM` month key with a real month number, capturing year and month. */
+export const YM_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
 /** Calendar date parts: year, month (1-12) and day of month. */
 interface Ymd {
@@ -53,7 +74,7 @@ export function parseYmd(ymd: string): Ymd {
  * @param ym - Month as `YYYY-MM`.
  * @returns The year and month (1-12).
  */
-function parseYm(ym: string): Pick<Ymd, "y" | "mo"> {
+export function parseYm(ym: string): Pick<Ymd, "y" | "mo"> {
   const [, y, mo] = YM_RE.exec(ym) ?? [];
   if (y === undefined || mo === undefined) {
     throw new Error(`Malformed month "${ym}": expected YYYY-MM`);
@@ -62,22 +83,49 @@ function parseYm(ym: string): Pick<Ymd, "y" | "mo"> {
 }
 
 /**
+ * Whether a `YYYY-MM-DD` string is a real calendar date. `Date.UTC` silently
+ * normalises an impossible one (2026-02-31 onto 3 March), so the parts must
+ * round-trip unchanged.
+ * @param ymd - The candidate date.
+ * @returns True for a well-formed, real date.
+ */
+export function isRealDate(ymd: string): boolean {
+  const [, ys, ms, ds] = YMD_RE.exec(ymd) ?? [];
+  if (ys === undefined || ms === undefined || ds === undefined) return false;
+  const y = Number(ys);
+  const mo = Number(ms);
+  const d = Number(ds);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+/**
+ * AT's compact `YYYYMMDD` date in the dashed form the rest of the site uses.
+ * @param compact - AT's date string, or whatever the field actually held.
+ * @returns The dashed date, or null when the value is not eight digits.
+ */
+export function dashedDate(compact: unknown): string | null {
+  if (typeof compact !== "string" || !/^\d{8}$/.test(compact)) return null;
+  return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6)}`;
+}
+
+/**
+ * A month key from its parts.
+ * @param y - Full year.
+ * @param mo - Month, 1-12.
+ * @returns The key as `YYYY-MM`.
+ */
+export function ymKey(y: number, mo: number): string {
+  return `${y}-${String(mo).padStart(2, "0")}`;
+}
+
+/**
  * Auckland's UTC offset, in minutes, at a given instant (handles NZST/NZDT).
  * @param at - The instant to evaluate.
  * @returns Offset in minutes that, added to UTC, gives Auckland local time.
  */
 function nzOffsetMinutes(at: Date): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: NZ_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(dtf.formatToParts(at).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(NZ_WALL_PARTS.formatToParts(at).map((p) => [p.type, p.value]));
   const asUTC = Date.UTC(
     Number(parts.year),
     Number(parts.month) - 1,
@@ -86,7 +134,7 @@ function nzOffsetMinutes(at: Date): number {
     Number(parts.minute),
     Number(parts.second),
   );
-  return Math.round((asUTC - at.getTime()) / 60000);
+  return Math.round((asUTC - at.getTime()) / 60_000);
 }
 
 /** Hour the transit service day starts (Auckland local). */
@@ -152,15 +200,9 @@ export function nzServiceDayRange(
     d = Number(ymd[3]);
   } else {
     const inst = typeof at === "string" ? new Date(at) : at;
-    const dtf = new Intl.DateTimeFormat("en-CA", {
-      timeZone: NZ_TZ,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false,
-    });
-    const parts = Object.fromEntries(dtf.formatToParts(inst).map((p) => [p.type, p.value]));
+    const parts = Object.fromEntries(
+      NZ_DATE_HOUR_PARTS.formatToParts(inst).map((p) => [p.type, p.value]),
+    );
     y = Number(parts.year);
     mo = Number(parts.month);
     d = Number(parts.day);
@@ -188,7 +230,7 @@ export function nzServiceDayRange(
  * @returns The same window with {@link RUN_TAIL_HOURS} added to its end.
  */
 export function padScanRange(range: DateRange): DateRange {
-  return { start: range.start, end: new Date(range.end.getTime() + RUN_TAIL_HOURS * 3_600_000) };
+  return { start: range.start, end: new Date(range.end.getTime() + RUN_TAIL_HOURS * MS_PER_HOUR) };
 }
 
 /**
@@ -210,11 +252,17 @@ export function serviceDayScanRange(date: string): DateRange {
  * rather than "24:30:00"), so it moves forward a day.
  * @param serviceDayStart - The service day's start instant (its 4am, as stored).
  * @param seconds - Seconds since the GTFS reference; may exceed 24h for post-midnight runs.
+ * @param startHour - The boundary hour `serviceDayStart` was built with; a
+ *   migration working in another hour passes its own.
  * @returns The UTC instant of that schedule time.
  */
-export function serviceDayClockInstant(serviceDayStart: Date, seconds: number): Date {
-  const startSec = SERVICE_START_HOUR * 3600;
-  const offset = seconds < startSec ? seconds + 86_400 : seconds;
+export function serviceDayClockInstant(
+  serviceDayStart: Date,
+  seconds: number,
+  startHour = SERVICE_START_HOUR,
+): Date {
+  const startSec = startHour * SEC_PER_HOUR;
+  const offset = seconds < startSec ? seconds + SEC_PER_DAY : seconds;
   return new Date(serviceDayStart.getTime() + (offset - startSec) * 1000);
 }
 
@@ -224,13 +272,13 @@ export function serviceDayClockInstant(serviceDayStart: Date, seconds: number): 
  * schedule reads back the seconds its trip id encodes. A post-midnight instant
  * gives a value past 86,400 and is left unwrapped, because the caller decides
  * whether to compare it plainly or circularly (see `anchorGapSec` in
- * ghost-pass.ts).
+ * cron/ghost-pass.ts).
  * @param serviceDayStart - The service day's start instant, as stored.
  * @param at - An instant inside that service day.
  * @returns Seconds since the GTFS reference for that instant.
  */
 export function serviceDayClockSeconds(serviceDayStart: Date, at: Date): number {
-  const startSec = SERVICE_START_HOUR * 3600;
+  const startSec = SERVICE_START_HOUR * SEC_PER_HOUR;
   return startSec + Math.round((at.getTime() - serviceDayStart.getTime()) / 1000);
 }
 
@@ -242,12 +290,7 @@ export function serviceDayClockSeconds(serviceDayStart: Date, at: Date): number 
  */
 export function nzServiceDayString(at: Date = new Date(), startHour = SERVICE_START_HOUR): string {
   const { start } = nzServiceDayRange(at, startHour);
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: NZ_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(start);
+  return NZ_DATE.format(start);
 }
 
 /**
@@ -270,11 +313,7 @@ export function serviceDayNoon(day: string): Date {
  * @returns The week's Monday as `YYYY-MM-DD`.
  */
 export function nzWeekStart(at: Date): string {
-  const { y, mo, d } = parseYmd(nzServiceDayString(at));
-  const date = new Date(Date.UTC(y, mo - 1, d));
-  // getUTCDay 0 = Sunday; shift so Monday is the week start.
-  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
-  return date.toISOString().slice(0, 10);
+  return mondayOf(nzServiceDayString(at));
 }
 
 /**
@@ -285,14 +324,9 @@ export function nzWeekStart(at: Date): string {
  * @returns UTC `{ start, end }` spanning that week.
  */
 export function nzWeekRange(weekStart?: string): DateRange {
-  const m = weekStart?.match(YMD_RE);
-  const base = m
-    ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
-    : new Date(`${nzServiceDayString()}T00:00:00Z`);
-  base.setUTCDate(base.getUTCDate() - ((base.getUTCDay() + 6) % 7)); // snap back to Monday
-  const y = base.getUTCFullYear();
-  const mo = base.getUTCMonth() + 1;
-  const d = base.getUTCDate();
+  const { y, mo, d } = parseYmd(
+    mondayOf(weekStart && YMD_RE.test(weekStart) ? weekStart : nzServiceDayString()),
+  );
   return {
     start: nzLocalToUtcAtHour(y, mo, d, SERVICE_START_HOUR),
     end: nzLocalToUtcAtHour(y, mo, d + 7, SERVICE_START_HOUR),
@@ -320,7 +354,16 @@ export function nzMonthRange(ym?: string): DateRange {
  * @returns The month as `YYYY-MM`.
  */
 export function nzMonthKey(at: Date = new Date()): string {
-  return nzServiceDayString(at).slice(0, 7);
+  return monthOf(nzServiceDayString(at));
+}
+
+/**
+ * The month key a date falls in.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The month as `YYYY-MM`.
+ */
+export function monthOf(ymd: string): string {
+  return ymd.slice(0, 7);
 }
 
 /**
@@ -332,7 +375,7 @@ export function nzMonthKey(at: Date = new Date()): string {
 export function shiftMonth(ym: string, months: number): string {
   const { y, mo } = parseYm(ym);
   const total = y * 12 + (mo - 1) + months;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+  return ymKey(Math.floor(total / 12), (total % 12) + 1);
 }
 
 /**
@@ -341,13 +384,22 @@ export function shiftMonth(ym: string, months: number): string {
  * @returns The formatted label.
  */
 export function monthRangeLabel(range: DateRange): string {
-  // The start instant is 4am on the 1st; nudge a day in so the formatter can
-  // never land in the previous month.
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    month: "long",
-    year: "numeric",
-  }).format(new Date(range.start.getTime() + 86_400_000));
+  // The start instant is the 1st's own service day, so its key is the month's.
+  return monthLabel(nzMonthKey(range.start));
+}
+
+/**
+ * Read a `?d=` link param as an instant. Trip links carry either an ISO instant
+ * (the run's departure) or a bare service date; a service date reads as its
+ * local noon, safely inside its own service day.
+ * @param value - The raw param.
+ * @returns The instant, or null when absent or unparseable.
+ */
+export function parseInstantParam(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  if (YMD_RE.test(value)) return isRealDate(value) ? serviceDayNoon(value) : null;
+  const at = new Date(value);
+  return Number.isNaN(at.getTime()) ? null : at;
 }
 
 /**
@@ -362,7 +414,7 @@ export function nzLast7DaysRange(at: Date = new Date()): DateRange {
   // Step back six service days by date string rather than subtracting a fixed
   // 7 * 24h of milliseconds, which lands an hour off the 4am boundary when the
   // window straddles a DST transition.
-  const start = nzServiceDayRange(shiftWeek(nzServiceDayString(at), -6)).start;
+  const start = nzServiceDayRange(shiftDays(nzServiceDayString(at), -6)).start;
   return { start, end: day.end };
 }
 
@@ -379,27 +431,14 @@ export function serviceDatesInRange(range: DateRange): string[] {
   // The service day containing range.start; when its 4am start precedes the
   // window, it belongs to the previous window > skip.
   let date = nzServiceDayString(range.start);
-  if (nzServiceDayRange(date).start < range.start) date = shiftWeek(date, 1);
+  if (nzServiceDayRange(date).start < range.start) date = shiftDays(date, 1);
   const last = nzServiceDayString(new Date(range.end.getTime() - 1));
   const dates: string[] = [];
   while (date <= last) {
     dates.push(date);
-    date = shiftWeek(date, 1);
+    date = shiftDays(date, 1);
   }
   return dates;
-}
-
-/**
- * Auckland-local clock time (e.g. "7:24am") for an ISO instant.
- * @param iso - ISO instant string.
- * @returns The local 12-hour time label.
- */
-export function nzClockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-NZ", {
-    timeZone: NZ_TZ,
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 /**
@@ -420,19 +459,13 @@ export function nzHourLabel(hour: number): string {
  * @returns The local hour.
  */
 export function nzLocalHour(at: Date): number {
-  const hour = new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    hour: "2-digit",
-    hour12: false,
-  })
-    .formatToParts(at)
-    .find((p) => p.type === "hour")?.value;
+  const hour = NZ_HOUR_PARTS.formatToParts(at).find((p) => p.type === "hour")?.value;
   return hour === "24" ? 0 : Number(hour);
 }
 
 /**
  * Whether an instant falls between midnight and the {@link SERVICE_START_HOUR}
- * start, so it counts toward the service day before its calendar date.
+ * start, so it counts towards the service day before its calendar date.
  * @param at - The instant.
  * @returns True for a post-midnight instant.
  */
@@ -451,24 +484,24 @@ export function isAfterMidnight(at: Date): boolean {
 export function gtfsServiceSeconds(hms: string): number | null {
   const [h, m, s] = hms.split(":").map(Number);
   if (h === undefined || m === undefined || Number.isNaN(h) || Number.isNaN(m)) return null;
-  const seconds = h * 3600 + m * 60 + (s && !Number.isNaN(s) ? s : 0);
-  return h < SERVICE_START_HOUR ? seconds + 86_400 : seconds;
+  const seconds = h * SEC_PER_HOUR + m * 60 + (s && !Number.isNaN(s) ? s : 0);
+  return h < SERVICE_START_HOUR ? seconds + SEC_PER_DAY : seconds;
 }
 
 /**
  * What a service day covers, for the day stepper's tooltip: "Tue 22 Sep runs
- * from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it."
+ * from 4am to 4am Wed 23 Sep, so a trip after midnight still counts towards it."
  * @param ymd - Service date as `YYYY-MM-DD`.
  * @returns The sentence.
  */
 export function serviceDayWindowText(ymd: string): string {
   const start = nzHourLabel(SERVICE_START_HOUR);
-  return `${serviceDayLabel(ymd)} runs from ${start} to ${start} ${serviceDayLabel(shiftWeek(ymd, 1))}, so a run after midnight still counts toward it.`;
+  return `${serviceDayLabel(ymd)} runs from ${start} to ${start} ${serviceDayLabel(shiftDays(ymd, 1))}, so a trip after midnight still counts towards it.`;
 }
 
 /**
  * The note an after-midnight time carries, naming the service day it counts
- * toward: "After midnight, still counted in Tue 22 Sep".
+ * towards: "After midnight, still counted in Tue 22 Sep".
  * @param ymd - The service date the time belongs to.
  * @returns The note.
  */
@@ -477,46 +510,91 @@ export function afterMidnightNote(ymd: string): string {
 }
 
 /**
- * Shift a `YYYY-MM-DD` date string by whole days (UTC arithmetic). Shared
- * across the shame and route pages for week stepping.
+ * Shift a `YYYY-MM-DD` date string by whole days. Calendar arithmetic in UTC,
+ * so a daylight-saving switch never moves it off the date.
  * @param ymd - Source date.
  * @param days - Days to add (negative steps back).
  * @returns The shifted `YYYY-MM-DD`.
  */
-export function shiftWeek(ymd: string, days: number): string {
+export function shiftDays(ymd: string, days: number): string {
   const { y, mo, d } = parseYmd(ymd);
   return new Date(Date.UTC(y, mo - 1, d + days)).toISOString().slice(0, 10);
 }
 
 /**
- * Short weekday label ("Mon") for a `YYYY-MM-DD` date string. Formats the
- * calendar date itself at UTC midnight in the UTC zone; formatting an
- * NZ-noon-UTC instant in Pacific/Auckland lands on the NEXT local day and
- * shifts every label one weekday ahead.
+ * The weekday of a calendar date, 0 for Sunday to 6 for Saturday. The date is
+ * read as a calendar date in UTC, not as an Auckland instant, which would land
+ * on the next local day.
+ * @param ymd - Date as `YYYY-MM-DD`.
+ * @returns The weekday number.
+ */
+export function weekdayOf(ymd: string): number {
+  const { y, mo, d } = parseYmd(ymd);
+  return new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+}
+
+/**
+ * The Monday of the week holding a date, weeks running Monday to Sunday as the
+ * site's week view does.
+ * @param ymd - The date.
+ * @returns That week's Monday.
+ */
+export function mondayOf(ymd: string): string {
+  return shiftDays(ymd, -((weekdayOf(ymd) + 6) % 7));
+}
+
+/**
+ * Short weekday label ("Mon") for a `YYYY-MM-DD` date string.
  * @param ymd - Date as `YYYY-MM-DD`.
  * @returns The short weekday label, e.g. "Mon".
  */
 export function weekdayShort(ymd: string): string {
-  return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short" }).format(
-    new Date(`${ymd}T00:00:00Z`),
-  );
+  return UTC_WEEKDAY.format(new Date(`${ymd}T00:00:00Z`));
 }
 
-/** Short month names, indexed 0-11. */
-const MONTHS_SHORT = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
+/** Month names, indexed 0-11; the first three letters are each one's short name. */
+export const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
   "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+/**
+ * A month's short name, "Sep".
+ * @param mo - Month, 1-12.
+ * @returns The name.
+ */
+export function monthShortName(mo: number): string {
+  return (MONTHS[mo - 1] ?? "").slice(0, 3);
+}
+
+/**
+ * A month key as "September 2026".
+ * @param ym - Month as `YYYY-MM`.
+ * @returns The label.
+ */
+export function monthLabel(ym: string): string {
+  const { y, mo } = parseYm(ym);
+  return `${MONTHS[mo - 1] ?? ""} ${y}`;
+}
+
+/**
+ * The last date of a month.
+ * @param ym - Month as `YYYY-MM`.
+ * @returns Its last day as `YYYY-MM-DD`.
+ */
+export function monthLastDay(ym: string): string {
+  return shiftDays(`${shiftMonth(ym, 1)}-01`, -1);
+}
 
 /**
  * A service date as `Sun 13 Sep`, the label the day stepper, the cancellation
@@ -526,7 +604,7 @@ const MONTHS_SHORT = [
  */
 export function serviceDayLabel(ymd: string): string {
   const { mo, d } = parseYmd(ymd);
-  return `${weekdayShort(ymd)} ${d} ${MONTHS_SHORT[mo - 1] ?? ""}`;
+  return `${weekdayShort(ymd)} ${d} ${monthShortName(mo)}`;
 }
 
 /**
@@ -537,19 +615,34 @@ export function serviceDayLabel(ymd: string): string {
  */
 export function serviceDateLabel(ymd: string): string {
   const { y, mo, d } = parseYmd(ymd);
-  return `${d} ${MONTHS_SHORT[mo - 1] ?? ""} ${y}`;
+  return `${d} ${monthShortName(mo)} ${y}`;
 }
 
 /**
- * Week label as `DD/MM to DD/MM`, adding the year on both ends only when the
- * week straddles New Year.
- * @param range - Half-open week range (`end` is the exclusive next Monday).
- * @returns The range label.
+ * A run of service dates as `21 to 27 Sep`, naming the month on both ends only
+ * when it changes (`28 Sep to 4 Oct`) and the year on both ends only when the
+ * run straddles New Year (`29 Dec 2025 to 4 Jan 2026`). One date reads `21 Sep`.
+ * @param first - First date as `YYYY-MM-DD`.
+ * @param last - Last date as `YYYY-MM-DD`, inclusive.
+ * @returns The label.
  */
-export function weekRangeLabel(range: DateRange): string {
-  const first = dmY(range.start);
-  const last = dmY(new Date(range.end.getTime() - 86_400_000));
-  return first.y === last.y
-    ? `${first.dm} to ${last.dm}`
-    : `${first.dm}/${first.y} to ${last.dm}/${last.y}`;
+export function dayRangeLabel(first: string, last: string): string {
+  const a = parseYmd(first);
+  const b = parseYmd(last);
+  if (first === last) return `${a.d} ${monthShortName(a.mo)}`;
+  if (a.y !== b.y) return `${serviceDateLabel(first)} to ${serviceDateLabel(last)}`;
+  if (a.mo !== b.mo) return `${a.d} ${monthShortName(a.mo)} to ${b.d} ${monthShortName(b.mo)}`;
+  return `${a.d} to ${b.d} ${monthShortName(b.mo)}`;
+}
+
+/**
+ * Label a week, or any run of whole service days, by its first and last day
+ * (see {@link dayRangeLabel}).
+ * @param range - Half-open range (`end` is exclusive).
+ * @returns The label.
+ */
+export function weekLabel(range: DateRange): string {
+  const days = serviceDatesInRange(range);
+  const first = days[0] ?? nzServiceDayString(range.start);
+  return dayRangeLabel(first, days.at(-1) ?? first);
 }

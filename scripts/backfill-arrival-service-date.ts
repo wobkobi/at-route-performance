@@ -30,16 +30,15 @@
  * Usage:
  *   npx tsx --env-file=.env.local scripts/backfill-arrival-service-date.ts [--dry-run] [--since=<hours>]
  */
+import { prisma } from "@/lib/db";
 import { type RunRowDate, foldRunDates } from "@/lib/time/run-day";
 import {
   RUN_TAIL_HOURS,
   nzServiceDayRange,
   nzServiceDayString,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
-import { PrismaClient } from "@prisma/client";
 
-const p = new PrismaClient();
 const dryRun = process.argv.includes("--dry-run");
 const tag = dryRun ? "[DRY RUN] " : "";
 const sinceArg = process.argv.find((a) => a.startsWith("--since="));
@@ -52,18 +51,18 @@ const STRADDLER_ALARM = 5;
 
 const oldest = sinceHours
   ? { scheduledAt: new Date(Date.now() - sinceHours * HOUR_MS) }
-  : await p.arrivalEvent.findFirst({
+  : await prisma.arrivalEvent.findFirst({
       orderBy: { scheduledAt: "asc" },
       select: { scheduledAt: true },
     });
-const newest = await p.arrivalEvent.findFirst({
+const newest = await prisma.arrivalEvent.findFirst({
   orderBy: { scheduledAt: "desc" },
   select: { scheduledAt: true },
 });
 
 if (!oldest || !newest) {
   console.log("No ArrivalEvent rows found - nothing to do.");
-  await p.$disconnect();
+  await prisma.$disconnect();
   process.exit(0);
 }
 
@@ -83,7 +82,7 @@ let scanned = 0;
 let stamped = 0;
 
 for (let sliceMs = startMs; sliceMs < endMs; sliceMs += HOUR_MS) {
-  const rows = await p.arrivalEvent.findMany({
+  const rows = await prisma.arrivalEvent.findMany({
     where: { scheduledAt: { gte: new Date(sliceMs), lt: new Date(sliceMs + HOUR_MS) } },
     select: { id: true, scheduledAt: true, serviceDate: true },
   });
@@ -107,7 +106,7 @@ for (let sliceMs = startMs; sliceMs < endMs; sliceMs += HOUR_MS) {
     stamped += ids.length;
     if (dryRun) continue;
     for (let i = 0; i < ids.length; i += UPDATE_BATCH) {
-      await p.arrivalEvent.updateMany({
+      await prisma.arrivalEvent.updateMany({
         where: { id: { in: ids.slice(i, i + UPDATE_BATCH) } },
         data: { serviceDate: date },
       });
@@ -124,7 +123,7 @@ let straddlerRuns = 0;
 let movedRows = 0;
 let overran = 0;
 
-for (let date = firstDate; date <= lastDate; date = shiftWeek(date, 1)) {
+for (let date = firstDate; date <= lastDate; date = shiftDays(date, 1)) {
   const boundary = nzServiceDayRange(date).end;
   // Twice the tail on the early side, so a run that began well before the
   // boundary is seen whole rather than clipped into a false earliest reading.
@@ -132,7 +131,7 @@ for (let date = firstDate; date <= lastDate; date = shiftWeek(date, 1)) {
   // short it can only ever name one run.
   const scanStart = new Date(boundary.getTime() - 2 * RUN_TAIL_HOURS * HOUR_MS);
   const scanEnd = new Date(boundary.getTime() + RUN_TAIL_HOURS * HOUR_MS);
-  const rows = await p.arrivalEvent.findMany({
+  const rows = await prisma.arrivalEvent.findMany({
     where: { scheduledAt: { gte: scanStart, lt: scanEnd } },
     select: { id: true, tripId: true, scheduledAt: true, serviceDate: true },
   });
@@ -201,7 +200,7 @@ for (let date = firstDate; date <= lastDate; date = shiftWeek(date, 1)) {
   }
   for (const [target, ids] of byTarget) {
     for (let i = 0; i < ids.length; i += UPDATE_BATCH) {
-      await p.arrivalEvent.updateMany({
+      await prisma.arrivalEvent.updateMany({
         where: { id: { in: ids.slice(i, i + UPDATE_BATCH) } },
         data: { serviceDate: target },
       });
@@ -218,4 +217,4 @@ console.log(
     `${dryRun ? " (dry run - nothing was written)" : ""}; ${straddlerRuns} straddling run(s), ` +
     `${movedRows} row(s) folded; ${overran} run(s) past RUN_TAIL_HOURS.`,
 );
-await p.$disconnect();
+await prisma.$disconnect();

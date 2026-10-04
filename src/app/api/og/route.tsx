@@ -12,6 +12,7 @@
 // No maxDuration or runtime here: any route-level config splits this route into
 // its own function bundle, each carrying its own copy of the Prisma engine.
 
+import { logReadFailure } from "@/lib/db";
 import {
   CARD_HEIGHT,
   CARD_WIDTH,
@@ -82,8 +83,12 @@ async function render(element: JSX.Element, cacheControl: string): Promise<Image
  * @returns The PNG, always 200.
  */
 export async function GET(req: NextRequest): Promise<ImageResponse> {
-  const { logo } = await loadAssets();
+  // The query is read before any await. Under Cache Components the build
+  // prerenders this handler: reading the request first stops that prerender
+  // cleanly, while the file read in loadAssets could end it first, and a query
+  // read after that throws and fails the build (only when the read was quick).
   const card = parseCardQuery(req.nextUrl.searchParams);
+  const { logo } = await loadAssets();
   let home: HomeCardData | null = null;
   let subject: SubjectCardData | null = null;
   try {
@@ -94,11 +99,12 @@ export async function GET(req: NextRequest): Promise<ImageResponse> {
     else if (card.kind === "shame") subject = await shameCardData(card);
     else subject = await listCardData(card);
   } catch (err) {
-    console.error("[og] card data failed, sending the plain card", err);
+    // The plain card still unfurls, so the read degrades rather than failing.
+    logReadFailure(`og-${card.kind}-card`, err);
   }
   if (home && card.kind === "home") {
     const filter = cardFilterLabel(card.mode, card.schools);
-    const eyebrow = ["Network", home.when, filter].filter(Boolean).join(" - ");
+    const eyebrow = ["Network", home.when, filter].filter(Boolean).join(" · ");
     return render(
       <CardFrame eyebrow={eyebrow} logo={logo}>
         <VerdictBody summary={home.summary} />

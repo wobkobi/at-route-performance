@@ -1,3 +1,4 @@
+import { countBy } from "@/lib/collections";
 // src/lib/stop/station.ts
 // Collapse the platforms of one place into a single logical stop. AT exposes
 // every platform, bay and pier as its own GTFS stop ("Newmarket Train Station
@@ -139,11 +140,7 @@ export function platformLabelOf(name: string, parts?: StationParts): string {
  * @returns The place's name, or an empty string when given no platforms.
  */
 export function stationNameOf(platforms: readonly (StationParts & { name: string })[]): string {
-  const counts = new Map<string, number>();
-  for (const p of platforms) {
-    const n = stationName(p.name, p);
-    counts.set(n, (counts.get(n) ?? 0) + 1);
-  }
+  const counts = countBy(platforms, (p) => stationName(p.name, p));
   let best = "";
   let bestCount = 0;
   for (const [n, c] of [...counts].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -175,7 +172,7 @@ export function stationId(stopId: string, name: string, parts?: StationParts): s
 
 /**
  * The name-derived station id used before AT's `parent_station` was stored.
- * Still minted as a fallback, and still resolved so old links keep working.
+ * Still minted as the fallback for stop rows stored without a parent.
  * @param name - The stop's display name (numbered or not).
  * @returns `station:<lowercased station name>`.
  */

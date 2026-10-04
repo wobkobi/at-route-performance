@@ -4,15 +4,17 @@
 // under someone else's number. Every clock label is derived from the trip id's
 // start seconds against the run's own service day, so nothing here depends on a
 // stored instant.
+import { FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
-import { nzClockTime, nzServiceDayRange, serviceDayClockInstant } from "@/lib/time/service-day";
-import { tripIdStartSeconds } from "@/lib/trip-id";
+import { nzClockTime } from "@/lib/time/format";
+import { nzServiceDayRange, serviceDayClockInstant } from "@/lib/time/service-day";
+import { tripIdStartSeconds } from "@/lib/trip/id";
 
 /** One hidden run, for the trip page. */
 export interface GhostRunRow {
   trip_id: string;
-  route_id: string;
+  routeId: string;
   /** The run's own NZ service date (`YYYY-MM-DD`). */
   service_date: string;
   /** Auckland clock time this run was scheduled to start, or null when its id encodes none. */
@@ -77,7 +79,7 @@ function startLabel(tripId: string, serviceDate: string): string | null {
 function toRow(row: StoredGhostRun): GhostRunRow {
   return {
     trip_id: row.tripId,
-    route_id: row.routeId,
+    routeId: row.routeId,
     service_date: row.serviceDate,
     label: startLabel(row.tripId, row.serviceDate),
     level_sec: row.levelSec,
@@ -118,7 +120,7 @@ export async function getGhostRun(
       return row === null ? null : toRow(row);
     },
     ["ghost-run", tripId, serviceDate ?? "latest"],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }
 
@@ -144,6 +146,6 @@ export async function getGhostRunFor(
       return row === null ? null : toRow(row);
     },
     ["ghost-run-for", belongsToTripId, serviceDate],
-    { revalidate: 300 },
+    { revalidate: FIVE_MINUTE_REVALIDATE },
   )();
 }

@@ -9,6 +9,7 @@
 // stop visit. A batch that partly landed before the outage no-ops on replay.
 
 import type { RecordedRun } from "@/lib/feed/ingest-run";
+import { MS_PER_DAY } from "@/lib/time/service-day";
 import { del, get, list, put } from "@vercel/blob";
 import { gunzipSync, gzipSync } from "fflate";
 
@@ -27,7 +28,7 @@ const MAX_DRAIN_PER_RUN = 8;
  * a hole in the archive either way, and replaying stale predictions on top of
  * whatever the nightly aggregate has since settled is worse than the gap.
  */
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const MAX_AGE_MS = MS_PER_DAY;
 
 /**
  * A run stamp older than this means a poll went unrecorded, so the spool may hold

@@ -3,20 +3,29 @@
 // there are none. Built to inform without getting in the way: it stays
 // collapsed, and it only takes the loud disruption styling when something is
 // actually stopping - a feed where a line closure and a routine notice look
-// identical is a feed people learn to ignore.
+// identical is a feed people learn to ignore. Each alert renders through
+// AlertItem, which the Alerts page shares; AlertsLine is the one-line link to
+// that page on the home page.
+import { ChevronDown, ChevronRight } from "@/components/icons";
+import { Badge, badgeClass } from "@/components/ui/Badge";
+import { MoreLink } from "@/components/ui/MoreLink";
 import { cn } from "@/lib/cn";
 import {
+  alertEffectLabel,
   alertPeriodToShow,
+  alertRouteIds,
   alertSeverity,
   cleanAlertHeader,
   extractText,
   hasSevereAlert,
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
-import { routeSlug } from "@/lib/route-slug";
-import { NZ_TZ } from "@/lib/time/service-day";
+import { formatCount } from "@/lib/format";
+import { routeHref, stopHref } from "@/lib/page/hrefs";
+import { routeSlug } from "@/lib/route/slug";
+import { NZ_DATE, nzClockWithDate } from "@/lib/time/format";
 import Link from "next/link";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 
 /** Props for {@link AlertBanner}. */
 export interface AlertBannerProps {
@@ -26,6 +35,11 @@ export interface AlertBannerProps {
   heading?: string;
   /** Short names keyed by route id; falls back to the raw id when absent. */
   routeNames?: Record<string, string>;
+  /**
+   * Start expanded. Set where the list is short and is what a reader came to
+   * check: a stop's own alerts, rather than a route's run of them.
+   */
+  defaultOpen?: boolean;
   /**
    * Whether the page is showing a past day or period. AT publishes only the
    * alerts running at this moment, so a past window has none of its own; this
@@ -41,33 +55,8 @@ export interface AlertBannerProps {
   upcoming?: boolean;
 }
 
-/**
- * Format a Unix timestamp as a short NZ local time, adding the date when the
- * instant falls outside today. An alert running for weeks otherwise renders as
- * a bare "8:45 pm - 6:00 am" and reads as though it is tonight.
- * @param unix - Seconds since epoch.
- * @param withDate - Include the day and month.
- * @returns Localised time string, e.g. "8:45 pm" or "12 Sep, 8:45 pm".
- */
-function fmtTime(unix: number, withDate: boolean): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    ...(withDate ? { day: "numeric", month: "short" } : {}),
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(unix * 1000));
-}
-
-/**
- * Auckland-local calendar date of an instant, for same-day comparison. `en-CA`
- * yields `YYYY-MM-DD`, which compares as a plain string.
- */
-const NZ_DAY = new Intl.DateTimeFormat("en-CA", {
-  timeZone: NZ_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+/** Where the "all alerts" link under every banner leads. */
+export const ALERTS_HREF = "/alerts";
 
 /**
  * Whether an instant falls on today's Auckland-local calendar date.
@@ -75,7 +64,7 @@ const NZ_DAY = new Intl.DateTimeFormat("en-CA", {
  * @returns True when it is today in Auckland.
  */
 function isToday(unix: number): boolean {
-  return NZ_DAY.format(new Date(unix * 1000)) === NZ_DAY.format(new Date());
+  return NZ_DATE.format(new Date(unix * 1000)) === NZ_DATE.format(new Date());
 }
 
 /**
@@ -93,10 +82,10 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
     alwaysDate || (start !== undefined && !isToday(start)) || (end !== undefined && !isToday(end));
 
   if (start !== undefined && end !== undefined) {
-    return `${fmtTime(start, dated)} – ${fmtTime(end, dated)}`;
+    return `${nzClockWithDate(new Date(start * 1000), dated)} to ${nzClockWithDate(new Date(end * 1000), dated)}`;
   }
-  if (start !== undefined) return `From ${fmtTime(start, dated)}`;
-  if (end !== undefined) return `Until ${fmtTime(end, dated)}`;
+  if (start !== undefined) return `From ${nzClockWithDate(new Date(start * 1000), dated)}`;
+  if (end !== undefined) return `Until ${nzClockWithDate(new Date(end * 1000), dated)}`;
   return null;
 }
 
@@ -104,21 +93,21 @@ function periodLabel(start?: number, end?: number, alwaysDate = false): string |
  * Collapsible service-disruption banner using `<details>`/`<summary>` - no
  * client JS required.
  *
- * Always closed on load, deliberately: alerts should be reachable without
- * displacing what the reader came for, and a set of them expanded on arrival is
- * a wall of text. The whole banner takes the disruption styling only when at
+ * Closed on load unless `defaultOpen` is set: alerts should be reachable
+ * without displacing what the reader came for, and a set of them expanded on
+ * arrival is a wall of text. The whole banner takes the disruption styling only when at
  * least one alert is service-stopping ({@link alertSeverity}); otherwise it
  * stays muted, and each row is tinted by its own severity.
  *
- * Each alert shows a cleaned header (AT's schedule-time bracket stripped), an
- * active-period line, an effect badge, description, and route badge links for any
- * `informed_entity` entries that carry a `route_id`.
+ * Each alert is an {@link AlertItem}, and the open list ends with a link to the
+ * Alerts page.
  *
  * Returns null when no alerts are present so callers need no guard wrapper.
  * @param props - Component props.
  * @param props.alerts - Alerts to display.
  * @param props.heading - Accessible region label (defaults to "Service alerts").
  * @param props.routeNames - Map of route id to display name for the informed-entity badges.
+ * @param props.defaultOpen - Whether the banner starts expanded.
  * @param props.pastWindow - Whether the page is showing a past day or period.
  * @param props.upcoming - Whether the alerts are coming up rather than running now.
  * @returns Collapsible alert banner, or null when the list is empty.
@@ -127,6 +116,7 @@ export function AlertBanner({
   alerts,
   heading = "Service alerts",
   routeNames,
+  defaultOpen = false,
   pastWindow = false,
   upcoming = false,
 }: AlertBannerProps): JSX.Element | null {
@@ -135,24 +125,14 @@ export function AlertBanner({
 
   return (
     <details
+      open={defaultOpen}
       className={cn(
-        "group overflow-hidden rounded-lg border",
+        "group border",
         severe ? "border-at-disruption/30 bg-at-disruption/5" : "border-at-border bg-at-surface",
       )}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 p-3 select-none">
-        {/* Exclamation icon */}
-        <svg
-          aria-hidden="true"
-          className={cn("size-4 shrink-0", severe ? "text-at-disruption" : "text-at-muted")}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
-          />
-        </svg>
+        <AlertIcon severe={severe} />
         <span
           className={cn(
             "flex-1 text-sm font-bold",
@@ -160,108 +140,226 @@ export function AlertBanner({
           )}
         >
           {heading}
-          {pastWindow && <span className="font-normal"> - running now</span>}
+          {pastWindow && <span className="font-normal"> · running now</span>}
         </span>
-        <span
-          className={cn(
-            "px-2 py-0.5 text-xs tabular-nums",
-            severe ? "bg-at-disruption text-white" : "bg-at-border text-at-ink",
-          )}
-        >
+        <span className={cn(badgeClass(severe ? "disruption" : "muted"), "tabular-nums")}>
           {alerts.length}
         </span>
-        {/* Chevron rotates when details is open */}
-        <svg
-          aria-hidden="true"
+        <ChevronDown
           className={cn(
             "size-4 shrink-0 transition-transform group-open:rotate-180",
             severe ? "text-at-disruption" : "text-at-muted",
           )}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-          />
-        </svg>
+        />
       </summary>
 
       <div className={cn("divide-y", severe ? "divide-at-disruption/15" : "divide-at-border")}>
         {pastWindow && (
           <p className="p-3 text-xs text-at-muted">
-            Auckland Transport publishes only current and upcoming alerts, so these are the ones
-            running now, not a record of what was disrupted in the period shown.
+            AT publishes only current and upcoming alerts, so these are the ones running now, not a
+            record of what was disrupted in the period shown.
           </p>
         )}
-        {alerts.map((alert, i) => {
-          const rawHeader = extractText(alert.header_text);
-          const headerText = rawHeader ? cleanAlertHeader(rawHeader) : null;
-          const rawDesc = extractText(alert.description_text);
-          const cleanDesc = rawDesc ? cleanAlertHeader(rawDesc) : null;
-          const urlText = extractText(alert.url);
-          // One badge per route: two feed versions of a route share a slug and a page.
-          const routeIds = [
-            ...new Map(
-              alert.informed_entity
-                .map((e) => e.route_id)
-                .filter((id): id is string => !!id)
-                .map((id) => [routeSlug(id), id] as const),
-            ).values(),
-          ];
-          const period = alertPeriodToShow(alert);
-          const periodText = periodLabel(period?.start, period?.end, pastWindow);
-          const rowSevere = alertSeverity(alert) === "severe";
-
-          return (
-            <div key={alert.id || i} className="space-y-1.5 p-3">
-              {headerText && (
-                <p className="text-sm font-semibold text-at-ink">
-                  {urlText ? (
-                    <a
-                      href={urlText}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline hover:no-underline"
-                    >
-                      {headerText}
-                    </a>
-                  ) : (
-                    headerText
-                  )}
-                </p>
-              )}
-              {periodText && <p className="text-xs text-at-muted">{periodText}</p>}
-              {alert.effect && (
-                <span
-                  className={cn(
-                    "inline-block rounded px-1.5 py-0.5 text-xs",
-                    rowSevere
-                      ? "bg-at-disruption/15 text-at-disruption"
-                      : "bg-at-border/60 text-at-muted",
-                  )}
-                >
-                  {alert.effect.replace(/_/g, " ")}
-                </span>
-              )}
-              {cleanDesc && <p className="text-sm leading-snug text-at-muted">{cleanDesc}</p>}
-              {routeIds.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {routeIds.map((id) => (
-                    <Link
-                      key={id}
-                      href={`/route/${encodeURIComponent(routeSlug(id))}`}
-                      className="bg-at-shore-pale px-2 py-0.5 text-xs font-medium text-at-shore hover:underline"
-                    >
-                      {routeNames?.[id] ?? routeSlug(id)}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {alerts.map((alert, i) => (
+          <AlertItem
+            key={alert.id || i}
+            alert={alert}
+            routeNames={routeNames}
+            alwaysDate={pastWindow}
+            className="p-3"
+          />
+        ))}
+        <p className="p-3">
+          <MoreLink href={ALERTS_HREF}>All service alerts</MoreLink>
+        </p>
       </div>
     </details>
+  );
+}
+
+/**
+ * The warning triangle that leads an alert banner or line.
+ * @param props - Component props.
+ * @param props.severe - Whether something is stopping, which turns it red.
+ * @returns The icon, hidden from assistive tech.
+ */
+function AlertIcon({ severe }: { severe: boolean }): JSX.Element {
+  return (
+    <svg
+      aria-hidden
+      className={cn("size-4 shrink-0", severe ? "text-at-disruption" : "text-at-muted")}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+      />
+    </svg>
+  );
+}
+
+/**
+ * One line linking to the Alerts page with how many alerts are running and
+ * coming up, styled as the banner's closed summary so it reads as the same
+ * thing: red when one running is service-stopping, muted otherwise.
+ * @param props - Component props.
+ * @param props.href - The Alerts page, with any filter carried.
+ * @param props.running - Alerts running now.
+ * @param props.upcoming - Alerts coming up this week.
+ * @param props.severe - Whether one running now is service-stopping.
+ * @returns The line, or null when there are no alerts at all.
+ */
+export function AlertsLine({
+  href,
+  running,
+  upcoming,
+  severe,
+}: {
+  href: string;
+  running: number;
+  upcoming: number;
+  severe: boolean;
+}): JSX.Element | null {
+  if (running === 0 && upcoming === 0) return null;
+  const counts = [
+    running > 0 ? `${formatCount(running)} running now` : "None running now",
+    upcoming > 0 ? `${formatCount(upcoming)} coming up` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group flex items-center gap-2 border p-3 text-sm",
+        severe ? "border-at-disruption/30 bg-at-disruption/5" : "border-at-border bg-at-surface",
+      )}
+    >
+      <AlertIcon severe={severe} />
+      <span className="flex flex-1 flex-wrap gap-x-2">
+        <span
+          className={cn(
+            "font-bold group-hover:underline",
+            severe ? "text-at-disruption" : "text-at-ink",
+          )}
+        >
+          Show service alerts
+        </span>
+        <span className="text-at-muted tabular-nums">{counts}</span>
+      </span>
+      <ChevronRight
+        aria-hidden
+        className={cn("size-4 shrink-0", severe ? "text-at-disruption" : "text-at-muted")}
+      />
+    </Link>
+  );
+}
+
+/**
+ * A row of linked chips under an alert, labelled with what they are.
+ * @param props - Component props.
+ * @param props.label - What the chips are ("Routes", "Stops").
+ * @param props.children - The chips.
+ * @returns The labelled row.
+ */
+function ChipRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+      <span className="mr-1 text-xs text-at-muted">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One service alert: its cleaned header (AT's schedule-time bracket stripped,
+ * linked to AT's page when it gives one), the period to show, an effect badge,
+ * the description, then links to every route and stop page it names. Stops are
+ * shown whole, however many: AT names at most a dozen, and a closure's stops are
+ * what a rider scans for their own.
+ * @param props - Component props.
+ * @param props.alert - The alert.
+ * @param props.routeNames - Display name by route id; falls back to the route's slug.
+ * @param props.alwaysDate - Date the period whatever day it falls on (a past window's view).
+ * @param props.className - Extra classes (padding).
+ * @returns The alert's block.
+ */
+export function AlertItem({
+  alert,
+  routeNames,
+  alwaysDate = false,
+  className,
+}: {
+  alert: ServiceAlert;
+  routeNames?: Record<string, string>;
+  alwaysDate?: boolean;
+  className?: string;
+}): JSX.Element {
+  const rawHeader = extractText(alert.header_text);
+  const headerText = rawHeader ? cleanAlertHeader(rawHeader) : null;
+  const rawDesc = extractText(alert.description_text);
+  const cleanDesc = rawDesc ? cleanAlertHeader(rawDesc) : null;
+  const urlText = extractText(alert.url);
+  const routeIds = alertRouteIds(alert);
+  const stops = alert.stops ?? [];
+  const period = alertPeriodToShow(alert);
+  const periodText = periodLabel(period?.start, period?.end, alwaysDate);
+  const effectLabel = alertEffectLabel(alert.effect);
+
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      {headerText && (
+        <p className="text-sm font-semibold text-at-ink">
+          {urlText ? (
+            <a
+              href={urlText}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:no-underline"
+            >
+              {headerText}
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : (
+            headerText
+          )}
+        </p>
+      )}
+      {periodText && <p className="text-xs text-at-muted">{periodText}</p>}
+      {effectLabel && (
+        <Badge
+          tone={alertSeverity(alert) === "severe" ? "disruption" : "muted"}
+          label={effectLabel}
+        />
+      )}
+      {cleanDesc && <p className="text-sm leading-snug text-at-muted">{cleanDesc}</p>}
+      {routeIds.length > 0 && (
+        <ChipRow label={routeIds.length === 1 ? "Route" : "Routes"}>
+          {routeIds.map((id) => (
+            <Link
+              key={id}
+              href={routeHref(id)}
+              className={cn(badgeClass("pale"), "hover:underline")}
+            >
+              {routeNames?.[id] ?? routeSlug(id)}
+            </Link>
+          ))}
+        </ChipRow>
+      )}
+      {stops.length > 0 && (
+        <ChipRow label={stops.length === 1 ? "Stop" : "Stops"}>
+          {stops.map((s) => (
+            <Link
+              key={s.id}
+              href={stopHref(s.id)}
+              className={cn(badgeClass("muted"), "hover:underline")}
+            >
+              {s.name}
+            </Link>
+          ))}
+        </ChipRow>
+      )}
+    </div>
   );
 }

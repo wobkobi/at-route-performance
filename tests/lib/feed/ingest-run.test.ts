@@ -1,6 +1,7 @@
 // tests/lib/feed/ingest-run.test.ts
 // Unit tests for the footer's freshness resolver.
-import { INGEST_INTERVAL_SEC, resolveFreshness } from "@/lib/feed/ingest-run";
+import { INGEST_INTERVAL_SEC } from "@/lib/data/revalidate";
+import { resolveFreshness } from "@/lib/feed/ingest-run";
 import { describe, expect, it, vi } from "vitest";
 
 // The module reads the database for the run and the latest arrival; the resolver itself is pure.

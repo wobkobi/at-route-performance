@@ -20,7 +20,7 @@ const ORIGIN = "https://example.test";
  * @returns The row.
  */
 function row(id: string): Awaited<ReturnType<typeof getDirectoryRoutes>>[number] {
-  return { id, shortName: null, longName: null, mode: "BUS", colour: null };
+  return { routeId: id, shortName: null, longName: "", mode: "BUS", colour: null };
 }
 
 beforeEach(() => {
@@ -43,12 +43,20 @@ describe("sitemap", () => {
   it("advertises the canonical sections and no redirect-only page", async () => {
     mockedRoutes.mockResolvedValue([]);
     const urls = (await sitemap()).map((e) => e.url);
-    for (const path of ["/", "/routes", "/live", "/cancellations", "/days", "/vehicles"]) {
+    for (const path of [
+      "/",
+      "/routes",
+      "/live",
+      "/alerts",
+      "/cancellations",
+      "/days",
+      "/vehicles",
+      "/compare",
+    ]) {
       expect(urls).toContain(`${ORIGIN}${path}`);
     }
-    // Both only redirect, so listing them advertises a 307 rather than a page.
+    // It only redirects, so listing it advertises a 307 rather than a page.
     expect(urls).not.toContain(`${ORIGIN}/shame`);
-    expect(urls).not.toContain(`${ORIGIN}/rankings`);
   });
 
   it("advertises nothing robots.txt disallows", async () => {

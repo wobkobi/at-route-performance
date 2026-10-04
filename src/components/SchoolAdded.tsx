@@ -2,6 +2,7 @@
 // The small "+N" beside a count showing how much of it the School buses filter
 // added, so including school services reads as a change rather than a jump.
 
+import { formatCount } from "@/lib/format";
 import type { JSX } from "react";
 
 /**
@@ -13,12 +14,9 @@ import type { JSX } from "react";
  */
 export function SchoolAdded({ n }: { n: number | null | undefined }): JSX.Element | null {
   if (!n || n <= 0) return null;
-  const text = n.toLocaleString("en-NZ");
+  const text = formatCount(n);
   return (
-    <span
-      className="ml-1.5 align-baseline text-xs font-semibold text-at-muted tabular-nums"
-      title={`${text} from school buses`}
-    >
+    <span className="ml-1.5 align-baseline text-xs font-semibold text-at-muted tabular-nums">
       +{text}
       <span className="sr-only"> from school buses</span>
     </span>

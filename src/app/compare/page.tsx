@@ -5,16 +5,25 @@
 // stop page's own summary. The picker is a plain GET form, so adding and
 // removing works as links and survives a reload or a shared URL.
 
-import { ChipLink } from "@/components/Chip";
+import { ChipGroup, ChipLink } from "@/components/Chip";
+import { CompareSearch } from "@/components/compare/CompareSearch";
+import { RangeControls } from "@/components/date/RangeControls";
 import { ModeIcon } from "@/components/ModeIcon";
-import { RangeControls } from "@/components/RangeControls";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import {
   bestColumns,
+  COMPARE_SEARCH_LIMIT,
   MAX_COMPARE,
   parseCompareIds,
   parseCompareKind,
+  stopCandidate,
   toggleCompareId,
+  type CompareCandidate,
   type CompareKind,
 } from "@/lib/compare";
 import {
@@ -24,45 +33,41 @@ import {
   getLatestEventDate,
   getRankings,
   getStopStats,
+  revalidateFor,
   searchStops,
-  TODAY_REVALIDATE,
 } from "@/lib/data";
-import { formatDuration } from "@/lib/format";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
+import { pageMetadata } from "@/lib/og";
+import { routeHref, stopHref } from "@/lib/page/hrefs";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  rangeViewParams,
+  routeLinkParams,
   windowPhrase,
   type RangeNav,
-} from "@/lib/range-page";
-import { routeSlug } from "@/lib/route-slug";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+} from "@/lib/page/range";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
 import { buildHref } from "@/lib/utils";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { JSX, ReactNode } from "react";
+import type { JSX } from "react";
 
 // Reads its search params and its data above any Suspense boundary, like the
 // Operators page, so it is allowed to block.
 export const instant = false;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Compare",
   description:
     "Line up Auckland routes or stops side by side: on time, early, late, average off schedule and cancellations.",
-};
-
-/** Cache TTL for a week or month's rows (seconds), as on the Routes page. */
-const PERIOD_REVALIDATE = 3600;
-
-/** Search results listed under the picker. */
-const SEARCH_LIMIT = 10;
+});
 
 /** Query params for the compare page. */
 interface CompareSearchParams {
@@ -91,18 +96,27 @@ interface CompareColumn {
   detail: string | null;
   href: string;
   /** The route's badge, for a route column. */
-  route: Pick<TopRouteRow, "mode" | "short_name" | "long_name" | "colour"> | null;
+  route: Pick<RouteRow, "mode" | "shortName" | "longName" | "colour"> | null;
   /** Null when nothing was recorded in the window. */
   figures: CompareFigures | null;
   /** Cancelled trips (routes) or routes calling (stops). */
   extra: number | null;
 }
 
-/** One candidate in the picker's results. */
-interface CompareCandidate {
-  id: string;
-  name: string;
-  detail: string | null;
+/**
+ * A route as a picker candidate: its name, its line or long name, its badge and
+ * its on-time share.
+ * @param r - The route row.
+ * @returns The candidate.
+ */
+function routeCandidate(r: RouteRow): CompareCandidate {
+  return {
+    id: routeSlug(r.routeId),
+    name: routeDisplayName(r),
+    detail: routeSubtitle(r),
+    route: r,
+    onTimePct: r.on_time_pct,
+  };
 }
 
 /** A figure a column can show. */
@@ -126,9 +140,9 @@ interface FigureRow {
 function figureRows(kind: CompareKind): FigureRow[] {
   return [
     { label: "On time", key: "on_time_pct", format: "pct", better: "high" },
-    { label: "Early", key: "early_pct", format: "pct", better: "low" },
     { label: "Late", key: "late_pct", format: "pct", better: "low" },
-    { label: "Average off", key: "avg_abs_delay_sec", format: "duration", better: "low" },
+    { label: "Early", key: "early_pct", format: "pct", better: "low" },
+    { label: "Avg off by", key: "avg_abs_delay_sec", format: "duration", better: "low" },
     { label: "Arrivals", key: "events", format: "count", better: null },
     {
       label: kind === "routes" ? "Cancelled trips" : "Routes calling",
@@ -156,48 +170,9 @@ function figureOf(c: CompareColumn, key: FigureKey): number | null {
  * @returns The printed value.
  */
 function formatFigure(v: number, format: FigureRow["format"]): string {
-  if (format === "pct") return `${v.toFixed(1)}%`;
+  if (format === "pct") return formatPct(v);
   if (format === "duration") return formatDuration(v);
-  return v.toLocaleString("en-NZ");
-}
-
-/**
- * A route's name as riders say it: the short name, or the long one without.
- * @param r - The route row.
- * @returns The name.
- */
-function routeName(r: Pick<TopRouteRow, "short_name" | "long_name" | "route_id">): string {
-  return r.short_name || r.long_name || routeSlug(r.route_id);
-}
-
-/**
- * Routes matching a search: an exact short name first, then short names that
- * start with it, then long names containing it, busiest first within each.
- * @param rows - Every route with arrivals in the window.
- * @param q - The search text.
- * @param exclude - Slugs already being compared.
- * @returns Up to {@link SEARCH_LIMIT} matches.
- */
-function searchRoutes(rows: TopRouteRow[], q: string, exclude: Set<string>): CompareCandidate[] {
-  const text = q.trim().toLowerCase();
-  if (!text) return [];
-  /**
-   * How well a route matches, lower first, or -1 for no match.
-   * @param r - The route row.
-   * @returns The match tier.
-   */
-  const rank = (r: TopRouteRow): number => {
-    const short = (r.short_name ?? "").toLowerCase();
-    if (short === text) return 0;
-    if (short.startsWith(text)) return 1;
-    return r.long_name.toLowerCase().includes(text) ? 2 : -1;
-  };
-  return rows
-    .map((r) => ({ r, score: rank(r) }))
-    .filter(({ r, score }) => score >= 0 && !exclude.has(routeSlug(r.route_id).toLowerCase()))
-    .sort((a, b) => a.score - b.score || b.r.events - a.r.events)
-    .slice(0, SEARCH_LIMIT)
-    .map(({ r }) => ({ id: routeSlug(r.route_id), name: routeName(r), detail: r.long_name }));
+  return formatCount(v);
 }
 
 /**
@@ -254,14 +229,14 @@ export default async function ComparePage({
   let range: DateRange;
   let nav: RangeNav;
   let serviceDate: string | null = null;
-  let dayParam: string | undefined;
+  let linkDay: string | undefined;
   let period: string | null = null;
   if (window === "day") {
     const day = await resolveShownDay(resolveRequestedDay(sp.day), today);
     range = day.range;
     nav = dayRangeNav(day, earliest, today);
     serviceDate = day.serviceDate;
-    dayParam = nav.isToday ? undefined : day.serviceDate;
+    linkDay = dayLinkParam(day.serviceDate, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
       "/compare",
@@ -272,39 +247,36 @@ export default async function ComparePage({
       today,
     ));
   }
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
-  const view = {
-    window: window === "day" ? undefined : window,
-    day: dayParam,
-    period: period ?? undefined,
-  };
+  const revalidate = revalidateFor(window);
+  const view = rangeViewParams(window, linkDay, period);
   const phrase = windowPhrase(nav, period);
 
   let columns: CompareColumn[] = [];
   let missing: string[] = [];
-  let candidates: CompareCandidate[] = [];
+  let routeOptions: CompareCandidate[] = [];
+  let stopMatches: CompareCandidate[] = [];
   let suggestions: CompareCandidate[] = [];
 
   if (kind === "routes") {
     const [rows, cancelled, busiest] = await Promise.all([
-      getRankings(range, ON_TIME_LATE_SEC, revalidate),
+      getRankings(range, revalidate),
       getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
-      ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
+      ids.length < MAX_COMPARE ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
-    const bySlug = new Map(rows.map((r) => [routeSlug(r.route_id).toLowerCase(), r]));
-    const routeQuery = routeLinkQuery(window, serviceDate, period, today);
+    const bySlug = new Map(rows.map((r) => [routeSlug(r.routeId).toLowerCase(), r]));
+    const routeParams = routeLinkParams(window, serviceDate, period, today);
     for (const id of ids) {
       const r = bySlug.get(id.toLowerCase());
       if (!r) {
         missing.push(id);
         continue;
       }
-      const slug = routeSlug(r.route_id);
+      const slug = routeSlug(r.routeId);
       columns.push({
         id,
-        name: routeName(r),
-        detail: r.short_name && r.long_name !== r.short_name ? r.long_name : null,
-        href: `/route/${encodeURIComponent(slug)}${routeQuery}`,
+        name: routeDisplayName(r),
+        detail: routeSubtitle(r),
+        href: routeHref(slug, routeParams),
         route: r,
         figures: {
           events: r.events,
@@ -317,21 +289,25 @@ export default async function ComparePage({
       });
     }
     const chosen = new Set(ids.map((i) => i.toLowerCase()));
-    candidates = searchRoutes(rows, q, chosen);
+    // The picker filters these as you type, so they go to it busiest first.
+    routeOptions =
+      ids.length < MAX_COMPARE
+        ? [...rows].sort((a, b) => b.events - a.events).map(routeCandidate)
+        : [];
     suggestions = busiest
       .filter((s) => !chosen.has(s.toLowerCase()))
       .flatMap((s) => {
         const r = bySlug.get(s.toLowerCase());
-        return r ? [{ id: s, name: routeName(r), detail: r.long_name }] : [];
+        return r ? [{ ...routeCandidate(r), id: s }] : [];
       })
       .slice(0, 6);
   } else {
     const [stats, found] = await Promise.all([
-      Promise.all(ids.map((id) => getStopStats(id, range, ON_TIME_LATE_SEC, revalidate))),
-      q ? searchStops(q, SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
+      Promise.all(ids.map((id) => getStopStats(id, range, revalidate))),
+      q ? searchStops(q, COMPARE_SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
     ]);
     // The stop page has a day view only, so a week or month links to today.
-    const stopQuery = window === "day" && view.day ? `?day=${view.day}` : "";
+    const stopDay = window === "day" ? view.day : undefined;
     stats.forEach((s, i) => {
       const id = ids[i]!;
       if (!s) {
@@ -342,16 +318,13 @@ export default async function ComparePage({
         id,
         name: s.stop.name,
         detail: null,
-        href: `/stop/${encodeURIComponent(id)}${stopQuery}`,
+        href: stopHref(id, { day: stopDay }),
         route: null,
         figures: s.summary,
         extra: s.routes_count,
       });
     });
-    candidates = found
-      .filter((m) => !ids.includes(m.id))
-      .slice(0, SEARCH_LIMIT)
-      .map((m) => ({ id: m.id, name: m.name, detail: m.code ? `Stop ${m.code}` : "Station" }));
+    stopMatches = found.map(stopCandidate);
   }
   columns = columns.slice(0, MAX_COMPARE);
   missing = missing.filter(Boolean);
@@ -369,236 +342,144 @@ export default async function ComparePage({
 
   return (
     <main className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Compare</h1>
-          <p className="mt-0.5 text-sm text-at-muted">
-            Up to {MAX_COMPARE} {kind} side by side, {phrase}.
-          </p>
-        </div>
-        <RangeControls basePath="/compare" nav={nav} />
-      </header>
+      <PageHeader
+        title="Compare"
+        subtitle={`Up to ${MAX_COMPARE} ${kind} side by side, ${phrase}.`}
+        actions={<RangeControls basePath="/compare" nav={nav} />}
+      />
 
-      <nav aria-label="What to compare" className="flex flex-wrap gap-2">
+      <ChipGroup label="What to compare">
         {(["routes", "stops"] as const).map((k) => (
           <ChipLink key={k} href={buildHref("/compare", { ...view, kind: k })} active={kind === k}>
             {k === "routes" ? "Routes" : "Stops"}
           </ChipLink>
         ))}
-      </nav>
+      </ChipGroup>
 
       {columns.length > 0 && (
-        <div className="overflow-x-auto border border-at-border bg-at-surface">
-          <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col className="w-24 sm:w-32" />
+        <DataTable caption={`The ${kind} side by side`} tableClassName="w-full table-fixed">
+          <colgroup>
+            <col className="w-24 sm:w-32" />
+            {columns.map((c) => (
+              <col key={c.id} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="border-b border-at-border align-top">
+              <th scope="col" className="p-2 text-left sm:p-3">
+                <span className="sr-only">Figure</span>
+              </th>
               {columns.map((c) => (
-                <col key={c.id} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr className="border-b border-at-border align-top">
-                <th scope="col" className="p-2 text-left sm:p-3">
-                  <span className="sr-only">Figure</span>
-                </th>
-                {columns.map((c) => (
-                  <th key={c.id} scope="col" className="p-2 text-left font-normal sm:p-3">
-                    <Link href={c.href} className="block min-w-0 hover:underline">
-                      <span className="flex items-start gap-1.5 font-semibold text-at-shore">
-                        {c.route && (
-                          <ModeIcon
-                            mode={c.route.mode}
-                            shortName={c.route.short_name}
-                            longName={c.route.long_name}
-                            colour={c.route.colour}
-                            className="mt-0.5 h-4 w-4 shrink-0"
-                          />
-                        )}
-                        <span className="min-w-0 wrap-break-word">{c.name}</span>
-                      </span>
-                      {c.detail && (
-                        <span className="mt-0.5 line-clamp-2 block text-xs text-at-muted">
-                          {c.detail}
-                        </span>
+                <th key={c.id} scope="col" className="p-2 text-left font-normal sm:p-3">
+                  <Link href={c.href} className="block min-w-0 hover:underline">
+                    <span className="flex items-start gap-1.5 font-semibold text-at-shore">
+                      {c.route && (
+                        <ModeIcon
+                          mode={c.route.mode}
+                          shortName={c.route.shortName}
+                          longName={c.route.longName}
+                          colour={c.route.colour}
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                        />
                       )}
-                    </Link>
-                    <MiniSplit figures={c.figures} />
-                    <Link
-                      href={idsHref(toggleCompareId(ids, c.id), true)}
-                      scroll={false}
-                      aria-label={`Remove ${c.name}`}
-                      className="mt-2 inline-block text-xs text-at-muted hover:text-at-shore hover:underline"
-                    >
-                      × Remove
-                    </Link>
+                      <span className="min-w-0 wrap-break-word">{c.name}</span>
+                    </span>
+                    {c.detail && (
+                      <span className="mt-0.5 line-clamp-2 block text-xs text-at-muted">
+                        {c.detail}
+                      </span>
+                    )}
+                  </Link>
+                  <MiniSplit figures={c.figures} />
+                  <Link
+                    href={idsHref(toggleCompareId(ids, c.id), true)}
+                    scroll={false}
+                    aria-label={`Remove ${c.name}`}
+                    className="mt-2 inline-block text-xs text-at-muted hover:text-at-shore hover:underline"
+                  >
+                    × Remove
+                  </Link>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const values = columns.map((c) => figureOf(c, row.key));
+              const best = row.better ? bestColumns(values, row.better) : new Set<number>();
+              return (
+                <tr key={row.label} className={ROW_CLASS}>
+                  <th scope="row" className="at-eyebrow p-2 text-left text-at-muted sm:p-3">
+                    {row.label}
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const values = columns.map((c) => figureOf(c, row.key));
-                const best = row.better ? bestColumns(values, row.better) : new Set<number>();
-                return (
-                  <tr key={row.label} className="border-b border-at-border last:border-b-0">
-                    <th
-                      scope="row"
-                      className="p-2 text-left text-xs font-semibold tracking-zero text-at-muted uppercase sm:p-3"
+                  {values.map((v, i) => (
+                    <td
+                      key={columns[i]!.id}
+                      className={cn(
+                        "p-2 tabular-nums sm:p-3",
+                        best.has(i) && "font-semibold text-at-ontime",
+                      )}
                     >
-                      {row.label}
-                    </th>
-                    {values.map((v, i) => (
-                      <td
-                        key={columns[i]!.id}
-                        className={cn(
-                          "p-2 tabular-nums sm:p-3",
-                          best.has(i) && "font-semibold text-at-ontime",
-                        )}
-                      >
-                        {v === null ? "-" : formatFigure(v, row.format)}
-                        {best.has(i) && <span className="sr-only"> (best)</span>}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
+                        {best.has(i) && <Badge tone="ok" label="BEST" />}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {missing.length > 0 && (
-        <p className="text-sm text-at-muted">
-          Nothing recorded {phrase} for {missing.join(", ")}.{" "}
+        <EmptyState inset>
+          No arrivals recorded {phrase} for {missing.join(", ")}.{" "}
           <Link
             href={idsHref(ids.filter((i) => !missing.includes(i)).join(",") || null)}
-            className="font-semibold text-at-shore hover:underline"
+            className="at-link font-semibold"
           >
             Take {missing.length === 1 ? "it" : "them"} out
           </Link>
-        </p>
+        </EmptyState>
       )}
 
-      <section
+      <Panel
         aria-label={`Add ${kind === "routes" ? "a route" : "a stop"}`}
-        className="space-y-3 border border-at-border bg-at-surface p-4"
+        pad="sm"
+        className="space-y-3"
       >
         {full ? (
           <p className="text-sm text-at-muted">
             That is {MAX_COMPARE}, the most one comparison holds. Remove one to add another.
           </p>
         ) : (
-          <form action="/compare" className="flex flex-wrap gap-2">
-            <input type="hidden" name="kind" value={kind} />
-            {ids.length > 0 && <input type="hidden" name="ids" value={ids.join(",")} />}
-            {Object.entries(view).map(([k, v]) =>
-              v ? <input key={k} type="hidden" name={k} value={v} /> : null,
-            )}
-            <input
-              type="search"
-              name="q"
-              defaultValue={q}
-              placeholder={
-                kind === "routes"
-                  ? "Add a route: number or name"
-                  : "Add a stop: name or the number on the pole"
-              }
-              aria-label={kind === "routes" ? "Search routes" : "Search stops"}
-              className="min-w-0 flex-1 border border-at-border bg-at-surface px-3 py-2 text-sm placeholder:text-at-muted focus:border-at-shore"
-            />
-            <button
-              type="submit"
-              className="border border-at-shore bg-at-shore px-4 py-2 text-sm font-semibold text-white hover:bg-at-ocean"
-            >
-              Search
-            </button>
-          </form>
-        )}
-
-        {!full && q && candidates.length === 0 && (
-          <p className="text-sm text-at-muted">
-            No {kind === "routes" ? `route ran ${phrase} matching` : "stop matches"} &ldquo;{q}
-            &rdquo;.
-          </p>
-        )}
-        {!full && (candidates.length > 0 || suggestions.length > 0) && (
-          <CandidateList
-            heading={candidates.length > 0 ? "Matches" : "Busiest routes"}
-            items={candidates.length > 0 ? candidates : suggestions}
-            hrefFor={(id) => idsHref(toggleCompareId(ids, id), candidates.length > 0)}
+          <CompareSearch
+            key={ids.join(",")}
+            kind={kind}
+            ids={ids}
+            view={view}
+            q={q}
+            routes={routeOptions}
+            stopMatches={stopMatches}
+            suggestions={suggestions}
+            phrase={phrase}
           />
         )}
         {ids.length > 0 && (
-          <Link
-            href={idsHref(null)}
-            className="inline-block text-sm font-semibold text-at-shore hover:underline"
-          >
+          <Link href={idsHref(null)} className="at-link inline-block text-sm font-semibold">
             Start again
           </Link>
         )}
-      </section>
+      </Panel>
 
       <p className="text-xs text-at-muted">
         {kind === "routes"
           ? "A route's on-time share counts each cancelled trip as the wait for the next one, as on the route's own page. "
           : "A stop's figures cover every route calling there, and a station's cover all its platforms. "}
-        The best share or average in each row is picked out in blue.
+        The best share or average in each row is marked BEST.
       </p>
     </main>
-  );
-}
-
-/**
- * The picker's results or suggestions: each a link that adds it.
- * @param props - Component props.
- * @param props.heading - What the list is.
- * @param props.items - The candidates.
- * @param props.hrefFor - The link that adds a candidate.
- * @returns The list.
- */
-function CandidateList({
-  heading,
-  items,
-  hrefFor,
-}: {
-  heading: string;
-  items: CompareCandidate[];
-  hrefFor: (id: string) => string;
-}): JSX.Element {
-  return (
-    <div>
-      <p className="text-xs font-semibold tracking-zero text-at-muted uppercase">{heading}</p>
-      <ul className="striped mt-1 divide-y divide-at-border">
-        {items.map((c) => (
-          <li key={c.id}>
-            <Link
-              href={hrefFor(c.id)}
-              scroll={false}
-              className="flex items-center justify-between gap-3 py-2 text-sm hover:text-at-shore"
-            >
-              <CandidateLabel name={c.name} detail={c.detail} />
-              <span className="shrink-0 font-semibold text-at-shore">+ Add</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * A candidate's name with its detail beside it, the detail dropped first on a
- * narrow screen.
- * @param props - Component props.
- * @param props.name - The name.
- * @param props.detail - The second line, if any.
- * @returns The label.
- */
-function CandidateLabel({ name, detail }: { name: string; detail: string | null }): ReactNode {
-  return (
-    <span className="min-w-0">
-      <span className="font-semibold">{name}</span>
-      {detail && detail !== name && <span className="ml-2 truncate text-at-muted">{detail}</span>}
-    </span>
   );
 }

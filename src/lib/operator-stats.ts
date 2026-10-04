@@ -3,11 +3,13 @@
 // reads, so an operator's punctuality costs no query of its own: each route's
 // figures are weighted by its arrivals, as a multi-day route row is built from
 // its days.
+import { MODES } from "@/lib/mode";
 import { type Operator, operatorOf } from "@/lib/operators";
 import { MIN_BOARD_EVENTS } from "@/lib/rankings";
-import { routeSlug } from "@/lib/route-slug";
-import type { VehicleTotal } from "@/lib/vehicle-rank";
-import type { TopRouteRow } from "@/types/api";
+import { routeSlug } from "@/lib/route/slug";
+import { roundTenth } from "@/lib/stats";
+import type { VehicleTotal } from "@/lib/vehicle/rank";
+import type { RouteRow } from "@/types/api";
 
 /** One operator's figures over a window. */
 export interface OperatorRow {
@@ -37,8 +39,6 @@ const WEIGHTED = [
   "late_pct",
 ] as const;
 
-const MODE_ORDER = ["BUS", "TRAIN", "FERRY"];
-
 /**
  * The operator code behind a route row. The lookup is by slug, since a row may
  * carry any feed version of its route.
@@ -66,7 +66,7 @@ export function operatorCodeOf(
  * @returns One row per operator with at least one route in the window.
  */
 export function operatorRows(
-  rows: readonly TopRouteRow[],
+  rows: readonly RouteRow[],
   operators: Record<string, string>,
   cancelledBySlug: ReadonlyMap<string, number> = new Map(),
   vehicles: readonly VehicleTotal[] | null = null,
@@ -106,10 +106,10 @@ export function operatorRows(
   };
 
   for (const r of rows) {
-    const code = operatorCodeOf(r.route_id, operators);
+    const code = operatorCodeOf(r.routeId, operators);
     if (!code) continue;
     const a = get(code);
-    a.slugs.add(routeSlug(r.route_id));
+    a.slugs.add(routeSlug(r.routeId));
     a.modes.add(r.mode);
     a.events += r.events;
     for (const k of WEIGHTED) {
@@ -141,7 +141,7 @@ export function operatorRows(
      * @returns Its arrival-weighted mean, or null when no route carried it.
      */
     const avg = (k: (typeof WEIGHTED)[number]): number | null =>
-      a.weights[k] > 0 ? Math.round((a.sums[k] / a.weights[k]) * 10) / 10 : null;
+      a.weights[k] > 0 ? roundTenth(a.sums[k] / a.weights[k]) : null;
     out.push({
       operator: op,
       routes: a.slugs.size,
@@ -153,7 +153,7 @@ export function operatorRows(
       late_pct: avg("late_pct"),
       cancelled: a.cancelled,
       vehicles: vehicles ? a.vehicles : null,
-      modes: MODE_ORDER.filter((m) => a.modes.has(m)),
+      modes: MODES.filter((m) => a.modes.has(m)),
     });
   }
   return out.sort(

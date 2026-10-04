@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/db";
 
 /** Print DailyRouteSummary row counts per date and the last 5 aggregate ingest runs. */
 async function main(): Promise<void> {

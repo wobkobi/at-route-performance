@@ -6,7 +6,8 @@
 // runaway pager), and maps GTFS `route_type` onto the project's mode enum. The
 // subscription key is read once at module load into the shared header.
 
-import { sleep } from "@/lib/utils";
+import type { Mode } from "@/lib/mode";
+import { retryDelay, sleep } from "@/lib/utils";
 
 // Base URL for AT GTFS v3 JSON:API.
 const AT_V3 = "https://api.at.govt.nz/gtfs/v3";
@@ -94,7 +95,7 @@ async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
 
       if (res.status === 429 || res.status >= 500) {
         if (attempt < MAX_ATTEMPTS - 1) {
-          await sleep(Math.min(60_000, 1000 * 2 ** attempt));
+          await sleep(retryDelay(attempt));
           continue;
         }
         throw new AtHttpError(res.status, url);
@@ -105,7 +106,7 @@ async function fetchJson<T>(url: string): Promise<JsonApi<T>> {
       lastError = err instanceof Error ? err : new Error(String(err));
       const retryable = lastError.name === "TimeoutError" || lastError.message.includes("fetch");
       if (retryable && attempt < MAX_ATTEMPTS - 1) {
-        await sleep(1000 * 2 ** attempt);
+        await sleep(retryDelay(attempt));
         continue;
       }
       throw lastError;
@@ -179,7 +180,7 @@ export async function fetchStops(date?: string): Promise<StopAttr[]> {
  * @param routeType - GTFS route_type.
  * @returns Mapped mode.
  */
-export function mapRouteType(routeType: number): "BUS" | "TRAIN" | "FERRY" {
+export function mapRouteType(routeType: number): Mode {
   if (routeType === 2) return "TRAIN";
   if (routeType === 4) return "FERRY";
   return "BUS";

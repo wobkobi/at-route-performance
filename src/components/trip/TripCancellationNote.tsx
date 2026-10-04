@@ -1,0 +1,87 @@
+// src/components/trip/TripCancellationNote.tsx
+// Note on the trip page explaining a cancellation flag: whether the trip never
+// ran, was cut short, or ran anyway after AT reversed the flag.
+
+import { TripNote } from "@/components/ui/TripNote";
+import { plural } from "@/lib/format";
+import { nzClockTime } from "@/lib/time/format";
+import { CANCELLATION_LABEL, type CancellationStage } from "@/lib/trip/cancellation";
+import Link from "next/link";
+import type { JSX, ReactNode } from "react";
+
+/** Props for {@link TripCancellationNote}. */
+export interface TripCancellationNoteProps {
+  /** How the cancellation played out. */
+  stage: CancellationStage;
+  /** ISO instant ingest first saw the flag. */
+  detectedAt: string;
+  /** The last stop with a recorded arrival, when the vehicle reached it and its page, or null when none. */
+  lastStop: { name: string; at: string; href: string } | null;
+  /** Scheduled stops after the last recorded one, or null when the schedule is unavailable. */
+  notServed: number | null;
+}
+
+/**
+ * Explain a trip's cancellation flag. A mid-trip flag with every scheduled stop
+ * already served reads as raised after the trip finished rather than cutting it
+ * short, since nothing was left to cancel.
+ * @param props - Component props.
+ * @param props.stage - How the cancellation played out.
+ * @param props.detectedAt - When ingest first saw the flag.
+ * @param props.lastStop - The last stop with a recorded arrival, or null.
+ * @param props.notServed - Scheduled stops after the last recorded one, or null when unknown.
+ * @returns The note element.
+ */
+export function TripCancellationNote({
+  stage,
+  detectedAt,
+  lastStop,
+  notServed,
+}: TripCancellationNoteProps): JSX.Element {
+  const flagged = nzClockTime(detectedAt);
+  let title: string;
+  let body: ReactNode;
+  const stop = lastStop && (
+    <Link href={lastStop.href} className="at-link">
+      {lastStop.name}
+    </Link>
+  );
+  if (stage === "before" || lastStop === null) {
+    title = CANCELLATION_LABEL.before;
+    body = `AT cancelled this trip (first flagged at ${flagged}) and it recorded no arrivals.`;
+  } else if (stage === "ran") {
+    title = CANCELLATION_LABEL.ran;
+    body = (
+      <>
+        AT flagged this trip cancelled at {flagged}, but it kept recording arrivals until{" "}
+        {nzClockTime(lastStop.at)} at {stop}, so the cancellation looks to have been reversed.
+      </>
+    );
+  } else if (notServed === 0) {
+    title = "Flagged cancelled after finishing";
+    body = (
+      <>
+        AT flagged this trip cancelled at {flagged}, after it had already reached its last stop,{" "}
+        {stop}, at {nzClockTime(lastStop.at)}.
+      </>
+    );
+  } else {
+    title = CANCELLATION_LABEL["mid-trip"];
+    const rest =
+      notServed === null
+        ? "nothing was recorded after that"
+        : `the ${plural(notServed, "stop")} after that ${notServed === 1 ? "was" : "were"} not served`;
+    body = (
+      <>
+        Its last recorded stop was {stop} at {nzClockTime(lastStop.at)}. AT flagged it cancelled at{" "}
+        {flagged}, and {rest}.
+      </>
+    );
+  }
+
+  return (
+    <TripNote tone={stage === "ran" ? "muted" : "late"} title={title}>
+      <p>{body}</p>
+    </TripNote>
+  );
+}

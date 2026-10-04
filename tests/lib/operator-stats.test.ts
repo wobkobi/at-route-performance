@@ -1,29 +1,30 @@
 // tests/lib/operator-stats.test.ts
+import type { Mode } from "@/lib/mode";
 import { operatorRows, vehicleOperatorCodes } from "@/lib/operator-stats";
-import type { VehicleTotal } from "@/lib/vehicle-rank";
-import type { TopRouteRow } from "@/types/api";
+import type { VehicleTotal } from "@/lib/vehicle/rank";
+import type { RouteRow } from "@/types/api";
 import { describe, expect, it } from "vitest";
 
 const OPS = { "70": "HE", "72C": "HE", NX1: "TZG", "S-C": "AM" };
 
 /**
  * A route row with the figures under test.
- * @param route_id - Route id.
+ * @param routeId - Route id.
  * @param events - Arrivals.
  * @param on_time_pct - On-time share.
  * @param mode - Mode.
  * @returns The row.
  */
 function row(
-  route_id: string,
+  routeId: string,
   events: number,
   on_time_pct: number | null,
-  mode = "BUS",
-): TopRouteRow {
+  mode: Mode = "BUS",
+): RouteRow {
   return {
-    route_id,
-    short_name: route_id,
-    long_name: route_id,
+    routeId,
+    shortName: routeId,
+    longName: routeId,
     mode,
     events,
     avg_delay_sec: 60,

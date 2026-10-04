@@ -16,4 +16,4 @@ node_modules/
 
 # Generated once from AT's zone shapefile (NZTM > WGS84, simplified); one line keeps
 # the 2,600-odd coordinates from becoming 8,000 lines of diff.
-src/lib/fare-zones.json
+src/lib/geo/fare-zones.json

@@ -1,24 +1,25 @@
 {
   "name": "at-route-performance",
-  "version": "2.40.7",
+  "version": "2.50.0",
   "private": true,
   "type": "module",
   "scripts": {
     "analyze": "next experimental-analyze",
     "build": "next build",
     "db:push": "prisma db push",
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "format": "prettier --write \"**/*.{js,ts,jsx,tsx,mjs,css,html,md,json,yml,yaml}\"",
     "postinstall": "prisma generate",
     "lint": "eslint --cache --max-warnings=0 \"{src,tests,scripts}/**/*.{js,ts,jsx,tsx}\"",
     "lint:fix": "eslint --fix --cache --max-warnings=0 \"{src,tests,scripts}/**/*.{js,ts,jsx,tsx}\"",
     "prepare": "simple-git-hooks",
-    "smoke": "dotenv run -q -f .env.local -- tsx scripts/smoke-test.ts",
+    "smoke": "tsx --env-file-if-exists=.env.local scripts/smoke-test.ts",
     "start": "next start",
     "test": "vitest run",
-    "test:int": "dotenv run -q -f .env.local -- vitest run -c vitest.int.config.ts",
+    "test:int": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run -c vitest.int.config.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && npm run typecheck:scripts",
+    "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json"
   },
   "simple-git-hooks": {
     "pre-commit": "if ! find node_modules/.npm-update-stamp -mmin -1440 2>/dev/null | grep -q .; then npm update --package-lock-only --allow-remote=all --no-audit --no-fund && touch node_modules/.npm-update-stamp; fi && npm install --package-lock-only --allow-remote=all --no-audit --no-fund && git add package-lock.json package.json && npx lint-staged --max-arg-length=4000 && npm run typecheck",

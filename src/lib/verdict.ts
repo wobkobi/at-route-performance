@@ -2,6 +2,8 @@
 // The one-word verdict on a window's network on-time share, and the scale it
 // is read from. Pure and client-safe.
 
+import type { DelayDirection } from "@/lib/rankings";
+
 /** One rung of the verdict scale. */
 export interface VerdictBand {
   /** Lowest on-time percentage that earns this band. */
@@ -44,7 +46,7 @@ export function dayVerdict(onTimePct: number | null): VerdictBand | null {
 }
 
 /** Which way a window's off-schedule arrivals mostly went. */
-export type VerdictLean = "early" | "late" | "both";
+export type VerdictLean = NonNullable<DelayDirection> | "both";
 
 /**
  * How many times the other side's share one side has to reach before the

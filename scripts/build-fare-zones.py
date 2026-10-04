@@ -1,6 +1,6 @@
 # scripts/build-fare-zones.py
-# Rebuild src/lib/fare-zones.json from AT's fare zone shapefile (at_fareZones.shp,
-# NZTM / EPSG:2193). AT cuts each overlap out as its own polygon named after both
+# Rebuild src/lib/geo/fare-zones.json from AT's fare zone shapefile
+# (at_fareZones.shp, NZTM / EPSG:2193). AT cuts each overlap out as its own polygon named after both
 # zones ("City, Isthmus"), so each zone here is the union of every polygon that
 # names it, which puts an overlap in both. Simplified to 15 m in NZTM metres
 # before reprojecting to WGS84, and rounded to 5 decimals (about a metre).
@@ -15,7 +15,7 @@ from pyproj import Transformer
 from shapely.geometry import MultiPolygon, Polygon, shape
 from shapely.ops import transform, unary_union
 
-# AT's zone names to the keys lib/fare-zones.ts uses, in display order.
+# AT's zone names to the keys lib/geo/fare-zones.ts uses, in display order.
 ORDER = [
     ("City", "city"),
     ("Isthmus", "isthmus"),
@@ -75,6 +75,6 @@ for name, key in ORDER:
         }
     )
 
-with open("src/lib/fare-zones.json", "w", encoding="utf-8") as f:
+with open("src/lib/geo/fare-zones.json", "w", encoding="utf-8") as f:
     json.dump(out, f, separators=(",", ":"))
 print(f"Wrote {len(out)} zones")

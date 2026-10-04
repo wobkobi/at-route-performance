@@ -162,19 +162,12 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
-      // The City Rail Link's retired train lines (src/lib/route-lineage.ts keeps the same pairs,
+      // The City Rail Link's retired train lines (src/lib/route/lineage.ts keeps the same pairs,
       // and a test holds the two together). Every successor has run since 13 September 2026.
       { source: "/route/STH", destination: "/route/S-C", permanent: true },
       { source: "/route/EAST", destination: "/route/E-W", permanent: true },
       { source: "/route/WEST", destination: "/route/E-W", permanent: true },
       { source: "/route/ONE", destination: "/route/O-W", permanent: true },
-      // A full route id to its slug, the rule in routeSlug: "NX1-203" > "NX1", "S-C-201" > "S-C".
-      // The lazy slug keeps its own dashes and gives up only the trailing "-digits".
-      {
-        source: "/route/:slug([^/]+?)-:version(\\d+)",
-        destination: "/route/:slug",
-        permanent: true,
-      },
     ];
   },
 

@@ -8,11 +8,16 @@
 // runs this, so pointing cron-job.org at production warms the production cache.
 // Not an ingest: it writes no data and records no IngestRun.
 
-import { requireCronAuth } from "@/lib/auth";
-import { cachedWorstRoutesOfDay, cachedWorstStopsOfDay, cachedWorstTripsOfDay } from "@/lib/data";
-import { WEEK_REVALIDATE } from "@/lib/shame-page";
-import { nzServiceDayString } from "@/lib/time/service-day";
-import { forEachLimited, pageWarmPaths } from "@/lib/warm";
+import { readFailed } from "@/lib/api-error";
+import { requireCronAuth } from "@/lib/cron/auth";
+import { forEachLimited, pageWarmPaths } from "@/lib/cron/warm";
+import {
+  cachedRouteBoardOfDay,
+  cachedStopBoardOfDay,
+  cachedTripBoardOfDay,
+  PERIOD_REVALIDATE,
+} from "@/lib/data";
+import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 import { after, NextResponse } from "next/server";
 
 // No maxDuration here: the project default is already 300s, and any
@@ -64,23 +69,24 @@ async function warmPages(origin: string, yesterday: string): Promise<void> {
  * Warm yesterday's per-day shame-board cache entries, then the last week of
  * day pages in the background. Schedule after the nightly aggregate + cleanup,
  * so yesterday is warmed under its final key.
- * @param req - Request carrying the cron bearer token.
- * @returns 202 JSON `{ date, trips, routes, stops, pages, duration_ms }`, 401/500 on failure.
+ * @param request - Request carrying the cron bearer token.
+ * @returns 202 JSON `{ date, trips, routes, stops, pages, duration_ms }`; 401 or
+ *   500 on a bad token or secret, 503/500 when the board reads fail.
  */
-export async function POST(req: Request): Promise<NextResponse> {
-  const denied = requireCronAuth(req);
+export async function POST(request: Request): Promise<NextResponse> {
+  const denied = requireCronAuth(request);
   if (denied) return denied;
   const startTime = Date.now();
 
   try {
-    const yesterday = nzServiceDayString(new Date(Date.now() - 86_400_000));
+    const yesterday = shiftDays(nzServiceDayString(), -1);
     const [trips, routes, stops] = await Promise.all([
-      cachedWorstTripsOfDay(yesterday, null, "exclude", WEEK_REVALIDATE),
-      cachedWorstRoutesOfDay(yesterday, null, "exclude", WEEK_REVALIDATE),
+      cachedTripBoardOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
+      cachedRouteBoardOfDay(yesterday, null, "exclude", PERIOD_REVALIDATE),
       // Both directions: that is what every card and the board's own default read.
-      cachedWorstStopsOfDay(yesterday, null, "exclude", null, WEEK_REVALIDATE),
+      cachedStopBoardOfDay(yesterday, null, "exclude", null, PERIOD_REVALIDATE),
     ]);
-    after(() => warmPages(new URL(req.url).origin, yesterday));
+    after(() => warmPages(new URL(request.url).origin, yesterday));
     return NextResponse.json(
       {
         date: yesterday,
@@ -93,7 +99,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       { status: 202 },
     );
   } catch (err) {
-    console.error("[WARM] Failed", { error: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ error: "warm failed" }, { status: 500 });
+    return readFailed("warm", err);
   }
 }

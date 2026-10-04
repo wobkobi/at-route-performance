@@ -1,12 +1,14 @@
 // src/app/layout.tsx
 // Root layout - AT-branded masthead, page container, and footer wrapping every route.
 
-import { DevHostRedirect } from "@/components/DevHostRedirect";
-import { FooterFreshness } from "@/components/FooterFreshness";
-import { FooterNav } from "@/components/FooterNav";
-import { SiteNav } from "@/components/SiteNav";
+import { DevHostRedirect } from "@/components/layout/DevHostRedirect";
+import { FooterFreshness } from "@/components/layout/FooterFreshness";
+import { FooterNav } from "@/components/layout/FooterNav";
+import { SiteNav } from "@/components/layout/SiteNav";
+import { LoadingLine } from "@/components/Loading";
 import { cn } from "@/lib/cn";
-import { SERVICE_DAY_NOTE, SITE_NAME } from "@/lib/copy";
+import { SERVICE_DAY_NOTE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/copy";
+import { pageMetadata } from "@/lib/og";
 import { productionOrigin } from "@/lib/site-url";
 import { DATA_START_LABEL } from "@/lib/time/data-start";
 import { Analytics } from "@vercel/analytics/next";
@@ -31,8 +33,9 @@ export const metadata: Metadata = {
   // It does not reach a title set in this same segment, which is why the home
   // page sets none and takes the default.
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description:
-    "How close Auckland's buses, trains and ferries run to their timetable, measured every day.",
+  // The share fields are the fallback for a page that sets none (the 404), so
+  // its link still unfurls with the default card.
+  ...pageMetadata({ description: SITE_DESCRIPTION }),
 };
 
 /**
@@ -45,7 +48,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): JSX.Element {
   return (
-    <html lang="en">
+    <html lang="en-NZ">
       <body
         // Browser extensions (e.g. Grammarly) inject data-* attributes onto
         // <body> before hydration; suppress the resulting attribute mismatch.
@@ -69,7 +72,7 @@ export default function RootLayout({
         <header className="z-40 border-b-2 border-at-ink bg-at-surface sm:sticky sm:top-0">
           {/* Nine tabs need about 900px, so the nav takes a row of its own under
               the logo until the viewport leaves room beside it. */}
-          <div className="at-container flex flex-col gap-2 py-2 sm:py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+          <div className="at-container flex flex-col gap-2 py-2 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
             {/* The label is on the link, not the logo: the wordmark beside it is
                 hidden on a phone, so an empty alt there would leave the home link
                 with no accessible name, and naming the logo "Auckland Transport"
@@ -86,7 +89,7 @@ export default function RootLayout({
                 width={48}
                 height={48}
                 priority
-                className="h-9 w-auto sm:h-11"
+                className="h-9 w-auto"
               />
               {/* Always shown: the nav has a row of its own until there is room for
                   logo, name and tabs on one. */}
@@ -97,12 +100,12 @@ export default function RootLayout({
             <SiteNav />
           </div>
         </header>
-        <div id="main" className="at-container flex-1 py-8">
+        <div id="main" className="at-container flex-1 py-4 sm:py-6">
           {children}
         </div>
         {/* Dark Ocean footer with link columns + a legal sub-bar, like at.govt.nz. */}
         <footer className="bg-at-ocean text-white">
-          <div className="at-container grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="at-container grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {/* Decorative: the wordmark beside it is always visible here. */}
@@ -121,7 +124,7 @@ export default function RootLayout({
                 affiliated with Auckland Transport.
               </p>
             </div>
-            <nav className="space-y-3 text-sm">
+            <nav aria-label="Explore" className="space-y-3 text-sm">
               <h2 className="text-xs font-semibold tracking-zero text-white/50 uppercase">
                 Explore
               </h2>
@@ -137,7 +140,7 @@ export default function RootLayout({
               {/* The 4am boundary decides which day a 1am run is counted in, and the
                   day stepper could only say so on hover. */}
               <p className="text-xs text-white/50">{SERVICE_DAY_NOTE}</p>
-              <Suspense fallback={<p className="text-xs text-white/50">Loading…</p>}>
+              <Suspense fallback={<LoadingLine className="text-white/50" />}>
                 <FooterFreshness />
               </Suspense>
             </div>

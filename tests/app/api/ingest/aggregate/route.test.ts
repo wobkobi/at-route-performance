@@ -2,12 +2,12 @@
 // Handler tests for POST /api/ingest/aggregate: auth, date validation, the
 // explicit-date and catch-up forms, and one IngestRun row per day.
 import { POST } from "@/app/api/ingest/aggregate/route";
-import { aggregateDay, dayHasEvents, daySummarised } from "@/lib/aggregate";
+import { aggregateDay, dayHasEvents, daySummarised } from "@/lib/cron/aggregate";
 import { recordIngestRun } from "@/lib/feed/ingest-run";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/aggregate", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/aggregate")>()),
+vi.mock("@/lib/cron/aggregate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/cron/aggregate")>()),
   aggregateDay: vi.fn(),
   daySummarised: vi.fn(),
   dayHasEvents: vi.fn(),
@@ -74,6 +74,15 @@ describe("POST /api/ingest/aggregate", () => {
   it("refuses an impossible calendar date", async () => {
     const res = await POST(post("?date=2026-02-31"));
     expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_query" });
+    expect(mockedAggregateDay).not.toHaveBeenCalled();
+  });
+
+  it("answers in the error envelope when the catch-up reads fail", async () => {
+    mockedSummarised.mockRejectedValue(new Error("boom"));
+    const res = await POST(post());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error", message: "The request failed." });
     expect(mockedAggregateDay).not.toHaveBeenCalled();
   });
 

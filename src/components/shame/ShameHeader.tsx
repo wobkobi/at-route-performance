@@ -3,23 +3,23 @@
 // controls every other range page uses, the Trips/Routes/Stops tabs, and the
 // mode and school chips.
 
-import { DelayFilter } from "@/components/DelayFilter";
-import { ChevronLeft } from "@/components/icons";
-import { ModeFilter, type ModeFilterValue } from "@/components/ModeFilter";
-import { RangeControls } from "@/components/RangeControls";
-import { SchoolBusToggle } from "@/components/SchoolBusToggle";
-import type { FilterUsage } from "@/lib/data/filter-usage";
-import { preservedFilters } from "@/lib/filter-params";
-import type { RangeNav } from "@/lib/range-page";
+import { ChipTab } from "@/components/Chip";
+import { RangeControls } from "@/components/date/RangeControls";
+import { DelayFilter } from "@/components/filter/DelayFilter";
+import { ModeUsageFilter } from "@/components/filter/ModeUsageFilter";
+import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
+import { BackLink } from "@/components/ui/BackLink";
+import { PageHeader } from "@/components/ui/PageHeader";
+import type { FilterUsage } from "@/lib/data";
+import type { Mode } from "@/lib/mode";
+import type { ShameBoard } from "@/lib/og";
+import { preservedFilters } from "@/lib/page/filter-params";
+import type { RangeNav } from "@/lib/page/range";
 import type { DelayDirection } from "@/lib/rankings";
 import { type SchoolFilter } from "@/lib/school-bus";
-import Link from "next/link";
-import { Suspense, type JSX } from "react";
+import type { JSX } from "react";
 
-/** Which board a header is on. */
-export type ShameTab = "trip" | "route" | "stop";
-
-const TABS: ReadonlyArray<{ key: ShameTab; label: string }> = [
+const TABS: ReadonlyArray<{ key: ShameBoard; label: string }> = [
   { key: "trip", label: "Trips" },
   { key: "route", label: "Routes" },
   { key: "stop", label: "Stops" },
@@ -27,13 +27,13 @@ const TABS: ReadonlyArray<{ key: ShameTab; label: string }> = [
 
 /**
  * The mode and school controls for a shame board. Every shame link carries
- * `mode` and `school` - `site-nav.ts` puts them on the nav and `buildShameHref`
- * keeps them on every internal link - and the subtitle names the active one, so
+ * `mode` and `school` - `lib/page/site-nav.ts` puts them on the nav and
+ * `buildShameHref` keeps them on every internal link - and the subtitle names the active one, so
  * without these a reader arrives filtered with no way to widen back out.
  */
 export interface ShameFilterControls {
   /** Active mode, or null for All. */
-  mode: ModeFilterValue;
+  mode: Mode | null;
   /** Which school services count. */
   schools: SchoolFilter;
   /** Window/period/day (and on the day board, hours) params the chips carry through. */
@@ -57,12 +57,12 @@ export interface ShameFilterControls {
 export interface ShameHeaderProps {
   /** Heading text (e.g. "Worst trips of the day"). */
   title: string;
-  /** Sub-heading text, already composed and naming the active filter. */
+  /** Sub-heading text, already composed and naming the active filter; the full stop is added here. */
   subtitle: string;
   /** The board this header is on. */
-  activeTab: ShameTab;
+  activeTab: ShameBoard;
   /** Pre-built hrefs for the Trips/Routes/Stops tabs. */
-  tabHrefs: Record<ShameTab, string>;
+  tabHrefs: Record<ShameBoard, string>;
   /** The board's own path, which the window controls and the chips link back to. */
   basePath: string;
   /** The day or period stepper for the shown window. */
@@ -98,7 +98,7 @@ export interface ShameHeaderProps {
  * @param props.nav - The day or period stepper.
  * @param props.filter - The mode and school chips.
  * @param props.allHoursHref - The link back to the hourly board, on an hour's list.
- * @returns The header element.
+ * @returns The header and its control rows.
  */
 export function ShameHeader({
   title,
@@ -120,44 +120,28 @@ export function ShameHeader({
     filter.nav,
   );
   return (
-    <header className="space-y-3">
-      {allHoursHref && (
-        <Link
-          href={allHoursHref}
-          className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Back to every hour
-        </Link>
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-late sm:text-3xl">{title}</h1>
-          <p className="mt-0.5 text-sm text-at-muted">{subtitle}</p>
-        </div>
-        <RangeControls basePath={basePath} nav={nav} />
-      </div>
+    <div className="space-y-3">
+      {allHoursHref && <BackLink href={allHoursHref} to="every hour" />}
+      <PageHeader
+        title={title}
+        tone="late"
+        subtitle={`${subtitle}.`}
+        actions={<RangeControls basePath={basePath} nav={nav} />}
+      />
       <nav aria-label="Shame boards" className="flex flex-wrap items-center gap-1">
-        {TABS.map((t) =>
-          t.key === activeTab ? (
-            <span key={t.key} aria-current="page" className="chip chip-on">
-              {t.label}
-            </span>
-          ) : (
-            <Link key={t.key} href={tabHrefs[t.key]} className="chip chip-off">
-              {t.label}
-            </Link>
-          ),
-        )}
+        {TABS.map((t) => (
+          <ChipTab key={t.key} href={tabHrefs[t.key]} active={t.key === activeTab}>
+            {t.label}
+          </ChipTab>
+        ))}
       </nav>
       <div className="flex flex-wrap items-center gap-3">
-        <Suspense
-          fallback={
-            <ModeFilter active={filter.mode} basePath={basePath} preservedParams={preserved.mode} />
-          }
-        >
-          <ShameModeFilter filter={filter} basePath={basePath} preservedParams={preserved.mode} />
-        </Suspense>
+        <ModeUsageFilter
+          active={filter.mode}
+          basePath={basePath}
+          preservedParams={preserved.mode}
+          modes={filter.usage.then((u) => u.modes)}
+        />
         <SchoolBusToggle
           value={filter.schools}
           basePath={basePath}
@@ -173,35 +157,6 @@ export function ShameHeader({
           preservedParams={preserved.dir}
         />
       )}
-    </header>
-  );
-}
-
-/**
- * The Mode box, once the window's usage is known: a mode that did not run is
- * left out, and the active one always shows so it can be cleared.
- * @param props - Component props.
- * @param props.filter - The board's filters and their usage.
- * @param props.basePath - The board's own path.
- * @param props.preservedParams - Params the Mode box keeps.
- * @returns The box.
- */
-async function ShameModeFilter({
-  filter,
-  basePath,
-  preservedParams,
-}: {
-  filter: ShameFilterControls;
-  basePath: string;
-  preservedParams: Record<string, string>;
-}): Promise<JSX.Element> {
-  const usage = await filter.usage;
-  return (
-    <ModeFilter
-      active={filter.mode}
-      basePath={basePath}
-      preservedParams={preservedParams}
-      availableModes={usage.modes}
-    />
+    </div>
   );
 }

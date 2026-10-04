@@ -4,9 +4,10 @@
 // lib/strip/stop-split.ts. Arrivals timed at a stop while it was closed that way are left out
 // (rule 26): the feed keeps timing buses past closed stops.
 import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
+import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { closedArrivalsMatch, queryRouteClosures } from "@/lib/data/route-closures";
 import { routeIdsForSlug } from "@/lib/data/routes";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { onTimeSingleModeSum } from "@/lib/on-time";
 import type { StopSplitRow } from "@/lib/strip/stop-split";
@@ -33,58 +34,52 @@ async function queryRouteStopSplit(
 ): Promise<StopSplitRow[]> {
   const routeIds = await routeIdsForSlug(slug);
   const closed = closedArrivalsMatch(await queryRouteClosures(routeIds, range), rawToCanon);
-  const result = (await runCommand(() =>
-    prisma.$runCommandRaw({
-      aggregate: "ArrivalEvent",
-      pipeline: [
-        {
-          $match: {
-            routeId: { $in: routeIds },
-            scheduledAt: scheduledAtWindow(range),
-            ...realDeviationMatchFor(classified),
-          },
+  const result = await aggregateRows<StopSplitRow>("ArrivalEvent", [
+    {
+      $match: {
+        routeId: { $in: routeIds },
+        scheduledAt: scheduledAtWindow(range),
+        ...realDeviationMatchFor(classified),
+      },
+    },
+    {
+      $lookup: {
+        from: "tripMeta",
+        localField: "tripId",
+        foreignField: "_id",
+        as: "meta",
+        pipeline: [{ $project: { directionId: 1, shapeId: 1, headsign: 1 } }],
+      },
+    },
+    { $set: { meta: { $first: "$meta" } } },
+    ...(closed ? [{ $match: closed }] : []),
+    {
+      $group: {
+        _id: {
+          stop: "$stopId",
+          dir: "$meta.directionId",
+          shape: "$meta.shapeId",
+          head: "$meta.headsign",
         },
-        {
-          $lookup: {
-            from: "tripMeta",
-            localField: "tripId",
-            foreignField: "_id",
-            as: "meta",
-            pipeline: [{ $project: { directionId: 1, shapeId: 1, headsign: 1 } }],
-          },
-        },
-        { $set: { meta: { $first: "$meta" } } },
-        ...(closed ? [{ $match: closed }] : []),
-        {
-          $group: {
-            _id: {
-              stop: "$stopId",
-              dir: "$meta.directionId",
-              shape: "$meta.shapeId",
-              head: "$meta.headsign",
-            },
-            events: { $sum: 1 },
-            dev_sum: { $sum: "$deviationSec" },
-            on_time: onTimeSingleModeSum(mode),
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            stop_id: { $toString: "$_id.stop" },
-            direction_id: { $ifNull: ["$_id.dir", null] },
-            shape_id: { $ifNull: ["$_id.shape", null] },
-            headsign: { $ifNull: ["$_id.head", null] },
-            events: 1,
-            dev_sum: 1,
-            on_time: 1,
-          },
-        },
-      ],
-      cursor: { batchSize: 100_000 },
-    }),
-  )) as unknown as { cursor: { firstBatch: StopSplitRow[] } };
-  return result.cursor.firstBatch;
+        events: { $sum: 1 },
+        dev_sum: { $sum: "$deviationSec" },
+        on_time: onTimeSingleModeSum(mode),
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        stop_id: { $toString: "$_id.stop" },
+        direction_id: { $ifNull: ["$_id.dir", null] },
+        shape_id: { $ifNull: ["$_id.shape", null] },
+        headsign: { $ifNull: ["$_id.head", null] },
+        events: 1,
+        dev_sum: 1,
+        on_time: 1,
+      },
+    },
+  ]);
+  return result;
 }
 
 /**
@@ -107,6 +102,6 @@ export function getRouteStopSplit(
     (classified) => queryRouteStopSplit(slug, range, mode, classified, rawToCanon),
     ["route-stop-split-v2", slug, range.start.toISOString(), range.end.toISOString(), mode],
     range,
-    300,
+    LIVE_DAY_REVALIDATE,
   );
 }

@@ -6,8 +6,8 @@
  * Run: npx tsx --env-file=.env.local scripts/check-routes.ts
  * Dev server must be running at http://localhost:3000.
  */
-import { routeSlug } from "@/lib/route-slug";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { routeSlug } from "@/lib/route/slug";
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync } from "fs";
 
@@ -16,8 +16,6 @@ const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const SHOTS_DIR = "scripts/route-shots";
 
 void (async () => {
-  const prisma = new PrismaClient();
-
   // Unique slugs across all modes.
   const routes = await prisma.route.findMany({
     select: { id: true, shortName: true, mode: true },

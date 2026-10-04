@@ -10,28 +10,32 @@
 // at once, so the board asks once.
 
 import { AlertBanner } from "@/components/AlertBanner";
-import { DayNav } from "@/components/DayNav";
+import { DayNav } from "@/components/date/DayNav";
 import { ChevronLeft } from "@/components/icons";
 import { LoadingBlock } from "@/components/Loading";
-import { StopDotKey } from "@/components/MapLegend";
-import { PunctualityStat, type PunctualityBreakdown } from "@/components/PunctualityStat";
-import { RankBoard } from "@/components/RankBoard";
-import StopMapWrapper from "@/components/StopMapWrapper";
+import { StopDotKey } from "@/components/map/MapLegend";
+import StopMapWrapper from "@/components/map/StopMapWrapper";
+import { PunctualityStat, StatCell, type PunctualityBreakdown } from "@/components/PunctualityStat";
+import { RankBoard } from "@/components/ranking/RankBoard";
 import { StopSchedule } from "@/components/StopSchedule";
+import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Panel } from "@/components/ui/Panel";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 import { cn } from "@/lib/cn";
 import { MEASURED_AGAINST, ON_TIME_CAPTION } from "@/lib/copy";
 import {
-  findCurrentStationId,
   getEarliestDataDay,
+  getRouteModeMap,
   getRouteNames,
   getStationSiblings,
   getStopIdentity,
   getStopStats,
+  LIVE_DAY_REVALIDATE,
 } from "@/lib/data";
-import { getRouteModeMap } from "@/lib/data/routes";
 import { readFallback } from "@/lib/db";
-import { fareZonesOf } from "@/lib/fare-zone-geo";
-import { FARE_ZONE_LABEL } from "@/lib/fare-zones";
 import {
   alertsForStop,
   getServiceAlerts,
@@ -39,16 +43,13 @@ import {
   type ServiceAlert,
 } from "@/lib/feed/at-alerts";
 import { getStopDepartures } from "@/lib/feed/at-stop-trips";
-import {
-  formatDuration,
-  OFF_SCHEDULE_TONE_CLASS,
-  offScheduleValue,
-  UNKNOWN_VALUE,
-} from "@/lib/format";
-import { cardMetadata, cardPath, cardWhenSuffix, parseStopCard } from "@/lib/og";
-import { ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
-import { dayRangeNav, routeLinkQuery, windowPhrase } from "@/lib/range-page";
+import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
+import { fareZonesOf } from "@/lib/geo/fare-zone-geo";
+import { FARE_ZONE_LABEL } from "@/lib/geo/fare-zones";
+import { cardPath, cardWhenSuffix, pageMetadata, parseStopCard } from "@/lib/og";
+import { routeHref, stopHref, type LinkQuery } from "@/lib/page/hrefs";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
+import { dayRangeNav, routeLinkParams, windowPhrase } from "@/lib/page/range";
 import { serviceClockNow } from "@/lib/stop/departure-board";
 import { dominantStopMode, stopGrain } from "@/lib/stop/grain";
 import {
@@ -57,12 +58,12 @@ import {
   platformsDiffer,
   type PlatformRow,
 } from "@/lib/stop/station-platforms";
-import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
+import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { buildHref } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Fragment, Suspense, type JSX } from "react";
 
 // Not yet converted to a prerendered shell: this segment still reads its
@@ -70,15 +71,26 @@ import { Fragment, Suspense, type JSX } from "react";
 // block. Removing this line is what converts the route.
 export const instant = false;
 
-// Late bound for the on-time window + cache-key versioning; early side is per-mode.
-const THRESHOLD_SEC = ON_TIME_LATE_SEC;
-const REVALIDATE = 300; // 5 minutes
-
 /** Query params for the stop detail page. */
 interface StopSearchParams {
   day?: string;
   /** `all` asks the departures board for the whole service day. */
   sched?: string;
+}
+
+/**
+ * A stop id from its URL segment, decoded when it decodes cleanly. A raw "%"
+ * in a hand-typed URL would otherwise throw URIError and 500 the page, so a
+ * segment that does not decode is taken as it is.
+ * @param raw - The segment.
+ * @returns The stop id.
+ */
+function decodeSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 /**
@@ -100,23 +112,20 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StopSearchParams>;
 }): Promise<Metadata> {
-  const raw = (await params).id;
-  let id: string;
-  try {
-    id = decodeURIComponent(raw);
-  } catch {
-    id = raw;
-  }
+  const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
-  const name = (await getStopIdentity(id).catch(readFallback("stop-identity", null)))?.name;
-  if (!name) return { title: "Stop" };
+  // Undefined when the read failed, which is an outage rather than a missing stop.
+  const identity = await getStopIdentity(id).catch(readFallback("stop-identity", undefined));
+  if (identity === null) return { title: "Stop not found" };
+  if (!identity) return { title: "Stop" };
+  const { name } = identity;
   const card = parseStopCard(id, sp);
   const description = `On-time performance at ${name} ${MEASURED_AGAINST}`;
-  return {
+  return pageMetadata({
     title: name,
     description,
-    ...cardMetadata(`${name}${cardWhenSuffix(card)}`, description, cardPath(card)),
-  };
+    card: { title: `${name}${cardWhenSuffix(card)}`, path: cardPath(card) },
+  });
 }
 
 /**
@@ -136,31 +145,15 @@ export default async function StopPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<StopSearchParams>;
 }): Promise<JSX.Element> {
-  // Decode the segment when it decodes cleanly; a raw "%" in a hand-typed URL
-  // would otherwise throw URIError and 500 the page.
-  const rawId = (await params).id;
-  let id: string;
-  try {
-    id = decodeURIComponent(rawId);
-  } catch {
-    id = rawId;
-  }
+  const id = decodeSegment((await params).id);
   const sp = (await searchParams) ?? {};
-
-  // Stations used to be keyed by name ("station:newmarket train station"); they
-  // are keyed by AT's parent_station now so a rename can't fork them. Send the
-  // old form to the current one rather than 404ing a shared link.
-  const currentStationId = await findCurrentStationId(id);
-  if (currentStationId) {
-    const qs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v != null)).toString();
-    redirect(`/stop/${encodeURIComponent(currentStationId)}${qs ? `?${qs}` : ""}`);
-  }
 
   // One request-time clock read for the whole render, taken before the day-param redirects below
   // so none of them reads the clock during the static prerender (see lib/time/request-now.ts).
   const today = await requestServiceDay();
-  clampDayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
-  dropTodayParam(`/stop/${encodeURIComponent(id)}`, sp, today);
+  const stopPath = stopHref(id);
+  clampDayParam(stopPath, sp, today);
+  dropTodayParam(stopPath, sp, today);
 
   // Start the alerts fetch early so it overlaps the stats query. The banner is
   // awaited rather than streamed: it sits above the page's content, and letting
@@ -174,12 +167,12 @@ export default async function StopPage({
     getStationSiblings(id),
   ]);
   const { range, serviceDate } = shown;
-  const stats = await getStopStats(id, range, THRESHOLD_SEC, REVALIDATE);
+  const stats = await getStopStats(id, range, LIVE_DAY_REVALIDATE);
   if (!stats) notFound();
 
   const nav = dayRangeNav(shown, earliestDay, today);
   // Today's links stay clean (no ?day) so they don't bounce through the redirect.
-  const linkDay = nav.isToday ? undefined : serviceDate;
+  const linkDay = dayLinkParam(serviceDate, today);
 
   const { stop, summary, routes, routes_count } = stats;
   const zones = fareZonesOf(stop.lat, stop.lon);
@@ -198,7 +191,7 @@ export default async function StopPage({
   };
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-4">
       {/* The worst-stops board is the only page on the site that lists stops, so
           it is the one way up from here. Without it a reader who arrived from a
           shame board or a route's stop table had the top bar and nothing else, and
@@ -206,101 +199,88 @@ export default async function StopPage({
           come from a route page or a shared link. */}
       <Link
         href={buildHref("/shame/stop", { day: linkDay })}
-        className="inline-flex items-center gap-1 text-sm text-at-shore hover:underline"
+        className="at-link inline-flex items-center gap-1 text-sm"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         The worst stops {windowPhrase(nav, null)}
       </Link>
 
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          {/* What the figures below cover: one pole, or every pole of a place
-              averaged together. A grouped page says how many, because its single
-              on-time figure is their average and nothing else on the page says
-              so unless the per-platform table earned its space. */}
-          <p className="text-xs tracking-zero text-at-muted uppercase">
-            {stopGrain(
-              dominantStopMode(stats.routes),
-              stats.platform_labels,
-              stats.platform_ids.length,
-            )}
+      <PageHeader
+        // What the figures below cover: one pole, or every pole of a place
+        // averaged together. A grouped page says how many, because its single
+        // on-time figure is their average and nothing else on the page says so
+        // unless the per-platform table earned its space.
+        eyebrow={stopGrain(
+          dominantStopMode(stats.routes),
+          stats.platform_labels,
+          stats.platform_ids.length,
+        )}
+        title={stop.name}
+        actions={
+          <DayNav
+            basePath={stopPath}
+            serviceDate={serviceDate}
+            preservedParams={{}}
+            hasPrev={nav.hasPrev}
+            atFloor={nav.atFloor}
+            hasNext={nav.hasNext}
+            nextHref={nav.nextIsToday ? stopPath : undefined}
+            nextPending={nav.nextPending}
+            calendar={nav.calendar}
+          />
+        }
+      >
+        {zones.length > 0 && (
+          <p className="mt-0.5 text-sm text-at-muted">
+            {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
+            {zones.map((z, i) => (
+              <Fragment key={z}>
+                {i > 0 && " and "}
+                <Link href={buildHref("/routes", { day: linkDay, zone: z })} className="at-link">
+                  {FARE_ZONE_LABEL[z]}
+                </Link>
+              </Fragment>
+            ))}
           </p>
-          <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">{stop.name}</h1>
-          {zones.length > 0 && (
-            <p className="mt-0.5 text-sm text-at-muted">
-              {zones.length === 1 ? "Fare zone " : "On a boundary, in fare zones "}
-              {zones.map((z, i) => (
-                <Fragment key={z}>
-                  {i > 0 && " and "}
-                  <Link
-                    href={buildHref("/routes", { day: linkDay, zone: z })}
-                    className="text-at-shore hover:underline"
-                  >
-                    {FARE_ZONE_LABEL[z]}
-                  </Link>
-                </Fragment>
-              ))}
-            </p>
-          )}
-          {/* AT models an interchange as two or more parent stations and this page
+        )}
+        {/* AT models an interchange as two or more parent stations and this page
               stands for one of them, so without these links a reader at Manukau's
               bus station has no way to its trains. The names are AT's own, which
               is why a link is only offered when it reads differently from the
               title above it (see siblingsByStation). */}
-          {siblings && (
-            <p className="mt-1 text-sm text-at-muted">
-              Also at {siblings.place}:{" "}
-              {siblings.siblings.map((s, i) => (
-                <Fragment key={s.id}>
-                  {i > 0 && ", "}
-                  <Link
-                    href={buildHref(`/stop/${encodeURIComponent(s.id)}`, { day: linkDay })}
-                    className="text-at-shore hover:underline"
-                  >
-                    {s.name}
-                  </Link>
-                </Fragment>
-              ))}
-            </p>
-          )}
-          <p className="mt-1 text-sm">
-            <Link
-              href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
-              className="text-at-shore hover:underline"
-            >
-              Compare with other stops
-            </Link>
+        {siblings && (
+          <p className="mt-1 text-sm text-at-muted">
+            Also at {siblings.place}:{" "}
+            {siblings.siblings.map((s, i) => (
+              <Fragment key={s.id}>
+                {i > 0 && ", "}
+                <Link href={stopHref(s.id, { day: linkDay })} className="at-link">
+                  {s.name}
+                </Link>
+              </Fragment>
+            ))}
           </p>
-        </div>
-        <DayNav
-          basePath={`/stop/${encodeURIComponent(id)}`}
-          serviceDate={serviceDate}
-          preservedParams={{}}
-          hasPrev={nav.hasPrev}
-          atFloor={nav.atFloor}
-          hasNext={nav.hasNext}
-          nextHref={nav.nextIsToday ? `/stop/${encodeURIComponent(id)}` : undefined}
-          nextPending={nav.nextPending}
-          calendar={nav.calendar}
-        />
-      </header>
+        )}
+        <p className="mt-1 text-sm">
+          <Link
+            href={buildHref("/compare", { kind: "stops", ids: id, day: linkDay })}
+            className="at-link"
+          >
+            Compare with other stops
+          </Link>
+        </p>
+      </PageHeader>
 
       <StopAlertBanner
         alertsPromise={alertsPromise}
-        stopIds={stats.platform_ids}
+        stopIds={[...stats.platform_ids, id]}
         pastWindow={linkDay !== undefined}
       />
 
-      <section className="border border-at-border bg-at-surface">
+      <Panel>
         <div className="grid grid-cols-2 sm:grid-cols-4">
-          <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Arrivals</p>
-            <p className="text-2xl font-ultra tracking-zero tabular-nums">{summary?.events ?? 0}</p>
-          </div>
-          <div className="p-4">
-            <p className="text-xs tracking-zero text-at-muted uppercase">Routes</p>
-            <p className="text-2xl font-ultra tracking-zero tabular-nums">{routes_count}</p>
-          </div>
+          <StatCell label="Arrivals">{formatCount(summary?.events ?? 0)}</StatCell>
+          <StatCell label="Routes">{formatCount(routes_count)}</StatCell>
           <PunctualityStat
             bare
             variant="average"
@@ -316,9 +296,7 @@ export default async function StopPage({
             bare
             variant="split"
             label="On time"
-            value={
-              summary?.on_time_pct == null ? UNKNOWN_VALUE : `${summary.on_time_pct.toFixed(1)}%`
-            }
+            value={formatPct(summary?.on_time_pct)}
             breakdown={punctuality}
           />
         </div>
@@ -328,11 +306,11 @@ export default async function StopPage({
             returns no summary row only when nothing matched, so this names which
             it is rather than leaving the strip to be read either way. */}
         {summary === null && (
-          <p className="border-t border-at-border px-4 py-3 text-sm text-at-muted">
-            No arrivals were recorded at this stop on this day, so there is nothing to average.
-          </p>
+          <EmptyState inset className="border-t border-at-border px-4 py-3">
+            No arrivals recorded at this stop on this day, so there is nothing to average.
+          </EmptyState>
         )}
-      </section>
+      </Panel>
 
       {/* Empty unless the platforms earn the space - the gate is in
           platformBreakdown. It sits straight under the strip because what it
@@ -345,10 +323,10 @@ export default async function StopPage({
       {/* The map shares a row with the worst-routes board on a wide screen: one
           stop's dot in a full-width strip is mostly empty street. The map takes
           the board's height. */}
-      <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
-        <section className="border border-at-border bg-at-surface p-4 lg:flex lg:flex-col">
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+        <Panel pad="sm" className="lg:flex lg:flex-col">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-ultra tracking-zero">Where it is</h2>
+            <SectionHeading>Where it is</SectionHeading>
             <StopDotKey noReading={summary?.avg_delay_sec == null} lone />
           </div>
           <StopMapWrapper
@@ -370,15 +348,16 @@ export default async function StopPage({
             The dot is this stop, coloured by how early or late arrivals here were on average over
             the day shown.
           </p>
-        </section>
+        </Panel>
 
         <RankBoard
           title="Worst routes here"
+          headingLevel="h2"
           accentClass="text-at-ink"
           rows={routes}
           metric="delay"
           caption={ON_TIME_CAPTION}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
+          routeParams={routeLinkParams("day", linkDay, null)}
         />
       </div>
 
@@ -387,9 +366,9 @@ export default async function StopPage({
           scheduleStopId={stats.schedule_stop_id}
           serviceDate={serviceDate}
           showAll={sp.sched === "all"}
-          nowHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: undefined })}
-          allHref={buildHref(`/stop/${encodeURIComponent(id)}`, { ...sp, sched: "all" })}
-          routeQuery={routeLinkQuery("day", linkDay, null)}
+          nowHref={buildHref(stopPath, { ...sp, sched: undefined })}
+          allHref={buildHref(stopPath, { ...sp, sched: "all" })}
+          routeParams={routeLinkParams("day", linkDay, null)}
         />
       </Suspense>
     </main>
@@ -415,16 +394,16 @@ function PlatformTable({
   rows: PlatformRow[];
   linkDay: string | undefined;
 }): JSX.Element {
-  const routeQuery = routeLinkQuery("day", linkDay, null);
+  const routeParams = routeLinkParams("day", linkDay, null);
   const noun = platformNoun(rows);
   // Two different facts get a station here, so the sentence names the one that
   // applies: platforms that ran differently, or platforms that agree and differ
   // only in which routes leave from them.
   const differ = platformsDiffer(rows);
   return (
-    <section className="border border-at-border bg-at-surface">
-      <div className="px-4 py-3">
-        <h2 className="font-semibold">By {noun}</h2>
+    <Panel>
+      <div className="border-b border-at-border px-4 py-3">
+        <SectionHeading>By {noun}</SectionHeading>
         {/* One template string rather than several expressions, so the sentence
             is a single text node: React separates adjacent ones with a comment
             marker, which reads as a stray space to anything parsing the page. */}
@@ -436,85 +415,83 @@ function PlatformTable({
           }`}
         </p>
       </div>
-      <div className="overflow-x-auto px-4 pb-4">
-        <table className="min-w-full text-sm">
-          <thead className="bg-at-shore-pale text-at-muted">
-            <tr>
-              <th scope="col" className="px-3 py-2 text-left">
-                {noun.replace(/^./, (c) => c.toUpperCase())}
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                Arrivals
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                On time
-              </th>
-              <th scope="col" className="px-3 py-2 text-right">
-                Early or late
-              </th>
-              <th scope="col" className="px-3 py-2 text-left">
-                Only from here
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => {
-              const value = offScheduleValue(p.avg_delay_sec, p.avg_abs_delay_sec, p.mode);
-              return (
-                <tr key={p.stop_id} className="border-t border-at-border">
-                  <td className="px-3 py-2 font-semibold tabular-nums">
-                    <Link
-                      href={buildHref(`/stop/${encodeURIComponent(p.stop_id)}`, { day: linkDay })}
-                      className="text-at-shore hover:underline"
-                    >
-                      {p.label}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{p.events}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {p.on_time_pct == null ? UNKNOWN_VALUE : `${p.on_time_pct.toFixed(1)}%`}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right font-semibold tabular-nums",
-                      OFF_SCHEDULE_TONE_CLASS[value.tone],
-                    )}
-                  >
-                    {value.text}
-                  </td>
-                  {/* Blank rather than a dash: no route being exclusive to a
+      <DataTable caption={`${stopName} by ${noun}`} framed={false}>
+        <thead>
+          <tr className="at-th-row">
+            <th scope="col" className={CELL_CLASS}>
+              {noun.replace(/^./, (c) => c.toUpperCase())}
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Arrivals
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              On time
+            </th>
+            <th scope="col" className={cn(CELL_CLASS, "text-right")}>
+              Early or late
+            </th>
+            <th scope="col" className={CELL_CLASS}>
+              Only from here
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            return (
+              <tr key={p.stop_id} className={ROW_CLASS}>
+                <th scope="row" className={cn(CELL_CLASS, "text-left font-semibold tabular-nums")}>
+                  <Link href={stopHref(p.stop_id, { day: linkDay })} className="at-link">
+                    {p.label}
+                  </Link>
+                </th>
+                <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                  {formatCount(p.events)}
+                </td>
+                <td
+                  className={cn(
+                    CELL_CLASS,
+                    "text-right tabular-nums",
+                    p.on_time_pct !== null && "text-at-ontime",
+                  )}
+                >
+                  {formatPct(p.on_time_pct)}
+                </td>
+                <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
+                  <OffScheduleValue
+                    signedSec={p.avg_delay_sec}
+                    absSec={p.avg_abs_delay_sec}
+                    mode={p.mode}
+                  />
+                </td>
+                {/* Blank rather than a dash: no route being exclusive to a
                       platform is a fact about it, where the dash elsewhere on the
                       site means a figure the site does not have. */}
-                  <td className="px-3 py-2">
-                    {p.only_routes.map((name, i) => {
-                      const slug = p.route_slugs?.[name];
-                      return (
-                        <Fragment key={name}>
-                          {i > 0 && ", "}
-                          {slug ? (
-                            <Link
-                              href={`/route/${encodeURIComponent(slug)}${routeQuery}`}
-                              className="text-at-shore hover:underline"
-                            >
-                              {name}
-                            </Link>
-                          ) : (
-                            name
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-at-muted">
-          {`${MIN_PLATFORM_EVENTS} arrivals needed to be listed, so a ${noun} used a handful of times that day is not shown.`}
-        </p>
-      </div>
-    </section>
+                <td className={CELL_CLASS}>
+                  {p.only_routes.map((name, i) => {
+                    const slug = p.route_slugs?.[name];
+                    return (
+                      <Fragment key={name}>
+                        {i > 0 && ", "}
+                        {slug ? (
+                          <Link href={routeHref(slug, routeParams)} className="at-link">
+                            {name}
+                          </Link>
+                        ) : (
+                          name
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
+      <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
+        {`${MIN_PLATFORM_EVENTS} arrivals needed to be listed, so a ${noun} used a handful of times that day is not shown.`}
+      </p>
+    </Panel>
   );
 }
 
@@ -542,7 +519,7 @@ function PlatformTable({
  * @param root0.showAll - Whether the reader asked for the whole day.
  * @param root0.nowHref - This page without the whole-day param.
  * @param root0.allHref - This page with it.
- * @param root0.routeQuery - Query each route link carries, so a route opens on the same day.
+ * @param root0.routeParams - Params each route link carries.
  * @returns The departures board.
  */
 async function StopScheduleSection({
@@ -551,14 +528,14 @@ async function StopScheduleSection({
   showAll,
   nowHref,
   allHref,
-  routeQuery,
+  routeParams,
 }: {
   scheduleStopId: string;
   serviceDate: string;
   showAll: boolean;
   nowHref: string;
   allHref: string;
-  routeQuery: string;
+  routeParams: LinkQuery;
 }): Promise<JSX.Element> {
   const result = await getStopDepartures(scheduleStopId, serviceDate);
   const departures = result.status === "ok" ? result.departures : [];
@@ -576,7 +553,7 @@ async function StopScheduleSection({
       showAll={showAll}
       nowHref={nowHref}
       allHref={allHref}
-      routeQuery={routeQuery}
+      routeParams={routeParams}
     />
   );
 }
@@ -607,6 +584,7 @@ async function StopAlertBanner({
         alerts={alertsForStop(await alertsPromise, stopIds)}
         heading="Service alerts"
         pastWindow={pastWindow}
+        defaultOpen
       />
       <AlertBanner alerts={alertsForStop(upcoming, stopIds)} heading="Coming up" upcoming />
     </>

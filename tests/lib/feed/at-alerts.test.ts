@@ -2,21 +2,30 @@
 // Unit tests for the service-alert filters and severity grading in at-alerts.ts.
 
 import {
+  alertEffectLabel,
+  alertMatches,
+  alertModes,
   alertPeriodToShow,
+  alertRouteIds,
   alertSeverity,
+  alertsForMode,
   alertsForRoute,
   alertsForStop,
   alertsForTrip,
+  type AlertStopRow,
   extractText,
   hasSevereAlert,
   isAlertUpcoming,
   networkWideAlerts,
   nextAlertPeriod,
+  rankAlerts,
   resolveAlertRoutes,
+  resolveAlertStops,
   routeIdsInText,
   type ServiceAlert,
   toServiceAlerts,
 } from "@/lib/feed/at-alerts";
+import type { Mode } from "@/lib/mode";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -129,6 +138,138 @@ describe("alertsForStop", () => {
   it("ignores route-only alerts and unknown stops", () => {
     expect(alertsForStop(alerts, ["station:105-474861ff"])).toEqual([]);
     expect(alertsForStop(alerts, [])).toEqual([]);
+  });
+
+  it("matches a station page through the stop pages an alert resolved to", () => {
+    const named = {
+      ...stopAlert("s4", ["105-474861ff"]),
+      stops: [{ id: "station:105-474861ff", name: "Newmarket Train Station" }],
+    };
+    expect(alertsForStop([named], ["station:105-474861ff"]).map((a) => a.id)).toEqual(["s4"]);
+  });
+});
+
+describe("resolveAlertStops", () => {
+  const rows = new Map<string, AlertStopRow>([
+    ["2885-a4c2ec2f", { name: "Helvetia Road", code: "2885" }],
+    ["2887-e31df04d", { name: "Helvetia Road", code: "2887" }],
+    [
+      "9312-e5a780ea",
+      { name: "Newmarket Train Station 1", parentStation: "105-474861ff", platformCode: "1" },
+    ],
+    [
+      "9313-4b1bb1e7",
+      { name: "Newmarket Train Station 2", parentStation: "105-474861ff", platformCode: "2" },
+    ],
+    ["105-474861ff", { name: "Newmarket Train Station" }],
+    ["7344-eedcc095", { name: "Turua Street", code: "7344" }],
+  ]);
+  const parents = new Set(["105-474861ff"]);
+
+  it("collapses a station's platforms into one link to its page", () => {
+    const stops = resolveAlertStops(
+      stopAlert("a", ["9312-e5a780ea", "9313-4b1bb1e7"]),
+      rows,
+      parents,
+    );
+    expect(stops).toEqual([{ id: "station:105-474861ff", name: "Newmarket Train Station" }]);
+  });
+
+  it("links a station the feed names itself to the station page", () => {
+    expect(resolveAlertStops(stopAlert("a", ["105-474861ff"]), rows, parents)).toEqual([
+      { id: "station:105-474861ff", name: "Newmarket Train Station" },
+    ]);
+  });
+
+  it("keeps the feed's order, drops unknown stops, and tells same-named stops apart", () => {
+    const stops = resolveAlertStops(
+      stopAlert("a", ["7344-eedcc095", "2885-a4c2ec2f", "nope", "2887-e31df04d", "2885-a4c2ec2f"]),
+      rows,
+      parents,
+    );
+    expect(stops).toEqual([
+      { id: "7344-eedcc095", name: "Turua Street" },
+      { id: "2885-a4c2ec2f", name: "Helvetia Road (2885)" },
+      { id: "2887-e31df04d", name: "Helvetia Road (2887)" },
+    ]);
+  });
+});
+
+describe("alertModes and alertsForMode", () => {
+  const routeModes = new Map<string, Mode>([
+    ["392-203", "BUS"],
+    ["STH-201", "TRAIN"],
+  ]);
+
+  it("reads each named route's mode and each route_type", () => {
+    expect(alertModes(alert("a", ["STH-201", "392-203", "392-203"]), routeModes)).toEqual([
+      "BUS",
+      "TRAIN",
+    ]);
+    expect(
+      alertModes({ ...alert("b", []), informed_entity: [{ route_type: 4 }] }, routeModes),
+    ).toEqual(["FERRY"]);
+    expect(alertModes(stopAlert("c", ["2885-a4c2ec2f"]), routeModes)).toEqual([]);
+  });
+
+  it("keeps an alert touching no mode under every mode", () => {
+    const train: ServiceAlert = { ...alert("t", []), modes: ["TRAIN"] };
+    const everywhere: ServiceAlert = { ...alert("n", []), modes: [] };
+    const unresolved = alert("u", []);
+    /**
+     * The ids of the alerts a mode keeps.
+     * @param mode - The mode, or null for all.
+     * @returns Their ids.
+     */
+    const ids = (mode: Mode | null): string[] =>
+      alertsForMode([train, everywhere, unresolved], mode).map((a) => a.id);
+    expect(ids("BUS")).toEqual(["n", "u"]);
+    expect(ids("TRAIN")).toEqual(["t", "n", "u"]);
+    expect(ids(null)).toEqual(["t", "n", "u"]);
+  });
+});
+
+describe("alertRouteIds", () => {
+  it("lists one id per route page, in the feed's order", () => {
+    expect(alertRouteIds(alert("a", ["396-203", "392-203", "396-204", undefined]))).toEqual([
+      "396-203",
+      "392-203",
+    ]);
+  });
+});
+
+describe("rankAlerts", () => {
+  it("puts service-stopping alerts first, then the widest, then the most routes", () => {
+    const notice = { ...effectAlert("notice", "OTHER_EFFECT"), informed_entity: [] };
+    const oneTrip = tripAlert("trip", "t1");
+    const oneRoute = { ...alert("one", ["70-203"]), effect: "DETOUR" };
+    const twoRoutes = { ...alert("two", ["70-203", "72-203"]), effect: "DETOUR" };
+    const network = effectAlert("network", "NO_SERVICE");
+    expect(rankAlerts([notice, oneTrip, oneRoute, twoRoutes, network]).map((a) => a.id)).toEqual([
+      "network",
+      "two",
+      "one",
+      "trip",
+      "notice",
+    ]);
+  });
+});
+
+describe("alertMatches", () => {
+  const detour: ServiceAlert = {
+    ...alert("d", ["392-203"]),
+    header_text: { translation: [{ text: "Detour: Routes 392 and 396", language: "en" }] },
+    description_text: { translation: [{ text: "Works on Tāmaki Drive", language: "en" }] },
+    stops: [{ id: "2885-a4c2ec2f", name: "Helvetia Road" }],
+  };
+
+  it("matches the text, route codes and stop names, folded", () => {
+    expect(alertMatches(detour, "tamaki drive")).toBe(true);
+    expect(alertMatches(detour, "392")).toBe(true);
+    expect(alertMatches(detour, "helvetia rd")).toBe(false);
+    expect(alertMatches(detour, "Helvetia-Road")).toBe(true);
+    expect(alertMatches(detour, "  ")).toBe(true);
+    expect(alertMatches(detour, "ferry")).toBe(false);
   });
 });
 
@@ -289,5 +430,15 @@ describe("hasSevereAlert", () => {
   it("is false for an all-notice set, and for an empty one", () => {
     expect(hasSevereAlert([effectAlert("a", "OTHER_EFFECT")])).toBe(false);
     expect(hasSevereAlert([])).toBe(false);
+  });
+});
+
+describe("alertEffectLabel", () => {
+  it("names the effects a rider can act on, and nothing else", () => {
+    expect(alertEffectLabel("NO_SERVICE")).toBe("NO SERVICE");
+    expect(alertEffectLabel("SIGNIFICANT_DELAYS")).toBe("MAJOR DELAYS");
+    expect(alertEffectLabel("OTHER_EFFECT")).toBeNull();
+    expect(alertEffectLabel("SOMETHING_NEW")).toBeNull();
+    expect(alertEffectLabel(undefined)).toBeNull();
   });
 });

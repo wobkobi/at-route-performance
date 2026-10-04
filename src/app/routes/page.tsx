@@ -7,40 +7,41 @@
 // RouteExplorer. The day view opens on the same day as every other day page
 // (see resolveShownDay).
 
-import { RangeControls } from "@/components/RangeControls";
-import { RouteExplorer } from "@/components/RouteExplorer";
+import { RangeControls } from "@/components/date/RangeControls";
+import { RouteExplorer } from "@/components/route/RouteExplorer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { addTo } from "@/lib/collections";
 import {
   getCancelledRoutes,
   getEarliestDataDay,
   getLatestEventDate,
-  getOperators,
+  getOperatorDirectory,
   getRankings,
   getRouteGeography,
-  getRouteOperators,
-  TODAY_REVALIDATE,
+  revalidateFor,
 } from "@/lib/data";
-import { readFallback } from "@/lib/db";
+import { getLiveVehicles } from "@/lib/feed/vehicles";
 import { liveRouteSlugs } from "@/lib/live-routes";
-import { cardMetadata, cardPath, listCardTitle, parseListCard } from "@/lib/og";
-import { CANCELLED_SPLIT_COPY, ON_TIME_LATE_SEC } from "@/lib/on-time";
-import { operatorOf, type Operator } from "@/lib/operators";
-import { resolveRequestedDay, resolveShownDay } from "@/lib/page-nav";
+import { listShareCard, pageMetadata, parseListCard } from "@/lib/og";
+import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
+import { operatorOf } from "@/lib/operators";
+import { parseShown } from "@/lib/page/filter-params";
+import { resolveRequestedDay, resolveShownDay } from "@/lib/page/nav";
 import {
   dayRangeNav,
   parseRangeWindow,
   periodRangeNav,
-  routeLinkQuery,
+  routeLinkParams,
   type RangeNav,
-} from "@/lib/range-page";
-import { parseExplorerFilters, parseShown, type ExplorerRoute } from "@/lib/route-explorer";
-import { successorSlug } from "@/lib/route-lineage";
-import { routeSlug } from "@/lib/route-slug";
+} from "@/lib/page/range";
+import { parseExplorerFilters, type ExplorerRoute } from "@/lib/route/explorer";
+import { successorSlug } from "@/lib/route/lineage";
+import { routeSlug } from "@/lib/route/slug";
 import { isSchoolBus } from "@/lib/school-bus";
 import { clampDayParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
-import { getLiveVehicles } from "@/lib/vehicles";
-import type { TopRouteRow } from "@/types/api";
+import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import type { JSX } from "react";
 
@@ -50,8 +51,7 @@ import type { JSX } from "react";
 export const instant = false;
 
 /** What a shared link to this page says under its title. */
-const DESCRIPTION =
-  "Every Auckland Transport route's punctuality and cancellations, filtered by mode and area.";
+const DESCRIPTION = "Every AT route's punctuality and cancellations, filtered by mode and area.";
 
 /**
  * Title and shared-link card, built from the query alone so the metadata
@@ -67,15 +67,8 @@ export async function generateMetadata({
   searchParams?: Promise<Record<string, string | undefined>>;
 }): Promise<Metadata> {
   const card = parseListCard("routes", (await searchParams) ?? {});
-  return {
-    title: "Routes",
-    description: DESCRIPTION,
-    ...cardMetadata(listCardTitle(card), DESCRIPTION, cardPath(card)),
-  };
+  return pageMetadata({ title: "Routes", description: DESCRIPTION, card: listShareCard(card) });
 }
-
-/** Cache TTL for a week or month's rows (seconds), as on the home page's week and month. */
-const PERIOD_REVALIDATE = 3600;
 /** Row cap that returns every route with a cancellation. */
 const ALL_ROUTES = 10_000;
 
@@ -102,15 +95,15 @@ export default async function RoutesPage({
   const [latest, earliest] = await Promise.all([getLatestEventDate(), getEarliestDataDay(1)]);
 
   let range: DateRange;
-  let rows: TopRouteRow[];
+  let rows: RouteRow[];
   let nav: RangeNav;
   let serviceDate: string | null = null;
   let period: string | null = null;
-  const revalidate = window === "day" ? TODAY_REVALIDATE : PERIOD_REVALIDATE;
+  const revalidate = revalidateFor(window);
   if (window === "day") {
     const shown = await resolveShownDay(resolveRequestedDay(sp.day), today);
     ({ range, serviceDate } = shown);
-    rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
+    rows = await getRankings(range, revalidate);
     nav = dayRangeNav(shown, earliest, today);
   } else {
     ({ range, period, nav } = periodRangeNav(
@@ -121,52 +114,50 @@ export default async function RoutesPage({
       earliest,
       today,
     ));
-    rows = await getRankings(range, ON_TIME_LATE_SEC, revalidate);
+    rows = await getRankings(range, revalidate);
   }
 
   // Every mode and school services too: the explorer filters those itself.
-  const [cancelledRoutes, geo, operators, directory] = await Promise.all([
+  const [cancelledRoutes, geo, [operators, directory]] = await Promise.all([
     getCancelledRoutes(range, { mode: null, schools: "include" }, ALL_ROUTES, revalidate),
     getRouteGeography(),
-    getRouteOperators().catch(readFallback<Record<string, string>>("route-operators", {})),
-    getOperators().catch(readFallback<Operator[]>("operators", [])),
+    getOperatorDirectory(),
   ]);
-  const rowSlugs = new Set(rows.map((r) => routeSlug(r.route_id)));
+  const rowSlugs = new Set(rows.map((r) => routeSlug(r.routeId)));
   // The rows fold a retired train line into its successor (see foldLineageRows),
   // so its cancellations follow it there.
   const cancelledBySlug = new Map<string, number>();
   for (const c of cancelledRoutes) {
-    const successor = successorSlug(c.route_id);
-    const slug =
-      !rowSlugs.has(c.route_id) && successor && rowSlugs.has(successor) ? successor : c.route_id;
-    cancelledBySlug.set(slug, (cancelledBySlug.get(slug) ?? 0) + c.cancelled);
+    const successor = successorSlug(c.slug);
+    const slug = !rowSlugs.has(c.slug) && successor && rowSlugs.has(successor) ? successor : c.slug;
+    addTo(cancelledBySlug, slug, c.cancelled);
   }
   /**
    * An explorer row from a route row plus what the filters need.
    * @param r - The route row.
    * @returns The explorer row.
    */
-  const toExplorer = (r: TopRouteRow): ExplorerRoute => {
-    const slug = routeSlug(r.route_id);
+  const toExplorer = (r: RouteRow): ExplorerRoute => {
+    const slug = routeSlug(r.routeId);
     return {
       ...r,
       slug,
       areas: geo.areas[slug] ?? [],
       zones: geo.zones[slug] ?? [],
       cancelled: cancelledBySlug.get(slug) ?? 0,
-      school: isSchoolBus(r.short_name, r.long_name),
+      school: isSchoolBus(r.shortName, r.longName),
       operator: operatorOf(operators[slug], directory)?.slug ?? null,
     };
   };
   // A route that cancelled trips but recorded no arrival (a service with no
   // realtime feed, or one cancelled all day) still belongs on the list, with no
   // punctuality figures, so the cancellation totals add up.
-  const cancelOnly: TopRouteRow[] = cancelledRoutes
-    .filter((c) => !rowSlugs.has(c.route_id) && !rowSlugs.has(successorSlug(c.route_id) ?? ""))
+  const cancelOnly: RouteRow[] = cancelledRoutes
+    .filter((c) => !rowSlugs.has(c.slug) && !rowSlugs.has(successorSlug(c.slug) ?? ""))
     .map((c) => ({
-      route_id: c.route_id,
-      short_name: c.short_name,
-      long_name: c.long_name ?? c.route_id,
+      routeId: c.slug,
+      shortName: c.shortName,
+      longName: c.longName ?? c.slug,
       mode: c.mode,
       colour: c.colour,
       events: 0,
@@ -179,18 +170,15 @@ export default async function RoutesPage({
   const explorerRows = [...rows, ...cancelOnly].map(toExplorer);
 
   return (
-    <main className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-ultra tracking-zero text-at-ink sm:text-3xl">Routes</h1>
-        <RangeControls basePath="/routes" nav={nav} />
-      </header>
+    <main className="space-y-4">
+      <PageHeader title="Routes" actions={<RangeControls basePath="/routes" nav={nav} />} />
 
       <RouteExplorer
         rows={explorerRows}
         operators={directory.map(({ slug, name }) => ({ slug, name }))}
         initialFilters={parseExplorerFilters(sp)}
         initialShown={parseShown(sp.show)}
-        routeQuery={routeLinkQuery(window, serviceDate, period)}
+        routeParams={routeLinkParams(window, serviceDate, period)}
         running={getLiveVehicles()
           .then(liveRouteSlugs)
           .catch(() => null)}

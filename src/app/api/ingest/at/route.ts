@@ -13,11 +13,13 @@
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
 // in one round-trip per batch, making repeated runs idempotent.
 
-import { requireCronAuth } from "@/lib/auth";
+import { apiError } from "@/lib/api-error";
+import { requireCronAuth } from "@/lib/cron/auth";
 import {
   DUPLICATE_KEY,
   isDatabaseUnreachableError,
   prisma,
+  readFallback,
   runWriteCommand,
   throwOnWriteErrors,
 } from "@/lib/db";
@@ -32,11 +34,11 @@ import {
   spoolWrites,
   type SpooledWrite,
 } from "@/lib/feed/ingest-spool";
+import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/feed/vehicles";
 import { recordFleet } from "@/lib/store/fleet";
 import { recordOffRouteSightings } from "@/lib/store/off-route";
 import { recordStopClosures } from "@/lib/store/stop-closures";
 import { cancelledServiceDate, runServiceDate } from "@/lib/time/run-day";
-import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/vehicles";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -201,29 +203,31 @@ function toStuArray<T>(v: T | T[] | undefined): T[] {
  * - `debug=1` Include counters and a sample row.
  * - `loose=1` Insert zero-delay rows when delay is missing.
  * - `peek=1`  Return feed shape info without inserting.
- * @param req - Incoming HTTP request containing optional query params.
- * @returns JSON summary or peek payload.
+ * @param request - Incoming HTTP request containing optional query params.
+ * @returns JSON summary or peek payload; `{ skipped, reason }` while another poll
+ *   runs; 500 when the API key is unset, 503 when the database is unreachable and
+ *   502 for any other failure.
  */
-export async function POST(req: Request): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
 
-  const denied = requireCronAuth(req);
+  const denied = requireCronAuth(request);
   if (denied) return denied;
 
   if (!process.env.AT_API_KEY) {
-    return NextResponse.json({ error: "AT_API_KEY missing" }, { status: 400 });
+    return apiError(500, "misconfigured", "Server misconfiguration.");
   }
 
-  const url = new URL(req.url);
+  const url = new URL(request.url);
   const loose = url.searchParams.get("loose") === "1";
-  const wantDebug = url.searchParams.has("debug");
+  const wantDebug = url.searchParams.get("debug") === "1";
   const wantPeek = url.searchParams.get("peek") === "1";
 
   // One poll writes at a time; a peek writes nothing, so it never waits on one.
   const lease = wantPeek ? UNLEASED : await claimIngestLease();
   if (lease === null) {
     console.log("[INGEST] Skipped: the previous poll is still running");
-    return NextResponse.json({ skipped: "previous poll still running" });
+    return NextResponse.json({ skipped: true, reason: "The previous poll is still running." });
   }
 
   /** Writes this poll could not make because the database was unreachable. */
@@ -240,7 +244,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     // Reading the stamp first is what keeps the poll off the spool: listing costs
     // a Blob operation every run where a drain is almost never needed, and a stamp
     // read that throws says the database is down, which a replay needs up anyway.
-    const lastRun = await lastRecordedRun("at").catch(() => "unreadable" as const);
+    const lastRun = await lastRecordedRun("at").catch(
+      readFallback("ingest-last-run", "unreadable" as const),
+    );
     const drained =
       lastRun !== "unreadable" && spoolMayHold(lastRun)
         ? await drainSpool(replaySpooled).catch((err: unknown) => {
@@ -590,7 +596,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json(body);
   } catch (err) {
     const duration = Date.now() - startTime;
-    const msg = err instanceof Error ? err.message : "unknown error";
+    const msg = err instanceof Error ? err.message : "Unknown error";
 
     console.error("[INGEST] Failed", {
       timestamp: new Date().toISOString(),
@@ -606,8 +612,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       detail: { spoolPending },
     });
 
-    return NextResponse.json({ error: msg }, { status: 502 });
+    // The message stays in the log and the IngestRun row; the body says only which side failed.
+    return isDatabaseUnreachableError(err)
+      ? apiError(503, "database_unreachable", "The database could not be reached.")
+      : apiError(502, "upstream_failed", "The poll failed.");
   } finally {
+    // Best effort: an unreleased lease expires on its own, so a failed release
+    // costs at most one skipped poll and must not mask the poll's own outcome.
     await releaseIngestLease(lease).catch(() => {});
   }
 }

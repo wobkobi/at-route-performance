@@ -1,3 +1,4 @@
+import { addTo } from "@/lib/collections";
 // src/lib/stop/station-platforms.ts
 // Whether a station page should break its figures down per platform, and in
 // what order. Collapsing a parent's platforms into one stop fixed the navigation
@@ -124,7 +125,7 @@ export function platformBreakdown(stats: readonly PlatformStats[]): PlatformRow[
   const platformsPerRoute = new Map<string, number>();
   for (const p of kept) {
     for (const route of new Set(p.routes)) {
-      platformsPerRoute.set(route, (platformsPerRoute.get(route) ?? 0) + 1);
+      addTo(platformsPerRoute, route);
     }
   }
 

@@ -52,13 +52,14 @@
      the brand green. */
   --color-at-early-strong: #5b7a12;
 
-  /* Link bus service colours (sampled from bus-services guide p8 swatches) */
-  --color-link-city: #ff0328;
-  --color-link-inner: #6cbe54;
-  --color-link-outer: #f9a22e;
-  --color-link-airport: #fdbb2a;
-  --color-link-tamaki: #0095cd;
-  --color-link-waiheke: #7fcfd6;
+  /* The shame flame, one colour per thing it counts: hours on today's board,
+     days in a row on a board, and days a board crowned the route, which is the
+     late red. Three, not a heat ramp: warm steps on a 14px glyph run together,
+     and a colour that blends kinds of count means nothing fixed. Each is about
+     4.5:1 or better on white, since the count is written in it. */
+  --color-flame-hours: #a16207;
+  --color-flame-days: #c2410c;
+  --color-flame-crown: var(--color-at-late);
 }
 
 /* Family utilities */
@@ -94,30 +95,101 @@
   line-height: 1;
 }
 
-/* Status badges: solid fill + contrast-checked text for WCAG AA (guide p28). */
-.badge {
-  @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+/*
+  A control's floor: 36px with a mouse, 44px on a touch screen. A desktop row of
+  chips and menus stays compact while every fingertip target keeps the 44px the
+  site promises. Keyed on the pointer, not the width, so a tablet or a phone
+  held sideways still gets the touch size.
+*/
+@utility tap-h {
+  min-height: calc(var(--spacing) * 9);
+  @media (pointer: coarse) {
+    min-height: calc(var(--spacing) * 11);
+  }
 }
-.badge-ok {
-  @apply bg-at-ontime text-white;
-} /* Shore + white = pass */
-.badge-late {
-  @apply bg-at-late text-white;
-} /* Anther Red + white = pass */
-.badge-early {
-  @apply bg-at-early text-at-ink;
-} /* Bright Green + Ocean = pass */
+@utility tap-w {
+  min-width: calc(var(--spacing) * 9);
+  @media (pointer: coarse) {
+    min-width: calc(var(--spacing) * 11);
+  }
+}
 
-/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters. */
-.chip {
-  @apply inline-flex items-center px-3 py-1 text-sm font-semibold transition-colors;
+/*
+  Shared control and label classes. In the components layer, so a utility beside
+  one (a margin, a hover) wins without a specificity fight.
+*/
+@layer components {
   /*
-    `transition-colors` covers `outline-color` too, which would fade the focus
-    ring up over 150ms from the chip's own text colour - white on an active
-    chip, against a light page. A ring has to be there the moment the chip takes
-    focus, so it is left out of the list while the rest still eases.
+    Status badge: square, bold, fill plus contrast-checked text for WCAG AA
+    (guide p28). Always paired with one tone below; the label is written in
+    capitals by the caller rather than through `uppercase`, so a route name in a
+    pill keeps its own casing.
   */
-  transition-property: color, background-color, border-color;
+  .badge {
+    @apply inline-flex shrink-0 items-center px-1.5 py-0.5 text-xs font-bold tracking-zero;
+  }
+  .badge-ok {
+    @apply bg-at-ontime text-white;
+  }
+  .badge-late {
+    @apply bg-at-late text-white;
+  }
+  .badge-early {
+    @apply bg-at-early text-at-ink;
+  }
+  /* Ink rather than on-time Shore, so LIVE never reads as a punctuality verdict. */
+  .badge-live {
+    @apply bg-at-ink text-white;
+  }
+  .badge-commercial {
+    @apply bg-at-commercial text-at-ink;
+  }
+  .badge-disruption {
+    @apply bg-at-disruption text-white;
+  }
+  .badge-muted {
+    @apply bg-at-border text-at-ink;
+  }
+  .badge-pale {
+    @apply bg-at-shore-pale text-at-shore;
+  }
+  /* An outline for a state that did not happen after all (a reinstated trip). */
+  .badge-outline {
+    @apply border border-at-border text-at-muted;
+  }
+
+  /* The solid Shore action button; pairs with `.at-btn` for its size. */
+  .at-btn-primary {
+    @apply border border-at-shore bg-at-shore text-white hover:bg-at-ocean;
+  }
+
+  /* An in-text Shore link that underlines on hover. */
+  .at-link {
+    @apply text-at-shore hover:underline;
+  }
+
+  /* A select or search box, at the control floor (`tap-h`). 16px
+     text on a touch screen: iOS Safari zooms the page in on focusing a field
+     set any smaller, and keys on the pointer rather than the width, since a
+     phone held sideways is wider than sm. */
+  .at-field {
+    @apply tap-h border border-at-border bg-at-surface px-3 text-sm placeholder:text-at-muted focus-visible:border-at-shore pointer-coarse:text-base;
+  }
+
+  /* The board row holding the worst of its board: a faint late tint, under any hover tint. */
+  .at-worst {
+    @apply bg-at-late/5;
+  }
+
+  /* A table's header row: small muted capitals, ruled off from the body. */
+  .at-th-row {
+    @apply border-b border-at-border text-left text-xs tracking-zero text-at-muted uppercase;
+  }
+}
+
+/* Square-cornered toggle controls (day stepper, window tabs, sort chips), boxes like the filters, at the control floor (`tap-h`). */
+.chip {
+  @apply inline-flex tap-h items-center px-3 py-1 text-sm font-semibold transition-colors;
 }
 .chip-on {
   @apply bg-at-shore text-white;
@@ -126,22 +198,41 @@
   @apply border border-at-border bg-at-surface text-at-ink hover:border-at-shore hover:text-at-shore;
 }
 /*
-  Icon-only chips: the day and period steppers and the board pager hold a bare
+  Icon-only chips: the day and period steppers hold a bare
   chevron, so `.chip`'s text padding left a 42x26 target on the controls the
-  whole archive is read through - a third of a fingertip. Squared up to 44px,
-  which grows those rows once rather than every chip on the site.
+  whole archive is read through - a third of a fingertip. Squared up to the
+  control floor, which grows those rows once rather than every chip on the site.
 */
 .chip-icon {
-  @apply min-h-11 min-w-11 justify-center;
+  @apply tap-h tap-w justify-center;
 }
 /*
   Holds the space of a stepper chevron that is not offered. Without it, reaching
-  the newest or oldest day collapsed a 44px chip plus the row's 4px gap and slid
-  the date and the window tabs beside it 48px sideways, on the one control a
+  the newest or oldest day collapsed a chip plus the row's 4px gap and slid the
+  date and the window tabs beside it sideways, on the one control a
   reader clicks repeatedly.
 */
 .step-slot {
-  @apply block min-h-11 min-w-11;
+  @apply block tap-h tap-w;
+}
+
+/*
+  Grows a control drawn smaller than a fingertip - an info icon, a dotted
+  explanation, a 12px bar segment - to a 44px touch target without moving
+  anything: a transparent box centred on it catches the press. The control's
+  own box keeps the focus ring, so the ring still hugs what the reader sees.
+*/
+.hit-44 {
+  position: relative;
+}
+.hit-44::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 2.75rem);
+  height: max(100%, 2.75rem);
+  transform: translate(-50%, -50%);
 }
 
 /*
@@ -165,13 +256,13 @@
    the one place yellow leads, mirroring at.govt.nz call-to-actions (and a WCAG-AA
    pairing from the brand guide). */
 .at-btn {
-  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold transition;
+  @apply inline-flex tap-h items-center justify-center gap-1.5 px-4 py-1.5 text-sm font-semibold transition;
 }
 .at-btn-cta {
   @apply bg-at-safety text-at-ocean hover:brightness-95;
 }
 
-/* AT card: white, hairline border, rounded, flat (no shadow) - like at.govt.nz. */
+/* AT card: white, hairline border, square, flat (no shadow). */
 .at-card {
   @apply border border-at-border bg-at-surface;
 }
@@ -188,7 +279,7 @@
 /* Opens a section. The 2px ink rule is the heaviest mark on a page, so nothing
    else should use it: it is what tells a reader a new band has started. */
 .at-band {
-  @apply border-t-2 border-at-ink pt-4;
+  @apply border-t-2 border-at-ink pt-3;
 }
 
 /* The small caps label naming a figure, a section or a card's role. */
@@ -269,7 +360,7 @@
 .leaflet-tooltip.bus-delay-label {
   background: var(--color-at-surface);
   border: 1px solid var(--color-at-border);
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: none;
   padding: 1px 4px;
   font-size: 12px;
@@ -297,20 +388,29 @@
 }
 
 /*
-  Reduced motion: the chip and button hover transitions become instant, and the
-  stepper pulse becomes a still dim, since a waiting click still needs
-  acknowledging.
+  A focused control stops easing. `transition-colors` and `transition` both
+  cover `outline-color`, which would fade the focus ring up over 150ms from the
+  control's own text colour - white on an active chip, against a light page. A
+  ring has to be there the moment focus lands, so every transition on a focused
+  element is instant. Unlayered, so it beats any duration utility.
+*/
+:focus-visible {
+  transition-duration: 0s;
+}
+
+/*
+  Reduced motion: every transition is instant, site-wide, so no hover, chevron or
+  gliding vehicle eases. The stepper pulse becomes a still dim, since a waiting
+  click still needs acknowledging.
 */
 @media (prefers-reduced-motion: reduce) {
-  .chip,
-  .at-btn {
-    transition: none;
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
   }
   .step-pending {
     animation: none;
     opacity: 0.4;
-  }
-  .vehicle-gliding {
-    transition: none;
   }
 }

@@ -4,6 +4,9 @@
 // on a track beside it. Pure and client-safe, with plain JSON out (no Map or Set), since the diagram
 // is partly a client component. The line's geometry is built here too, once: every piece is drawn
 // exactly once, carries the versions that run along it, and meets its neighbours exactly.
+import { pushTo } from "@/lib/collections";
+import { metresBetween } from "@/lib/geo/distance";
+import { roundTenth } from "@/lib/stats";
 import type { StripBypass, StripMarks, StripSpan } from "@/lib/strip/marks";
 import type { StopFigure, StopFigures, VersionVariant } from "@/lib/strip/stop-split";
 import type { RouteVariant } from "@/types/api";
@@ -28,8 +31,6 @@ export const MINOR_SHARE = 0.05;
 const SAME_STOP_M = 400;
 /** How much two groups' stop names must overlap (Jaccard) to pair them as one version's two ways. */
 const PAIR_OVERLAP = 0.5;
-/** Metres per degree of latitude (close enough anywhere at city scale). */
-const M_PER_DEG = 111_320;
 
 /** Which way a direction reads on the strip: down the page (the first figure column) or up it. */
 export type StripSide = "down" | "up";
@@ -252,17 +253,6 @@ interface Track {
 }
 
 /**
- * Metres between two points, on a flat projection around the first (ample at city scale).
- * @param a - `[lat, lon]`.
- * @param b - `[lat, lon]`.
- * @returns The distance in metres.
- */
-function metresBetween(a: readonly [number, number], b: readonly [number, number]): number {
-  const cosLat = Math.cos((a[0] * Math.PI) / 180);
-  return Math.hypot((b[0] - a[0]) * M_PER_DEG, (b[1] - a[1]) * M_PER_DEG * cosLat);
-}
-
-/**
  * A stop name as compared: case and spacing ignored.
  * @param name - The name.
  * @returns The comparable form.
@@ -335,7 +325,8 @@ function buildNodes(
       if (nodeOf.has(id)) continue;
       const name = input.names.get(id) ?? id;
       const here = input.coords.get(id);
-      const same = byName.get(normName(name)) ?? [];
+      const key = normName(name);
+      const same = byName.get(key) ?? [];
       const hit = same.find((n) =>
         n.stopIds.some((o) => {
           const there = input.coords.get(o);
@@ -350,7 +341,7 @@ function buildNodes(
       const node: StopNode = { key: id, stopIds: [id], name, repeats: null };
       nodes.set(id, node);
       nodeOf.set(id, id);
-      byName.set(normName(name), [...same, node]);
+      pushTo(byName, key, node);
     }
   }
   return { nodeOf, nodes };
@@ -770,7 +761,7 @@ function assignLanes(
   const claim = (min: number, lo: number, hi: number): number => {
     let lane = Math.max(1, min);
     while (!free(lane, lo, hi)) lane++;
-    occupied.set(lane, [...(occupied.get(lane) ?? []), [lo, hi]]);
+    pushTo(occupied, lane, [lo, hi]);
     return lane;
   };
 
@@ -805,7 +796,7 @@ function assignLanes(
       track = attach;
       if (run.kind === "head") track.top = run.keys[0]!;
       else track.bottom = run.keys.at(-1)!;
-      if (track.lane > 0) occupied.set(track.lane, [...(occupied.get(track.lane) ?? []), [lo, hi]]);
+      if (track.lane > 0) pushTo(occupied, track.lane, [lo, hi]);
     } else {
       track = { lane: claim(1, lo, hi), top: run.keys[0]!, bottom: run.keys.at(-1)! };
     }
@@ -919,7 +910,7 @@ function unionSegments(
     // Every straight segment runs downward: y1 < y2.
     const down = s.y1 < s.y2 ? s : { ...s, x1: s.x2, y1: s.y2, x2: s.x1, y2: s.y1 };
     const key = `${down.mark ?? ""}:${lineKey(down)}`;
-    lines.set(key, [...(lines.get(key) ?? []), down]);
+    pushTo(lines, key, down);
   }
 
   const out: StripSegment[] = [...arcs.values()];
@@ -1528,7 +1519,7 @@ function chainPieces(segs: readonly StripSegment[]): StripPiece[] {
   segs.forEach((_, i) => {
     for (const end of [0, 1] as const) {
       const k = pointKey(...at(i, end));
-      ends.set(k, [...(ends.get(k) ?? []), { seg: i, end }]);
+      pushTo(ends, k, { seg: i, end });
     }
   });
   /**
@@ -1738,7 +1729,7 @@ export function rowFigure(
   if (events === 0) return null;
   return {
     events,
-    avg_delay_sec: Math.round((dev / events) * 10) / 10,
-    on_time_pct: Math.round((onTime / events) * 10) / 10,
+    avg_delay_sec: roundTenth(dev / events),
+    on_time_pct: roundTenth(onTime / events),
   };
 }

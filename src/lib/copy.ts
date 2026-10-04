@@ -1,6 +1,7 @@
 // src/lib/copy.ts
 // Strings that appear on more than one surface. A name or a caveat with several
 // copies drifts, and the drift reaches a reader before it reaches a reviewer.
+// Glossary: one scheduled journey is a "trip" in all user copy, never a "run" or a "service".
 
 import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
 
@@ -14,6 +15,10 @@ import { ON_TIME_LATE_SEC, earlyToleranceFor } from "@/lib/on-time";
  */
 export const SITE_NAME = "AT Route Performance";
 
+/** The site's one-line description: the layout's default and the home page's tab and card. */
+export const SITE_DESCRIPTION =
+  "How close Auckland's buses, trains and ferries run to their timetable, measured every day.";
+
 /**
  * Who chose the on-time window, for every surface that states its bounds.
  *
@@ -26,6 +31,18 @@ export const SITE_NAME = "AT Route Performance";
 export const ON_TIME_WINDOW_NOTE = "That window is this site's choice, not AT's.";
 
 /**
+ * The on-time window's edges in whole minutes.
+ * @param mode - The mode whose window applies; omitted, the bus and train window.
+ * @returns How early and how late a run can be and still count as on time.
+ */
+export function onTimeWindowMinutes(mode?: string): { early: number; late: number } {
+  return {
+    early: Math.round(earlyToleranceFor(mode ?? "") / 60),
+    late: Math.round(ON_TIME_LATE_SEC / 60),
+  };
+}
+
+/**
  * The on-time window as words.
  * @param mode - The mode whose window applies. Omit it on a surface that mixes
  *   modes: it then takes the bus and train window, which is the tighter one.
@@ -33,11 +50,8 @@ export const ON_TIME_WINDOW_NOTE = "That window is this site's choice, not AT's.
  *   window is symmetric.
  */
 export function onTimeWindowPhrase(mode?: string): string {
-  const earlyMin = Math.round(earlyToleranceFor(mode ?? "") / 60);
-  const lateMin = Math.round(ON_TIME_LATE_SEC / 60);
-  return earlyMin === lateMin
-    ? `${lateMin} min either way`
-    : `${earlyMin} min early to ${lateMin} min late`;
+  const { early, late } = onTimeWindowMinutes(mode);
+  return early === late ? `${late} min either way` : `${early} min early to ${late} min late`;
 }
 
 /**
@@ -72,7 +86,7 @@ export const ON_TIME_SHARE_CAPTION = "Share of arrivals inside the on-time windo
  * where a description is also the share card's subtitle and a search snippet.
  */
 export const MEASURED_AGAINST =
-  "against Auckland Transport's published schedule, on this site's own on-time window.";
+  "against AT's published schedule, on this site's own on-time window.";
 
 /**
  * What a "day" means on every page that shows one.
@@ -85,4 +99,4 @@ export const MEASURED_AGAINST =
  * who does hover.
  */
 export const SERVICE_DAY_NOTE =
-  "A service day runs 4am to 4am, so a run after midnight counts toward the day before.";
+  "A service day runs 4am to 4am, so a trip after midnight counts towards the day before.";

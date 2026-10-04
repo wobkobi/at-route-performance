@@ -343,9 +343,9 @@ describe("gtfsServiceSeconds", () => {
 });
 
 describe("serviceDayWindowText and afterMidnightNote", () => {
-  it("says the 4am-to-4am window and the day a late run counts toward", () => {
+  it("says the 4am-to-4am window and the day a late trip counts towards", () => {
     expect(serviceDayWindowText("2026-09-22")).toBe(
-      "Tue 22 Sep runs from 4am to 4am Wed 23 Sep, so a run after midnight still counts toward it.",
+      "Tue 22 Sep runs from 4am to 4am Wed 23 Sep, so a trip after midnight still counts towards it.",
     );
     expect(afterMidnightNote("2026-09-22")).toBe("After midnight, still counted in Tue 22 Sep");
   });

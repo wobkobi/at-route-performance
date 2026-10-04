@@ -3,10 +3,64 @@
 
 // From the leaf rather than time/service-day.ts, which imports this module.
 import { delayBand, type DelayBand, isConsistentlyLateOrEarly, isOnTime } from "@/lib/on-time";
-import { NZ_TZ } from "@/lib/time/nz-tz";
 
 /** What an unknown or unrenderable number reads as, matching the tables' placeholder. */
 export const UNKNOWN_VALUE = "\u2014";
+
+/** Built once: an `Intl` formatter costs far more to make than to call. */
+const COUNT_FORMAT = new Intl.NumberFormat("en-NZ", { maximumFractionDigits: 0 });
+
+/**
+ * A count as the site prints it, grouped the NZ way ("12,345").
+ * @param n - The count.
+ * @returns The grouped figure.
+ */
+export function formatCount(n: number): string {
+  return COUNT_FORMAT.format(n);
+}
+
+/**
+ * The noun alone for a count, singular only for exactly one, for a line whose
+ * count is printed somewhere else (a card's hero figure).
+ * @param n - The count.
+ * @param one - The singular noun.
+ * @param many - The plural, when it is not the singular plus "s".
+ * @returns The noun.
+ */
+export function pluralNoun(n: number, one: string, many = `${one}s`): string {
+  return n === 1 ? one : many;
+}
+
+/**
+ * A count with its noun, singular only for exactly one ("1 trip", "12,345 arrivals").
+ * @param n - The count.
+ * @param one - The singular noun.
+ * @param many - The plural, when it is not the singular plus "s".
+ * @returns The count and noun.
+ */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${formatCount(n)} ${pluralNoun(n, one, many)}`;
+}
+
+/**
+ * A percentage to one decimal place ("85.0%"), the one precision every share on
+ * the site is shown at so two figures side by side always compare.
+ * @param pct - The percentage (0-100), or null when it cannot be told.
+ * @returns The text, or {@link UNKNOWN_VALUE}.
+ */
+export function formatPct(pct: number | null | undefined): string {
+  return pct == null || !Number.isFinite(pct) ? UNKNOWN_VALUE : `${pct.toFixed(1)}%`;
+}
+
+/**
+ * A percentage clamped to a bar's track, for a CSS width or height.
+ * @param pct - The percentage, or null (drawn empty).
+ * @param floor - The least it draws at, so a sliver stays visible.
+ * @returns A number from `floor` to 100.
+ */
+export function barPct(pct: number | null | undefined, floor = 0): number {
+  return Math.min(100, Math.max(floor, pct ?? 0));
+}
 
 /** Options for {@link formatDelay}. */
 export interface FormatDelayOptions {
@@ -22,6 +76,12 @@ export interface FormatDelayOptions {
 /**
  * Render a signed schedule deviation as a human string with no decimals.
  * Negative is early, positive is late; zero components are dropped.
+ *
+ * The site-wide rule: a single trip's verdict at one stop (the trip line, a
+ * live vehicle) passes `mode`, so inside the mode's on-time window it reads "on
+ * time". An average passes `thresholdSec: 0` and always names its distance
+ * ("2m late"), coloured by the band it falls in, since "on time" over a mean of
+ * late and early arrivals would hide how far off they were.
  * @param sec - Signed deviation in seconds (negative early, positive late).
  * @param options - On-time rule: a `mode` (asymmetric on-time window) or a
  *   symmetric `thresholdSec`; below it the value reads "on time".
@@ -84,7 +144,7 @@ export function formatHours(sec: number): string {
  * pin would give it, plus the two states a single deviation cannot be in - a
  * mixed average, and no figure at all.
  */
-export type OffScheduleTone = DelayBand | "mixed" | "unknown";
+export type OffScheduleTone = DelayBand | "mixed" | "none";
 
 /** Text colour for each {@link OffScheduleTone}; a mixed row stays neutral ink. */
 export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
@@ -92,7 +152,7 @@ export const OFF_SCHEDULE_TONE_CLASS: Record<OffScheduleTone, string> = {
   early: "text-at-early-strong",
   late: "text-at-late",
   mixed: "text-at-ink",
-  unknown: "text-at-muted",
+  none: "text-at-muted",
 };
 
 /**
@@ -107,7 +167,7 @@ export const OFF_SCHEDULE_BAR_CLASS: Record<OffScheduleTone, string> = {
   early: "bg-at-early",
   late: "bg-at-late",
   mixed: "bg-at-ink",
-  unknown: "bg-at-border",
+  none: "bg-at-border",
 };
 
 /**
@@ -128,7 +188,7 @@ export function offScheduleValue(
   absSec: number | null,
   mode: string,
 ): { text: string; tone: OffScheduleTone } {
-  if (signedSec == null && absSec == null) return { text: UNKNOWN_VALUE, tone: "unknown" };
+  if (signedSec == null && absSec == null) return { text: UNKNOWN_VALUE, tone: "none" };
   const signed = signedSec ?? 0;
   const abs = absSec ?? Math.abs(signed);
   if (!isConsistentlyLateOrEarly(signed, abs)) {
@@ -144,45 +204,36 @@ export function offScheduleValue(
 }
 
 /**
- * Auckland-local day/month and year parts of a UTC instant.
- * @param d - UTC instant.
- * @returns `{ dm: "DD/MM", y: "YYYY" }`.
+ * A column heading as it reads mid-sentence: "To the start" > "to the start", "Clockwise" >
+ * "clockwise". Only the first letter changes, so a stop's name keeps its capitals.
+ * @param heading - The heading.
+ * @returns It with a lower-case first letter.
  */
-export function dmY(d: Date): { dm: string; y: string } {
-  const o: Record<string, string> = {};
-  for (const part of new Intl.DateTimeFormat("en-NZ", {
-    timeZone: NZ_TZ,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(d)) {
-    o[part.type] = part.value;
-  }
-  const { day, month, year } = o;
-  // Every requested part is always emitted; fail loudly rather than render "undefined".
-  if (day === undefined || month === undefined || year === undefined) {
-    throw new Error("Intl.DateTimeFormat omitted a requested day/month/year part");
-  }
-  return { dm: `${day}/${month}`, y: year };
+export function midSentence(heading: string): string {
+  return heading.charAt(0).toLowerCase() + heading.slice(1);
 }
 
 /**
- * Format a GTFS departure time string ("HH:MM:SS") as a short 12-hour clock
- * string. Handles GTFS extended times where hours >= 24 represent post-midnight
- * trips on the following calendar day (e.g. "25:30:00" displays as "1:30 am").
- * Spaced like the en-NZ clock times elsewhere on the site.
- * @param hms - GTFS time string or null.
- * @returns Formatted time like "9:05 am" / "1:30 am", or null when input is null.
+ * A phrase as it reads at the start of a line: "to Britomart" > "To Britomart".
+ * Only the first letter changes, the reverse of {@link midSentence}.
+ * @param phrase - The phrase.
+ * @returns It with an upper-case first letter.
  */
-export function formatGtfsTime(hms: string | null): string | null {
-  if (!hms) return null;
-  const [h, m] = hms.split(":");
-  if (h === undefined || m === undefined) return null;
-  let hours = parseInt(h, 10);
-  const mins = parseInt(m, 10);
-  if (isNaN(hours) || isNaN(mins)) return null;
-  // GTFS extended time: hours >= 24 wrap to the next calendar day.
-  const suffix = hours % 24 < 12 ? "am" : "pm";
-  hours = (hours % 24) % 12 || 12;
-  return `${hours}:${String(mins).padStart(2, "0")} ${suffix}`;
+export function sentenceStart(phrase: string): string {
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+}
+
+/**
+ * Fold text for search: lower case, macrons and other accents off, spaces and
+ * hyphens gone, so "city link" finds "CityLink", "tamaki" finds "TāmakiLink" and
+ * "sc" finds "S-C".
+ * @param s - The text.
+ * @returns The folded text.
+ */
+export function searchFold(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "");
 }

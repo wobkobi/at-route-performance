@@ -2,19 +2,22 @@
 // How many distinct buses, trains and ferries ran the ranked routes, over a
 // window and since the archive began.
 import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
+import { aggregateRows } from "@/lib/data/raw";
+import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
-import { prisma, runCommand } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import {
   type DateRange,
+  NZ_TZ,
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
-  shiftWeek,
+  shiftDays,
 } from "@/lib/time/service-day";
+import { type HourRange, hourRangeParam, hoursInRange } from "@/lib/time/time-of-day";
 import {
   type VehicleCounts,
   type VehicleRouteRow,
@@ -22,10 +25,7 @@ import {
   countVehicles,
   mergeVehicles,
   vehiclesByMode,
-} from "@/lib/vehicle-counts";
-
-/** A completed day's union only changes when a new day completes. */
-const COMPLETED_DAYS_REVALIDATE = 86_400;
+} from "@/lib/vehicle/counts";
 
 /**
  * One service day's distinct vehicles per mode, cached per day so a week, a
@@ -36,12 +36,14 @@ const COMPLETED_DAYS_REVALIDATE = 86_400;
  * @param filter.mode - Restrict to this mode; null for every mode.
  * @param filter.schools - Which school services count (default leave them out).
  * @param revalidate - TTL for the live day, in seconds.
+ * @param hours - Count only vehicles on runs due in this part of the day, or null for all of it.
  * @returns The day's vehicle ids per mode.
  */
 function cachedVehiclesOfDay(
   date: string,
   { mode = null, schools = "exclude" }: ShameFilter,
   revalidate: number,
+  hours: HourRange | null = null,
 ): Promise<VehiclesByMode> {
   return cachedForDay(
     async (classified) => {
@@ -54,23 +56,31 @@ function cachedVehiclesOfDay(
         vehicleId: { $regex: "^[0-9]+$" },
       };
       if (routeIds) match.routeId = { $in: routeIds };
+      // As on the route page's hours: an $expr sees only the rows the scheduledAt
+      // bounds let through, so it adds a comparison per row and no scan.
+      if (hours) {
+        match.$expr = {
+          $in: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, hoursInRange(hours)],
+        };
+      }
       const [res, modeOf] = await Promise.all([
-        runCommand(() =>
-          prisma.$runCommandRaw({
-            aggregate: "ArrivalEvent",
-            pipeline: [
-              { $match: match },
-              { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
-              { $project: { _id: 0, v: "$_id", r: 1 } },
-            ] as never,
-            cursor: { batchSize: 100_000 },
-          }),
-        ) as unknown as Promise<{ cursor: { firstBatch: VehicleRouteRow[] } }>,
+        aggregateRows<VehicleRouteRow>("ArrivalEvent", [
+          { $match: match },
+          { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
+          { $project: { _id: 0, v: "$_id", r: 1 } },
+        ]),
         getRouteModeMap(),
       ]);
-      return vehiclesByMode(res.cursor.firstBatch, modeOf);
+      return vehiclesByMode(res, modeOf);
     },
-    ["vehicles-of-day", date, mode ?? "all", schools],
+    // The hours go last and only when set, so the whole-day entries keep their keys.
+    [
+      "vehicles-of-day",
+      date,
+      mode ?? "all",
+      schools,
+      ...(hours ? [hourRangeParam(hours) ?? ""] : []),
+    ],
     date,
     revalidate,
   );
@@ -83,18 +93,20 @@ function cachedVehiclesOfDay(
  * @param range - The window: one service day, a week or a month.
  * @param filter - Mode/school filters.
  * @param revalidate - TTL for the live day, in seconds.
+ * @param hours - Part of the day to count, or null for all of it.
  * @returns Distinct vehicles per mode.
  */
 export async function getVehicleCounts(
   range: DateRange,
   filter: ShameFilter,
   revalidate: number,
+  hours: HourRange | null = null,
 ): Promise<VehicleCounts> {
   const today = nzServiceDayString();
   // Days after today have no arrivals yet.
   const days = serviceDatesInRange(range).filter((d) => d <= today);
   return countVehicles(
-    await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate))),
+    await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate, hours))),
   );
 }
 
@@ -105,28 +117,36 @@ export async function getVehicleCounts(
  * day instead of one cached entry per day on record.
  * @param filter - Mode/school filters.
  * @param revalidate - TTL for today, in seconds.
+ * @param hours - Part of the day to count on every day, or null for all of it.
  * @returns Distinct vehicles per mode.
  */
 export async function getVehicleCountsAllTime(
   filter: ShameFilter,
   revalidate: number,
+  hours: HourRange | null = null,
 ): Promise<VehicleCounts> {
   const today = nzServiceDayString();
   const { mode = null, schools = "exclude" } = filter;
   const before = unstable_cache(
     async () => {
       const days: string[] = [];
-      for (let d = DATA_START_DAY; d < today; d = shiftWeek(d, 1)) days.push(d);
+      for (let d = DATA_START_DAY; d < today; d = shiftDays(d, 1)) days.push(d);
       return mergeVehicles(
-        await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate))),
+        await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate, hours))),
       );
     },
-    ["vehicles-before", today, mode ?? "all", schools],
-    { revalidate: COMPLETED_DAYS_REVALIDATE },
+    [
+      "vehicles-before",
+      today,
+      mode ?? "all",
+      schools,
+      ...(hours ? [hourRangeParam(hours) ?? ""] : []),
+    ],
+    { revalidate: DAY_REVALIDATE },
   )();
   const [past, current] = await Promise.all([
     before,
-    cachedVehiclesOfDay(today, filter, revalidate),
+    cachedVehiclesOfDay(today, filter, revalidate, hours),
   ]);
   return countVehicles([past, current]);
 }
