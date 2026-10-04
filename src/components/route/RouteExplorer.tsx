@@ -1,44 +1,45 @@
 "use client";
 // src/components/route/RouteExplorer.tsx
-// The Routes page body: filter and sort controls (with presets for the home
-// page's Most off-schedule and Most reliable boards in full), the KPI strip for
-// exactly the routes that pass the filters, and the route list with a "More
-// details" link per route, ranked when sorted by a measure. Filtering runs on
-// the client (a few hundred rows), so a change is instant; the state is written
-// back to the query string with useUrlParams, so the view survives a reload and
-// can be shared without a navigation.
+// The Routes page body: the KPI strip for exactly the routes that pass the
+// filters, the search and filter menus (behind a Filters button on a phone),
+// and a table of routes sorted by its column headings, with the routes too thin
+// to rank on a measure listed last. Filtering runs on the client (a few hundred rows), so a change is
+// instant; the state is written back to the query string with useUrlParams, so
+// the view survives a reload and can be shared without a navigation.
 
-import { ChipToggle } from "@/components/Chip";
 import { DELAY_OPTIONS } from "@/components/filter/DelayFilter";
 import { choiceSummary, FilterMenu, FilterOption } from "@/components/filter/FilterMenu";
 import { MODE_OPTIONS } from "@/components/filter/ModeFilter";
 import { RadioFilter } from "@/components/filter/RadioFilter";
-import { ChevronRight, SortArrow } from "@/components/icons";
+import { ChevronDown, ChevronRight } from "@/components/icons";
 import { ModeIcon } from "@/components/ModeIcon";
 import { FleetSummary } from "@/components/ranking/FleetSummary";
+import { SortHeader } from "@/components/SortHeader";
+import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Figure } from "@/components/ui/FigureStrip";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
 import { Panel } from "@/components/ui/Panel";
 import { ShowMore } from "@/components/ui/ShowMore";
+import { cn } from "@/lib/cn";
 import { labelsOf } from "@/lib/collections";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import { AREA_LABEL, AREAS, type AreaKey } from "@/lib/geo/areas";
 import { FARE_ZONES, type FareZoneKey } from "@/lib/geo/fare-zones";
 import { LIST_PAGE_SIZE, SHOWN_PARAM } from "@/lib/page/filter-params";
 import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
+import { ROUTE_NAME_CLASS } from "@/lib/page/row";
+import { flipDir, type SortDir } from "@/lib/page/table-sort";
 import { useUrlParams } from "@/lib/page/use-url-param";
 import { summariseRows } from "@/lib/rankings";
 import {
-  activeView,
   DEFAULT_FILTERS,
   defaultDir,
   EXPLORER_PARAMS,
-  EXPLORER_SORTS,
-  EXPLORER_VIEWS,
   explorerQuery,
   filterRoutes,
+  minEventsFor,
   sortRoutes,
+  unranked,
   type ExplorerFilters,
   type ExplorerRoute,
   type ExplorerSort,
@@ -46,7 +47,7 @@ import {
 import { routeDisplayName, routeSubtitle } from "@/lib/route/slug";
 import { SCHOOL_FILTERS, schoolFilterSummary } from "@/lib/school-bus";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState, type JSX, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type JSX } from "react";
 
 /** The params the explorer's client state writes: its filters and the row count. */
 const OWNED_PARAMS = [...EXPLORER_PARAMS, SHOWN_PARAM];
@@ -77,29 +78,34 @@ const TOGGLES = [
   ["runningNow", "Running now"],
 ] as const;
 
+/** Padding for the figure columns a phone shows: narrower sides there, so Route keeps its room. */
+const PHONE_FIGURE = "px-2 py-3 sm:px-3";
+
+/** Columns in the table, the chevron's included, for the not-ranked divider's span. */
+const COLUMNS = 7;
+
 /**
- * A labelled row of filter chips.
- * @param props - Component props.
- * @param props.label - The row label.
- * @param props.children - The chips.
- * @returns The row.
+ * How many filters are set, for the phone's Filters button. Each menu counts
+ * once however many of its boxes are ticked; search and sort are not filters.
+ * @param f - The filters.
+ * @returns The count.
  */
-function FilterRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-      <span id={id} className="at-eyebrow w-20 shrink-0 text-at-muted">
-        {label}
-      </span>
-      <div role="group" aria-labelledby={id} className="flex flex-wrap gap-2">
-        {children}
-      </div>
-    </div>
-  );
+function activeFilterCount(f: ExplorerFilters): number {
+  return [
+    f.mode,
+    f.areas.length > 0,
+    f.zones.length > 0,
+    f.op,
+    f.school !== DEFAULT_FILTERS.school,
+    f.direction,
+    f.enoughData,
+    f.cancelledOnly,
+    f.runningNow,
+  ].filter(Boolean).length;
 }
 
 /**
- * Filterable, sortable list of routes with a KPI strip over the matching ones.
+ * Filterable, sortable table of routes with a KPI strip over the matching ones.
  * @param props - Component props.
  * @param props.rows - Every route with arrivals in the window.
  * @param props.operators - The stored operators' slugs and names.
@@ -119,6 +125,9 @@ export function RouteExplorer({
 }: RouteExplorerProps): JSX.Element {
   const [filters, setFilters] = useState<ExplorerFilters>(initialFilters);
   const [shown, setShown] = useState(initialShown);
+  // The filter menus on a phone, folded behind one button; always shown from sm.
+  const [menusOpen, setMenusOpen] = useState(false);
+  const menusId = useId();
   // undefined while the feed is answering, null when it could not be read.
   const [runningSet, setRunningSet] = useState<ReadonlySet<string> | null | undefined>(undefined);
   useEffect(() => {
@@ -136,13 +145,14 @@ export function RouteExplorer({
     };
   }, [running]);
 
+  const minEvents = minEventsFor(filters.mode);
   const matching = useMemo(
     () => filterRoutes(rows, filters, runningSet ?? null),
     [rows, filters, runningSet],
   );
   const sorted = useMemo(
-    () => sortRoutes(matching, filters.sort, filters.dir),
-    [matching, filters.sort, filters.dir],
+    () => sortRoutes(matching, filters.sort, filters.dir, minEvents),
+    [matching, filters.sort, filters.dir, minEvents],
   );
   const hero = useMemo(
     () => ({
@@ -169,6 +179,22 @@ export function RouteExplorer({
     setFilters((f) => ({ ...f, ...patch }));
     setShown(LIST_PAGE_SIZE);
   };
+
+  /**
+   * Sort by a column: the sorted column flips, any other opens on its telling end.
+   * @param sort - The column's sort.
+   */
+  const sortBy = (sort: ExplorerSort): void => {
+    update(filters.sort === sort ? { dir: flipDir(filters.dir) } : { sort, dir: defaultDir(sort) });
+  };
+
+  /**
+   * A column heading's direction arrow.
+   * @param sort - The column's sort.
+   * @returns The direction when the table is sorted by it, else null.
+   */
+  const dirOf = (sort: ExplorerSort): SortDir | null =>
+    filters.sort === sort ? filters.dir : null;
 
   /**
    * Add or remove an area from the area filter.
@@ -209,123 +235,140 @@ export function RouteExplorer({
   );
 
   const isDefault = Object.keys(explorerQuery(filters)).length === 0;
-  const view = activeView(filters);
-  // Sorted by a measure, the list is a ranking, so each route shows its place.
-  const ranked = filters.sort !== "route";
+  const setCount = activeFilterCount(filters);
   // The count is out of the routes the school-bus choice leaves, so the default
   // view (school services hidden) reads as every route rather than a filtered few.
   const baseCount = useMemo(
     () => filterRoutes(rows, { ...DEFAULT_FILTERS, school: filters.school }).length,
     [rows, filters.school],
   );
+  const page = sorted.slice(0, shown);
+  // Where the routes too thin to rank begin, so a divider can say why they sit last.
+  const firstUnranked = page.findIndex((r) => unranked(r, filters.sort, minEvents));
 
   return (
     <div className="space-y-6">
       <FleetSummary data={hero} />
 
-      <Panel aria-label="Filter and sort routes" pad="sm" className="space-y-3">
-        <input
-          type="search"
-          value={filters.q}
-          onChange={(e) => update({ q: e.target.value })}
-          placeholder="Search by route number or name"
-          aria-label="Search routes"
-          className="at-field w-full"
-        />
-        <FilterRow label="Show">
-          {EXPLORER_VIEWS.map((v) => (
-            <ChipToggle key={v.key} on={view === v.key} onClick={() => update(v.filters)}>
-              {v.label}
-            </ChipToggle>
-          ))}
-        </FilterRow>
-        <FilterRow label="Filter">
-          <RadioFilter
-            label="Mode"
-            options={MODE_OPTIONS}
-            value={filters.mode}
-            defaultKey={null}
-            onChange={(mode) => update({ mode })}
+      <Panel aria-label="Search and filter routes" pad="sm" className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={filters.q}
+            onChange={(e) => update({ q: e.target.value })}
+            placeholder="Search routes"
+            aria-label="Search routes"
+            className="at-field min-w-0 flex-1 sm:w-72 sm:flex-none"
           />
-          <FilterMenu
-            label="Area"
-            summary={choiceSummary(labelsOf(AREAS, filters.areas))}
-            onReset={() => update({ areas: [] })}
-          >
-            {AREAS.map((a) => (
-              <FilterOption
-                key={a.key}
-                type="checkbox"
-                checked={filters.areas.includes(a.key)}
-                onChange={() => toggleArea(a.key)}
-              >
-                {a.label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
-          <FilterMenu
-            label="Fare zone"
-            summary={choiceSummary(labelsOf(FARE_ZONES, filters.zones))}
-            onReset={() => update({ zones: [] })}
-          >
-            {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
-              <FilterOption
-                key={z.key}
-                type="checkbox"
-                checked={filters.zones.includes(z.key)}
-                onChange={() => toggleZone(z.key)}
-              >
-                {z.label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
-          {operatorOptions.length > 1 && (
-            <RadioFilter
-              label="Operator"
-              options={[
-                { key: null, label: "Any operator" },
-                ...operatorOptions.map((o) => ({ key: o.slug, label: o.name })),
-              ]}
-              value={filters.op}
-              defaultKey={null}
-              onChange={(op) => update({ op })}
-              summary={(op) => operatorOptions.find((o) => o.slug === op)?.name ?? op}
-            />
-          )}
-          <RadioFilter
-            label="School buses"
-            options={SCHOOL_FILTERS}
-            value={filters.school}
-            defaultKey="exclude"
-            onChange={(school) => update({ school })}
-            summary={schoolFilterSummary}
-          />
-          <RadioFilter
-            label="Running"
-            options={DELAY_OPTIONS}
-            value={filters.direction}
-            defaultKey={null}
-            onChange={(direction) => update({ direction })}
-          />
-          <FilterMenu
-            label="More"
-            summary={choiceSummary(
-              TOGGLES.filter(([key]) => filters[key]).map(([, label]) => label),
+          {/* Wrapped, since .chip's display sits outside Tailwind's layers and beats sm:hidden. */}
+          <div className="sm:hidden">
+            <button
+              type="button"
+              onClick={() => setMenusOpen((o) => !o)}
+              aria-expanded={menusOpen}
+              aria-controls={menusId}
+              className={cn("chip gap-1.5", setCount > 0 ? "chip-on" : "chip-off")}
+            >
+              Filters{setCount > 0 && ` (${setCount})`}
+              <ChevronDown className={cn("h-4 w-4", menusOpen && "rotate-180")} />
+            </button>
+          </div>
+          <div
+            id={menusId}
+            role="group"
+            aria-label="Filters"
+            className={cn(
+              "w-full flex-wrap gap-2 sm:flex sm:w-auto",
+              menusOpen ? "flex" : "hidden",
             )}
-            onReset={() => update({ enoughData: false, cancelledOnly: false, runningNow: false })}
           >
-            {TOGGLES.map(([key, label]) => (
-              <FilterOption
-                key={key}
-                type="checkbox"
-                checked={filters[key]}
-                onChange={() => update({ [key]: !filters[key] })}
-              >
-                {label}
-              </FilterOption>
-            ))}
-          </FilterMenu>
-        </FilterRow>
+            <RadioFilter
+              label="Mode"
+              options={MODE_OPTIONS}
+              value={filters.mode}
+              defaultKey={null}
+              onChange={(mode) => update({ mode })}
+            />
+            <FilterMenu
+              label="Area"
+              summary={choiceSummary(labelsOf(AREAS, filters.areas))}
+              onReset={() => update({ areas: [] })}
+            >
+              {AREAS.map((a) => (
+                <FilterOption
+                  key={a.key}
+                  type="checkbox"
+                  checked={filters.areas.includes(a.key)}
+                  onChange={() => toggleArea(a.key)}
+                >
+                  {a.label}
+                </FilterOption>
+              ))}
+            </FilterMenu>
+            <FilterMenu
+              label="Fare zone"
+              summary={choiceSummary(labelsOf(FARE_ZONES, filters.zones))}
+              onReset={() => update({ zones: [] })}
+            >
+              {FARE_ZONES.filter((z) => servedZones.has(z.key)).map((z) => (
+                <FilterOption
+                  key={z.key}
+                  type="checkbox"
+                  checked={filters.zones.includes(z.key)}
+                  onChange={() => toggleZone(z.key)}
+                >
+                  {z.label}
+                </FilterOption>
+              ))}
+            </FilterMenu>
+            {operatorOptions.length > 1 && (
+              <RadioFilter
+                label="Operator"
+                options={[
+                  { key: null, label: "Any operator" },
+                  ...operatorOptions.map((o) => ({ key: o.slug, label: o.name })),
+                ]}
+                value={filters.op}
+                defaultKey={null}
+                onChange={(op) => update({ op })}
+                summary={(op) => operatorOptions.find((o) => o.slug === op)?.name ?? op}
+              />
+            )}
+            <RadioFilter
+              label="School buses"
+              options={SCHOOL_FILTERS}
+              value={filters.school}
+              defaultKey="exclude"
+              onChange={(school) => update({ school })}
+              summary={schoolFilterSummary}
+            />
+            <RadioFilter
+              label="Running"
+              options={DELAY_OPTIONS}
+              value={filters.direction}
+              defaultKey={null}
+              onChange={(direction) => update({ direction })}
+            />
+            <FilterMenu
+              label="More"
+              summary={choiceSummary(
+                TOGGLES.filter(([key]) => filters[key]).map(([, label]) => label),
+              )}
+              onReset={() => update({ enoughData: false, cancelledOnly: false, runningNow: false })}
+            >
+              {TOGGLES.map(([key, label]) => (
+                <FilterOption
+                  key={key}
+                  type="checkbox"
+                  checked={filters[key]}
+                  onChange={() => update({ [key]: !filters[key] })}
+                >
+                  {label}
+                </FilterOption>
+              ))}
+            </FilterMenu>
+          </div>
+        </div>
         {filters.runningNow && !runningSet && (
           <p role="status" className="text-xs text-at-muted">
             {runningSet === undefined
@@ -333,37 +376,11 @@ export function RouteExplorer({
               : "AT's live feed could not be read just now, so every route is listed."}
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2 border-t border-at-border pt-3">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="at-eyebrow text-at-muted">Sort by</span>
-            <select
-              value={filters.sort}
-              onChange={(e) => {
-                const sort = e.target.value as ExplorerSort;
-                update({ sort, dir: defaultDir(sort) });
-              }}
-              className="at-field"
-            >
-              {EXPLORER_SORTS.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => update({ dir: filters.dir === "asc" ? "desc" : "asc" })}
-            aria-label={filters.dir === "asc" ? "Sorted low to high" : "Sorted high to low"}
-            className="chip chip-off"
-          >
-            {filters.dir === "asc" ? "Low to high" : "High to low"}
-            <SortArrow dir={filters.dir} className="ml-1.5" />
-          </button>
-          <span role="status" className="ml-auto text-sm text-at-muted tabular-nums">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-t border-at-border pt-3">
+          <span role="status" className="text-sm text-at-muted tabular-nums">
             {sorted.length === baseCount
-              ? `${baseCount} routes`
-              : `${sorted.length} of ${baseCount} routes`}
+              ? `${formatCount(baseCount)} routes`
+              : `${formatCount(sorted.length)} of ${formatCount(baseCount)} routes`}
           </span>
           {!isDefault && (
             <button
@@ -384,100 +401,141 @@ export function RouteExplorer({
             : "No routes match these filters."}
         </EmptyState>
       ) : (
-        <ol className="space-y-2">
-          {sorted.slice(0, shown).map((r, i) => {
-            const label = routeDisplayName(r);
-            const subtitle = routeSubtitle(r);
-            // Always a distance, never the words "on time": this sits beside an
-            // on-time percentage, and a delay figure reading "on time" under an
-            // "Early or late" label read as the two figures disagreeing.
-            return (
-              <Panel
-                as="li"
-                key={r.slug}
-                pad="sm"
-                className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6"
+        // A fixed layout with set figure widths, so the columns hold still as the
+        // sort or the page of rows changes; Route takes what is left. Each width
+        // fits its heading with the sort arrow, the widest part of the column; a
+        // phone gets tighter padding so the route names keep their room.
+        <DataTable
+          caption="Routes, with their punctuality and cancellations in this window"
+          tableClassName="w-full table-fixed"
+        >
+          <thead>
+            <tr className="at-th-row">
+              <SortHeader onClick={() => sortBy("route")} dir={dirOf("route")} align="left">
+                Route
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("ontime")}
+                dir={dirOf("ontime")}
+                className={PHONE_FIGURE + " w-20 sm:w-24"}
               >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  {ranked && (
-                    <span className="mt-0.5 w-8 shrink-0 text-right text-lg leading-tight font-ultra tracking-zero text-at-muted tabular-nums">
-                      {i + 1}
-                    </span>
+                On time
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("off")}
+                dir={dirOf("off")}
+                className={PHONE_FIGURE + " w-26 sm:w-28"}
+              >
+                Avg off by
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("delay")}
+                dir={dirOf("delay")}
+                className="hidden w-36 sm:table-cell"
+              >
+                Early or late
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("arrivals")}
+                dir={dirOf("arrivals")}
+                className="hidden w-28 md:table-cell"
+              >
+                Arrivals
+              </SortHeader>
+              <SortHeader
+                onClick={() => sortBy("cancelled")}
+                dir={dirOf("cancelled")}
+                className="hidden w-28 md:table-cell"
+              >
+                Cancelled
+              </SortHeader>
+              <th scope="col" className="w-7 p-0">
+                <span className="sr-only">Open</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.map((r, i) => {
+              const thin = firstUnranked !== -1 && i >= firstUnranked;
+              // Bus long names are mostly the bare number, so the areas stand in
+              // as the second line where there is no name to show.
+              const second = routeSubtitle(r) ?? r.areas.map((a) => AREA_LABEL[a]).join(" · ");
+              return [
+                i === firstUnranked && (
+                  <tr key="unranked" className={cn(ROW_CLASS, "no-stripe")}>
+                    <td colSpan={COLUMNS} className="bg-at-bg px-3 py-2 text-xs text-at-muted">
+                      Not ranked: fewer than {formatCount(minEvents)} arrivals in this window
+                    </td>
+                  </tr>
+                ),
+                <tr
+                  key={r.slug}
+                  className={cn(
+                    ROW_CLASS,
+                    "group relative hover:bg-at-bg",
+                    thin && "text-at-muted",
                   )}
-                  <ModeIcon
-                    mode={r.mode}
-                    shortName={r.shortName}
-                    longName={r.longName}
-                    colour={r.colour}
-                    className="mt-0.5 h-6 w-6"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-lg leading-tight font-ultra tracking-zero">
-                      <Link
-                        href={routeHref(r.slug, routeParams)}
-                        prefetch={false}
-                        className="text-at-ink hover:text-at-shore hover:underline"
-                      >
-                        {label}
-                      </Link>
-                    </p>
-                    {subtitle && <p className="truncate text-sm text-at-muted">{subtitle}</p>}
-                    {r.areas.length > 0 && (
-                      <p className="mt-1 flex flex-wrap gap-1">
-                        {/* Each area narrows the list to it, as its chip in the Area filter does. */}
-                        {r.areas.map((a) => (
-                          <button
-                            key={a}
-                            type="button"
-                            onClick={() => {
-                              if (!filters.areas.includes(a)) toggleArea(a);
-                            }}
-                            aria-pressed={filters.areas.includes(a)}
-                            className="hit-44 bg-at-bg px-2 py-0.5 text-xs text-at-muted hover:text-at-shore hover:underline"
-                          >
-                            {AREA_LABEL[a]}
-                          </button>
-                        ))}
-                      </p>
+                >
+                  <th scope="row" className="p-3 text-left font-normal">
+                    <div className="flex items-start gap-2">
+                      <ModeIcon
+                        mode={r.mode}
+                        shortName={r.shortName}
+                        longName={r.longName}
+                        colour={r.colour}
+                        className="mt-px h-5 w-5 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        {/* The link covers the row, so the whole row opens the route. */}
+                        <Link
+                          href={routeHref(r.slug, routeParams)}
+                          prefetch={false}
+                          className={cn(ROUTE_NAME_CLASS, "after:absolute after:inset-0")}
+                        >
+                          {routeDisplayName(r)}
+                        </Link>
+                        {second && <p className="line-clamp-2 text-xs text-at-muted">{second}</p>}
+                      </div>
+                    </div>
+                  </th>
+                  <td
+                    className={cn(
+                      PHONE_FIGURE,
+                      "text-right font-semibold whitespace-nowrap tabular-nums",
+                      r.on_time_pct !== null && !thin && "text-at-ontime",
                     )}
-                  </div>
-                </div>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 md:w-md md:shrink-0">
-                  <Figure
-                    size="sm"
-                    label="On time"
-                    className={r.on_time_pct === null ? undefined : "text-at-ontime"}
                   >
                     {formatPct(r.on_time_pct)}
-                  </Figure>
-                  <Figure size="sm" label="Early or late">
-                    <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
-                  </Figure>
-                  <Figure size="sm" label="Avg off by">
+                  </td>
+                  <td className={cn(PHONE_FIGURE, "text-right whitespace-nowrap tabular-nums")}>
                     {r.avg_abs_delay_sec === null
                       ? UNKNOWN_VALUE
                       : formatDuration(r.avg_abs_delay_sec)}
-                  </Figure>
-                  <Figure
-                    size="sm"
-                    label="Cancelled"
-                    className={r.cancelled > 0 ? "text-at-late" : undefined}
+                  </td>
+                  <td className="hidden p-3 text-right whitespace-nowrap sm:table-cell">
+                    {/* A distance, never "on time": it sits beside an on-time %, and
+                        the two read as disagreeing when this one says "on time". */}
+                    <OffScheduleValue signedSec={r.avg_delay_sec} absSec={null} mode={r.mode} />
+                  </td>
+                  <td className="hidden p-3 text-right tabular-nums md:table-cell">
+                    {formatCount(r.events)}
+                  </td>
+                  <td
+                    className={cn(
+                      "hidden p-3 text-right tabular-nums md:table-cell",
+                      r.cancelled > 0 && "text-at-late",
+                    )}
                   >
                     {formatCount(r.cancelled)}
-                  </Figure>
-                </dl>
-                <Link
-                  href={routeHref(r.slug, routeParams)}
-                  prefetch={false}
-                  className="at-btn shrink-0 border border-at-shore text-at-shore hover:bg-at-shore-pale"
-                >
-                  More details
-                  <ChevronRight className="h-4 w-4" />
-                </Link>
-              </Panel>
-            );
-          })}
-        </ol>
+                  </td>
+                  <td className="py-3 pr-3 text-at-muted group-hover:text-at-shore">
+                    <ChevronRight className="h-4 w-4" />
+                  </td>
+                </tr>,
+              ];
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {sorted.length > shown && (

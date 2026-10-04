@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.44.0] - 2026-10-04
+
+### Added
+
+- The Routes page lists routes in a sortable table with fixed column widths, without rank numbers,
+  and on a phone its filters fold behind a Filters button so the list starts near the top of the
+  screen.
+
 ## [2.43.3] - 2026-10-04
 
 ### Fixed
