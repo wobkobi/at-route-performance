@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.48.0] - 2026-10-05
+
+### Added
+
+- Compare's picker searches as you type, listing each route or stop with its mode icon, line name
+  and on-time share
+
 ## [2.47.0] - 2026-10-05
 
 ### Added

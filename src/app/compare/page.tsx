@@ -6,8 +6,9 @@
 // removing works as links and survives a reload or a shared URL.
 
 import { ChipGroup, ChipLink } from "@/components/Chip";
-import { ModeIcon } from "@/components/ModeIcon";
+import { CompareSearch } from "@/components/compare/CompareSearch";
 import { RangeControls } from "@/components/date/RangeControls";
+import { ModeIcon } from "@/components/ModeIcon";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,10 +17,13 @@ import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import {
   bestColumns,
+  COMPARE_SEARCH_LIMIT,
   MAX_COMPARE,
   parseCompareIds,
   parseCompareKind,
+  stopCandidate,
   toggleCompareId,
+  type CompareCandidate,
   type CompareKind,
 } from "@/lib/compare";
 import {
@@ -45,7 +49,7 @@ import {
   windowPhrase,
   type RangeNav,
 } from "@/lib/page/range";
-import { routeDisplayName, routeSlug } from "@/lib/route/slug";
+import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import { clampDayParam, dayLinkParam, dropTodayParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import type { DateRange } from "@/lib/time/service-day";
@@ -53,7 +57,7 @@ import { buildHref } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { JSX, ReactNode } from "react";
+import type { JSX } from "react";
 
 // Reads its search params and its data above any Suspense boundary, like the
 // Operators page, so it is allowed to block.
@@ -64,9 +68,6 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Line up Auckland routes or stops side by side: on time, early, late, average off schedule and cancellations.",
 });
-
-/** Search results listed under the picker. */
-const SEARCH_LIMIT = 10;
 
 /** Query params for the compare page. */
 interface CompareSearchParams {
@@ -102,11 +103,20 @@ interface CompareColumn {
   extra: number | null;
 }
 
-/** One candidate in the picker's results. */
-interface CompareCandidate {
-  id: string;
-  name: string;
-  detail: string | null;
+/**
+ * A route as a picker candidate: its name, its line or long name, its badge and
+ * its on-time share.
+ * @param r - The route row.
+ * @returns The candidate.
+ */
+function routeCandidate(r: RouteRow): CompareCandidate {
+  return {
+    id: routeSlug(r.routeId),
+    name: routeDisplayName(r),
+    detail: routeSubtitle(r),
+    route: r,
+    onTimePct: r.on_time_pct,
+  };
 }
 
 /** A figure a column can show. */
@@ -163,36 +173,6 @@ function formatFigure(v: number, format: FigureRow["format"]): string {
   if (format === "pct") return formatPct(v);
   if (format === "duration") return formatDuration(v);
   return formatCount(v);
-}
-
-/**
- * Routes matching a search: an exact short name first, then short names that
- * start with it, then long names containing it, busiest first within each.
- * @param rows - Every route with arrivals in the window.
- * @param q - The search text.
- * @param exclude - Slugs already being compared.
- * @returns Up to {@link SEARCH_LIMIT} matches.
- */
-function searchRoutes(rows: RouteRow[], q: string, exclude: Set<string>): CompareCandidate[] {
-  const text = q.trim().toLowerCase();
-  if (!text) return [];
-  /**
-   * How well a route matches, lower first, or -1 for no match.
-   * @param r - The route row.
-   * @returns The match tier.
-   */
-  const rank = (r: RouteRow): number => {
-    const short = (r.shortName ?? "").toLowerCase();
-    if (short === text) return 0;
-    if (short.startsWith(text)) return 1;
-    return r.longName.toLowerCase().includes(text) ? 2 : -1;
-  };
-  return rows
-    .map((r) => ({ r, score: rank(r) }))
-    .filter(({ r, score }) => score >= 0 && !exclude.has(routeSlug(r.routeId).toLowerCase()))
-    .sort((a, b) => a.score - b.score || b.r.events - a.r.events)
-    .slice(0, SEARCH_LIMIT)
-    .map(({ r }) => ({ id: routeSlug(r.routeId), name: routeDisplayName(r), detail: r.longName }));
 }
 
 /**
@@ -273,14 +253,15 @@ export default async function ComparePage({
 
   let columns: CompareColumn[] = [];
   let missing: string[] = [];
-  let candidates: CompareCandidate[] = [];
+  let routeOptions: CompareCandidate[] = [];
+  let stopMatches: CompareCandidate[] = [];
   let suggestions: CompareCandidate[] = [];
 
   if (kind === "routes") {
     const [rows, cancelled, busiest] = await Promise.all([
       getRankings(range, revalidate),
       getCancelledByRoute(range, { mode: null, schools: "include" }, revalidate),
-      ids.length < MAX_COMPARE && !q ? getBusiestRouteSlugs(12) : Promise.resolve([]),
+      ids.length < MAX_COMPARE ? getBusiestRouteSlugs(12) : Promise.resolve([]),
     ]);
     const bySlug = new Map(rows.map((r) => [routeSlug(r.routeId).toLowerCase(), r]));
     const routeParams = routeLinkParams(window, serviceDate, period, today);
@@ -294,7 +275,7 @@ export default async function ComparePage({
       columns.push({
         id,
         name: routeDisplayName(r),
-        detail: r.shortName && r.longName !== r.shortName ? r.longName : null,
+        detail: routeSubtitle(r),
         href: routeHref(slug, routeParams),
         route: r,
         figures: {
@@ -308,18 +289,22 @@ export default async function ComparePage({
       });
     }
     const chosen = new Set(ids.map((i) => i.toLowerCase()));
-    candidates = searchRoutes(rows, q, chosen);
+    // The picker filters these as you type, so they go to it busiest first.
+    routeOptions =
+      ids.length < MAX_COMPARE
+        ? [...rows].sort((a, b) => b.events - a.events).map(routeCandidate)
+        : [];
     suggestions = busiest
       .filter((s) => !chosen.has(s.toLowerCase()))
       .flatMap((s) => {
         const r = bySlug.get(s.toLowerCase());
-        return r ? [{ id: s, name: routeDisplayName(r), detail: r.longName }] : [];
+        return r ? [{ ...routeCandidate(r), id: s }] : [];
       })
       .slice(0, 6);
   } else {
     const [stats, found] = await Promise.all([
       Promise.all(ids.map((id) => getStopStats(id, range, revalidate))),
-      q ? searchStops(q, SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
+      q ? searchStops(q, COMPARE_SEARCH_LIMIT + MAX_COMPARE) : Promise.resolve([]),
     ]);
     // The stop page has a day view only, so a week or month links to today.
     const stopDay = window === "day" ? view.day : undefined;
@@ -339,10 +324,7 @@ export default async function ComparePage({
         extra: s.routes_count,
       });
     });
-    candidates = found
-      .filter((m) => !ids.includes(m.id))
-      .slice(0, SEARCH_LIMIT)
-      .map((m) => ({ id: m.id, name: m.name, detail: m.code ? `Stop ${m.code}` : "Station" }));
+    stopMatches = found.map(stopCandidate);
   }
   columns = columns.slice(0, MAX_COMPARE);
   missing = missing.filter(Boolean);
@@ -438,8 +420,10 @@ export default async function ComparePage({
                         best.has(i) && "font-semibold text-at-ontime",
                       )}
                     >
-                      {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
-                      {best.has(i) && <Badge tone="ok" label="BEST" className="ml-1.5" />}
+                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        {v === null ? UNKNOWN_VALUE : formatFigure(v, row.format)}
+                        {best.has(i) && <Badge tone="ok" label="BEST" />}
+                      </span>
                     </td>
                   ))}
                 </tr>
@@ -471,41 +455,16 @@ export default async function ComparePage({
             That is {MAX_COMPARE}, the most one comparison holds. Remove one to add another.
           </p>
         ) : (
-          <form action="/compare" className="flex flex-wrap gap-2">
-            <input type="hidden" name="kind" value={kind} />
-            {ids.length > 0 && <input type="hidden" name="ids" value={ids.join(",")} />}
-            {Object.entries(view).map(([k, v]) =>
-              v ? <input key={k} type="hidden" name={k} value={v} /> : null,
-            )}
-            <input
-              type="search"
-              name="q"
-              defaultValue={q}
-              placeholder={
-                kind === "routes"
-                  ? "Add a route: number or name"
-                  : "Add a stop: name or the number on the pole"
-              }
-              aria-label={kind === "routes" ? "Search routes" : "Search stops"}
-              className="at-field min-w-0 flex-1"
-            />
-            <button type="submit" className="at-btn at-btn-primary">
-              Search
-            </button>
-          </form>
-        )}
-
-        {!full && q && candidates.length === 0 && (
-          <EmptyState inset>
-            No {kind === "routes" ? `route ran ${phrase} matching` : "stop matches"} &ldquo;{q}
-            &rdquo;.
-          </EmptyState>
-        )}
-        {!full && (candidates.length > 0 || suggestions.length > 0) && (
-          <CandidateList
-            heading={candidates.length > 0 ? "Matches" : "Busiest routes"}
-            items={candidates.length > 0 ? candidates : suggestions}
-            hrefFor={(id) => idsHref(toggleCompareId(ids, id), candidates.length > 0)}
+          <CompareSearch
+            key={ids.join(",")}
+            kind={kind}
+            ids={ids}
+            view={view}
+            q={q}
+            routes={routeOptions}
+            stopMatches={stopMatches}
+            suggestions={suggestions}
+            phrase={phrase}
           />
         )}
         {ids.length > 0 && (
@@ -522,60 +481,5 @@ export default async function ComparePage({
         The best share or average in each row is marked BEST.
       </p>
     </main>
-  );
-}
-
-/**
- * The picker's results or suggestions: each a link that adds it.
- * @param props - Component props.
- * @param props.heading - What the list is.
- * @param props.items - The candidates.
- * @param props.hrefFor - The link that adds a candidate.
- * @returns The list.
- */
-function CandidateList({
-  heading,
-  items,
-  hrefFor,
-}: {
-  heading: string;
-  items: CompareCandidate[];
-  hrefFor: (id: string) => string;
-}): JSX.Element {
-  return (
-    <div>
-      <p className="at-eyebrow text-at-muted">{heading}</p>
-      <ul className="striped mt-1 divide-y divide-at-border">
-        {items.map((c) => (
-          <li key={c.id}>
-            <Link
-              href={hrefFor(c.id)}
-              scroll={false}
-              className="flex items-center justify-between gap-3 py-2 text-sm hover:text-at-shore"
-            >
-              <CandidateLabel name={c.name} detail={c.detail} />
-              <span className="shrink-0 font-semibold text-at-shore">+ Add</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * A candidate's name with its detail beside it, the detail dropped first on a
- * narrow screen.
- * @param props - Component props.
- * @param props.name - The name.
- * @param props.detail - The second line, if any.
- * @returns The label.
- */
-function CandidateLabel({ name, detail }: { name: string; detail: string | null }): ReactNode {
-  return (
-    <span className="min-w-0">
-      <span className="font-semibold">{name}</span>
-      {detail && detail !== name && <span className="ml-2 truncate text-at-muted">{detail}</span>}
-    </span>
   );
 }
