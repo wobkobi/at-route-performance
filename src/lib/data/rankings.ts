@@ -1,8 +1,13 @@
 // src/lib/data/rankings.ts
 // Per-route rankings over a window: summaries for rolled-up days, live scans for the rest.
-import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import {
+  cachedForDay,
+  cachedForRange,
+  dayEntryRevalidate,
+  scheduledAtWindow,
+} from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
-import { LIVE_DAY_REVALIDATE, PERIOD_REVALIDATE } from "@/lib/data/revalidate";
+import { PERIOD_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteRiderWait } from "@/lib/data/rider-wait";
 import { NO_DELAY_SOURCE, realDeviationExprFor, realDeviationMatchFor } from "@/lib/deviation";
 import type { Mode } from "@/lib/mode";
@@ -21,8 +26,8 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
-  serviceDatesInRange,
   shiftDays,
+  startedServiceDates,
 } from "@/lib/time/service-day";
 import type { RouteRow } from "@/types/api";
 
@@ -317,17 +322,41 @@ async function summaryDatesIn(range: DateRange): Promise<Set<string>> {
 /**
  * Live per-route rows for one service day, cached under the day so every
  * window that covers the day shares one aggregation. Completed days hold for a
- * week; the live day refreshes every five minutes.
+ * week; the TTL while the day can change is part of the key (see
+ * {@link dayEntryRevalidate}).
  * @param date - Service date (`YYYY-MM-DD`).
+ * @param revalidate - TTL in seconds while the day can still change.
  * @returns Per-route rows for that day.
  */
-function cachedLiveRankingsOfDay(date: string): Promise<RouteRow[]> {
+function cachedLiveRankingsOfDay(date: string, revalidate: number): Promise<RouteRow[]> {
   return cachedForDay(
     () => queryLiveRankings(nzServiceDayRange(date)),
-    ["live-rankings-day", date],
+    ["live-rankings-day", date, String(revalidate)],
     date,
-    LIVE_DAY_REVALIDATE,
+    revalidate,
   );
+}
+
+/** The summarised part of a window's rankings; plain data so the Data Cache can hold it. */
+interface SummaryRankings {
+  /** Service dates (`YYYY-MM-DD`) the rows cover. */
+  summarised: string[];
+  /** Per-route rows over those dates, before the lineage fold. */
+  rows: RouteRow[];
+}
+
+/**
+ * The `DailyRouteSummary` rows for the days of a window the nightly aggregate has
+ * covered, with the dates they cover.
+ * @param range - UTC half-open window.
+ * @returns The summarised dates and their rows.
+ */
+async function querySummaryPart(range: DateRange): Promise<SummaryRankings> {
+  const summarised = await summaryDatesIn(range);
+  return {
+    summarised: [...summarised],
+    rows: summarised.size > 0 ? await querySummaryRankings(range) : [],
+  };
 }
 
 /**
@@ -335,40 +364,45 @@ function cachedLiveRankingsOfDay(date: string): Promise<RouteRow[]> {
  * for the service days the nightly aggregate has covered, plus a live
  * `ArrivalEvent` scan of each remaining day that has started (today, and any
  * earlier day whose aggregate has not run), merged by event weight and folded
- * to one row per line (see {@link foldLineageRows}). A window that is entirely
- * summarised costs one query; a window reaching into today costs one more,
- * cached per day. Days that have not started are skipped. Each route's
- * cancellations then join its figures as the wait for the next trip (see
- * lib/rider-wait.ts), so a route cannot improve its numbers by cancelling runs.
- * @param range - UTC half-open window.
- * @returns Per-route rows.
- */
-async function queryRankings(range: DateRange): Promise<RouteRow[]> {
-  const summarised = await summaryDatesIn(range);
-  const now = new Date();
-  const liveDates = serviceDatesInRange(range).filter(
-    (date) => !summarised.has(date) && nzServiceDayRange(date).start <= now,
-  );
-  const [penalties, summaryRows, ...liveSets] = await Promise.all([
-    getRouteRiderWait(range),
-    summarised.size > 0 ? querySummaryRankings(range) : Promise.resolve<RouteRow[]>([]),
-    ...liveDates.map(cachedLiveRankingsOfDay),
-  ]);
-  return applyRoutePenalties(foldLineageRows([...summaryRows, ...liveSets.flat()]), penalties);
-}
-
-/**
- * Cached per-route rows for a window, keyed by the window's state so a live
- * window is never served more than one TTL behind (see cachedForRange).
+ * to one row per line (see {@link foldLineageRows}). Each route's cancellations
+ * then join its figures as the wait for the next trip (see lib/rider-wait.ts), so
+ * a route cannot improve its numbers by cancelling runs. Days that have not
+ * started are skipped.
+ *
+ * Only the summary part is cached per window, keyed by its state (see
+ * {@link cachedForRange}). The live days and the cancellation penalties are read through
+ * their own day entries outside it: inside, a nested `unstable_cache` skips its
+ * read, so each window miss would scan every day of the window again. Today's read
+ * starts beside the summary read, since today is never summarised. Folding the parts
+ * together is cheap.
  * @param range - UTC half-open window.
  * @param revalidate - Cache TTL in seconds while the window can still change.
  * @returns Per-route rows.
  */
 export async function getRankings(range: DateRange, revalidate: number): Promise<RouteRow[]> {
-  return cachedForRange(
-    () => queryRankings(range),
-    ["rankings-v2", range.start.toISOString(), range.end.toISOString()],
-    range,
-    revalidate,
+  // One clock read, so a request that crosses 4am cannot read the closing day twice.
+  const now = new Date();
+  const today = nzServiceDayString(now);
+  const started = startedServiceDates(range, now);
+  const [summary, penalties, todayRows] = await Promise.all([
+    cachedForRange(
+      () => querySummaryPart(range),
+      ["rankings-summary", range.start.toISOString(), range.end.toISOString()],
+      range,
+      revalidate,
+    ),
+    getRouteRiderWait(range, revalidate),
+    started.includes(today)
+      ? cachedLiveRankingsOfDay(today, dayEntryRevalidate(today, revalidate, today))
+      : Promise.resolve<RouteRow[]>([]),
+  ]);
+  const summarised = new Set(summary.summarised);
+  const pastLive = started.filter((d) => d !== today && !summarised.has(d));
+  const pastSets = await Promise.all(
+    pastLive.map((d) => cachedLiveRankingsOfDay(d, dayEntryRevalidate(d, revalidate, today))),
+  );
+  return applyRoutePenalties(
+    foldLineageRows([...summary.rows, ...todayRows, ...pastSets.flat()]),
+    penalties,
   );
 }

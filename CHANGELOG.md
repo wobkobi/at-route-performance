@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.8] - 2026-10-05
+
+### Changed
+
+- Rankings, cancellation penalties and trip punctuality read each live day through its own entry
+  outside the window cache, under one rule for a day entry's refresh time
+
 ## [2.54.7] - 2026-10-05
 
 ### Changed

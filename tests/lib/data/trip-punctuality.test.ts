@@ -26,7 +26,8 @@ vi.mock("@/lib/db", () => ({
 }));
 // Which days are read how is under test, not the Data Cache wrapper; the day keys are kept
 // to check which views share a day's entry.
-vi.mock("@/lib/data/cache", () => {
+vi.mock("@/lib/data/cache", async (importOriginal) => {
+  const { dayEntryRevalidate } = await importOriginal<typeof import("@/lib/data/cache")>();
   /**
    * Run the read uncached.
    * @param fn - The read.
@@ -43,7 +44,7 @@ vi.mock("@/lib/data/cache", () => {
     dayKeys.push(keyParts);
     return fn(false);
   };
-  return { cachedForDay: perDay, cachedForRange: passthrough };
+  return { cachedForDay: perDay, cachedForRange: passthrough, dayEntryRevalidate };
 });
 
 /**

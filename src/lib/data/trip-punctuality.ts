@@ -2,9 +2,8 @@
 // AT's trip measures per route over a window: the tallies the nightly rollup stored on each
 // past day, plus a live judgement of every day that has started but carries no stored tallies.
 import { DAY_MARKER, tripPunctualityOfDay } from "@/lib/cron/trip-punctuality";
-import { cachedForDay, cachedForRange } from "@/lib/data/cache";
+import { cachedForDay, cachedForRange, dayEntryRevalidate } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso, type BsonDate } from "@/lib/data/raw";
-import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { readFallback } from "@/lib/db";
 import { predecessorSlugs } from "@/lib/route/lineage";
 import { routeSlug } from "@/lib/route/slug";
@@ -78,8 +77,7 @@ async function storedPunctuality(range: DateRange, todayStart: Date): Promise<St
  * One untallied day's tallies, judged from the raw arrivals and cached under the day so
  * every window covering it shares the work. Called outside any other `unstable_cache`
  * callback: a nested call skips its cache read, so each window would judge the day again.
- * The TTL is part of the key, so a view that refreshes today faster than the shared five
- * minutes (the day view's two) keeps its own entry rather than reading a staler one.
+ * The TTL is part of the key (see {@link dayEntryRevalidate}).
  * @param date - Service date (`YYYY-MM-DD`).
  * @param revalidate - Cache TTL in seconds while the day can still change.
  * @returns Tallies per route id.
@@ -144,7 +142,7 @@ export async function getTripPunctuality(
       revalidate,
     ),
     started.includes(today)
-      ? liveDayPunctuality(today, Math.min(revalidate, LIVE_DAY_REVALIDATE))
+      ? liveDayPunctuality(today, dayEntryRevalidate(today, revalidate, today))
       : Promise.resolve<RoutePunctuality>({}),
   ]);
   const tallied = new Set(stored.dates);
@@ -152,7 +150,9 @@ export async function getTripPunctuality(
   const parts = [
     stored.byRoute,
     todayPart,
-    ...(await Promise.all(pastLive.map((d) => liveDayPunctuality(d, LIVE_DAY_REVALIDATE)))),
+    ...(await Promise.all(
+      pastLive.map((d) => liveDayPunctuality(d, dayEntryRevalidate(d, revalidate, today))),
+    )),
   ];
   const out: RoutePunctuality = {};
   for (const part of parts) {

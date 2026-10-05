@@ -2,7 +2,11 @@
 // Cache policy for the date-scoped aggregations: when a window is final, how long it holds,
 // and the live-day clip on scheduledAt.
 import { type BsonWindow, dateWindow } from "@/lib/data/raw";
-import { COMPLETED_DAY_REVALIDATE, FIVE_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
+import {
+  COMPLETED_DAY_REVALIDATE,
+  FIVE_MINUTE_REVALIDATE,
+  LIVE_DAY_REVALIDATE,
+} from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { unstable_cache } from "@/lib/mem-cache";
@@ -159,6 +163,25 @@ export function cachedForDay<T>(
   liveRevalidate: number,
 ): Promise<T> {
   return cachedForRange(fn, keyParts, nzServiceDayRange(date), liveRevalidate);
+}
+
+/**
+ * The TTL of a per-day entry that a window's read goes through, for its key and its
+ * {@link cachedForDay} call. Today takes the caller's TTL where it is shorter than the
+ * shared five minutes, so the day view (two minutes) keeps its own fresher entry, while
+ * every other caller and every other day share one five-minute entry. Read these entries
+ * outside any other {@link unstable_cache} callback: a nested call skips its cache read.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @param revalidate - The caller's TTL, in seconds.
+ * @param today - The current service date.
+ * @returns The day entry's TTL, in seconds.
+ */
+export function dayEntryRevalidate(
+  date: string,
+  revalidate: number,
+  today: string = nzServiceDayString(),
+): number {
+  return date === today ? Math.min(revalidate, LIVE_DAY_REVALIDATE) : LIVE_DAY_REVALIDATE;
 }
 
 /**
