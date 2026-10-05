@@ -32,16 +32,24 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.52.2] - 2026-10-05
+
+### Fixed
+
+- Trip punctuality counts move to their own collection, one row per route per day, so a route with
+  cancelled trips and no recorded arrival keeps its cancellations; a day counts as stored only once
+  its whole write has landed, and a running day counts only trips already due
+
 ## [2.52.0] - 2026-10-05
 
 ### Added
 
-- The nightly aggregate judges each trip AT's way and stores per-route counts beside the arrival
-  figures: punctual (left the first stop between 1 minute early and 5 minutes late, and reached the
-  last stop no more than 5 minutes late) and reliable (left between 1 minute early and 10 minutes
-  late). AT's bus feed often misses a bus leaving its first stop, so the second or third stop stands
-  in for the departure; trips that never ran or were cut short count as failures. Nothing on the
-  site shows these yet
+- The nightly aggregate judges each trip AT's way and stores per-route counts for each day, routes
+  with only cancelled trips included: punctual (left the first stop between 1 minute early and 5
+  minutes late, and reached the last stop no more than 5 minutes late) and reliable (left between 1
+  minute early and 10 minutes late). AT's bus feed often misses a bus leaving its first stop, so the
+  second or third stop stands in for the departure; trips that never ran or were cut short count as
+  failures. Nothing on the site shows these yet
 
 ## [2.51.0] - 2026-10-05
 

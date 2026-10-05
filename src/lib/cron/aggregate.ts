@@ -421,8 +421,9 @@ export async function aggregateDay(
     });
   }
 
-  // Like the hourly rows: a failure leaves the day's trip measures blank, which
-  // the pages show as no figure, rather than holding back the rollup.
+  // Like the hourly rows, a failure is logged rather than holding back the
+  // rollup. The day is left without its complete-day marker, so the pages judge
+  // it live from the arrivals: the gap costs speed, not the figure.
   let punctuality: number | null = null;
   try {
     punctuality = await writeTripPunctuality(serviceDate);

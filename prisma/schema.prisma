@@ -278,18 +278,34 @@ model DailyRouteSummary {
   p50DelaySec    Float? // Median
   p95DelaySec    Float? // 95th percentile
   thresholdSec   Int // Threshold used for on-time calc (e.g., 300)
-  /// AT's trip measures (lib/trip/punctuality.ts), absent on days rolled up before them.
-  /// Trips with a departure read, and how many left inside the reliable window.
-  tripsDeparted  Int?
-  tripsReliable  Int?
-  /// Trips with a departure and an arrival read, and how many were punctual.
-  tripsTimed     Int?
-  tripsPunctual  Int?
-  /// Trips that never ran or were cut short, failures in both measures.
-  tripsCancelled Int?
   createdAt      DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id])
+
+  @@unique([routeId, date])
+  @@index([date])
+}
+
+// AT's trip measures (lib/trip/punctuality.ts) per route per completed service day,
+// written by the nightly rollup. Kept apart from DailyRouteSummary because a route
+// can have cancelled trips and no recorded arrival all day: it gets a tally here
+// without a summary row that would read as a route that ran with no figures. A
+// row with routeId "*" and zero counts marks the day's write as complete; readers
+// trust a day's rows only once it is there. Pruned with the daily summaries. Read
+// and written through raw commands, and the writer creates these indexes itself
+// (lib/cron/trip-punctuality.ts), so the collection works before a schema push.
+model DailyTripTally {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  routeId   String
+  date      DateTime // NZ service-day start (4am Auckland, stored as UTC)
+  /// Trips with a departure read, and how many left inside the reliable window.
+  departed  Int
+  reliable  Int
+  /// Trips with a departure and an arrival read, and how many were punctual.
+  timed     Int
+  punctual  Int
+  /// Trips that never ran or were cut short, failures in both measures.
+  cancelled Int
 
   @@unique([routeId, date])
   @@index([date])

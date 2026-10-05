@@ -50,7 +50,10 @@ export interface CleanupStore {
   deleteEvents(before: Date): Promise<number>;
   /** Delete trip delays stamped before the instant; resolves to the count. */
   deleteTrips(before: Date): Promise<number>;
-  /** Delete daily summaries for service days before the instant; resolves to the count. */
+  /**
+   * Delete daily summaries and trip tallies for service days before the instant; resolves to
+   * the count of both.
+   */
   deleteSummaries(before: Date): Promise<number>;
   /** Delete off-route sightings taken before the instant; resolves to the count. */
   deleteSightings(before: Date): Promise<number>;
@@ -112,12 +115,18 @@ async function deleteTrips(before: Date): Promise<number> {
 }
 
 /**
- * Delete daily summaries for service days before an instant.
+ * Delete daily summaries and the trip tallies beside them for service days before an
+ * instant, so a pruned day keeps no trip figure its arrival figures have lost.
  * @param before - The cutoff.
- * @returns The count deleted.
+ * @returns The count deleted across both.
  */
 async function deleteSummaries(before: Date): Promise<number> {
-  return (await prisma.dailyRouteSummary.deleteMany({ where: { date: { lt: before } } })).count;
+  const where = { date: { lt: before } };
+  const [summaries, tallies] = await Promise.all([
+    prisma.dailyRouteSummary.deleteMany({ where }),
+    prisma.dailyTripTally.deleteMany({ where }),
+  ]);
+  return summaries.count + tallies.count;
 }
 
 /**
