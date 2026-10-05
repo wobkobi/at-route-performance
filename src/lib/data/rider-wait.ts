@@ -5,7 +5,6 @@
 import { cachedForDay, dayEntryRevalidate, windowEnd } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
-import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import {
@@ -131,14 +130,10 @@ function riderWaitOfDay(date: string, revalidate: number): Promise<DayRiderWait>
  * What cancellations add to each route's figures over a window, summed across
  * its service days. Days that have not started are skipped.
  * @param range - The window.
- * @param revalidate - The caller's TTL, which today's entry follows when shorter.
  * @returns Route slug to its penalty.
  */
-export function getRouteRiderWait(
-  range: DateRange,
-  revalidate: number = LIVE_DAY_REVALIDATE,
-): Promise<Record<string, Penalty>> {
-  return getRiderWaitOfDates(serviceDatesInRange(range), null, revalidate);
+export function getRouteRiderWait(range: DateRange): Promise<Record<string, Penalty>> {
+  return getRiderWaitOfDates(serviceDatesInRange(range), null);
 }
 
 /**
@@ -147,19 +142,17 @@ export function getRouteRiderWait(
  * have not started are skipped.
  * @param dates - Service dates (`YYYY-MM-DD`).
  * @param hours - The part of the day, or null for all of it.
- * @param revalidate - The caller's TTL, which today's entry follows when shorter.
  * @returns Route slug to its penalty.
  */
 export async function getRiderWaitOfDates(
   dates: readonly string[],
   hours: HourRange | null,
-  revalidate: number = LIVE_DAY_REVALIDATE,
 ): Promise<Record<string, Penalty>> {
   const now = new Date();
   const today = nzServiceDayString(now);
   const started = dates.filter((d) => nzServiceDayRange(d).start <= now);
   const days = await Promise.all(
-    started.map((d) => riderWaitOfDay(d, dayEntryRevalidate(d, revalidate, today))),
+    started.map((d) => riderWaitOfDay(d, dayEntryRevalidate(d, today))),
   );
   const out: Record<string, Penalty> = {};
   for (const day of days) {
@@ -178,7 +171,5 @@ export async function getRiderWaitOfDates(
  */
 export async function getTripRiderWait(range: DateRange): Promise<Record<string, TripPenalty>> {
   const [date] = serviceDatesInRange(range);
-  return date
-    ? (await riderWaitOfDay(date, dayEntryRevalidate(date, LIVE_DAY_REVALIDATE))).trips
-    : {};
+  return date ? (await riderWaitOfDay(date, dayEntryRevalidate(date))).trips : {};
 }

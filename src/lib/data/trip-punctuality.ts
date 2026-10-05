@@ -142,7 +142,7 @@ export async function getTripPunctuality(
       revalidate,
     ),
     started.includes(today)
-      ? liveDayPunctuality(today, dayEntryRevalidate(today, revalidate, today))
+      ? liveDayPunctuality(today, dayEntryRevalidate(today, today))
       : Promise.resolve<RoutePunctuality>({}),
   ]);
   const tallied = new Set(stored.dates);
@@ -151,7 +151,7 @@ export async function getTripPunctuality(
     stored.byRoute,
     todayPart,
     ...(await Promise.all(
-      pastLive.map((d) => liveDayPunctuality(d, dayEntryRevalidate(d, revalidate, today))),
+      pastLive.map((d) => liveDayPunctuality(d, dayEntryRevalidate(d, today))),
     )),
   ];
   const out: RoutePunctuality = {};

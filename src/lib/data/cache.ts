@@ -6,10 +6,11 @@ import {
   COMPLETED_DAY_REVALIDATE,
   FIVE_MINUTE_REVALIDATE,
   LIVE_DAY_REVALIDATE,
+  TODAY_REVALIDATE,
 } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { unstable_cache } from "@/lib/mem-cache";
+import { memCache, unstable_cache } from "@/lib/mem-cache";
 import {
   type DateRange,
   nzServiceDayRange,
@@ -24,6 +25,12 @@ import {
  * without this a repaired day keeps serving its old numbers for a week.
  */
 const PASS_VERSION = "g2";
+
+/** Service dates seen with a daily summary in this process; one never loses it. */
+const summarisedDates = new Set<string>();
+
+/** How long a day without a summary is held in process before it is asked again. */
+const MINUTE_SEC = 60;
 
 /**
  * The full key an aggregation caches under: the classification version, the
@@ -45,22 +52,33 @@ export function cacheKey(keyParts: readonly string[], state: string): string[] {
  * hour moves while stored stamps still carry the old one. One indexed read,
  * cached for five minutes so a day's caches move to the long TTL within that of
  * the summary landing.
+ *
+ * Every per-day entry asks this before its own read, so a cold month asks it for
+ * each day several times over. A summary once written stays, so a yes is kept in
+ * {@link summarisedDates} for the life of the process, and a no is held in process
+ * for a minute in front of the Data Cache, which also shares one read between the
+ * sections that ask at once.
  * @param date - Service date (`YYYY-MM-DD`).
  * @returns True once the day has a summary.
  */
 async function summaryExistsFor(date: string): Promise<boolean> {
-  return unstable_cache(
-    async () => {
-      const { start, end } = nzServiceDayRange(date);
-      const row = await prisma.dailyRouteSummary.findFirst({
-        where: { date: { gte: start, lt: end } },
-        select: { id: true },
-      });
-      return row !== null;
-    },
-    ["summary-exists", date],
-    { revalidate: FIVE_MINUTE_REVALIDATE },
-  )();
+  if (summarisedDates.has(date)) return true;
+  const exists = await memCache(`summary-exists:${date}`, MINUTE_SEC, () =>
+    unstable_cache(
+      async () => {
+        const { start, end } = nzServiceDayRange(date);
+        const row = await prisma.dailyRouteSummary.findFirst({
+          where: { date: { gte: start, lt: end } },
+          select: { id: true },
+        });
+        return row !== null;
+      },
+      ["summary-exists", date],
+      { revalidate: FIVE_MINUTE_REVALIDATE },
+    )(),
+  );
+  if (exists) summarisedDates.add(date);
+  return exists;
 }
 
 /**
@@ -167,21 +185,17 @@ export function cachedForDay<T>(
 
 /**
  * The TTL of a per-day entry that a window's read goes through, for its key and its
- * {@link cachedForDay} call. Today takes the caller's TTL where it is shorter than the
- * shared five minutes, so the day view (two minutes) keeps its own fresher entry, while
- * every other caller and every other day share one five-minute entry. Read these entries
+ * {@link cachedForDay} call. Today holds for one ingest interval and every other day for
+ * five minutes, whatever the caller's own TTL, so the day view and every week or month
+ * view covering a day read one shared entry: a TTL that followed the caller would key
+ * today once per caller and run its heaviest scans once for each. Read these entries
  * outside any other {@link unstable_cache} callback: a nested call skips its cache read.
  * @param date - Service date (`YYYY-MM-DD`).
- * @param revalidate - The caller's TTL, in seconds.
  * @param today - The current service date.
  * @returns The day entry's TTL, in seconds.
  */
-export function dayEntryRevalidate(
-  date: string,
-  revalidate: number,
-  today: string = nzServiceDayString(),
-): number {
-  return date === today ? Math.min(revalidate, LIVE_DAY_REVALIDATE) : LIVE_DAY_REVALIDATE;
+export function dayEntryRevalidate(date: string, today: string = nzServiceDayString()): number {
+  return date === today ? TODAY_REVALIDATE : LIVE_DAY_REVALIDATE;
 }
 
 /**

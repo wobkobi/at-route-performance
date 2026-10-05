@@ -391,15 +391,15 @@ export async function getRankings(range: DateRange, revalidate: number): Promise
       range,
       revalidate,
     ),
-    getRouteRiderWait(range, revalidate),
+    getRouteRiderWait(range),
     started.includes(today)
-      ? cachedLiveRankingsOfDay(today, dayEntryRevalidate(today, revalidate, today))
+      ? cachedLiveRankingsOfDay(today, dayEntryRevalidate(today, today))
       : Promise.resolve<RouteRow[]>([]),
   ]);
   const summarised = new Set(summary.summarised);
   const pastLive = started.filter((d) => d !== today && !summarised.has(d));
   const pastSets = await Promise.all(
-    pastLive.map((d) => cachedLiveRankingsOfDay(d, dayEntryRevalidate(d, revalidate, today))),
+    pastLive.map((d) => cachedLiveRankingsOfDay(d, dayEntryRevalidate(d, today))),
   );
   return applyRoutePenalties(
     foldLineageRows([...summary.rows, ...todayRows, ...pastSets.flat()]),

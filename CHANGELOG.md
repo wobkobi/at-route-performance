@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.12] - 2026-10-06
+
+### Changed
+
+- The day, week and month views read one shared entry for each live day rather than one each, so
+  today's heaviest scans run once instead of twice, and a day's summary check is remembered once the
+  summary exists instead of being asked for on every read
+
 ## [2.54.11] - 2026-10-06
 
 ### Changed

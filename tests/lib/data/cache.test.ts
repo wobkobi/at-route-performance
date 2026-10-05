@@ -1,6 +1,13 @@
 // tests/lib/data/cache.test.ts
 // Unit tests for the cache key state of a date-scoped aggregation.
-import { cacheKey, cacheState, rangeIsFinal, scheduledAtWindow, windowEnd } from "@/lib/data/cache";
+import {
+  cacheKey,
+  cacheState,
+  dayEntryRevalidate,
+  rangeIsFinal,
+  scheduledAtWindow,
+  windowEnd,
+} from "@/lib/data/cache";
 import { nzServiceDayRange, nzWeekRange } from "@/lib/time/service-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +26,14 @@ vi.mock("@/lib/mem-cache", () => ({
     <T>(fn: () => Promise<T>) =>
     (): Promise<T> =>
       fn(),
+  /**
+   * Run the read uncached, so only the module's own memory of summarised days is under test.
+   * @param _key - The entry's key.
+   * @param _ttl - The entry's TTL.
+   * @param fn - The read.
+   * @returns The read's result.
+   */
+  memCache: <T>(_key: string, _ttl: number, fn: () => Promise<T>): Promise<T> => fn(),
 }));
 
 const START = Date.parse("2026-09-13T17:00:00Z");
@@ -97,7 +112,27 @@ describe("rangeIsFinal", () => {
 
   it("is false while any day in the window has no summary row", async () => {
     findFirst.mockResolvedValue(null);
-    await expect(rangeIsFinal(nzServiceDayRange("2026-09-11"))).resolves.toBe(false);
+    await expect(rangeIsFinal(nzServiceDayRange("2026-09-12"))).resolves.toBe(false);
+  });
+
+  it("remembers a summarised day, and asks again about one that had none", async () => {
+    findFirst.mockResolvedValue({ id: "sum1" });
+    const day = nzServiceDayRange("2026-09-13");
+    await rangeIsFinal(day);
+    await rangeIsFinal(day);
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    findFirst.mockResolvedValue(null);
+    const open = nzServiceDayRange("2026-09-14");
+    await rangeIsFinal(open);
+    await rangeIsFinal(open);
+    expect(findFirst).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("dayEntryRevalidate", () => {
+  it("gives today one TTL and every other day another, whoever asks", () => {
+    expect(dayEntryRevalidate("2026-10-05", "2026-10-05")).toBe(120);
+    expect(dayEntryRevalidate("2026-10-04", "2026-10-05")).toBe(300);
   });
 });
 

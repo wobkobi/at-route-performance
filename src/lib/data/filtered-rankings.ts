@@ -230,7 +230,7 @@ async function queryFilteredRankings(
     return foldLineageRows(sets.flat());
   }
   const [penalties, ...sets] = await Promise.all([
-    getRiderWaitOfDates(dates, hours, revalidate),
+    getRiderWaitOfDates(dates, hours),
     ...dates.map((d) => hourRowsOfDay(d, hours, revalidate)),
   ]);
   return applyRoutePenalties(foldLineageRows(sets.flat()), penalties);
