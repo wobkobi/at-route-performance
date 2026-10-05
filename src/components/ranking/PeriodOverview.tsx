@@ -19,8 +19,8 @@ import {
   getRouteBoardOfWeek,
   getStopBoardOfWeek,
   getTripBoardOfWeek,
-  getTripPunctualityOf,
   PERIOD_REVALIDATE,
+  startTripPunctuality,
 } from "@/lib/data";
 import { modeWord, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
@@ -151,6 +151,13 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
   // The first week and the first month have no real previous window: resolvePrevRange
   // clamps it away to nothing, and querying that would rank every route as a new entry.
   const prevRange = resolvePrevRange(window, period, anchor);
+  // AT's trip measures are kept per whole day of any type, so a part-of-day or day-type view
+  // goes without, as does a view of school services alone. Started beside the rankings,
+  // since the tallies do not depend on which routes those show.
+  const sumTripPunctuality =
+    filters.hours == null && filters.days == null && schools !== "only"
+      ? startTripPunctuality(range, PERIOD_REVALIDATE)
+      : null;
   const [rows, prevRows, [cancelled, cancelledByRoute, cancelledWithoutSchool]] = await Promise.all(
     [
       getFilteredRankings(range, filters, PERIOD_REVALIDATE),
@@ -215,13 +222,7 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
       : undefined,
     cancelledByRoute,
     tripPunctuality:
-      filters.hours == null && filters.days == null && schools !== "only"
-        ? getTripPunctualityOf(
-            range,
-            PERIOD_REVALIDATE,
-            shownRouteSlugs(visible, cancelledByRoute.keys()),
-          )
-        : null,
+      sumTripPunctuality?.(shownRouteSlugs(visible, cancelledByRoute.keys())) ?? null,
     noModeData: mode !== null && visible.every((r) => r.events < boardMin),
   };
 }

@@ -149,8 +149,28 @@ export function getTripPunctuality(
 }
 
 /**
- * {@link getTripPunctuality} summed over the routes a view shows, for a page figure that
- * degrades to a dash rather than failing the page when the read does.
+ * Start {@link getTripPunctuality} now and sum the routes a view shows once they are known.
+ * The tallies do not depend on which routes are shown, so a page whose route list waits on
+ * its rankings starts this beside them rather than after them: a cold read judges each
+ * untallied day live, which would otherwise add its whole cost to the page. A failed read
+ * gives null, so the figure degrades to a dash rather than failing the page.
+ * @param range - UTC half-open window.
+ * @param revalidate - Cache TTL in seconds while the window can still change.
+ * @returns A function from the shown routes' slugs to their total, or null when the read failed.
+ */
+export function startTripPunctuality(
+  range: DateRange,
+  revalidate: number,
+): (slugs: ReadonlySet<string>) => Promise<PunctualityCounts | null> {
+  const tallies = getTripPunctuality(range, revalidate).catch(
+    readFallback("trip-punctuality", null),
+  );
+  return (slugs) => tallies.then((byRoute) => byRoute && punctualityForSlugs(byRoute, slugs));
+}
+
+/**
+ * {@link getTripPunctuality} summed over the given routes, for a view that knows its routes
+ * up front (see {@link startTripPunctuality}).
  * @param range - UTC half-open window.
  * @param revalidate - Cache TTL in seconds while the window can still change.
  * @param slugs - The routes' slugs.
@@ -161,7 +181,5 @@ export function getTripPunctualityOf(
   revalidate: number,
   slugs: ReadonlySet<string>,
 ): Promise<PunctualityCounts | null> {
-  return getTripPunctuality(range, revalidate)
-    .then((byRoute) => punctualityForSlugs(byRoute, slugs))
-    .catch(readFallback("trip-punctuality", null));
+  return startTripPunctuality(range, revalidate)(slugs);
 }

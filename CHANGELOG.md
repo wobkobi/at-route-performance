@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.1] - 2026-10-05
+
+### Changed
+
+- Home starts its trip punctuality read beside the rankings rather than after them, so a cold load
+  no longer waits for one and then the other
+
 ## [2.54.0] - 2026-10-05
 
 ### Added

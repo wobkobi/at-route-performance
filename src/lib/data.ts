@@ -102,6 +102,7 @@ export {
   getTripPunctuality,
   getTripPunctualityOf,
   punctualityForSlugs,
+  startTripPunctuality,
   type RoutePunctuality,
 } from "@/lib/data/trip-punctuality";
 export {
