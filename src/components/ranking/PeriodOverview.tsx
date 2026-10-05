@@ -20,6 +20,7 @@ import {
   getStopBoardOfWeek,
   getTripBoardOfWeek,
   PERIOD_REVALIDATE,
+  startTripPunctuality,
 } from "@/lib/data";
 import { modeWord, type Mode } from "@/lib/mode";
 import { CANCELLED_SPLIT_COPY } from "@/lib/on-time";
@@ -37,6 +38,7 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
+import { shownRouteSlugs } from "@/lib/route/slug";
 import {
   rowAllowedBySchool,
   schoolDelta,
@@ -45,6 +47,7 @@ import {
 } from "@/lib/school-bus";
 import { rangeIsEmpty } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
+import type { PunctualityCounts } from "@/lib/trip/punctuality";
 import { buildHref } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type {
@@ -85,6 +88,12 @@ export interface PeriodCore {
   offScheduleDeltas: ReturnType<typeof computeRankDelta> | undefined;
   reliableDeltas: ReturnType<typeof computeRankDelta> | undefined;
   cancelledByRoute: Awaited<ReturnType<typeof getCancelledByRoute>>;
+  /**
+   * AT's trip punctuality over the strip's routes, still loading; null under a time-of-day
+   * or day-type filter, which the per-day tallies cannot follow, and for school services
+   * alone, which have no stop times to judge their trips by.
+   */
+  tripPunctuality: Promise<PunctualityCounts | null> | null;
   /** A mode is chosen and none of its routes clears the bar. */
   noModeData: boolean;
 }
@@ -142,6 +151,13 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
   // The first week and the first month have no real previous window: resolvePrevRange
   // clamps it away to nothing, and querying that would rank every route as a new entry.
   const prevRange = resolvePrevRange(window, period, anchor);
+  // AT's trip measures are kept per whole day of any type, so a part-of-day or day-type view
+  // goes without, as does a view of school services alone. Started beside the rankings,
+  // since the tallies do not depend on which routes those show.
+  const sumTripPunctuality =
+    filters.hours == null && filters.days == null && schools !== "only"
+      ? startTripPunctuality(range, PERIOD_REVALIDATE)
+      : null;
   const [rows, prevRows, [cancelled, cancelledByRoute, cancelledWithoutSchool]] = await Promise.all(
     [
       getFilteredRankings(range, filters, PERIOD_REVALIDATE),
@@ -205,6 +221,8 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
         )
       : undefined,
     cancelledByRoute,
+    tripPunctuality:
+      sumTripPunctuality?.(shownRouteSlugs(visible, cancelledByRoute.keys())) ?? null,
     noModeData: mode !== null && visible.every((r) => r.events < boardMin),
   };
 }
@@ -217,7 +235,14 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
  */
 export async function PeriodVerdict({ batch }: { batch: PeriodBatch }): Promise<JSX.Element> {
   const core = await batch.core;
-  return <FleetSummary data={core.heroData} verdict schoolAdded={core.schoolAdded} />;
+  return (
+    <FleetSummary
+      data={core.heroData}
+      verdict
+      schoolAdded={core.schoolAdded}
+      tripPunctuality={core.tripPunctuality}
+    />
+  );
 }
 
 /**

@@ -11,6 +11,22 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Wait for a promise up to a deadline. The promise keeps running past it, so its
+ * work (a cache fill, say) still lands for a later caller. A rejection before the
+ * deadline rejects; one after it reaches no one here, so give the promise its own catch.
+ * @param promise - The work to wait for.
+ * @param ms - The deadline, in milliseconds.
+ * @returns The promise's value, or null once the deadline passes first.
+ */
+export function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+/**
  * Exponential backoff for a retried AT request: 1s, 2s, 4s and so on, capped at 60s.
  * @param attempt - The zero-based attempt that just failed.
  * @returns The wait before the next attempt, in milliseconds.

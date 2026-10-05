@@ -19,6 +19,13 @@ describe("vehicleMarkerHtml", () => {
     expect(html).toContain('stroke="#95c11f"');
     expect(html).toContain('viewBox="0 0 640 512" fill="#5b7a12"><path');
   });
+
+  it("haloes only the focused vehicle, in its ring colour", () => {
+    expect(vehicleMarkerHtml(base)).not.toContain("fill-opacity");
+    expect(vehicleMarkerHtml({ ...base, focus: true })).toContain(
+      '<circle cx="20" cy="20" r="19.5" fill="#95c11f" fill-opacity="0.3"/>',
+    );
+  });
 });
 
 describe("vehiclePopupHtml", () => {

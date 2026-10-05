@@ -1,7 +1,13 @@
 // tests/lib/route/slug.test.ts
 // Route slugs and names: the version suffix strip, the name and subtitle
 // fallbacks every route row uses, and the one route-number sort.
-import { compareRouteNumbers, routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
+import {
+  compareRouteNumbers,
+  routeDisplayName,
+  routeSlug,
+  routeSubtitle,
+  shownRouteSlugs,
+} from "@/lib/route/slug";
 import { describe, expect, it } from "vitest";
 
 describe("routeSlug", () => {
@@ -60,5 +66,16 @@ describe("compareRouteNumbers", () => {
       "70X",
       "NX1",
     ]);
+  });
+});
+
+describe("shownRouteSlugs", () => {
+  it("slugs the rows and adds the routes with only cancellations", () => {
+    expect(
+      shownRouteSlugs(
+        [{ routeId: "70-203" }, { routeId: "70-210" }, { routeId: "NX1-203" }],
+        ["33"],
+      ),
+    ).toEqual(new Set(["70", "NX1", "33"]));
   });
 });

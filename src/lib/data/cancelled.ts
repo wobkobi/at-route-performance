@@ -1,7 +1,8 @@
 // src/lib/data/cancelled.ts
 // Cancellations: per-route lists, counts and the most-cancelled board.
-import { pushTo, sumBy } from "@/lib/collections";
+import { sumBy } from "@/lib/collections";
 import { cachedForDay, cachedForRange } from "@/lib/data/cache";
+import { type FlagKey, flagKey, flagStages } from "@/lib/data/flag-stages";
 import { FIVE_MINUTE_REVALIDATE, LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
@@ -14,9 +15,9 @@ import {
   nzServiceDayRange,
   serviceDatesInRange,
   serviceDayClockInstant,
-  serviceDayScanRange,
+  startedServiceDates,
 } from "@/lib/time/service-day";
-import { cancellationStage, type CancellationStage } from "@/lib/trip/cancellation";
+import { type CancellationStage } from "@/lib/trip/cancellation";
 import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip/id";
 
 /** A trip cancelled on a route for a service day, for the trip board. */
@@ -32,51 +33,6 @@ export interface CancelledTripRow {
   detected_at: string;
   /** Whether it never ran, was cut short or was reinstated, from its arrivals against the flag. */
   stage: CancellationStage;
-}
-
-/** A stored cancellation flag: the trip, its service day and when the flag was first seen. */
-interface FlagKey {
-  tripId: string;
-  /** The run's own service date (`YYYY-MM-DD`). */
-  serviceDate: string;
-  detectedAt: Date;
-}
-
-/**
- * Each flag's stage, from the real (non-ghost) arrivals its trip recorded on
- * the flag's own service day. One indexed read for the whole set: the trip ids
- * lead the ArrivalEvent unique key, and the window spans the flags' days plus
- * the run tail, so a run cut short after 4am still shows the calls it made.
- * Each arrival is then matched to a flag by its stamped service date.
- * @param flags - The cancellation flags to classify.
- * @returns Stage per flag, keyed by `tripId|serviceDate`.
- */
-async function flagStages(flags: readonly FlagKey[]): Promise<Map<string, CancellationStage>> {
-  const out = new Map<string, CancellationStage>();
-  if (flags.length === 0) return out;
-  const dates = [...new Set(flags.map((f) => f.serviceDate))];
-  const days = dates.map((d) => serviceDayScanRange(d));
-  const start = new Date(Math.min(...days.map((d) => d.start.getTime())));
-  const end = new Date(Math.max(...days.map((d) => d.end.getTime())));
-  const events = await prisma.arrivalEvent.findMany({
-    where: {
-      tripId: { in: [...new Set(flags.map((f) => f.tripId))] },
-      scheduledAt: { gte: start, lt: end },
-      serviceDate: { in: dates },
-    },
-    select: { tripId: true, serviceDate: true, actualAt: true, ghost: true },
-  });
-  const arrivalsByRun = new Map<string, string[]>();
-  for (const e of events) {
-    if (e.ghost === true) continue;
-    const key = `${e.tripId}|${e.serviceDate}`;
-    pushTo(arrivalsByRun, key, e.actualAt.toISOString());
-  }
-  for (const f of flags) {
-    const key = `${f.tripId}|${f.serviceDate}`;
-    out.set(key, cancellationStage(f.detectedAt.toISOString(), arrivalsByRun.get(key) ?? []));
-  }
-  return out;
 }
 
 /**
@@ -147,7 +103,7 @@ async function describeFlags(flags: readonly StoredFlag[]): Promise<CancelledTri
           ? null
           : serviceDayClockInstant(nzServiceDayRange(f.serviceDate).start, sec).toISOString(),
       detected_at: f.detectedAt.toISOString(),
-      stage: stages.get(`${f.tripId}|${f.serviceDate}`) ?? "before",
+      stage: stages.get(flagKey(f)) ?? "before",
     };
   });
 }
@@ -236,8 +192,7 @@ function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[
  * @returns The window's cancelled trips, earliest scheduled start first.
  */
 export async function getNetworkCancelledTrips(range: DateRange): Promise<NetworkCancelledTrip[]> {
-  const now = new Date();
-  const dates = serviceDatesInRange(range).filter((d) => nzServiceDayRange(d).start <= now);
+  const dates = startedServiceDates(range);
   return (await Promise.all(dates.map(networkCancelledTripsOfDay))).flat();
 }
 

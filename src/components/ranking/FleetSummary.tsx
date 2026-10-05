@@ -1,8 +1,9 @@
 // src/components/ranking/FleetSummary.tsx
-// Render the fleet KPI strip of arrivals, on-time %, average
-// off-schedule, cancellations, and routes. The arrivals count is stop arrivals,
-// not trips: one trip contributes one ArrivalEvent per stop it serves, so
-// labelling it "trips" overstates it by the route's stop count. The cancelled
+// Render the fleet KPI strip of arrivals, on-time %, average off-schedule,
+// cancellations, and routes, and, where the view has it, AT's trip punctuality.
+// The arrivals count is stop arrivals, not trips: one trip contributes one
+// ArrivalEvent per stop it serves, so labelling it "trips" overstates it by the
+// route's stop count. The cancelled
 // count is of flagged trips; their effect on the percentages is already in the
 // rows, as the wait for the next trip (lib/rider-wait.ts).
 
@@ -13,9 +14,11 @@ import {
 } from "@/components/PunctualityStat";
 import { SchoolAdded } from "@/components/SchoolAdded";
 import { SplitBar } from "@/components/SplitBar";
+import { TripPunctualityStatStreamed } from "@/components/TripPunctualityStat";
 import { cn } from "@/lib/cn";
 import { formatCount, formatDuration, formatPct, UNKNOWN_VALUE } from "@/lib/format";
 import type { SchoolDelta } from "@/lib/school-bus";
+import type { PunctualityCounts } from "@/lib/trip/punctuality";
 import { dayVerdict, LEAN_PHRASE, VERDICT_BANDS, verdictLean } from "@/lib/verdict";
 import type { FleetSummary as FleetSummaryData } from "@/types/dashboard";
 import type { JSX } from "react";
@@ -35,6 +38,13 @@ export interface FleetSummaryProps {
    * it. Omitted, or null, while school services are left out.
    */
   schoolAdded?: SchoolDelta | null;
+  /**
+   * AT's trip punctuality over the same routes, still loading, as a fifth figure beside the
+   * verdict's four. Omitted, or null, where the view cannot have it: a part of the day or a
+   * kind of day, which the whole-day tallies cannot follow, or school services alone, which
+   * have no stop times to judge their trips by. A promise of null is a read that failed.
+   */
+  tripPunctuality?: Promise<PunctualityCounts | null> | null;
 }
 
 const LABEL_CLASS = "at-eyebrow text-at-muted";
@@ -71,23 +81,26 @@ function VerdictScale(): JSX.Element {
  * three-band bar the word is read off. A window with no on-time share prints no
  * word, no bar, and says which kind of nothing it was.
  *
- * The panel shares the strip's four-column grid from `lg:` up, the word over the
- * first two columns and the sentence over the last two, so the sentence starts
- * on the same line as the third figure below it, with the bar across all four
- * beneath them. Stacked, the largest element on the site left two thirds of its
- * own width empty; pushed to the far right, the sentence floated with nothing
- * tying it back to the word it describes.
+ * The panel shares the strip's grid from `lg:` up (four columns, or five with the
+ * trip punctuality figure), the word over the first two columns and the sentence
+ * over the rest, so the sentence starts on the same line as the third figure below
+ * it, with the bar across them all beneath. Stacked, the largest element on the
+ * site left two thirds of its own width empty; pushed to the far right, the
+ * sentence floated with nothing tying it back to the word it describes.
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
  * @param props.breakdown - The on-time split behind the popover.
+ * @param props.five - Whether the strip below has five columns.
  * @returns The panel.
  */
 function VerdictPanel({
   data,
   breakdown,
+  five,
 }: {
   data: FleetSummaryData;
   breakdown: PunctualityBreakdown;
+  five: boolean;
 }): JSX.Element {
   const band = dayVerdict(data.on_time_pct);
   const lean = band ? verdictLean(data.early_pct, data.late_pct) : null;
@@ -99,7 +112,12 @@ function VerdictPanel({
       ? { onTime: data.on_time_pct, late: data.late_pct, early: data.early_pct }
       : null;
   return (
-    <div className="grid gap-x-6 gap-y-5 pb-6 lg:grid-cols-4 lg:items-end">
+    <div
+      className={cn(
+        "grid gap-x-6 gap-y-5 pb-6 lg:items-end",
+        five ? "lg:grid-cols-5" : "lg:grid-cols-4",
+      )}
+    >
       <div className="min-w-0 lg:col-span-2">
         {/* Positioned, so the on-time popover drops from this row rather than from
             the foot of the whole panel. */}
@@ -140,7 +158,7 @@ function VerdictPanel({
           </p>
         )}
       </div>
-      <div className="lg:col-span-2 lg:max-w-sm">
+      <div className={cn("lg:max-w-sm", five ? "lg:col-span-3" : "lg:col-span-2")}>
         {/* The arrivals count and the shares below have different denominators on
             purpose: arrivals include readings the nightly ghost pass hid, and
             every rate divides by the real ones (see lib/cron/aggregate.ts). "X% of N
@@ -166,21 +184,25 @@ function VerdictPanel({
 }
 
 /**
- * Render the fleet KPI strip (arrivals, on-time share, average off-schedule, routes).
+ * Render the fleet KPI strip (arrivals, on-time share, average off-schedule,
+ * cancellations, routes, and AT's trip punctuality when given).
  * The on-time and "off by" cards open a punctuality breakdown on click, so a
  * near-zero net average does not look at odds with the on-time share. With
- * `verdict`, the on-time share leads as a word above the other four figures,
- * which sit two by two on a phone.
+ * `verdict`, the on-time share leads as a word above the other figures (four, or
+ * five with trip punctuality), which sit two by two on a phone, the fifth across
+ * the full width.
  * @param props - Component props.
  * @param props.data - Aggregated totals for the window.
  * @param props.verdict - Lead with the verdict panel.
  * @param props.schoolAdded - How much including school services added to each count.
+ * @param props.tripPunctuality - AT's trip punctuality, still loading (verdict strip only).
  * @returns The KPI strip element.
  */
 export function FleetSummary({
   data,
   verdict = false,
   schoolAdded = null,
+  tripPunctuality = null,
 }: FleetSummaryProps): JSX.Element {
   const breakdown: PunctualityBreakdown = {
     on_time_pct: data.on_time_pct,
@@ -200,14 +222,18 @@ export function FleetSummary({
   // The home figures grow with the box gone; a bordered strip keeps its own
   // scale so its cells stay level with PunctualityStat's `sm` siblings.
   const valueClass = cn("at-figure", verdict ? "text-2xl sm:text-3xl" : "text-xl");
+  const five = verdict && tripPunctuality !== null;
   return (
     <div className={verdict ? undefined : "at-card"}>
-      {verdict && <VerdictPanel data={data} breakdown={breakdown} />}
+      {verdict && <VerdictPanel data={data} breakdown={breakdown} five={five} />}
       <div
         className={cn(
           "grid grid-cols-2",
           verdict
-            ? "gap-x-6 gap-y-5 border-t border-at-border pt-5 lg:grid-cols-4"
+            ? cn(
+                "gap-x-6 gap-y-5 border-t border-at-border pt-5",
+                five ? "lg:grid-cols-5" : "lg:grid-cols-4",
+              )
             : "sm:grid-cols-4",
         )}
       >
@@ -259,6 +285,14 @@ export function FleetSummary({
               <SchoolAdded n={schoolAdded?.route_count} />
             </div>
           </div>
+        )}
+        {five && tripPunctuality && (
+          <TripPunctualityStatStreamed
+            counts={tripPunctuality}
+            size="md"
+            className="col-span-2 lg:col-span-1"
+            align="end-lg"
+          />
         )}
       </div>
       {/* A route with cancellations but no arrivals still counts under Routes, so

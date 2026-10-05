@@ -22,6 +22,7 @@ import { RouteStrip } from "@/components/route/RouteStrip";
 import { RouteWeekSummary } from "@/components/route/RouteWeekSummary";
 import { SortHeader } from "@/components/SortHeader";
 import { WorstTripsBoard } from "@/components/trip/WorstTripsBoard";
+import { TripPunctualityStatStreamed } from "@/components/TripPunctualityStat";
 import { CELL_CLASS, DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OffScheduleValue } from "@/components/ui/OffScheduleValue";
@@ -45,8 +46,10 @@ import {
   getRouteStats,
   getRouteStopSplit,
   getRouteTripStats,
+  getTripPunctualityOf,
   getTripRiderWait,
   parseTripSort,
+  revalidateFor,
 } from "@/lib/data";
 import { readFallback } from "@/lib/db";
 import {
@@ -369,6 +372,18 @@ export default async function RoutePage({
       ),
   );
 
+  // AT's trip measures are kept per whole day, so a part-of-day view leaves them out of the
+  // day strip (the week strip already covers whole days); a school route has no stop times to
+  // judge its trips by. Streamed into its cell, since judging a running day takes a moment.
+  const tripPunctualityP =
+    !school && (isWeekView || hours == null)
+      ? getTripPunctualityOf(
+          isWeekView ? weekRange : range,
+          revalidateFor(isWeekView ? "week" : "day"),
+          new Set([slug]),
+        )
+      : null;
+
   // Week view skips the expensive trips query. Block only on the fast, cached
   // DB/geometry data the shell needs to render.
   const [trips, view, earliestDay, weekDays, cancelledTrips, detouredTripIds, tripWaits] =
@@ -677,7 +692,12 @@ export default async function RoutePage({
         <>
           {/* Week stats summary */}
           <Panel>
-            <div className="grid grid-cols-2 sm:grid-cols-3">
+            <div
+              className={cn(
+                "grid grid-cols-2",
+                tripPunctualityP ? "sm:grid-cols-4" : "sm:grid-cols-3",
+              )}
+            >
               <StatCell label="Arrivals" note={weekFigureNote}>
                 {formatCount(weekSummary?.events ?? 0)}
               </StatCell>
@@ -699,6 +719,9 @@ export default async function RoutePage({
                 value={formatPct(weekSummary?.on_time_pct)}
                 breakdown={weekPunctuality}
               />
+              {tripPunctualityP && (
+                <TripPunctualityStatStreamed counts={tripPunctualityP} align="end" />
+              )}
             </div>
           </Panel>
 
@@ -759,7 +782,12 @@ export default async function RoutePage({
         <>
           {/* Day stats summary */}
           <Panel>
-            <div className="grid grid-cols-2 sm:grid-cols-4">
+            <div
+              className={cn(
+                "grid grid-cols-2",
+                tripPunctualityP ? "sm:grid-cols-5" : "sm:grid-cols-4",
+              )}
+            >
               <StatCell label="Arrivals">{formatCount(summary?.events ?? 0)}</StatCell>
               <StatCell label="Trips">{formatCount(totalTrips)}</StatCell>
               <PunctualityStat
@@ -780,6 +808,13 @@ export default async function RoutePage({
                 value={formatPct(summary?.on_time_pct)}
                 breakdown={punctuality}
               />
+              {tripPunctualityP && (
+                <TripPunctualityStatStreamed
+                  counts={tripPunctualityP}
+                  className="col-span-2 sm:col-span-1"
+                  align="end"
+                />
+              )}
             </div>
             {/* Same reasoning as the stop page's strip: a 0 and three dashes are
                 one absence told two ways. Named here so a quiet day, a day the
@@ -793,35 +828,115 @@ export default async function RoutePage({
             )}
           </Panel>
 
-          {/* What the direction chips do not reach. Both figures come from one
-              getRouteStats call, which takes no direction at all, so "Trips"
-              and the runs below describe one direction while "Arrivals" and
-              "On time" describe both. */}
+          {/* What the direction chips do not reach. The strip's figures and the
+              stop list (byStop) come from one getRouteStats call, which takes no
+              direction at all, and AT's trip tallies split by no direction
+              either, so "Trips" and the runs below describe one direction while
+              "Arrivals", "On time", "Punctual trips" and the stops describe both. */}
           {activeDir != null && (
             <p className="text-xs text-at-muted">
-              Arrivals, Avg off by and On time cover both directions; Trips, the trips below, the
-              map and the diagram pick out this one.
+              {tripPunctualityP
+                ? "Arrivals, Avg off by, On time, Punctual trips and the stop list cover both directions"
+                : "Arrivals, Avg off by, On time and the stop list cover both directions"}
+              ; Trips, the trips below, the map and the diagram pick out this one.
             </p>
           )}
 
-          {/* The board on the left, the map and the line diagram stacked on the
-              right, so the diagram sits beside the board rather than below it. */}
+          {/* The board and the stops on the left, the map and the line diagram
+              stacked on the right, so the diagram sits beside them rather than
+              below, and a phone reaches the stops before the long diagram. */}
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-              {/* The live-only board waits on AT's realtime call to know which rows
-                  to list, so it streams in; the full board does not wait. */}
-              {liveOnly ? (
-                <Suspense fallback={<LoadingBlock label="Loading the live trips" />}>
+            <div className="min-w-0 space-y-4">
+              <div className="space-y-2">
+                {/* The live-only board waits on AT's realtime call to know which rows
+                    to list, so it streams in; the full board does not wait. */}
+                {liveOnly ? (
+                  <Suspense fallback={<LoadingBlock label="Loading the live trips" />}>
+                    <TripBoardSection {...boardProps} />
+                  </Suspense>
+                ) : (
                   <TripBoardSection {...boardProps} />
-                </Suspense>
-              ) : (
-                <TripBoardSection {...boardProps} />
-              )}
-              {tripsCapped && (
-                <p className="text-xs text-at-muted">
-                  Showing the first {TRIPS_FETCH_CAP} trips of the day.
-                </p>
-              )}
+                )}
+                {tripsCapped && (
+                  <p className="text-xs text-at-muted">
+                    Showing the first {TRIPS_FETCH_CAP} trips of the day.
+                  </p>
+                )}
+              </div>
+
+              <section aria-labelledby="route-stops" className="space-y-3">
+                <SectionHeading id="route-stops">Stops</SectionHeading>
+                {byStop.length === 0 ? (
+                  <EmptyState>
+                    No stop-level arrivals recorded for this route on this day.
+                  </EmptyState>
+                ) : (
+                  // Opened by a sort, which reloads the page and would otherwise fold
+                  // the table the reader just sorted away. The heading sits outside
+                  // the summary, which is a button to assistive tech and drops any
+                  // heading inside it from the outline.
+                  <details
+                    className="group at-card"
+                    open={sp.ssort !== undefined || sp.srev !== undefined}
+                  >
+                    <summary className="flex tap-h cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold text-at-shore select-none">
+                      {plural(byStop.length, "stop")} with arrivals
+                      <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <DataTable
+                      caption="Arrivals and delay at each stop"
+                      framed={false}
+                      className="border-t border-at-border"
+                    >
+                      <thead>
+                        <tr className="at-th-row">
+                          <SortHeader {...stopSort.head("stop")} align="left">
+                            Stop
+                          </SortHeader>
+                          <SortHeader {...stopSort.head("arrivals")}>Arrivals</SortHeader>
+                          <SortHeader {...stopSort.head("delay")}>Early or late</SortHeader>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
+                          <tr key={s.stop_id} className={ROW_CLASS}>
+                            <th scope="row" className={cn(CELL_CLASS, "text-left font-normal")}>
+                              <Link
+                                href={stopHref(s.stop_id, { day: stopDay })}
+                                className="at-link font-semibold"
+                              >
+                                {s.name}
+                              </Link>
+                            </th>
+                            <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
+                              {formatCount(s.events)}
+                            </td>
+                            <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
+                              <OffScheduleValue
+                                signedSec={s.avg_delay_sec}
+                                absSec={null}
+                                mode={routeMode}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </DataTable>
+                    {/* These rows and the strip above them are computed over
+                        different populations: applyPenalty adds a visit per missed
+                        stop to the strip's Arrivals, and no per-stop row takes a
+                        share of it, so the column genuinely does not add up to the
+                        figure above. Only worth saying when a penalty was applied. */}
+                    {punctuality.cancellations === "counted" && (
+                      <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
+                        Stop rows count measured arrivals only, so on a day with cancellations they
+                        add up to less than Arrivals above, which counts each missed stop as a rider
+                        wait.
+                      </p>
+                    )}
+                  </details>
+                )}
+              </section>
             </div>
             <div className="min-w-0 space-y-4">
               <RouteMapDiagram
@@ -852,77 +967,6 @@ export default async function RoutePage({
               )}
             </div>
           </div>
-
-          <section aria-labelledby="route-stops" className="space-y-3">
-            <SectionHeading id="route-stops">Stops</SectionHeading>
-            {byStop.length === 0 ? (
-              <EmptyState>No stop-level arrivals recorded for this route on this day.</EmptyState>
-            ) : (
-              // Opened by a sort, which reloads the page and would otherwise fold
-              // the table the reader just sorted away. The heading sits outside
-              // the summary, which is a button to assistive tech and drops any
-              // heading inside it from the outline.
-              <details
-                className="group at-card"
-                open={sp.ssort !== undefined || sp.srev !== undefined}
-              >
-                <summary className="flex tap-h cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold text-at-shore select-none">
-                  {plural(byStop.length, "stop")} with arrivals
-                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
-                </summary>
-                <DataTable
-                  caption="Arrivals and delay at each stop"
-                  framed={false}
-                  className="border-t border-at-border"
-                >
-                  <thead>
-                    <tr className="at-th-row">
-                      <SortHeader {...stopSort.head("stop")} align="left">
-                        Stop
-                      </SortHeader>
-                      <SortHeader {...stopSort.head("arrivals")}>Arrivals</SortHeader>
-                      <SortHeader {...stopSort.head("delay")}>Early or late</SortHeader>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortRows(byStop, STOP_COLUMNS, stopSort.sort).map((s) => (
-                      <tr key={s.stop_id} className={ROW_CLASS}>
-                        <th scope="row" className={cn(CELL_CLASS, "text-left font-normal")}>
-                          <Link
-                            href={stopHref(s.stop_id, { day: stopDay })}
-                            className="at-link font-semibold"
-                          >
-                            {s.name}
-                          </Link>
-                        </th>
-                        <td className={cn(CELL_CLASS, "text-right tabular-nums")}>
-                          {formatCount(s.events)}
-                        </td>
-                        <td className={cn(CELL_CLASS, "text-right whitespace-nowrap")}>
-                          <OffScheduleValue
-                            signedSec={s.avg_delay_sec}
-                            absSec={null}
-                            mode={routeMode}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </DataTable>
-                {/* These rows and the strip above them are computed over
-                    different populations: applyPenalty adds a visit per missed
-                    stop to the strip's Arrivals, and no per-stop row takes a
-                    share of it, so the column genuinely does not add up to the
-                    figure above. Only worth saying when a penalty was applied. */}
-                {punctuality.cancellations === "counted" && (
-                  <p className="border-t border-at-border px-4 py-3 text-xs text-at-muted">
-                    Stop rows count measured arrivals only, so on a day with cancellations they add
-                    up to less than Arrivals above, which counts each missed stop as a rider wait.
-                  </p>
-                )}
-              </details>
-            )}
-          </section>
         </>
       )}
     </main>

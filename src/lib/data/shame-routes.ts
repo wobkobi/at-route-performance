@@ -14,6 +14,7 @@ import {
   nzServiceDayRange,
   padScanRange,
   serviceDatesInRange,
+  startedServiceDates,
 } from "@/lib/time/service-day";
 import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type {
@@ -344,11 +345,11 @@ export async function getRouteBoardOfWeek(
   revalidate: number,
 ): Promise<ShameRouteOfWeek> {
   const { mode = null, schools = "exclude" } = filter;
-  // Resolve each service day independently (cached per day) and combine, so a
+  // Resolve each started service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation.
   const days = (
     await Promise.all(
-      serviceDatesInRange(range).map((date) =>
+      startedServiceDates(range).map((date) =>
         cachedRouteBoardOfDay(date, mode, schools, revalidate),
       ),
     )

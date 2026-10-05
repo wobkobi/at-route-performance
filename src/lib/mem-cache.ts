@@ -1,12 +1,13 @@
 // src/lib/mem-cache.ts
 // Re-export the Next.js Data Cache (`unstable_cache`) plus an
-// in-process TTL store for the values it cannot hold. `unstable_cache` is
-// file-backed and shared across worker threads but only stores JSON-serialisable
-// data, so anything containing Maps or Sets goes through `memCache` instead - an
-// in-process store anchored to globalThis (per worker thread, survives
-// hot-reloads) that also dedupes concurrent in-flight fetches so a cold miss
-// fires exactly one upstream call. The `force-dynamic` layout disables only
-// route-level static generation, not these caches.
+// in-process TTL store for what it cannot do. `unstable_cache` is file-backed and
+// shared across worker threads but only stores JSON-serialisable data, and a call
+// nested inside another's callback skips its read. `memCache` is an in-process
+// store anchored to globalThis (per worker thread, survives hot-reloads) for values
+// holding Maps or Sets and for a value built from per-day Data Cache reads; it also
+// dedupes concurrent in-flight fetches so a cold miss fires exactly one upstream
+// call. `sharedInFlight` keeps no value, only one running read per key. The
+// `force-dynamic` layout disables only route-level static generation, not these caches.
 
 import { unstable_cache as nextCache } from "next/cache";
 
@@ -36,10 +37,8 @@ interface Entry<T> {
   expiresAt: number;
 }
 
-// Anchored to globalThis as a secondary in-process TTL store for values that
-// cannot be JSON-serialised by `unstable_cache` (Maps, Sets). Survives
-// hot-reloads within the same worker thread; each worker thread starts with its
-// own cold store.
+// Anchored to globalThis as a secondary in-process TTL store. Survives hot-reloads
+// within the same worker thread; each worker thread starts with its own cold store.
 const g = globalThis as typeof globalThis & {
   __memStore?: Map<string, Entry<unknown>>;
   __memInflight?: Map<string, Promise<unknown>>;
@@ -48,10 +47,22 @@ const store: Map<string, Entry<unknown>> = (g.__memStore ??= new Map());
 const inflight: Map<string, Promise<unknown>> = (g.__memInflight ??= new Map());
 
 /**
- * In-process TTL cache for values that cannot be stored in the Next.js Data
- * Cache because they contain non-JSON-serialisable types (Map, Set).
- * Deduplicates concurrent in-flight fetches for the same key so a cold miss
- * fires exactly one upstream call regardless of concurrency.
+ * Drop every expired entry. Keys that carry a date are never asked for again once the
+ * day turns over, so without a sweep they would stay in memory for the life of the
+ * process.
+ * @param now - The current time, in epoch milliseconds.
+ */
+function sweepExpired(now: number): void {
+  for (const [key, entry] of store) if (entry.expiresAt <= now) store.delete(key);
+}
+
+/**
+ * In-process TTL cache for values the Next.js Data Cache cannot hold: values
+ * containing non-JSON-serialisable types (Map, Set), and values built from per-day
+ * Data Cache reads, which would skip their cached values if called inside another
+ * Data Cache entry. Expired entries are swept on each write. Deduplicates
+ * concurrent in-flight fetches for the same key so a cold miss fires exactly one
+ * upstream call regardless of concurrency.
  * @param key - Stable string cache key.
  * @param ttlSec - Seconds before the entry expires and is re-fetched.
  * @param fn - Zero-argument async factory called on a cache miss.
@@ -71,7 +82,9 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
       if (process.env.NODE_ENV === "development") {
         console.log(`[MEM-CACHE] miss ${key} (${Date.now() - missAt}ms)`);
       }
-      store.set(key, { value, expiresAt: Date.now() + ttlSec * 1000 });
+      const settledAt = Date.now();
+      sweepExpired(settledAt);
+      store.set(key, { value, expiresAt: settledAt + ttlSec * 1000 });
       inflight.delete(key);
       return value;
     })
@@ -81,5 +94,24 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
     });
 
   inflight.set(key, promise);
+  return promise;
+}
+
+const shared: Map<string, Promise<unknown>> = new Map();
+
+/**
+ * Share one running read between concurrent callers with the same key, and keep
+ * nothing once it settles. For reads with a cache of their own (the Data Cache)
+ * that two parts of a page start at once: two concurrent misses would each run
+ * the query, while holding the value here as well would only duplicate it.
+ * @param key - Stable string key for the read.
+ * @param fn - Zero-argument async read.
+ * @returns The running read's result.
+ */
+export function sharedInFlight<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const running = shared.get(key) as Promise<T> | undefined;
+  if (running) return running;
+  const promise = fn().finally(() => shared.delete(key));
+  shared.set(key, promise);
   return promise;
 }

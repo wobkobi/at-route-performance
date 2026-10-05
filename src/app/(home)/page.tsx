@@ -52,6 +52,7 @@ import {
   getStopBoardOfDay,
   getTripBoardInHours,
   getTripBoardOfDay,
+  startTripPunctuality,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import {
@@ -93,6 +94,7 @@ import {
   summariseRows,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
+import { shownRouteSlugs } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
   rowAllowedBySchool,
@@ -368,10 +370,18 @@ export default async function Home({
   // Time of day and area narrow the rankings and the KPI strip; a day is
   // already one kind of day, so the day type is a week and month filter only.
   const filters = parseRankingFilters(sp, true);
-  const rows = await getFilteredRankings(range, filters, TODAY_REVALIDATE);
   // Filters narrow the route lists. School services (S###) are left out unless
   // ?school=1 adds them or ?school=only keeps them alone.
   const schools = parseSchoolFilter(sp.school);
+  // AT's trip measures over the shown routes. They are kept per whole day, so a part-of-day
+  // view goes without rather than show a figure the hours do not narrow; so does a view of
+  // school services alone, which have no stop times to judge their trips by (the route page
+  // skips a school route the same way). Started before the rankings, which it does not need.
+  const sumTripPunctuality =
+    filters.hours == null && schools !== "only"
+      ? startTripPunctuality(range, TODAY_REVALIDATE)
+      : null;
+  const rows = await getFilteredRankings(range, filters, TODAY_REVALIDATE);
   // Kick the alerts fetch off early so it overlaps the queries below. Today's
   // alerts line streams it; a past day's banner awaits it at render.
   // Its 5-minute cache means only the first request in a window pays AT's
@@ -400,6 +410,8 @@ export default async function Home({
           : null,
       ]);
   const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
+  const tripPunctuality =
+    sumTripPunctuality?.(shownRouteSlugs(visible, cancelledByRoute.keys())) ?? null;
   // "+N" only when school services sit beside the rest; alone they add to nothing.
   const schoolAdded =
     schools === "include" ? schoolDelta(visible, cancelledTotal, cancelledWithoutSchool) : null;
@@ -488,7 +500,12 @@ export default async function Home({
           <AlertBanner alerts={networkWideAlerts((await alertsPromise) ?? [])} pastWindow />
         )}
 
-        <FleetSummary data={heroData} verdict schoolAdded={schoolAdded} />
+        <FleetSummary
+          data={heroData}
+          verdict
+          schoolAdded={schoolAdded}
+          tripPunctuality={tripPunctuality}
+        />
         <RankingFiltersNote filters={filters} window="day" live={linkDay === undefined} />
       </section>
 

@@ -379,13 +379,13 @@ async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
       headers: requestHeaders(),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    const routes = (await res.json()) as { id: string; mode: string }[];
+    const routes = (await res.json()) as { routeId: string; mode: string }[];
     const train = routes.find((r) => r.mode === "TRAIN");
     if (!train) {
       warnMissingSample("train line in the directory");
       return pages;
     }
-    const slug = train.id.replace(/-\d+$/, "");
+    const slug = train.routeId.replace(/-\d+$/, "");
     pages.push({ path: `/route/${encodeURIComponent(slug)}`, name: `Route ${slug} (train)` });
     const station = await firstLink(
       baseUrl,

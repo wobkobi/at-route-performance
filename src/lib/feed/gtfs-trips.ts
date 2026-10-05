@@ -4,6 +4,7 @@
 // school route (S454 and some 300 more), though the API lists them and their trips.
 import { fetchAll } from "@/lib/feed/at-static";
 import { parseAgencies, type AgencyRecord } from "@/lib/feed/gtfs-agencies";
+import { readStopEnds } from "@/lib/feed/gtfs-stop-ends";
 import { sleep } from "@/lib/utils";
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
@@ -38,6 +39,10 @@ export interface TripRecord {
   headsign: string | null;
   directionId: number | null;
   shapeId: string | null;
+  /** The trip's opening stops, in order; absent for a trip the zip has no stop times for. */
+  startStopIds?: string[];
+  /** The trip's last stop; absent alongside {@link TripRecord.startStopIds}. */
+  lastStopId?: string;
 }
 
 /**
@@ -79,7 +84,7 @@ function parseTrips(txt: string): TripRecord[] {
 }
 
 /**
- * Unzip filter: decompress only `trips.txt`.
+ * Unzip filter: decompress only `trips.txt` and `agency.txt`.
  * @param file - A zip entry being considered.
  * @returns True to decompress the entry.
  */
@@ -88,11 +93,12 @@ function onlyTripsAndAgencies(file: UnzipFileInfo): boolean {
 }
 
 /**
- * Download AT's GTFS zip and extract trip metadata from `trips.txt` and the
- * operator list from `agency.txt`. Only those two files are decompressed.
+ * Download AT's GTFS zip and extract trip metadata from `trips.txt`, each
+ * trip's opening and last stops from `stop_times.txt` ({@link readStopEnds},
+ * streamed) and the operator list from `agency.txt`.
  * @returns One {@link TripRecord} per trip in the feed, and one agency per
  *   operator; no agencies when `agency.txt` is absent, so the stored list stands.
- * @throws {Error} When the download fails or `trips.txt` is absent.
+ * @throws {Error} When the download fails or `trips.txt` or `stop_times.txt` is absent.
  */
 export async function fetchTripsAndAgencies(): Promise<{
   trips: TripRecord[];
@@ -108,8 +114,9 @@ export async function fetchTripsAndAgencies(): Promise<{
   const data = files["trips.txt"];
   if (!data) throw new Error("trips.txt not found in the GTFS zip");
   const agency = files["agency.txt"];
+  const ends = readStopEnds(buf);
   return {
-    trips: parseTrips(strFromU8(data)),
+    trips: parseTrips(strFromU8(data)).map((t) => ({ ...t, ...ends.get(t.id) })),
     agencies: agency ? parseAgencies(strFromU8(agency)) : [],
   };
 }

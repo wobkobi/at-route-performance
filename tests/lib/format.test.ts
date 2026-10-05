@@ -11,6 +11,7 @@ import {
   offScheduleValue,
   plural,
   sentenceStart,
+  shareFraction,
   UNKNOWN_VALUE,
 } from "@/lib/format";
 import { formatGtfsTime, nzClockTime } from "@/lib/time/format";
@@ -120,6 +121,43 @@ describe("plural", () => {
   });
   it("takes an irregular plural", () => {
     expect(plural(2, "entry", "entries")).toBe("2 entries");
+  });
+});
+
+describe("shareFraction", () => {
+  it("names a small share as 1 in N, nearest by relative error", () => {
+    expect(shareFraction(1.5)).toBe("about 1 in 70");
+    expect(shareFraction(3)).toBe("about 1 in 30");
+    expect(shareFraction(8)).toBe("about 1 in 12");
+    expect(shareFraction(18)).toBe("about 1 in 6");
+    expect(shareFraction(33)).toBe("about 1 in 3");
+  });
+
+  it("uses 2 in 5 and 3 in 10 where 1 in N is far off", () => {
+    expect(shareFraction(28)).toBe("about 3 in 10");
+    expect(shareFraction(42)).toBe("about 2 in 5");
+  });
+
+  it("calls a half a half, from either side", () => {
+    expect(shareFraction(45)).toBe("about 1 in 2");
+    expect(shareFraction(50)).toBe("about 1 in 2");
+    expect(shareFraction(55)).toBe("about 1 in 2");
+  });
+
+  it("turns a large share round from what is left of it", () => {
+    expect(shareFraction(62)).toBe("about 3 in 5");
+    expect(shareFraction(68)).toBe("about 2 in 3");
+    expect(shareFraction(75)).toBe("about 3 in 4");
+    expect(shareFraction(82)).toBe("about 4 in 5");
+    expect(shareFraction(92)).toBe("about 9 in 10");
+    expect(shareFraction(95)).toBe("about 19 in 20");
+    expect(shareFraction(97)).toBe("about 29 in 30");
+  });
+
+  it("is nearly all over 99% and nothing under 1%", () => {
+    expect(shareFraction(99.4)).toBe("nearly all");
+    expect(shareFraction(0.6)).toBeNull();
+    expect(shareFraction(Number.NaN)).toBeNull();
   });
 });
 

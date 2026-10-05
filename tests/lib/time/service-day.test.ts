@@ -23,6 +23,7 @@ import {
   serviceDayScanRange,
   serviceDayWindowText,
   shiftMonth,
+  startedServiceDates,
   weekdayShort,
 } from "@/lib/time/service-day";
 import { describe, expect, it } from "vitest";
@@ -135,6 +136,28 @@ describe("serviceDayClockInstant", () => {
     expect(serviceDayClockInstant(sep15, 3 * 3600 + 55 * 60).toISOString()).toBe(
       "2026-09-15T15:55:00.000Z",
     );
+  });
+});
+
+describe("startedServiceDates", () => {
+  const june = nzMonthRange("2026-06");
+
+  it("stops at the service day that contains now", () => {
+    // 15 Jun 12:00 NZST, inside the 15th's service day.
+    expect(startedServiceDates(june, new Date("2026-06-15T00:00:00Z")).at(-1)).toBe("2026-06-15");
+  });
+
+  it("leaves out a day until its 4am start", () => {
+    // 16 Jun 03:59 NZST still belongs to the 15th.
+    const before = new Date("2026-06-15T15:59:00Z");
+    expect(startedServiceDates(june, before).at(-1)).toBe("2026-06-15");
+    expect(startedServiceDates(june, new Date(before.getTime() + 60_000)).at(-1)).toBe(
+      "2026-06-16",
+    );
+  });
+
+  it("gives nothing for a window still to come", () => {
+    expect(startedServiceDates(june, new Date("2026-05-20T00:00:00Z"))).toEqual([]);
   });
 });
 
