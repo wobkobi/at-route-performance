@@ -19,6 +19,7 @@ import {
   getRouteBoardOfWeek,
   getStopBoardOfWeek,
   getTripBoardOfWeek,
+  getTripPunctualityOf,
   PERIOD_REVALIDATE,
 } from "@/lib/data";
 import { modeWord, type Mode } from "@/lib/mode";
@@ -37,6 +38,7 @@ import {
   type DelayDirection,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
+import { shownRouteSlugs } from "@/lib/route/slug";
 import {
   rowAllowedBySchool,
   schoolDelta,
@@ -45,6 +47,7 @@ import {
 } from "@/lib/school-bus";
 import { rangeIsEmpty } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
+import type { PunctualityCounts } from "@/lib/trip/punctuality";
 import { buildHref } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type {
@@ -85,6 +88,12 @@ export interface PeriodCore {
   offScheduleDeltas: ReturnType<typeof computeRankDelta> | undefined;
   reliableDeltas: ReturnType<typeof computeRankDelta> | undefined;
   cancelledByRoute: Awaited<ReturnType<typeof getCancelledByRoute>>;
+  /**
+   * AT's trip punctuality over the strip's routes, still loading; null under a time-of-day
+   * or day-type filter, which the per-day tallies cannot follow, and for school services
+   * alone, which have no stop times to judge their trips by.
+   */
+  tripPunctuality: Promise<PunctualityCounts | null> | null;
   /** A mode is chosen and none of its routes clears the bar. */
   noModeData: boolean;
 }
@@ -205,6 +214,14 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
         )
       : undefined,
     cancelledByRoute,
+    tripPunctuality:
+      filters.hours == null && filters.days == null && schools !== "only"
+        ? getTripPunctualityOf(
+            range,
+            PERIOD_REVALIDATE,
+            shownRouteSlugs(visible, cancelledByRoute.keys()),
+          )
+        : null,
     noModeData: mode !== null && visible.every((r) => r.events < boardMin),
   };
 }
@@ -217,7 +234,14 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
  */
 export async function PeriodVerdict({ batch }: { batch: PeriodBatch }): Promise<JSX.Element> {
   const core = await batch.core;
-  return <FleetSummary data={core.heroData} verdict schoolAdded={core.schoolAdded} />;
+  return (
+    <FleetSummary
+      data={core.heroData}
+      verdict
+      schoolAdded={core.schoolAdded}
+      tripPunctuality={core.tripPunctuality}
+    />
+  );
 }
 
 /**

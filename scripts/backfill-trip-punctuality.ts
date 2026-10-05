@@ -1,9 +1,10 @@
 // scripts/backfill-trip-punctuality.ts
-// Write AT's trip measures (punctual, reliable) onto DailyRouteSummary for service days the
-// nightly rollup covered before it counted them. Only days with a daily summary and arrival
+// Write AT's trip measures (punctual, reliable) into DailyTripTally for service days the
+// nightly rollup covered before it counted them, and drop any trip tallies left on those
+// days' DailyRouteSummary rows, which the schema does not carry. Only days with a daily summary and arrival
 // events still in retention are written: the summary means the ghost pass has run, and the
 // counts are built from the raw arrivals. Trips are judged against the stop ends TripMeta
-// holds, so run the GTFS sync first. Safe to re-run: each day's counts are set, not added.
+// holds, so run the GTFS sync first. Safe to re-run: each day's rows are replaced, not added to.
 //
 // Usage:
 //   npx tsx --env-file=.env.local scripts/backfill-trip-punctuality.ts 2026-10-02
@@ -12,15 +13,11 @@
 //   day's network figures without writing)
 import { dayHasEvents, daySummarised } from "@/lib/cron/aggregate";
 import { tripPunctualityOfDay, writeTripPunctuality } from "@/lib/cron/trip-punctuality";
-import { prisma } from "@/lib/db";
+import { dateWindow } from "@/lib/data/raw";
+import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { DATA_START_DAY } from "@/lib/time/data-start";
-import { nzServiceDayString, shiftDays } from "@/lib/time/service-day";
-import {
-  emptyCounts,
-  punctualPct,
-  reliablePct,
-  type PunctualityCounts,
-} from "@/lib/trip/punctuality";
+import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
+import { punctualPct, reliablePct, sumCounts } from "@/lib/trip/punctuality";
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes("--dry-run");
@@ -38,29 +35,43 @@ if (dates.length === 0) {
 }
 
 /**
- * Sum every route's counts into the network's.
- * @param counts - Counts per route.
- * @returns The network total.
- */
-function networkTotal(counts: ReadonlyMap<string, PunctualityCounts>): PunctualityCounts {
-  const total = emptyCounts();
-  for (const c of counts.values()) {
-    total.departed += c.departed;
-    total.reliable += c.reliable;
-    total.timed += c.timed;
-    total.punctual += c.punctual;
-    total.cancelled += c.cancelled;
-  }
-  return total;
-}
-
-/**
  * A percentage for the log, or a dash.
  * @param pct - The percentage, or null.
  * @returns The text.
  */
 function pctText(pct: number | null): string {
   return pct === null ? "-" : `${pct.toFixed(1)}%`;
+}
+
+/** Trip tally fields DailyRouteSummary rows may still hold, which the schema does not carry. */
+const SUMMARY_TALLY_FIELDS = [
+  "tripsDeparted",
+  "tripsReliable",
+  "tripsTimed",
+  "tripsPunctual",
+  "tripsCancelled",
+];
+
+/**
+ * Drop any trip tallies left on one day's summary rows, so DailyTripTally is the only copy.
+ * @param date - Service date (`YYYY-MM-DD`).
+ * @returns How many rows lost a field.
+ */
+async function clearSummaryTallies(date: string): Promise<number> {
+  const reply = await runCommand(() =>
+    prisma.$runCommandRaw({
+      update: "DailyRouteSummary",
+      updates: [
+        {
+          q: { date: dateWindow(nzServiceDayRange(date)), tripsDeparted: { $exists: true } },
+          u: { $unset: Object.fromEntries(SUMMARY_TALLY_FIELDS.map((f) => [f, ""])) },
+          multi: true,
+        },
+      ],
+    }),
+  );
+  throwOnWriteErrors(reply, [], "DailyRouteSummary tally clear");
+  return Number((reply as { nModified?: number }).nModified ?? 0);
 }
 
 console.log(
@@ -91,14 +102,15 @@ for (const date of dates) {
   const dayStart = Date.now();
   try {
     if (dryRun) {
-      const t = networkTotal(await tripPunctualityOfDay(date));
+      const t = sumCounts(Object.fromEntries(await tripPunctualityOfDay(date)));
       console.log(
         `  ${date}  punctual ${pctText(punctualPct(t))} of ${t.timed + t.cancelled}, reliable ${pctText(reliablePct(t))} of ${t.departed + t.cancelled} (${t.cancelled} cancelled, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
       );
     } else {
       const routes = await writeTripPunctuality(date);
+      const cleared = await clearSummaryTallies(date);
       console.log(
-        `  ${date}  ok  (${routes} routes, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
+        `  ${date}  ok  (${routes} routes, ${cleared} summary rows cleared, ${((Date.now() - dayStart) / 1000).toFixed(1)}s)`,
       );
     }
     ok++;

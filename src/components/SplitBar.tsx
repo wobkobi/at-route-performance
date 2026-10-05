@@ -136,7 +136,7 @@ export function SplitBar({
   }
 
   return (
-    <div className="relative lg:col-span-4">
+    <div className="relative lg:col-span-full">
       <div className="flex h-3 bg-at-bg">
         {SPLIT_BANDS.map((b) => (
           <button

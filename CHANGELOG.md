@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.53.0] - 2026-10-05
+
+### Added
+
+- AT's own trip punctuality and reliability show on the route page, the home page and Days, with an
+  info button that defines both and says what each leaves out; the route page's stops sit under the
+  trips board, beside the line diagram
+
 ## [2.52.2] - 2026-10-05
 
 ### Fixed

@@ -10,15 +10,21 @@ import { ModeFilter } from "@/components/filter/ModeFilter";
 import { SchoolBusToggle } from "@/components/filter/SchoolBusToggle";
 import { LoadingBlock } from "@/components/Loading";
 import { SortHeader } from "@/components/SortHeader";
+import { tripPunctualityShown } from "@/components/TripPunctualityStat";
 import { DataTable, ROW_CLASS } from "@/components/ui/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
+  getCancelledByRoute,
   getCancelledCount,
   getEarliestDataDay,
   getLatestEventDate,
   getRankings,
+  getTripPunctuality,
+  punctualityForSlugs,
   TODAY_REVALIDATE,
+  type RoutePunctuality,
 } from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import { formatCount, formatDuration, formatPct, plural, UNKNOWN_VALUE } from "@/lib/format";
 import { parseMode, type Mode } from "@/lib/mode";
 import { pageMetadata } from "@/lib/og";
@@ -36,12 +42,21 @@ import {
   type SortKey,
   type TableSort,
 } from "@/lib/page/table-sort";
+import { visibleRows } from "@/lib/rankings";
+import { shownRouteSlugs } from "@/lib/route/slug";
 import { parseSchoolFilter, schoolFilterParam, type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import { daySlot, type DaySlot } from "@/lib/time/day-series";
 import { dayLinkParam } from "@/lib/time/day-url";
 import { requestServiceDay } from "@/lib/time/request-now";
 import { nzServiceDayRange, serviceDatesInRange, serviceDayLabel } from "@/lib/time/service-day";
+import {
+  MIN_JUDGED_TRIPS,
+  PUNCTUAL_BASIS,
+  PUNCTUAL_DEFINITION,
+  punctualPct,
+  type PunctualityCounts,
+} from "@/lib/trip/punctuality";
 import { buildHref, stripUnset } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type { Metadata } from "next";
@@ -84,6 +99,8 @@ interface DayLine {
   offSec: number | null;
   arrivals: number | null;
   cancelled: number;
+  /** AT's punctual-trip share, or null with too few trips to judge or no tally to read. */
+  punctual: number | null;
 }
 
 const COLUMNS: SortColumn<DayLine>[] = [
@@ -92,6 +109,7 @@ const COLUMNS: SortColumn<DayLine>[] = [
   { key: "off", value: "offSec" },
   { key: "arrivals", value: "arrivals" },
   { key: "cancelled", value: "cancelled" },
+  { key: "punctual", value: "punctual" },
 ];
 
 /**
@@ -170,6 +188,20 @@ export default async function DaysPage({
   // Both readers await it later, in stream order; this keeps an early rejection
   // from being reported as unhandled before the first of them gets there.
   dayRows.catch(() => undefined);
+  // AT's trip tallies per day, every route's, started beside the routes so today's live
+  // judging overlaps the reads before it; the table narrows each to the day's shown routes.
+  // A failed read settles to null rather than rejecting. School services alone have no stop
+  // times to judge their trips by, so that view drops the column instead.
+  const tripByDay: Promise<RoutePunctuality | null>[] | null =
+    schools === "only"
+      ? null
+      : dates.map((date) =>
+          date > today
+            ? Promise.resolve(null)
+            : getTripPunctuality(nzServiceDayRange(date), TODAY_REVALIDATE).catch(
+                readFallback("trip-punctuality", null),
+              ),
+        );
 
   return (
     <main className="space-y-4">
@@ -202,6 +234,7 @@ export default async function DaysPage({
         <DaysBody
           dates={dates}
           dayRows={dayRows}
+          tripByDay={tripByDay}
           monthView={window === "month"}
           mode={mode}
           schools={schools}
@@ -259,6 +292,8 @@ async function DaysFilters({
  * @param root0 - Props.
  * @param root0.dates - The window's service dates from the start of capture.
  * @param root0.dayRows - Each date's routes, in the same order, null for a day not yet started.
+ * @param root0.tripByDay - Each date's trip tallies per route, in the same order, null where
+ *   the read failed or the day has not started; null as a whole when the view has no column.
  * @param root0.monthView - Whether the window is a month.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.schools - Which school services count.
@@ -270,6 +305,7 @@ async function DaysFilters({
 async function DaysBody({
   dates,
   dayRows,
+  tripByDay,
   monthView,
   mode,
   schools,
@@ -279,6 +315,7 @@ async function DaysBody({
 }: {
   dates: string[];
   dayRows: Promise<(RouteRow[] | null)[]>;
+  tripByDay: Promise<RoutePunctuality | null>[] | null;
   monthView: boolean;
   mode: Mode | null;
   schools: SchoolFilter;
@@ -287,19 +324,43 @@ async function DaysBody({
   head: (key: SortKey) => { href: string; dir: SortDir | null };
 }): Promise<JSX.Element> {
   const allRows = await dayRows;
+  const showPunctual = tripByDay !== null;
+  // AT's trip tallies per day, over the routes the day view sums them for.
+  const tripCounts = new Map<string, PunctualityCounts | null>();
   const slots: DaySlot[] = await Promise.all(
     dates.map(async (date, i) => {
       const rows = allRows[i];
       if (!rows) return daySlot(date, today, null, { mode, schools });
-      // The day view's own range and keys, so these reads share its cache.
-      const cancelled = await getCancelledCount(
-        nzServiceDayRange(date),
-        { mode, schools },
-        TODAY_REVALIDATE,
-      );
+      // The day view's own range and keys, so these reads share its cache. The
+      // by-route count only names the routes the trip tallies are summed over.
+      const range = nzServiceDayRange(date);
+      const [cancelled, cancelledByRoute, byRoute] = await Promise.all([
+        getCancelledCount(range, { mode, schools }, TODAY_REVALIDATE),
+        tripByDay ? getCancelledByRoute(range, { mode, schools }, TODAY_REVALIDATE) : null,
+        tripByDay?.[i] ?? null,
+      ]);
+      if (cancelledByRoute) {
+        tripCounts.set(
+          date,
+          byRoute &&
+            punctualityForSlugs(
+              byRoute,
+              shownRouteSlugs(visibleRows(rows, { mode, schools }), cancelledByRoute.keys()),
+            ),
+        );
+      }
       return daySlot(date, today, { rows, cancelled }, { mode, schools });
     }),
   );
+  /**
+   * A day's punctual-trip share, when enough trips were judged to print one.
+   * @param date - The service date.
+   * @returns The share, or null.
+   */
+  const punctualOf = (date: string): number | null => {
+    const c = tripCounts.get(date) ?? null;
+    return c && tripPunctualityShown(c) ? punctualPct(c) : null;
+  };
 
   /**
    * A day's overview, carrying the filters. Today's link drops `?day`, which the
@@ -329,6 +390,7 @@ async function DaysBody({
               offSec: slot.summary.avg_abs_delay_sec,
               arrivals: slot.summary.events,
               cancelled: slot.summary.cancelled ?? 0,
+              punctual: punctualOf(slot.date),
             }
           : {
               slot,
@@ -337,6 +399,7 @@ async function DaysBody({
               offSec: null,
               arrivals: null,
               cancelled: slot.cancelled,
+              punctual: punctualOf(slot.date),
             },
       ),
     COLUMNS,
@@ -376,6 +439,11 @@ async function DaysBody({
             <SortHeader {...head("cancelled")} className="hidden sm:table-cell">
               Flagged cancelled
             </SortHeader>
+            {showPunctual && (
+              <SortHeader {...head("punctual")} className="hidden sm:table-cell">
+                Punctual trips
+              </SortHeader>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -411,21 +479,45 @@ async function DaysBody({
                   <td className="hidden p-3 text-right tabular-nums sm:table-cell">
                     {formatCount(s.summary.cancelled ?? 0)}
                   </td>
+                  {showPunctual && (
+                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                      {formatPct(punctualOf(s.date))}
+                    </td>
+                  )}
                 </>
               ) : (
-                <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
-                  No arrivals recorded
-                  {/* The cancellations are the only thing that separates the
+                <>
+                  <td colSpan={5} className="px-2 py-3 text-at-muted sm:p-3">
+                    No arrivals recorded
+                    {/* The cancellations are the only thing that separates the
                         worst possible day - every trip cancelled, so nothing
                         arrived - from an ingest outage. Named here rather than
                         in the column beside it, which a phone does not render. */}
-                  {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
-                </td>
+                    {s.cancelled > 0 && `, and ${plural(s.cancelled, "trip")} flagged cancelled`}
+                  </td>
+                  {/* Shown, not spanned over: cancelled trips count against AT's
+                      measure, so a day of nothing but cancellations reads 0%, and
+                      the column sorts by the figure the reader can see. */}
+                  {showPunctual && (
+                    <td className="hidden p-3 text-right tabular-nums sm:table-cell">
+                      {formatPct(punctualOf(s.date))}
+                    </td>
+                  )}
+                </>
               )}
             </tr>
           ))}
         </tbody>
       </DataTable>
+      {/* Hidden wherever the column is. Punctual only, since the table shows no
+          reliable share to define. */}
+      {showPunctual && (
+        <p className="hidden text-xs text-at-muted sm:block">
+          Punctual trips is the share of trips AT counts as punctual, the measure it tracks its own
+          punctuality by. Punctual: {PUNCTUAL_DEFINITION} {PUNCTUAL_BASIS} A dash means fewer than{" "}
+          {MIN_JUDGED_TRIPS} trips to judge that day, or no tally available.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 // src/lib/trip/punctuality.ts
-// AT's trip measures, judged one trip at a time. AT calls a trip punctual when it leaves its
-// first stop between 1 min early and 5 min late and reaches its last stop no more than 5 min
-// late, and reliable when it leaves its first stop between 1 min early and 10 min late. Both
-// are shares of trips, not of arrivals, so they sit apart from the site's own on-time window.
+// AT's trip measures, judged one trip at a time: the punctuality and reliability AT tracks
+// and reports its own performance by. AT calls a trip punctual when it leaves its first stop
+// between 1 min early and 5 min late and reaches its last stop no more than 5 min late, and
+// reliable when it leaves its first stop between 1 min early and 10 min late. Both are shares
+// of trips, not of arrivals, so they sit apart from the site's own on-time window.
 
 /** The earliest a departure can be and still count for either measure. */
 export const DEPART_EARLY_SEC = 60;
@@ -12,6 +13,35 @@ export const PUNCTUAL_DEPART_LATE_SEC = 300;
 export const PUNCTUAL_ARRIVE_LATE_SEC = 300;
 /** The latest a departure can be and still count as reliable. */
 export const RELIABLE_DEPART_LATE_SEC = 600;
+
+/**
+ * A window edge in whole minutes, for the definitions below.
+ * @param sec - The edge, in seconds.
+ * @returns E.g. "5 min".
+ */
+function minutes(sec: number): string {
+  return `${Math.round(sec / 60)} min`;
+}
+
+/** What makes a trip punctual, built from the windows above so the copy cannot drift from the test. */
+export const PUNCTUAL_DEFINITION = `Leaves its first stop between ${minutes(DEPART_EARLY_SEC)} early and ${minutes(PUNCTUAL_DEPART_LATE_SEC)} late, and reaches its last stop no more than ${minutes(PUNCTUAL_ARRIVE_LATE_SEC)} late.`;
+
+/** What makes a trip reliable, built the same way. */
+export const RELIABLE_DEFINITION = `Leaves its first stop between ${minutes(DEPART_EARLY_SEC)} early and ${minutes(RELIABLE_DEPART_LATE_SEC)} late.`;
+
+/** Where the two measures come from, so a reader knows they are AT's yardstick and not the site's. */
+export const TRIP_MEASURES_SOURCE = "This is how AT tracks its own punctuality and reliability.";
+
+/**
+ * What each share counts and leaves out, beside the two definitions. Punctual needs both ends
+ * read and reliable only the departure, so each leaves out a different set of trips.
+ */
+export const TRIP_MEASURES_BASIS =
+  "Cancelled trips count against both. Punctual leaves out trips the feed did not time at both ends; reliable leaves out those it did not see leave.";
+
+/** What the punctual share counts and leaves out, where it is shown without reliable. */
+export const PUNCTUAL_BASIS =
+  "Cancelled trips count as not punctual, and trips the feed did not time at both ends are left out.";
 
 /** One recorded visit to a trip's opening or last stop. */
 export interface EndReading {
@@ -140,12 +170,59 @@ export function addVerdict(counts: PunctualityCounts, verdict: TripVerdict): voi
 }
 
 /**
+ * Add one tally into another.
+ * @param into - The running total, changed in place.
+ * @param c - The tally to add.
+ */
+export function addCounts(into: PunctualityCounts, c: PunctualityCounts): void {
+  into.departed += c.departed;
+  into.reliable += c.reliable;
+  into.timed += c.timed;
+  into.punctual += c.punctual;
+  into.cancelled += c.cancelled;
+}
+
+/**
+ * Sum the tallies of the given routes.
+ * @param byRoute - Tallies keyed by route id.
+ * @param routeIds - The routes to sum; every route when omitted.
+ * @returns The total.
+ */
+export function sumCounts(
+  byRoute: Readonly<Record<string, PunctualityCounts>>,
+  routeIds?: Iterable<string>,
+): PunctualityCounts {
+  const total = emptyCounts();
+  for (const id of routeIds ?? Object.keys(byRoute)) {
+    const c = byRoute[id];
+    if (c) addCounts(total, c);
+  }
+  return total;
+}
+
+/**
+ * Below this many judged trips a share swings too far on one trip to print: one late
+ * bus out of five reads as 80% punctual.
+ */
+export const MIN_JUDGED_TRIPS = 10;
+
+/**
+ * How many trips the punctual share is out of: those timed at both ends plus those
+ * cancelled.
+ * @param c - The tally.
+ * @returns The count.
+ */
+export function punctualJudged(c: PunctualityCounts): number {
+  return c.timed + c.cancelled;
+}
+
+/**
  * The share of trips that were punctual, cancelled trips counted as failures.
  * @param c - The tally.
  * @returns A percentage, or null with no trip judged.
  */
 export function punctualPct(c: PunctualityCounts): number | null {
-  const of = c.timed + c.cancelled;
+  const of = punctualJudged(c);
   return of > 0 ? (100 * c.punctual) / of : null;
 }
 

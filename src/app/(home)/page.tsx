@@ -52,6 +52,7 @@ import {
   getStopBoardOfDay,
   getTripBoardInHours,
   getTripBoardOfDay,
+  getTripPunctualityOf,
   TODAY_REVALIDATE,
 } from "@/lib/data";
 import {
@@ -93,6 +94,7 @@ import {
   summariseRows,
 } from "@/lib/rankings";
 import { viewQuery } from "@/lib/route/explorer";
+import { shownRouteSlugs } from "@/lib/route/slug";
 import {
   parseSchoolFilter,
   rowAllowedBySchool,
@@ -400,6 +402,18 @@ export default async function Home({
           : null,
       ]);
   const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
+  // AT's trip measures over the same routes. They are kept per whole day, so a part-of-day
+  // view goes without rather than show a figure the hours do not narrow; so does a view of
+  // school services alone, which have no stop times to judge their trips by (the route page
+  // skips a school route the same way).
+  const tripPunctuality =
+    filters.hours == null && schools !== "only"
+      ? getTripPunctualityOf(
+          range,
+          TODAY_REVALIDATE,
+          shownRouteSlugs(visible, cancelledByRoute.keys()),
+        )
+      : null;
   // "+N" only when school services sit beside the rest; alone they add to nothing.
   const schoolAdded =
     schools === "include" ? schoolDelta(visible, cancelledTotal, cancelledWithoutSchool) : null;
@@ -488,7 +502,12 @@ export default async function Home({
           <AlertBanner alerts={networkWideAlerts((await alertsPromise) ?? [])} pastWindow />
         )}
 
-        <FleetSummary data={heroData} verdict schoolAdded={schoolAdded} />
+        <FleetSummary
+          data={heroData}
+          verdict
+          schoolAdded={schoolAdded}
+          tripPunctuality={tripPunctuality}
+        />
         <RankingFiltersNote filters={filters} window="day" live={linkDay === undefined} />
       </section>
 

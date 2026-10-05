@@ -4,8 +4,14 @@ import {
   addVerdict,
   emptyCounts,
   judgeTrip,
+  PUNCTUAL_BASIS,
+  PUNCTUAL_DEFINITION,
+  punctualJudged,
   punctualPct,
+  RELIABLE_DEFINITION,
   reliablePct,
+  sumCounts,
+  TRIP_MEASURES_BASIS,
   type EndReading,
   type TripEnds,
 } from "@/lib/trip/punctuality";
@@ -101,5 +107,48 @@ describe("punctualPct and reliablePct", () => {
     expect(c).toEqual({ departed: 3, reliable: 2, timed: 2, punctual: 1, cancelled: 1 });
     expect(punctualPct(c)).toBeCloseTo(100 / 3);
     expect(reliablePct(c)).toBe(50);
+  });
+});
+
+describe("sumCounts", () => {
+  const a = { departed: 4, reliable: 3, timed: 3, punctual: 2, cancelled: 1 };
+  const b = { departed: 2, reliable: 2, timed: 1, punctual: 1, cancelled: 0 };
+
+  it("sums the routes asked for, skipping any with no tally", () => {
+    expect(sumCounts({ x: a, y: b }, ["x", "missing"])).toEqual(a);
+    expect(punctualJudged(sumCounts({ x: a, y: b }, ["x", "missing"]))).toBe(4);
+  });
+
+  it("sums every route when none are named", () => {
+    expect(sumCounts({ x: a, y: b })).toEqual({
+      departed: 6,
+      reliable: 5,
+      timed: 4,
+      punctual: 3,
+      cancelled: 1,
+    });
+  });
+});
+
+describe("definitions", () => {
+  it("reads the windows the judge uses", () => {
+    expect(PUNCTUAL_DEFINITION).toBe(
+      "Leaves its first stop between 1 min early and 5 min late, and reaches its last stop no more than 5 min late.",
+    );
+    expect(RELIABLE_DEFINITION).toBe("Leaves its first stop between 1 min early and 10 min late.");
+  });
+
+  it("states each share's basis apart, since reliable needs only the departure read", () => {
+    // Reliable is out of departed + cancelled, so a trip timed only at its first stop counts
+    // for it; the copy must not say both shares need both ends.
+    const c = emptyCounts();
+    addVerdict(c, { reliable: true, punctual: null });
+    expect(reliablePct(c)).toBe(100);
+    expect(punctualPct(c)).toBeNull();
+    expect(TRIP_MEASURES_BASIS).toContain(
+      "Punctual leaves out trips the feed did not time at both ends",
+    );
+    expect(TRIP_MEASURES_BASIS).toContain("reliable leaves out those it did not see leave");
+    expect(PUNCTUAL_BASIS).not.toMatch(/reliable/i);
   });
 });
