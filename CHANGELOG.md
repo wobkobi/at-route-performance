@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.13] - 2026-10-06
+
+### Changed
+
+- The worst-stops boards filter by mode and school service from a route table held in memory for ten
+  minutes, rather than querying the routes for every day they read
+
 ## [2.54.12] - 2026-10-06
 
 ### Changed
