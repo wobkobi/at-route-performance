@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.15] - 2026-10-06
+
+### Changed
+
+- With READ_TIMING=1 the server logs every cached read and raw aggregation taking 250ms or more, and
+  the CI smoke run sets it and marks where each page starts, so a slow page's log names the reads
+  behind it
+
 ## [2.54.14] - 2026-10-06
 
 ### Changed

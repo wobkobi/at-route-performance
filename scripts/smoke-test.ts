@@ -858,6 +858,10 @@ async function main(): Promise<void> {
 
     const results: PageResult[] = [];
     for (const spec of pages) {
+      // On the same stream as the server's lines, so a page's read timings (READ_TIMING=1)
+      // land under it. A line logs when its read ends, so a background refresh or work
+      // kept alive by after() can land under the next page instead.
+      process.stderr.write(`  [PAGE] start ${spec.path}\n`);
       const result = await checkPage(browser, baseUrl, spec);
       results.push(result);
       const icon = result.status === "pass" ? "ok" : "x";

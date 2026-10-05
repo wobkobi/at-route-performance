@@ -9,6 +9,7 @@
 // call. `sharedInFlight` keeps no value, only one running read per key. The
 // `force-dynamic` layout disables only route-level static generation, not these caches.
 
+import { READ_TIMING } from "@/lib/read-timing";
 import { unstable_cache as nextCache } from "next/cache";
 
 /**
@@ -79,7 +80,7 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
   const missAt = Date.now();
   const promise = fn()
     .then((value) => {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === "development" || READ_TIMING) {
         console.log(`[MEM-CACHE] miss ${key} (${Date.now() - missAt}ms)`);
       }
       const settledAt = Date.now();

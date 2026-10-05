@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import { memCache, unstable_cache } from "@/lib/mem-cache";
+import { timedRead } from "@/lib/read-timing";
 import {
   type DateRange,
   nzServiceDayRange,
@@ -161,9 +162,16 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  return unstable_cache(fn, cacheKey(keyParts, cacheState(final, range, liveRevalidate)), {
-    revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
-  })(final);
+  const key = cacheKey(keyParts, cacheState(final, range, liveRevalidate));
+  // Timed around the call, not inside fn: the callback's source is part of the
+  // Data Cache key, so wrapping it would move every entry. Lines log as reads end,
+  // so a miss's aggregate prints just above its `cached` line; a slow `cached` line
+  // without one is a slow cache read.
+  return timedRead(`cached ${key.join(":")}`, () =>
+    unstable_cache(fn, key, {
+      revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
+    })(final),
+  );
 }
 
 /**
