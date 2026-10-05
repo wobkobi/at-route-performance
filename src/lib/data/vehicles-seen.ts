@@ -7,7 +7,7 @@ import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { getRouteModeMap } from "@/lib/data/routes";
 import { type ShameFilter, worstStopRouteIds } from "@/lib/data/shame-filter";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { unstable_cache } from "@/lib/mem-cache";
+import { memCache, sharedInFlight } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
 import {
   type DateRange,
@@ -28,9 +28,29 @@ import {
 } from "@/lib/vehicle/counts";
 
 /**
+ * The key parts naming one filter: mode, school rule and, only when set, the hours, so the
+ * whole-day entries keep their keys.
+ * @param filter - Mode/school filters.
+ * @param filter.mode - Restrict to this mode; null for every mode.
+ * @param filter.schools - Which school services count.
+ * @param hours - Part of the day, or null for all of it.
+ * @returns The key parts.
+ */
+function filterKey(
+  { mode = null, schools = "exclude" }: ShameFilter,
+  hours: HourRange | null,
+): string[] {
+  return [mode ?? "all", schools, ...(hours ? [hourRangeParam(hours) ?? ""] : [])];
+}
+
+/**
  * One service day's distinct vehicles per mode, cached per day so a week, a
  * month or the whole archive is a union of cached days rather than one scan.
  * Ids are kept, not counts, because the same bus runs on most days of a week.
+ * Must be called outside any other `unstable_cache` callback: a nested call skips its
+ * cache read, so every finished day would be scanned again. A running read is shared
+ * between the window card and the all-time card, which ask for the same days at once;
+ * on a cold cache each would otherwise scan the day.
  * @param date - Service date (`YYYY-MM-DD`).
  * @param filter - Mode/school filters, as the boards take them.
  * @param filter.mode - Restrict to this mode; null for every mode.
@@ -45,44 +65,40 @@ function cachedVehiclesOfDay(
   revalidate: number,
   hours: HourRange | null = null,
 ): Promise<VehiclesByMode> {
-  return cachedForDay(
-    async (classified) => {
-      const routeIds = await worstStopRouteIds(mode, schools);
-      // Feed ids are all digits; the few rows holding a fleet label or nothing
-      // at all would count one vehicle twice or count a blank.
-      const match: Record<string, unknown> = {
-        scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
-        ...realDeviationMatchFor(classified),
-        vehicleId: { $regex: "^[0-9]+$" },
-      };
-      if (routeIds) match.routeId = { $in: routeIds };
-      // As on the route page's hours: an $expr sees only the rows the scheduledAt
-      // bounds let through, so it adds a comparison per row and no scan.
-      if (hours) {
-        match.$expr = {
-          $in: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, hoursInRange(hours)],
+  const key = ["vehicles-of-day", date, ...filterKey({ mode, schools }, hours)];
+  return sharedInFlight(key.join(":"), () =>
+    cachedForDay(
+      async (classified) => {
+        const routeIds = await worstStopRouteIds(mode, schools);
+        // Feed ids are all digits; the few rows holding a fleet label or nothing
+        // at all would count one vehicle twice or count a blank.
+        const match: Record<string, unknown> = {
+          scheduledAt: scheduledAtWindow(nzServiceDayRange(date)),
+          ...realDeviationMatchFor(classified),
+          vehicleId: { $regex: "^[0-9]+$" },
         };
-      }
-      const [res, modeOf] = await Promise.all([
-        aggregateRows<VehicleRouteRow>("ArrivalEvent", [
-          { $match: match },
-          { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
-          { $project: { _id: 0, v: "$_id", r: 1 } },
-        ]),
-        getRouteModeMap(),
-      ]);
-      return vehiclesByMode(res, modeOf);
-    },
-    // The hours go last and only when set, so the whole-day entries keep their keys.
-    [
-      "vehicles-of-day",
+        if (routeIds) match.routeId = { $in: routeIds };
+        // As on the route page's hours: an $expr sees only the rows the scheduledAt
+        // bounds let through, so it adds a comparison per row and no scan.
+        if (hours) {
+          match.$expr = {
+            $in: [{ $hour: { date: "$scheduledAt", timezone: NZ_TZ } }, hoursInRange(hours)],
+          };
+        }
+        const [res, modeOf] = await Promise.all([
+          aggregateRows<VehicleRouteRow>("ArrivalEvent", [
+            { $match: match },
+            { $group: { _id: "$vehicleId", r: { $first: "$routeId" } } },
+            { $project: { _id: 0, v: "$_id", r: 1 } },
+          ]),
+          getRouteModeMap(),
+        ]);
+        return vehiclesByMode(res, modeOf);
+      },
+      key,
       date,
-      mode ?? "all",
-      schools,
-      ...(hours ? [hourRangeParam(hours) ?? ""] : []),
-    ],
-    date,
-    revalidate,
+      revalidate,
+    ),
   );
 }
 
@@ -112,9 +128,11 @@ export async function getVehicleCounts(
 
 /**
  * Distinct vehicles per mode since the archive began (or as far back as
- * ArrivalEvent retention keeps). Every day before today is unioned once and
- * cached under today's date, so a render reads that union plus today's own
- * day instead of one cached entry per day on record.
+ * ArrivalEvent retention keeps). Every day before today is read through its own
+ * day entry and unioned once per process under today's date, so a render reads
+ * that union plus today's own day. The union is held in memory rather than the
+ * Data Cache, since a Data Cache entry around the day reads would skip their
+ * cached values and scan every day on record each time it missed.
  * @param filter - Mode/school filters.
  * @param revalidate - TTL for today, in seconds.
  * @param hours - Part of the day to count on every day, or null for all of it.
@@ -126,8 +144,9 @@ export async function getVehicleCountsAllTime(
   hours: HourRange | null = null,
 ): Promise<VehicleCounts> {
   const today = nzServiceDayString();
-  const { mode = null, schools = "exclude" } = filter;
-  const before = unstable_cache(
+  const before = memCache(
+    ["vehicles-before", today, ...filterKey(filter, hours)].join(":"),
+    DAY_REVALIDATE,
     async () => {
       const days: string[] = [];
       for (let d = DATA_START_DAY; d < today; d = shiftDays(d, 1)) days.push(d);
@@ -135,15 +154,7 @@ export async function getVehicleCountsAllTime(
         await Promise.all(days.map((d) => cachedVehiclesOfDay(d, filter, revalidate, hours))),
       );
     },
-    [
-      "vehicles-before",
-      today,
-      mode ?? "all",
-      schools,
-      ...(hours ? [hourRangeParam(hours) ?? ""] : []),
-    ],
-    { revalidate: DAY_REVALIDATE },
-  )();
+  );
   const [past, current] = await Promise.all([
     before,
     cachedVehiclesOfDay(today, filter, revalidate, hours),

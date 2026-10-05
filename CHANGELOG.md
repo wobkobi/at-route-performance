@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.6] - 2026-10-05
+
+### Changed
+
+- Home vehicle counts read every day through its own cached entry, and the window and all-time
+  counts share a day read that is already running; the in-memory cache sweeps expired entries
+
 ## [2.54.5] - 2026-10-05
 
 ### Fixed
