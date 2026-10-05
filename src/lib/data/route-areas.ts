@@ -5,11 +5,10 @@
 // ArrivalEvent over the last week of completed service days. A week catches
 // weekend-only and weekday-only services alike.
 import { cachedForDay } from "@/lib/data/cache";
-import { aggregateRows, dateWindow } from "@/lib/data/raw";
+import { aggregateRows, dateWindow, findRows } from "@/lib/data/raw";
 import { SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
-import { prisma } from "@/lib/db";
 import { type AreaKey, routeAreas } from "@/lib/geo/areas";
-import { routeFareZones } from "@/lib/geo/fare-zone-geo";
+import { fareZonesOf, zonesServed } from "@/lib/geo/fare-zone-geo";
 import type { FareZoneKey } from "@/lib/geo/fare-zones";
 import { memCache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route/slug";
@@ -50,6 +49,13 @@ function routeStopsOfDay(date: string): Promise<Record<string, string[]>> {
   );
 }
 
+/** A stop's position as the raw find returns it. */
+interface StopPoint {
+  _id: string;
+  lat: number;
+  lon: number;
+}
+
 /** Each route's areas and fare zones, keyed by route slug. */
 export interface RouteGeography {
   areas: Record<string, AreaKey[]>;
@@ -79,18 +85,24 @@ export async function getRouteGeography(): Promise<RouteGeography> {
       }
     }
     const allStops = [...new Set([...stopsBySlug.values()].flatMap((s) => [...s]))];
-    const coords = await prisma.stop.findMany({
-      where: { id: { in: allStops } },
-      select: { id: true, lat: true, lon: true },
-    });
-    const coordById = new Map(coords.map((c) => [c.id, c]));
+    // A raw find, not Prisma's `in`: the week's stops are nearly every stop on the
+    // network, and Prisma's form of that lookup took over five seconds (see findRows).
+    const coords = await findRows<StopPoint>(
+      "Stop",
+      { _id: { $in: allStops } },
+      { lat: 1, lon: 1 },
+    );
+    // Each stop is placed once: most stops serve several routes.
+    const placed = new Map(
+      coords.map((c) => [c._id, { point: c, zones: fareZonesOf(c.lat, c.lon) }]),
+    );
     const out: RouteGeography = { areas: {}, zones: {} };
     for (const [slug, stops] of stopsBySlug) {
-      const points = [...stops]
-        .map((id) => coordById.get(id))
-        .filter((c): c is NonNullable<typeof c> => c !== undefined);
-      out.areas[slug] = routeAreas(points);
-      out.zones[slug] = routeFareZones(points);
+      const shown = [...stops]
+        .map((id) => placed.get(id))
+        .filter((p): p is NonNullable<typeof p> => p !== undefined);
+      out.areas[slug] = routeAreas(shown.map((p) => p.point));
+      out.zones[slug] = zonesServed(shown.map((p) => p.zones));
     }
     return out;
   });

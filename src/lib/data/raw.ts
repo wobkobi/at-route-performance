@@ -67,6 +67,37 @@ export async function aggregateRows<T>(
 }
 
 /**
+ * Run a `find` and return its documents, for a lookup by a long list of ids. Prisma's
+ * own `in` filter reaches MongoDB as an `$or` of one `$eq` per value inside `$expr`,
+ * which costs about the square of the list: 7,066 stop ids took 5.6s that way and
+ * 84ms as the plain `$in` sent here. Documents come back as stored: `_id` rather than
+ * `id`, and dates in extended JSON (see {@link toIso}).
+ * @param collection - The collection to read.
+ * @param filter - The query filter.
+ * @param projection - The fields to return.
+ * @param batchSize - The most documents to return.
+ * @returns The documents.
+ */
+export async function findRows<T>(
+  collection: string,
+  filter: Record<string, unknown>,
+  projection: Record<string, 0 | 1>,
+  batchSize = 100_000,
+): Promise<T[]> {
+  const res = (await timedRead(`find ${collection} ${Object.keys(filter).join(",")}`, () =>
+    runCommand(() =>
+      prisma.$runCommandRaw({
+        find: collection,
+        filter: filter as never,
+        projection,
+        batchSize,
+      }),
+    ),
+  )) as unknown as { cursor: { firstBatch: T[] } };
+  return res.cursor.firstBatch;
+}
+
+/**
  * The fields a pipeline's leading `$match` filters on, to tell one aggregation from
  * another in a timing line without printing the whole pipeline.
  * @param pipeline - The stages.

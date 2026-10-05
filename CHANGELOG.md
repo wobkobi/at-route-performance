@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.16] - 2026-10-06
+
+### Changed
+
+- Routes page: the area and fare-zone filters look up stop positions with one plain query (about
+  0.1s, was about 6s) and place each stop in its zones once.
+
 ## [2.54.15] - 2026-10-06
 
 ### Changed
