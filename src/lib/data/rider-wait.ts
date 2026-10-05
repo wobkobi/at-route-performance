@@ -56,6 +56,9 @@ function riderWaitOfDay(date: string, revalidate: number): Promise<DayRiderWait>
   const range = nzServiceDayRange(date);
   return cachedForDay(
     async (classified) => {
+      // Nested on purpose: here the day's cancellations skip their cache read, one
+      // small query per miss of this entry. Read outside, they would cost a Data
+      // Cache read for every day of every window on each request, hits included.
       const cancelled = await getNetworkCancelledTrips(range);
       // A cancellation is charged only once its scheduled departure has passed.
       // The arrivals it is weighed against stop at the same instant
