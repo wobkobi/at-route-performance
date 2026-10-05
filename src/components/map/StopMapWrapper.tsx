@@ -2,7 +2,7 @@
 // src/components/map/StopMapWrapper.tsx
 // Client wrapper that lazy-loads the Leaflet stop map with a skeleton placeholder.
 
-import type { OffRoutePoint } from "@/components/map/StopMap";
+import type { FocusVehicle, OffRoutePoint } from "@/components/map/StopMap";
 import type { Mode } from "@/lib/mode";
 import type { MapStop } from "@/lib/route/view";
 import dynamic from "next/dynamic";
@@ -47,6 +47,8 @@ interface StopMapWrapperProps {
   selectedStopId?: string;
   /** When set, only the live vehicle whose tripId matches is shown. */
   filterTripId?: string;
+  /** The vehicle the page is about: the map opens on it and haloes its marker. */
+  focusVehicle?: FocusVehicle;
   /**
    * When set, only live vehicles whose `directionId` is in this list are shown.
    * Pass all raw GTFS direction ids that alias to the active direction.

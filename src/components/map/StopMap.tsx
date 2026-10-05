@@ -67,6 +67,17 @@ const STOP_FOCUS_ZOOM = 14;
 /** Zoom for a map with nothing to frame: the city around its centre. */
 const OVERVIEW_ZOOM = 12;
 
+/** The buttons over the map's corner. */
+const MAP_BUTTON =
+  "flex min-h-11 items-center border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60";
+
+/** The vehicle a map is about, where the page saw it at render. */
+export interface FocusVehicle {
+  vehicleId: string;
+  lat: number;
+  lon: number;
+}
+
 /**
  * A direction marker sitting on a route line: a disc in the line's colour with
  * a white ring and a white chevron pointing the way of travel. A bare chevron in
@@ -177,12 +188,14 @@ function glide(marker: Leaflet.Marker): void {
  * @param route.mode - Its mode, which sets the glyph and the on-time window.
  * @param route.school - Whether it is a school service, which takes the school bus glyph.
  * @param op - The route's operator, for the popup's "Run by" line; null when unrecorded.
+ * @param focusId - The vehicle the page is about, drawn with a halo; undefined for none.
  */
 function syncVehicles(
   state: MapState,
   vehicles: LiveVehicle[],
   { mode, school }: { mode: Mode; school: boolean },
   op: Operator | null,
+  focusId: string | undefined,
 ): void {
   const { L, colours, glyphColours } = state;
   const { label: glyphLabel } = glyphFor(mode, school);
@@ -194,7 +207,8 @@ function syncVehicles(
     // window as every figure on the page.
     const status = vehicleStatus(veh.delaySec, mode);
     const bearing = veh.bearing == null ? null : Math.round(veh.bearing);
-    const iconKey = `${status.band}|${glyphLabel}|${bearing}`;
+    const focus = veh.vehicleId === focusId;
+    const iconKey = `${status.band}|${glyphLabel}|${bearing}|${focus}`;
     /**
      * The marker's icon, built only for a new marker or a changed key.
      * @returns The icon.
@@ -205,6 +219,7 @@ function syncVehicles(
         glyphColour: glyphColours[status.band],
         glyph,
         bearing,
+        focus,
       });
     const slug = routeSlug(veh.routeId);
     const popup = vehiclePopupHtml({
@@ -458,6 +473,8 @@ function setInitialViewport(state: MapState, stops: MapStop[], routeLines: Route
  * @param root0.school - The route is a school service, whose vehicles take the school bus glyph.
  * @param root0.selectedStopId - When set, smoothly pan to this stop and open its popup.
  * @param root0.filterTripId - When set, only show the live vehicle for this trip.
+ * @param root0.focusVehicle - The vehicle the page is about: the map opens on it, haloes it, and
+ *   offers a button back to it, while Re-centre still frames everything.
  * @param root0.filterDirectionIds - Raw GTFS direction ids to restrict the displayed path.
  * @param root0.offRoute - Readings of the vehicle off its road path, in time order (trip map).
  * @param root0.stopLinks - Link each stop's popup name to its page.
@@ -474,6 +491,7 @@ export default function StopMap({
   school = false,
   selectedStopId,
   filterTripId,
+  focusVehicle,
   filterDirectionIds,
   offRoute = NO_OFF_ROUTE,
   stopLinks = false,
@@ -488,6 +506,7 @@ export default function StopMap({
   school?: boolean;
   selectedStopId?: string;
   filterTripId?: string;
+  focusVehicle?: FocusVehicle;
   filterDirectionIds?: number[];
   offRoute?: OffRoutePoint[];
   stopLinks?: boolean;
@@ -502,6 +521,9 @@ export default function StopMap({
   const [ready, setReady] = useState(false);
   // The last vehicle poll failed, so the positions shown (if any) are not current.
   const [vehiclesFailed, setVehiclesFailed] = useState(false);
+  // The last successful poll had the focused vehicle on this map. True until a
+  // poll says otherwise, so the button works before the first one returns.
+  const [focusFound, setFocusFound] = useState(true);
 
   // Always-current prop values read by the async vehicle polling callback so it
   // never uses stale closures from the effect that set it up.
@@ -514,6 +536,7 @@ export default function StopMap({
     school,
     selectedStopId,
     filterTripId,
+    focusVehicle,
     filterDirectionIds,
     offRoute,
     stopLinks,
@@ -529,6 +552,7 @@ export default function StopMap({
       school,
       selectedStopId,
       filterTripId,
+      focusVehicle,
       filterDirectionIds,
       offRoute,
       stopLinks,
@@ -575,24 +599,27 @@ export default function StopMap({
       // No saved view: every visit frames the route afresh, so a zoom left on one
       // visit never carries into the next.
       setInitialViewport(state, s0, rl0);
+      // A vehicle's page opens on the vehicle rather than on everywhere it went.
+      // Not animated: an animated zoom starts a frame later, after the vehicle
+      // poll listens for moves, and would read as the reader taking over the view.
+      const fv0 = latestRef.current.focusVehicle;
+      if (fv0) map.setView([fv0.lat, fv0.lon], STOP_FOCUS_ZOOM, { animate: false });
       // Arrows were placed at the zoom before the fit; place them again for this
       // one, and after every zoom, so they stay evenly spaced on screen.
       drawArrowLayer(state);
       map.on("zoomend", () => drawArrowLayer(state));
 
       /*
-        Focus a stop the caller actually asked for. This used to key on
-        `filterTripId` and focus `s0[0]`, which meant every trip map opened zoomed
-        on the trip's first stop with that stop's popup up - a framing nobody chose
-        and a popup nobody clicked, hiding the run the page is about. Effect 3 does
-        the same job once the map is live; this covers a stop selected before the
-        map finished loading.
+        Focus only a stop the caller asked for, never a trip's first stop by
+        default, so a trip map opens on the whole trip with no popup up. Effect 3
+        does the same job once the map is live; this covers a stop selected before
+        the map finished loading.
       */
       const sel0 = latestRef.current.selectedStopId;
       if (sel0) {
         const m = state.markerById.get(sel0);
         if (m) {
-          map.setView(m.getLatLng(), Math.max(map.getZoom(), STOP_FOCUS_ZOOM));
+          map.setView(m.getLatLng(), Math.max(map.getZoom(), STOP_FOCUS_ZOOM), { animate: false });
           m.openPopup();
         }
       }
@@ -643,6 +670,13 @@ export default function StopMap({
   useEffect(() => {
     const state = stateRef.current;
     if (!ready || !state || !live || !routeId) return;
+    // Whether the one-time centre on the focused vehicle is used up: by the first
+    // poll that settles, or by the reader moving the map before it does.
+    let centred = false;
+    /** Use up the one-time centre, once the reader has moved the map themselves. */
+    const claim = (): void => {
+      centred = true;
+    };
 
     /**
      * Fetch the route's vehicles and move the markers, reading current props.
@@ -653,6 +687,7 @@ export default function StopMap({
         stops: pollStops,
         routeLines: pollLines,
         filterTripId: pollFTrip,
+        focusVehicle: pollFocus,
         filterDirectionIds: pollFDirs,
         mode: pollMode,
         school: pollSchool,
@@ -682,10 +717,23 @@ export default function StopMap({
           vehicles,
           { mode: pollMode, school: pollSchool },
           data.operator ?? null,
+          pollFocus?.vehicleId,
         );
+        const focused = pollFocus && state.vehicles.get(pollFocus.vehicleId);
+        if (pollFocus) setFocusFound(focused != null);
+        // The page's position comes from a feed read cached for a couple of
+        // minutes, so the first poll can find the vehicle well along the road;
+        // centre on where it really is, once, before the reader has moved the map.
+        if (focused && !centred) {
+          state.map.panTo(focused.marker.getLatLng(), { animate: false });
+        }
       } catch {
         // An abort on cleanup is not a failure; anything else is.
         if (!signal.aborted) setVehiclesFailed(true);
+      } finally {
+        // Only the first poll may centre, whatever it found. An aborted one (a
+        // StrictMode remount or a cleanup) leaves the try for the next effect.
+        if (!signal.aborted) centred = true;
       }
     };
 
@@ -698,12 +746,18 @@ export default function StopMap({
 
     const stopPoll = startVisiblePoll(poll, MAP_POLL_MS);
     state.map.on("zoomstart", stopGlides);
+    // Any move is the reader taking over the view: a drag, a zoom, a keyboard pan,
+    // Re-centre or "Show the vehicle". The opening view is set without animation,
+    // so it has finished before this listens.
+    state.map.on("movestart", claim);
 
     return () => {
       stopPoll();
       state.map.off("zoomstart", stopGlides);
+      state.map.off("movestart", claim);
       clearVehicles(state);
       setVehiclesFailed(false);
+      setFocusFound(true);
     };
   }, [ready, live, routeId]);
 
@@ -714,21 +768,46 @@ export default function StopMap({
     setInitialViewport(state, latestRef.current.stops, latestRef.current.routeLines);
   };
 
+  /**
+   * Fly back to the focused vehicle: where the last poll put it, else where the
+   * page saw it at render.
+   */
+  const showVehicle = (): void => {
+    const state = stateRef.current;
+    const fv = latestRef.current.focusVehicle;
+    if (!state || !fv) return;
+    const at: Leaflet.LatLngExpression = state.vehicles.get(fv.vehicleId)?.marker.getLatLng() ?? [
+      fv.lat,
+      fv.lon,
+    ];
+    state.map.flyTo(at, Math.max(state.map.getZoom(), STOP_FOCUS_ZOOM), {
+      animate: !reducedMotion(),
+      duration: 0.4,
+    });
+  };
+
   // `isolate` keeps Leaflet's high pane z-indexes (200-700) in their own stacking
   // context so they don't paint over the sticky header.
   return (
     <div className={cn("relative w-full", className)}>
       <div ref={divRef} className="isolate h-full w-full bg-at-bg" />
       <MapGlyphs ref={glyphRef} />
-      {/* Clear of Leaflet's attribution in the corner below it. */}
-      <button
-        type="button"
-        onClick={recentre}
-        disabled={!ready}
-        className="absolute right-2.5 bottom-7 z-10 flex min-h-11 items-center border border-at-border bg-at-surface px-3 py-2 text-sm font-semibold text-at-ink shadow-sm hover:bg-at-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-at-shore disabled:opacity-60"
-      >
-        Re-centre
-      </button>
+      {/* Clear of Leaflet's attribution in the corner below them. */}
+      <div className="absolute right-2.5 bottom-7 z-10 flex gap-2">
+        {focusVehicle && (
+          <button
+            type="button"
+            onClick={showVehicle}
+            disabled={!ready || !focusFound}
+            className={MAP_BUTTON}
+          >
+            Show the {glyphFor(mode, school).label.toLowerCase()}
+          </button>
+        )}
+        <button type="button" onClick={recentre} disabled={!ready} className={MAP_BUTTON}>
+          Re-centre
+        </button>
+      </div>
       {vehiclesFailed && (
         <p
           role="status"
