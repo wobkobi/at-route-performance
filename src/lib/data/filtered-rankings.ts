@@ -7,7 +7,7 @@
 // hourly rows yet (today, or a day from before the hourly rollup existed).
 
 import { addTo } from "@/lib/collections";
-import { cachedForDay, cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { cachedForDay, scheduledAtWindow } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { getRankings } from "@/lib/data/rankings";
 import { aggregateRows, dateWindow } from "@/lib/data/raw";
@@ -230,7 +230,7 @@ async function queryFilteredRankings(
     return foldLineageRows(sets.flat());
   }
   const [penalties, ...sets] = await Promise.all([
-    getRiderWaitOfDates(dates, hours),
+    getRiderWaitOfDates(dates, hours, revalidate),
     ...dates.map((d) => hourRowsOfDay(d, hours, revalidate)),
   ]);
   return applyRoutePenalties(foldLineageRows(sets.flat()), penalties);
@@ -239,6 +239,9 @@ async function queryFilteredRankings(
 /**
  * Per-route rows for a window under the home page's filters. With none set this
  * is {@link getRankings} itself, so the unfiltered page reads what it always has.
+ * The filtered rows are not cached as a whole: each day's read has its own entry,
+ * and a Data Cache entry around them would skip those entries and read every day
+ * again each time it missed. Folding the days together is cheap.
  * @param range - The window.
  * @param filters - The filters.
  * @param revalidate - Cache TTL while the window can still change, in seconds.
@@ -252,18 +255,7 @@ export async function getFilteredRankings(
   const { hours, days, areas } = filters;
   const [rows, geography] = await Promise.all([
     hours || days
-      ? cachedForRange(
-          () => queryFilteredRankings(range, hours, days, revalidate),
-          [
-            "filtered-rankings",
-            range.start.toISOString(),
-            range.end.toISOString(),
-            hourRangeParam(hours) ?? "all",
-            days ?? "all",
-          ],
-          range,
-          revalidate,
-        )
+      ? queryFilteredRankings(range, hours, days, revalidate)
       : getRankings(range, revalidate),
     areas.length > 0 ? getRouteGeography() : null,
   ]);
