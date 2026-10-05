@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.14] - 2026-10-06
+
+### Changed
+
+- The home page's week and month rank boards no longer wait for the previous period's figures: they
+  wait up to 2.5 seconds for the movement arrows and otherwise show without them, while the read
+  finishes in the background for the next visit
+
 ## [2.54.13] - 2026-10-06
 
 ### Changed
