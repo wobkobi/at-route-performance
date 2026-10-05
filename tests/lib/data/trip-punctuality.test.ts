@@ -6,9 +6,10 @@ import { nzServiceDayRange } from "@/lib/time/service-day";
 import type { PunctualityCounts } from "@/lib/trip/punctuality";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { aggregateRows, tripPunctualityOfDay } = vi.hoisted(() => ({
+const { aggregateRows, tripPunctualityOfDay, dayKeys } = vi.hoisted(() => ({
   aggregateRows: vi.fn(),
   tripPunctualityOfDay: vi.fn(),
+  dayKeys: [] as string[][],
 }));
 
 vi.mock("@/lib/data/raw", async (importOriginal) => ({
@@ -23,7 +24,8 @@ vi.mock("@/lib/db", () => ({
    */
   readFallback: () => () => null,
 }));
-// Which days are read how is under test, not the Data Cache wrapper.
+// Which days are read how is under test, not the Data Cache wrapper; the day keys are kept
+// to check which views share a day's entry.
 vi.mock("@/lib/data/cache", () => {
   /**
    * Run the read uncached.
@@ -31,7 +33,17 @@ vi.mock("@/lib/data/cache", () => {
    * @returns The read's result.
    */
   const passthrough = <T>(fn: (classified: boolean) => Promise<T>): Promise<T> => fn(false);
-  return { cachedForDay: passthrough, cachedForRange: passthrough };
+  /**
+   * Record the day's key, then run the read uncached.
+   * @param fn - The read.
+   * @param keyParts - The entry's key.
+   * @returns The read's result.
+   */
+  const perDay = <T>(fn: (classified: boolean) => Promise<T>, keyParts: string[]): Promise<T> => {
+    dayKeys.push(keyParts);
+    return fn(false);
+  };
+  return { cachedForDay: perDay, cachedForRange: passthrough };
 });
 
 /**
@@ -53,6 +65,7 @@ beforeEach(() => {
   vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
   aggregateRows.mockReset();
   tripPunctualityOfDay.mockReset();
+  dayKeys.length = 0;
   tripPunctualityOfDay.mockImplementation(() => Promise.resolve(new Map([["101-1", tally(1)]])));
 });
 
@@ -68,8 +81,8 @@ describe("getTripPunctuality", () => {
       .mockResolvedValueOnce([{ _id: "101-1", ...tally(10) }]);
     const byRoute = await getTripPunctuality(WINDOW, 300);
     expect(tripPunctualityOfDay.mock.calls.map(([date]) => date)).toEqual([
-      "2026-10-04",
       "2026-10-05",
+      "2026-10-04",
     ]);
     expect(byRoute).toEqual({ "101-1": tally(12) });
     // The routes' rows are read on the marked days only, the marker left out.
@@ -82,9 +95,31 @@ describe("getTripPunctuality", () => {
     expect(await getTripPunctuality(WINDOW, 300)).toEqual({ "101-1": tally(3) });
     expect(aggregateRows).toHaveBeenCalledTimes(1);
     expect(tripPunctualityOfDay.mock.calls.map(([date]) => date)).toEqual([
+      "2026-10-05",
       "2026-10-03",
       "2026-10-04",
-      "2026-10-05",
+    ]);
+  });
+
+  it("starts judging today before the stored read returns", async () => {
+    const marks = Promise.withResolvers<unknown[]>();
+    aggregateRows.mockReturnValueOnce(marks.promise);
+    const pending = getTripPunctuality(WINDOW, 300);
+    await Promise.resolve();
+    expect(tripPunctualityOfDay.mock.calls.map(([date]) => date)).toEqual(["2026-10-05"]);
+    marks.resolve([]);
+    expect(await pending).toEqual({ "101-1": tally(3) });
+  });
+
+  it("shares a day's entry between the week and month, and keeps the day view's faster one", async () => {
+    aggregateRows.mockResolvedValue([]);
+    await getTripPunctuality(WINDOW, 3600);
+    await getTripPunctuality(TODAY, 120);
+    expect(dayKeys).toEqual([
+      ["trip-punctuality-day", "2026-10-05", "300"],
+      ["trip-punctuality-day", "2026-10-03", "300"],
+      ["trip-punctuality-day", "2026-10-04", "300"],
+      ["trip-punctuality-day", "2026-10-05", "120"],
     ]);
   });
 

@@ -11,7 +11,7 @@ import { routeSlug } from "@/lib/route/slug";
 import {
   nzServiceDayRange,
   nzServiceDayString,
-  serviceDatesInRange,
+  startedServiceDates,
   type DateRange,
 } from "@/lib/time/service-day";
 import { addCounts, emptyCounts, sumCounts, type PunctualityCounts } from "@/lib/trip/punctuality";
@@ -19,12 +19,12 @@ import { addCounts, emptyCounts, sumCounts, type PunctualityCounts } from "@/lib
 /** Tallies keyed by versioned route id; a plain object so the Data Cache can hold it. */
 export type RoutePunctuality = Record<string, PunctualityCounts>;
 
-/** The stored part of a window's tallies. */
+/** The stored part of a window's tallies; plain data so the Data Cache can hold it. */
 interface StoredPunctuality {
   /** Tallies per route id. */
   byRoute: RoutePunctuality;
-  /** Service dates (`YYYY-MM-DD`) with at least one tallied row. */
-  dates: Set<string>;
+  /** Service dates (`YYYY-MM-DD`) with a complete stored tally. */
+  dates: string[];
 }
 
 /**
@@ -34,16 +34,17 @@ interface StoredPunctuality {
  * full. Two reads, the marked days first, then the routes' rows on just those days. The
  * current service day is never read here, since a row for it would be a mid-day snapshot.
  * @param range - UTC half-open window.
+ * @param todayStart - Start of the current service day, where the stored part stops.
  * @returns Tallies per route id and the tallied service dates.
  */
-async function storedPunctuality(range: DateRange): Promise<StoredPunctuality> {
-  const end = new Date(Math.min(range.end.getTime(), nzServiceDayRange().start.getTime()));
-  if (end <= range.start) return { byRoute: {}, dates: new Set() };
+async function storedPunctuality(range: DateRange, todayStart: Date): Promise<StoredPunctuality> {
+  const end = new Date(Math.min(range.end.getTime(), todayStart.getTime()));
+  if (end <= range.start) return { byRoute: {}, dates: [] };
   const marks = await aggregateRows<{ date: BsonDate }>("DailyTripTally", [
     { $match: { date: dateWindow({ start: range.start, end }), routeId: DAY_MARKER } },
     { $project: { _id: 0, date: 1 } },
   ]);
-  if (marks.length === 0) return { byRoute: {}, dates: new Set() };
+  if (marks.length === 0) return { byRoute: {}, dates: [] };
   const rows = await aggregateRows<PunctualityCounts & { _id: string }>("DailyTripTally", [
     {
       $match: {
@@ -69,44 +70,27 @@ async function storedPunctuality(range: DateRange): Promise<StoredPunctuality> {
         { departed, reliable, timed, punctual, cancelled },
       ]),
     ),
-    dates: new Set(marks.map((m) => nzServiceDayString(new Date(toIso(m.date))))),
+    dates: marks.map((m) => nzServiceDayString(new Date(toIso(m.date)))),
   };
 }
 
 /**
  * One untallied day's tallies, judged from the raw arrivals and cached under the day so
- * every window covering it shares the work. The live day refreshes every five minutes.
+ * every window covering it shares the work. Called outside any other `unstable_cache`
+ * callback: a nested call skips its cache read, so each window would judge the day again.
+ * The TTL is part of the key, so a view that refreshes today faster than the shared five
+ * minutes (the day view's two) keeps its own entry rather than reading a staler one.
  * @param date - Service date (`YYYY-MM-DD`).
+ * @param revalidate - Cache TTL in seconds while the day can still change.
  * @returns Tallies per route id.
  */
-function liveDayPunctuality(date: string): Promise<RoutePunctuality> {
+function liveDayPunctuality(date: string, revalidate: number): Promise<RoutePunctuality> {
   return cachedForDay(
     async () => Object.fromEntries(await tripPunctualityOfDay(date)),
-    ["trip-punctuality-day", date],
+    ["trip-punctuality-day", date, String(revalidate)],
     date,
-    LIVE_DAY_REVALIDATE,
+    revalidate,
   );
-}
-
-/**
- * Per-route tallies for a window, the stored and live parts merged. Which days are stored
- * is decided by the tallies themselves: a day the rollup has not yet tallied, or whose
- * tally write did not finish, is judged live like today, which is always live.
- * @param range - UTC half-open window.
- * @returns Tallies per route id.
- */
-async function queryTripPunctuality(range: DateRange): Promise<RoutePunctuality> {
-  const stored = await storedPunctuality(range);
-  const now = new Date();
-  const liveDates = serviceDatesInRange(range).filter(
-    (date) => !stored.dates.has(date) && nzServiceDayRange(date).start <= now,
-  );
-  const parts = [stored.byRoute, ...(await Promise.all(liveDates.map(liveDayPunctuality)))];
-  const out: RoutePunctuality = {};
-  for (const part of parts) {
-    for (const [routeId, c] of Object.entries(part)) addCounts((out[routeId] ??= emptyCounts()), c);
-  }
-  return out;
 }
 
 /**
@@ -132,20 +116,49 @@ export function punctualityForSlugs(
  * AT's trip punctuality and reliability tallies per versioned route id over a window. Sum
  * the routes a page shows with {@link punctualityForSlugs}; the shares come from `punctualPct` and
  * `reliablePct`. Whole days only: the tallies split by neither direction nor hour.
+ *
+ * Which days are stored is decided by the tallies themselves: a day the rollup has not yet
+ * tallied, or whose tally write did not finish, is judged live like today, which is always
+ * live. Only the stored part is cached per window; each live day is read through its own
+ * day entry (see {@link liveDayPunctuality}), so the week, the month and the day views
+ * share one judgement of each day. Today's judgement starts beside the stored read, since
+ * today is never stored.
  * @param range - UTC half-open window.
  * @param revalidate - Cache TTL in seconds while the window can still change.
  * @returns Tallies per route id.
  */
-export function getTripPunctuality(
+export async function getTripPunctuality(
   range: DateRange,
   revalidate: number,
 ): Promise<RoutePunctuality> {
-  return cachedForRange(
-    () => queryTripPunctuality(range),
-    ["trip-punctuality", range.start.toISOString(), range.end.toISOString()],
-    range,
-    revalidate,
-  );
+  // One clock read, so a request that crosses 4am cannot judge the closing day twice.
+  const now = new Date();
+  const today = nzServiceDayString(now);
+  const todayStart = nzServiceDayRange(today).start;
+  const started = startedServiceDates(range, now);
+  const [stored, todayPart] = await Promise.all([
+    cachedForRange(
+      () => storedPunctuality(range, todayStart),
+      ["trip-punctuality-stored", range.start.toISOString(), range.end.toISOString()],
+      range,
+      revalidate,
+    ),
+    started.includes(today)
+      ? liveDayPunctuality(today, Math.min(revalidate, LIVE_DAY_REVALIDATE))
+      : Promise.resolve<RoutePunctuality>({}),
+  ]);
+  const tallied = new Set(stored.dates);
+  const pastLive = started.filter((d) => d !== today && !tallied.has(d));
+  const parts = [
+    stored.byRoute,
+    todayPart,
+    ...(await Promise.all(pastLive.map((d) => liveDayPunctuality(d, LIVE_DAY_REVALIDATE)))),
+  ];
+  const out: RoutePunctuality = {};
+  for (const part of parts) {
+    for (const [routeId, c] of Object.entries(part)) addCounts((out[routeId] ??= emptyCounts()), c);
+  }
+  return out;
 }
 
 /**

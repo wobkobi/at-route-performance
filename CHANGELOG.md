@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.3] - 2026-10-05
+
+### Changed
+
+- Trip punctuality caches only the stored tallies per window and reads each live day through its own
+  day entry, which the week and month now share; inside the window's cache that day entry was
+  skipped, so every cold week or month load judged today again from the arrivals
+
 ## [2.54.2] - 2026-10-05
 
 ### Changed
