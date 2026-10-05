@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.11] - 2026-10-06
+
+### Changed
+
+- The vehicle counts on the home page read each finished day from a small set of vehicles the
+  nightly rollup stores per route, rather than scanning the arrivals of that day, so the month and
+  all-time counts come back in a fraction of the time. Days without a stored set are still scanned,
+  and a backfill script stores the days from before this change
+
 ## [2.54.9] - 2026-10-06
 
 ### Changed

@@ -5,6 +5,7 @@
 // and the catch-up choice can be tested as plain functions.
 import { classifyGhosts, type GhostPassResult } from "@/lib/cron/ghost-pass";
 import { writeTripPunctuality } from "@/lib/cron/trip-punctuality";
+import { writeVehicleSets } from "@/lib/cron/vehicle-sets";
 import { aggregateRows, dateWindow } from "@/lib/data/raw";
 import { prisma, runCommand, throwOnWriteErrors } from "@/lib/db";
 import { NO_DELAY_SOURCE, realDeviationExprFor } from "@/lib/deviation";
@@ -40,6 +41,8 @@ export interface AggregateDayResult {
   hourly: number | null;
   /** Routes whose trips were judged AT's way, or null when that pass failed. */
   punctuality: number | null;
+  /** Routes whose vehicles were stored, or null when that pass failed. */
+  vehicleSets: number | null;
   ghosts: GhostPassResult;
 }
 
@@ -373,17 +376,18 @@ export async function dayHasEvents(date: string): Promise<boolean> {
 
 /**
  * Roll one completed service day up: classify its ghosts, run the pipeline and
- * upsert the rows, then write the hourly rows and the trip measures. A ghost-pass failure throws out
- * of here and so fails the day, leaving it unsummarised for the next run's
- * catch-up to retry; rolling it up unclassified would pin the noise into the
- * archive for good. An hourly failure is logged and the day still counts as
- * done: readers scan a day with no hourly rows live, so the gap costs speed,
- * not correctness, and it must not hold back the daily rollup every page reads.
+ * upsert the rows, then write the hourly rows, the trip measures and the
+ * vehicle sets. A ghost-pass failure throws out of here and so fails the day,
+ * leaving it unsummarised for the next run's catch-up to retry; rolling it up
+ * unclassified would pin the noise into the archive for good. An hourly failure
+ * is logged and the day still counts as done: readers scan a day with no hourly
+ * rows live, so the gap costs speed, not correctness, and it must not hold back
+ * the daily rollup every page reads.
  * @param range - The service-day window.
  * @param serviceDate - Its service date (`YYYY-MM-DD`), for the log and for the
  *   ghost pass's record of any run it hides.
- * @returns Routes, route-hours and trip-measure routes summarised, and the
- *   ghost pass's counts.
+ * @returns Routes, route-hours, trip-measure routes and vehicle-set routes
+ *   summarised, and the ghost pass's counts.
  */
 export async function aggregateDay(
   range: DateRange,
@@ -434,5 +438,16 @@ export async function aggregateDay(
     });
   }
 
-  return { aggregated: stats.length, hourly, punctuality, ghosts };
+  // The same for the vehicle sets: an unmarked day is scanned live for the home counts.
+  let vehicleSets: number | null = null;
+  try {
+    vehicleSets = await writeVehicleSets(serviceDate);
+  } catch (error) {
+    console.error("[AGGREGATE] Vehicle sets failed", {
+      date: serviceDate,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return { aggregated: stats.length, hourly, punctuality, vehicleSets, ghosts };
 }

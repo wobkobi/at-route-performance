@@ -311,6 +311,32 @@ model DailyTripTally {
   @@index([date])
 }
 
+/// One vehicle seen on a route in a day, and the Auckland clock hours it was due at a stop.
+type VehicleSeen {
+  /// Vehicle id, as the feed sends it (digits only).
+  v String
+  /// Bit n set when the vehicle was due at a stop in clock hour n (0-23).
+  h Int
+}
+
+// The distinct vehicles each route ran per completed service day, written by the
+// nightly rollup so the home page's vehicle counts union stored days instead of
+// scanning every day's arrivals. A row with routeId "*" and no vehicles marks the
+// day's write as complete, as on DailyTripTally; a day without it is scanned live.
+// The hour bits let a count narrow to part of the day. Pruned with the daily
+// summaries. Read and written through raw commands, and the writer creates these
+// indexes itself (lib/cron/vehicle-sets.ts), so the collection works before a
+// schema push.
+model DailyVehicleSet {
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  routeId String
+  date    DateTime // NZ service-day start (4am Auckland, stored as UTC)
+  vs      VehicleSeen[]
+
+  @@unique([routeId, date])
+  @@index([date])
+}
+
 // One row per route per Auckland clock hour per service day, written by the
 // nightly rollup beside DailyRouteSummary so a week or month can be narrowed to
 // part of the day without scanning ArrivalEvent. Counts and sums rather than
