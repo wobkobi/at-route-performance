@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.4] - 2026-10-05
+
+### Changed
+
+- Route slugs resolve to their ids from one read of the route table per server every ten minutes,
+  rather than one database lookup per slug; a cold month load made about 620 of those lookups for
+  the previous month's rider-wait figures
+
 ## [2.54.3] - 2026-10-05
 
 ### Changed
