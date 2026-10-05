@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.9] - 2026-10-06
+
+### Changed
+
+- The home page's vehicle counts no longer hold up the page while their figures are read: each card
+  waits up to 12 seconds, then says it is still counting while the count finishes in the background.
+  Raw arrival scans for the counts run two at a time, the shown window ahead of the all-time
+  history, so they no longer take every database connection.
+
 ## [2.54.8] - 2026-10-05
 
 ### Changed
