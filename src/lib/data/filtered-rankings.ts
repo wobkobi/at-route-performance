@@ -33,7 +33,7 @@ import { foldLineageRows } from "@/lib/route/lineage";
 import { schoolAllows, type SchoolFilter } from "@/lib/school-bus";
 import { datesOfType, type DayType } from "@/lib/time/day-type";
 import { NZ_TZ } from "@/lib/time/nz-tz";
-import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
+import { nzServiceDayRange, startedServiceDates, type DateRange } from "@/lib/time/service-day";
 import { hourRangeParam, hoursInRange, type HourRange } from "@/lib/time/time-of-day";
 import type { RouteRow } from "@/types/api";
 
@@ -202,10 +202,7 @@ function hourRowsOfDay(date: string, hours: HourRange, revalidate: number): Prom
  * @returns The dates, oldest first.
  */
 function filteredDates(range: DateRange, days: DayType | null): string[] {
-  const now = new Date();
-  return datesOfType(serviceDatesInRange(range), days).filter(
-    (d) => nzServiceDayRange(d).start <= now,
-  );
+  return datesOfType(startedServiceDates(range), days);
 }
 
 /**

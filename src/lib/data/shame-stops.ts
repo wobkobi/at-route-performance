@@ -25,6 +25,7 @@ import {
   nzServiceDayRange,
   padScanRange,
   serviceDatesInRange,
+  startedServiceDates,
 } from "@/lib/time/service-day";
 import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type {
@@ -415,12 +416,12 @@ export async function getStopBoardOfWeek(
   revalidate: number,
 ): Promise<ShameStopOfWeek> {
   const { mode = null, schools = "exclude", direction = null } = filter;
-  // Resolve each service day independently (cached per day) and combine, so a
+  // Resolve each started service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation. Past days stay
   // cached; only the current day recomputes.
   const days = (
     await Promise.all(
-      serviceDatesInRange(range).map((date) =>
+      startedServiceDates(range).map((date) =>
         cachedStopBoardOfDay(date, mode, schools, direction, revalidate),
       ),
     )

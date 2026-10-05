@@ -442,6 +442,18 @@ export function serviceDatesInRange(range: DateRange): string[] {
 }
 
 /**
+ * {@link serviceDatesInRange} cut to the days whose service day has started, for a read
+ * that fans out per day: a day still to come has no arrivals, so querying it would only
+ * spend a round trip (or a cache entry) on an empty result.
+ * @param range - A half-open UTC window.
+ * @param now - The instant that counts as now; pass the caller's own when it reads the clock.
+ * @returns The started service dates in the window, earliest first.
+ */
+export function startedServiceDates(range: DateRange, now: Date = new Date()): string[] {
+  return serviceDatesInRange(range).filter((d) => nzServiceDayRange(d).start <= now);
+}
+
+/**
  * Label an hour-of-day (0-23) as a 12-hour clock hour, e.g. 0 > "12am",
  * 13 > "1pm". Used for the Shame board's per-hour headings.
  * @param hour - Hour of day, 0-23.

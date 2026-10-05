@@ -15,6 +15,7 @@ import {
   nzServiceDayRange,
   serviceDatesInRange,
   serviceDayClockInstant,
+  startedServiceDates,
 } from "@/lib/time/service-day";
 import { type CancellationStage } from "@/lib/trip/cancellation";
 import { gtfsTimeSeconds, tripIdStartSeconds } from "@/lib/trip/id";
@@ -191,8 +192,7 @@ function networkCancelledTripsOfDay(date: string): Promise<NetworkCancelledTrip[
  * @returns The window's cancelled trips, earliest scheduled start first.
  */
 export async function getNetworkCancelledTrips(range: DateRange): Promise<NetworkCancelledTrip[]> {
-  const now = new Date();
-  const dates = serviceDatesInRange(range).filter((d) => nzServiceDayRange(d).start <= now);
+  const dates = startedServiceDates(range);
   return (await Promise.all(dates.map(networkCancelledTripsOfDay))).flat();
 }
 

@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.2] - 2026-10-05
+
+### Changed
+
+- The week shame boards, the network cancellations and the filtered rankings no longer query days of
+  the window still to come, which had no arrivals to find; a cold month load early in the month ran
+  about 130 such queries
+
 ## [2.54.1] - 2026-10-05
 
 ### Changed
