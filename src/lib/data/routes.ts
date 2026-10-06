@@ -264,10 +264,11 @@ export interface RouteTableRow {
   shortName: string | null;
   longName: string | null;
   mode: string;
+  colour: string | null;
 }
 
 /**
- * Every route's id, names and mode: a few hundred rows that only change on the GTFS
+ * Every route's id, names, mode and colour: a few hundred rows that only change on the GTFS
  * sync. Held in process for ten minutes in front of an hourly Data Cache entry, because
  * the per-day board reads ask for the mode map and the school filter's ids inside their
  * own `unstable_cache` callbacks, where a nested Data Cache read is skipped and would
@@ -279,7 +280,7 @@ export function routeTable(): Promise<RouteTableRow[]> {
     unstable_cache(
       () =>
         prisma.route.findMany({
-          select: { id: true, shortName: true, longName: true, mode: true },
+          select: { id: true, shortName: true, longName: true, mode: true, colour: true },
         }),
       ["route-table"],
       { revalidate: HOUR_REVALIDATE },

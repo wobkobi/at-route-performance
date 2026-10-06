@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.21] - 2026-10-06
+
+### Changed
+
+- The home day view, Day by day and stop pages start their cancellations, shame boards, vehicle
+  counts and sibling lookups beside the main reads instead of after them; cancellation counts filter
+  routes in memory, and a closed window's summary check skips its dates query.
+
 ## [2.54.20] - 2026-10-06
 
 ### Changed
