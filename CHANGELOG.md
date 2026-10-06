@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.20] - 2026-10-06
+
+### Changed
+
+- Two parts of a page asking for the same cached window at once now run one read between them.
+
 ## [2.54.19] - 2026-10-06
 
 ### Fixed

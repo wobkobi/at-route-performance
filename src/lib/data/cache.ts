@@ -10,7 +10,7 @@ import {
 } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { realDeviationMatchFor } from "@/lib/deviation";
-import { memCache, unstable_cache } from "@/lib/mem-cache";
+import { memCache, sharedInFlight, unstable_cache } from "@/lib/mem-cache";
 import { timedRead } from "@/lib/read-timing";
 import {
   type DateRange,
@@ -166,11 +166,16 @@ export async function cachedForRange<T>(
   // Timed around the call, not inside fn: the callback's source is part of the
   // Data Cache key, so wrapping it would move every entry. Lines log as reads end,
   // so a miss's aggregate prints just above its `cached` line; a slow `cached` line
-  // without one is a slow cache read.
-  return timedRead(`cached ${key.join(":")}`, () =>
-    unstable_cache(fn, key, {
-      revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
-    })(final),
+  // without one is a slow cache read. Concurrent callers share one read, so two
+  // parts of a page asking at once run a cold aggregation once; callers must treat
+  // the shared result as read-only.
+  const label = key.join(":");
+  return timedRead(`cached ${label}`, () =>
+    sharedInFlight(label, () =>
+      unstable_cache(fn, key, {
+        revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
+      })(final),
+    ),
   );
 }
 
