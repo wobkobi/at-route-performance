@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.18] - 2026-10-06
+
+### Changed
+
+- Shame streaks read earlier days three at a time, and the home card's crown streak stops at the
+  first day without the crown.
+
 ## [2.54.17] - 2026-10-06
 
 ### Changed
