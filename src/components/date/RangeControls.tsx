@@ -15,7 +15,7 @@ import type { RangeNav, RangeWindow } from "@/lib/page/range";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import { buildHref } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
-import type { JSX } from "react";
+import { type JSX, useState } from "react";
 
 /**
  * Params a window switch leaves behind: the window's own, which each link sets,
@@ -63,6 +63,11 @@ function withCarried(href: string, carried: Record<string, string>): string {
 export function RangeControls({ basePath, nav, windows }: RangeControlsProps): JSX.Element {
   const searchParams = useSearchParams();
   const carried = omitParams(searchParams, NOT_CARRIED);
+  // A neighbouring week or month is a whole period of boards, and a full
+  // prefetch on load rendered it beside the page itself: on a cold cache the two
+  // queued behind each other on the database. So each period chevron prefetches
+  // in full only once the reader points at, focuses or presses it.
+  const [intent, setIntent] = useState({ prev: false, next: false });
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-2">
@@ -104,6 +109,8 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             href={nav.prevHref && withCarried(nav.prevHref, carried)}
             dir="prev"
             label={`Previous ${nav.window}`}
+            prefetch={intent.prev ? true : null}
+            onIntent={() => setIntent((s) => (s.prev ? s : { ...s, prev: true }))}
           />
           <DatePicker
             mode={nav.window}
@@ -120,6 +127,8 @@ export function RangeControls({ basePath, nav, windows }: RangeControlsProps): J
             href={nav.nextHref && withCarried(nav.nextHref, carried)}
             dir="next"
             label={`Next ${nav.window}`}
+            prefetch={intent.next ? true : null}
+            onIntent={() => setIntent((s) => (s.next ? s : { ...s, next: true }))}
           />
         </div>
       )}

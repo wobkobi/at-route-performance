@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.17] - 2026-10-06
+
+### Changed
+
+- The week and month steppers prefetch the neighbouring period only once the pointer or focus
+  reaches them, so a cold page no longer queues its own reads behind the next period's render.
+
 ## [2.54.16] - 2026-10-06
 
 ### Changed
