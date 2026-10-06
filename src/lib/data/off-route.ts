@@ -3,6 +3,7 @@
 // own arrivals bracket them (see confirmedDetour in lib/off-route.ts).
 import { pushTo } from "@/lib/collections";
 import { cachedForRange } from "@/lib/data/cache";
+import { type BsonDate, dateWindow, findRows, toIso } from "@/lib/data/raw";
 import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { prisma } from "@/lib/db";
@@ -18,20 +19,23 @@ export interface TripDetour {
 }
 
 /**
- * The real (non-ghost) arrival instants of some trips in a window, per trip.
+ * The real (non-ghost) arrival instants of some trips in a window, per trip. A raw
+ * `find` with a plain `$in`, since the route board can ask for dozens of trips at
+ * once (see {@link findRows}).
  * @param tripIds - The trips.
  * @param range - The window.
  * @returns Trip id to ISO arrival instants.
  */
 async function arrivalsByTrip(tripIds: string[], range: DateRange): Promise<Map<string, string[]>> {
-  const events = await prisma.arrivalEvent.findMany({
-    where: { tripId: { in: tripIds }, scheduledAt: { gte: range.start, lt: range.end } },
-    select: { tripId: true, actualAt: true, ghost: true },
-  });
+  const events = await findRows<{ tripId: string; actualAt: BsonDate; ghost?: boolean | null }>(
+    "ArrivalEvent",
+    { tripId: { $in: tripIds }, scheduledAt: dateWindow(range) },
+    { _id: 0, tripId: 1, actualAt: 1, ghost: 1 },
+  );
   const out = new Map<string, string[]>();
   for (const e of events) {
     if (e.ghost === true) continue;
-    pushTo(out, e.tripId, e.actualAt.toISOString());
+    pushTo(out, e.tripId, new Date(toIso(e.actualAt)).toISOString());
   }
   return out;
 }
