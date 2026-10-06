@@ -4,6 +4,7 @@ import {
   cacheKey,
   cacheState,
   dayEntryRevalidate,
+  entryRevalidate,
   rangeIsFinal,
   scheduledAtWindow,
   windowEnd,
@@ -133,6 +134,29 @@ describe("dayEntryRevalidate", () => {
   it("gives today one TTL and every other day another, whoever asks", () => {
     expect(dayEntryRevalidate("2026-10-05", "2026-10-05")).toBe(120);
     expect(dayEntryRevalidate("2026-10-04", "2026-10-05")).toBe(300);
+  });
+});
+
+describe("entryRevalidate", () => {
+  const HOUR = 3_600_000;
+
+  it("holds a summarised window for a week", () => {
+    expect(entryRevalidate(true, RANGE, 300, END + HOUR)).toBe(7 * 86_400);
+  });
+
+  it("keeps the caller's TTL while the window runs and for an hour after it ends", () => {
+    expect(entryRevalidate(false, RANGE, 300, END - 1)).toBe(300);
+    expect(entryRevalidate(false, RANGE, 300, END + HOUR - 1)).toBe(300);
+    expect(entryRevalidate(false, null, 120, END + 2 * HOUR)).toBe(120);
+  });
+
+  it("holds a settled, unsummarised window for half an hour", () => {
+    expect(entryRevalidate(false, RANGE, 300, END + HOUR)).toBe(1800);
+    expect(entryRevalidate(false, RANGE, 120, END + 10 * HOUR)).toBe(1800);
+  });
+
+  it("never shortens a caller's TTL that is already longer", () => {
+    expect(entryRevalidate(false, RANGE, 3600, END + 2 * HOUR)).toBe(3600);
   });
 });
 

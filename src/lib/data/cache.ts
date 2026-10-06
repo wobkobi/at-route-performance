@@ -4,6 +4,7 @@
 import { type BsonWindow, dateWindow } from "@/lib/data/raw";
 import {
   COMPLETED_DAY_REVALIDATE,
+  ENDED_REVALIDATE,
   FIVE_MINUTE_REVALIDATE,
   LIVE_DAY_REVALIDATE,
   TODAY_REVALIDATE,
@@ -14,6 +15,7 @@ import { memCache, sharedInFlight, unstable_cache } from "@/lib/mem-cache";
 import { timedRead } from "@/lib/read-timing";
 import {
   type DateRange,
+  MS_PER_HOUR,
   nzServiceDayRange,
   nzServiceDayString,
   serviceDatesInRange,
@@ -137,11 +139,39 @@ export function cacheState(
 }
 
 /**
+ * How long a window's entry holds before the Data Cache refreshes it. A `final`
+ * window holds for a week. An ended window keeps the caller's TTL for its first
+ * hour, while trips that ran past its end land, then holds for
+ * {@link ENDED_REVALIDATE}: until the nightly summary moves it to `final`, some
+ * twenty hours on, its figures no longer move, and re-running yesterday's scans
+ * every few minutes only loads the database. The TTL is not part of the key, so
+ * an entry written in the first hour takes the longer TTL on its next refresh.
+ * @param final - Whether every day in the window is summarised.
+ * @param range - The queried half-open window, or null for a rolling live one.
+ * @param liveRevalidate - TTL while the window can still change, in seconds.
+ * @param now - The current time, epoch ms (injectable for tests).
+ * @returns The entry's TTL, in seconds.
+ */
+export function entryRevalidate(
+  final: boolean,
+  range: DateRange | null,
+  liveRevalidate: number,
+  now: number = Date.now(),
+): number {
+  if (final) return COMPLETED_DAY_REVALIDATE;
+  if (range !== null && now >= range.end.getTime() + MS_PER_HOUR) {
+    return Math.max(liveRevalidate, ENDED_REVALIDATE);
+  }
+  return liveRevalidate;
+}
+
+/**
  * Cache a date-scoped aggregation. A window over completed days holds for a
  * week once every day in it is summarised: the nightly aggregate classifies
  * ghost readings some twenty hours after a day ends, and a board computed
  * before that would otherwise pin the unclassified result. Until then, and for
- * a window touching the live day, the caller's short TTL applies, and the key
+ * a window touching the live day, the caller's short TTL applies (stretched once
+ * an ended window has settled, see {@link entryRevalidate}), and the key
  * carries the state (see {@link cacheState}) so no entry outlives the state it
  * was computed in. A week bounds staleness if a past day is ever re-ingested
  * while still covering a day's ~2-week navigable life in one computation.
@@ -162,7 +192,8 @@ export async function cachedForRange<T>(
   liveRevalidate: number,
 ): Promise<T> {
   const final = await rangeIsFinal(range);
-  const key = cacheKey(keyParts, cacheState(final, range, liveRevalidate));
+  const now = Date.now();
+  const key = cacheKey(keyParts, cacheState(final, range, liveRevalidate, now));
   // Timed around the call, not inside fn: the callback's source is part of the
   // Data Cache key, so wrapping it would move every entry. Lines log as reads end,
   // so a miss's aggregate prints just above its `cached` line; a slow `cached` line
@@ -173,7 +204,7 @@ export async function cachedForRange<T>(
   return timedRead(`cached ${label}`, () =>
     sharedInFlight(label, () =>
       unstable_cache(fn, key, {
-        revalidate: final ? COMPLETED_DAY_REVALIDATE : liveRevalidate,
+        revalidate: entryRevalidate(final, range, liveRevalidate, now),
       })(final),
     ),
   );

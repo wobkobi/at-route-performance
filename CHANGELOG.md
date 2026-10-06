@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.23] - 2026-10-07
+
+### Changed
+
+- Past days without their nightly summary are re-read every 30 minutes once they have been over for
+  an hour, instead of every few minutes.
+
 ## [2.54.22] - 2026-10-06
 
 ### Changed
