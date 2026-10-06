@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.19] - 2026-10-06
+
+### Fixed
+
+- The latest event date is clamped to now, so stored predicted arrivals no longer roll the last 7
+  days onto the next service day late in the evening.
+
 ## [2.54.18] - 2026-10-06
 
 ### Changed
