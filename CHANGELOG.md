@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.24] - 2026-10-08
+
+### Changed
+
+- A route's map shape is built about once a day for every server instance, rather than once per cold
+  instance.
+
 ## [2.54.23] - 2026-10-07
 
 ### Changed
