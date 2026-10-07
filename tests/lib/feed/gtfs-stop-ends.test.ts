@@ -1,6 +1,7 @@
 // tests/lib/feed/gtfs-stop-ends.test.ts
-// Tests the streamed stop_times.txt reader behind each trip's opening and last stops.
-import { readStopEnds, StopEndsReader } from "@/lib/feed/gtfs-stop-ends";
+// Tests the streamed stop_times.txt reader behind each trip's opening and last stops, and the
+// whole stop orders it keeps for pattern representatives.
+import { readStopEnds, readStopTimes, StopEndsReader } from "@/lib/feed/gtfs-stop-ends";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
@@ -72,6 +73,21 @@ describe("StopEndsReader", () => {
   it("refuses a header without the columns it needs", () => {
     expect(() => readAll("trip_id,stop_id\nt1,a")).toThrow(/missing expected columns/);
   });
+
+  it("keeps every stop, in sequence order, of the trips asked for and no others", () => {
+    const text = [
+      HEADER,
+      row("t1", "c", 3),
+      row("t1", "a", 1),
+      row("t2", "x", 1),
+      row("t1", "b", 2),
+      row("t1", "d", 4),
+    ].join("\n");
+    const reader = new StopEndsReader(new Set(["t1"]));
+    reader.push(text);
+    reader.end();
+    expect(reader.sequences()).toEqual(new Map([["t1", ["a", "b", "c", "d"]]]));
+  });
 });
 
 describe("readStopEnds", () => {
@@ -85,5 +101,16 @@ describe("readStopEnds", () => {
 
   it("throws when the zip has no stop_times.txt", () => {
     expect(() => readStopEnds(zipSync({ "trips.txt": strToU8("trip_id\n") }))).toThrow(/not found/);
+  });
+});
+
+describe("readStopTimes", () => {
+  it("returns the ends of every trip and the whole order of the kept ones", () => {
+    const t1 = [row("t1", "a", 1), row("t1", "b", 2)];
+    const lines = [HEADER, ...t1, row("t2", "x", 1), row("t2", "y", 2)];
+    const zip = zipSync({ "stop_times.txt": strToU8(lines.join("\n")) });
+    const { ends, sequences } = readStopTimes(zip, new Set(["t2"]));
+    expect([...ends.keys()]).toEqual(["t1", "t2"]);
+    expect(sequences).toEqual(new Map([["t2", ["x", "y"]]]));
   });
 });

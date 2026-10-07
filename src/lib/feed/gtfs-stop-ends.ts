@@ -1,6 +1,7 @@
 // src/lib/feed/gtfs-stop-ends.ts
 // Each trip's opening stops and last stop from the GTFS feed's `stop_times.txt`, for judging a
-// trip AT's way: off the first stop on time, into the last stop on time. The file is ~100MB
+// trip AT's way: off the first stop on time, into the last stop on time, plus the whole stop
+// order of the few trips that represent each route's stopping patterns. The file is ~100MB
 // uncompressed, so it is inflated in chunks and read line by line, never held whole.
 import { Unzip, UnzipInflate } from "fflate";
 
@@ -38,6 +39,14 @@ export class StopEndsReader {
   private partial = "";
   private cols: { trip: number; stop: number; seq: number } | null = null;
   private readonly trips = new Map<string, Tally>();
+  private readonly full = new Map<string, SeqStop[]>();
+
+  /**
+   * Start a reader that also keeps the whole stop order of the trips named.
+   * @param keepFull - Trips whose every stop is kept, for {@link StopEndsReader.sequences}.
+   *   Only a pattern's representative trips: holding every trip's stops would hold the file.
+   */
+  constructor(private readonly keepFull: ReadonlySet<string> = new Set()) {}
 
   /**
    * Feed the next piece of text; a line split across two pieces is held until it completes.
@@ -69,6 +78,22 @@ export class StopEndsReader {
   }
 
   /**
+   * The whole stop order of each kept trip. Call after {@link StopEndsReader.end}, which
+   * reads the last line.
+   * @returns Stop ids in sequence order, keyed by trip id; only trips in `keepFull`.
+   */
+  sequences(): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    for (const [trip, visits] of this.full) {
+      out.set(
+        trip,
+        visits.toSorted((a, b) => a.seq - b.seq).map((v) => v.stopId),
+      );
+    }
+    return out;
+  }
+
+  /**
    * Read one line: the header on the first call, a stop visit after.
    * @param raw - The line, possibly ending in `\r`.
    */
@@ -94,6 +119,11 @@ export class StopEndsReader {
     const seq = Number(c[this.cols.seq]);
     if (!trip || !stopId || !Number.isFinite(seq)) return;
     const visit = { seq, stopId };
+    if (this.keepFull.has(trip)) {
+      const kept = this.full.get(trip);
+      if (kept) kept.push(visit);
+      else this.full.set(trip, [visit]);
+    }
     const t = this.trips.get(trip);
     if (!t) {
       this.trips.set(trip, { starts: [visit], last: visit });
@@ -110,14 +140,28 @@ export class StopEndsReader {
 }
 
 /**
- * Read every trip's ends out of an already-downloaded GTFS zip, inflating only
- * `stop_times.txt` and only a chunk at a time.
+ * Read every trip's ends out of an already-downloaded GTFS zip.
  * @param zip - The whole GTFS zip.
  * @returns Stop ends keyed by trip id.
  * @throws {Error} When the zip has no `stop_times.txt` or it cannot be read.
  */
 export function readStopEnds(zip: Uint8Array): Map<string, StopEnds> {
-  const reader = new StopEndsReader();
+  return readStopTimes(zip).ends;
+}
+
+/**
+ * Read every trip's ends, and the whole stop order of the trips asked for, out of an
+ * already-downloaded GTFS zip, inflating only `stop_times.txt` and only a chunk at a time.
+ * @param zip - The whole GTFS zip.
+ * @param keepFull - Trips to keep every stop of.
+ * @returns Stop ends keyed by trip id, and the kept trips' stop orders.
+ * @throws {Error} When the zip has no `stop_times.txt` or it cannot be read.
+ */
+export function readStopTimes(
+  zip: Uint8Array,
+  keepFull: ReadonlySet<string> = new Set(),
+): { ends: Map<string, StopEnds>; sequences: Map<string, string[]> } {
+  const reader = new StopEndsReader(keepFull);
   const decoder = new TextDecoder();
   let found = false;
   // A list rather than a nullable `let`: TypeScript cannot see the callback assign it.
@@ -150,5 +194,6 @@ export function readStopEnds(zip: Uint8Array): Map<string, StopEnds> {
   unzip.push(zip, true);
   if (failures[0]) throw failures[0];
   if (!found) throw new Error("stop_times.txt not found in the GTFS zip");
-  return reader.end();
+  const ends = reader.end();
+  return { ends, sequences: reader.sequences() };
 }

@@ -115,7 +115,11 @@ irreversible and the rollup reads the events the cleanup then removes.
   `src/lib/route/view.ts` falls back to straight stop-to-stop lines wherever a shape is missing. It
   also stores each trip's `shapeId`, which the realtime job measures vehicles against to spot
   detours; until it has run, the realtime job matches a trip to its shape by id prefix instead,
-  which is close but can pick between up to three variants.
+  which is close but can pick between up to three variants. The same read stores each route's
+  stopping patterns (`routePattern`, one row per versioned route id) from `stop_times.txt`, which
+  the route map draws from. A route without a row (the school routes the zip leaves out, or a new
+  feed version before its first sync) asks AT's API for its pattern instead, one call per pattern,
+  so a missed run costs API quota rather than the diagram.
 - `/api/ingest/at` is idempotent: a unique index on `(tripId, stopId, scheduledAt)` upserts revised
   predictions onto the same stop visit, so overlapping runs are safe.
 - `/api/ingest/gtfs/routes` and `/api/ingest/gtfs/stops` no longer exist; a scheduler entry for

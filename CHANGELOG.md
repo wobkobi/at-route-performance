@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.27] - 2026-10-08
+
+### Changed
+
+- The nightly GTFS shapes sync now stores each route's stopping patterns from AT's zip, ready for
+  the route map to read.
+
 ## [2.54.26] - 2026-10-08
 
 ### Changed
