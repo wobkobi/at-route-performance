@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.28] - 2026-10-08
+
+### Changed
+
+- The route map reads its stopping patterns from the nightly sync's stored rows, so a route page no
+  longer waits on several AT API calls; school routes still ask AT.
+
 ## [2.54.27] - 2026-10-08
 
 ### Changed
