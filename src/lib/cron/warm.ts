@@ -17,18 +17,29 @@ export const DAY_PAGES: readonly string[] = SITE_PAGES.filter(
 export const WARM_DAYS = 7;
 
 /**
- * The page paths to warm: every day page at each completed day from yesterday
- * back {@link WARM_DAYS}, never before the archive starts. Newest day first: it
- * is the one readers step onto most, and the only one certain to be cold, since
- * its entries moved to a new key when its summary landed.
+ * The home page's week and month views on their default period. Both move to a
+ * new range at the 4am service-day change, and a cold month is the slowest page
+ * on the site, so each is rendered once the day has turned.
+ */
+export const PERIOD_PATHS: readonly string[] = ["/?window=week", "/?window=month"];
+
+/**
+ * The page paths to warm: the {@link PERIOD_PATHS} first, then every day page at
+ * each completed day from yesterday back {@link WARM_DAYS}, never before the
+ * archive starts. Newest day first: yesterday is the one readers step onto most,
+ * and run after 4am it has only just ended, so nothing has read it as a past day.
+ * The day before it is next, cold under the new key its nightly summary moved it to.
  * @param yesterday - The most recently completed service date (`YYYY-MM-DD`).
- * @returns Root-relative paths, each carrying its `?day=`.
+ * @returns Root-relative paths; each day page carries its `?day=`.
  */
 export function pageWarmPaths(yesterday: string): string[] {
   const days = Array.from({ length: WARM_DAYS }, (_, i) => shiftDays(yesterday, -i)).filter(
     (day) => !isBeforeDataStart(day),
   );
-  return days.flatMap((day) => DAY_PAGES.map((page) => buildHref(page, { day })));
+  return [
+    ...PERIOD_PATHS,
+    ...days.flatMap((day) => DAY_PAGES.map((page) => buildHref(page, { day }))),
+  ];
 }
 
 /**

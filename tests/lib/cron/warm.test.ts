@@ -1,11 +1,15 @@
 // tests/lib/cron/warm.test.ts
 // Unit tests for the nightly warm's page list and worker pool.
-import { DAY_PAGES, forEachLimited, pageWarmPaths, WARM_DAYS } from "@/lib/cron/warm";
+import { DAY_PAGES, forEachLimited, pageWarmPaths, PERIOD_PATHS, WARM_DAYS } from "@/lib/cron/warm";
 import { describe, expect, it } from "vitest";
 
 describe("pageWarmPaths", () => {
+  it("starts with the home page's week and month views", () => {
+    expect(pageWarmPaths("2026-09-30").slice(0, 2)).toEqual(["/?window=week", "/?window=month"]);
+  });
+
   it("covers every day page on each of the last WARM_DAYS days, newest first", () => {
-    const paths = pageWarmPaths("2026-09-30");
+    const paths = pageWarmPaths("2026-09-30").slice(PERIOD_PATHS.length);
     expect(paths).toHaveLength(WARM_DAYS * DAY_PAGES.length);
     expect(paths[0]).toBe("/?day=2026-09-30");
     expect(paths.at(-1)).toBe("/compare?day=2026-09-24");
@@ -18,7 +22,7 @@ describe("pageWarmPaths", () => {
 
   it("stops at the archive's first day", () => {
     const paths = pageWarmPaths("2026-09-12");
-    expect(paths).toHaveLength(2 * DAY_PAGES.length);
+    expect(paths).toHaveLength(PERIOD_PATHS.length + 2 * DAY_PAGES.length);
     expect(paths.some((p) => p.endsWith("2026-09-10"))).toBe(false);
     expect(paths).toContain("/routes?day=2026-09-11");
   });
