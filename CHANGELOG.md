@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.26] - 2026-10-08
+
+### Changed
+
+- The home page's week and month boards show at once; a slow previous window streams its rank arrows
+  in afterwards.
+
 ## [2.54.25] - 2026-10-08
 
 ### Changed
