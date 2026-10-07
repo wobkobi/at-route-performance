@@ -9,6 +9,7 @@
 // call. `sharedInFlight` keeps no value, only one running read per key. The
 // `force-dynamic` layout disables only route-level static generation, not these caches.
 
+import { READ_TIMING } from "@/lib/read-timing";
 import { unstable_cache as nextCache } from "next/cache";
 
 /**
@@ -64,11 +65,16 @@ function sweepExpired(now: number): void {
  * concurrent in-flight fetches for the same key so a cold miss fires exactly one
  * upstream call regardless of concurrency.
  * @param key - Stable string cache key.
- * @param ttlSec - Seconds before the entry expires and is re-fetched.
+ * @param ttlSec - Seconds before the entry expires and is re-fetched, or a function of the
+ *   fetched value giving them, so an empty answer can be held for less time than a full one.
  * @param fn - Zero-argument async factory called on a cache miss.
  * @returns The cached or freshly fetched value.
  */
-export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise<T>): Promise<T> {
+export async function memCache<T>(
+  key: string,
+  ttlSec: number | ((value: T) => number),
+  fn: () => Promise<T>,
+): Promise<T> {
   const now = Date.now();
   const hit = store.get(key) as Entry<T> | undefined;
   if (hit && hit.expiresAt > now) return hit.value;
@@ -79,12 +85,13 @@ export async function memCache<T>(key: string, ttlSec: number, fn: () => Promise
   const missAt = Date.now();
   const promise = fn()
     .then((value) => {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === "development" || READ_TIMING) {
         console.log(`[MEM-CACHE] miss ${key} (${Date.now() - missAt}ms)`);
       }
       const settledAt = Date.now();
       sweepExpired(settledAt);
-      store.set(key, { value, expiresAt: settledAt + ttlSec * 1000 });
+      const ttl = typeof ttlSec === "function" ? ttlSec(value) : ttlSec;
+      store.set(key, { value, expiresAt: settledAt + ttl * 1000 });
       inflight.delete(key);
       return value;
     })

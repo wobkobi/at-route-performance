@@ -36,7 +36,7 @@ import { WorstStopCard } from "@/components/ranking/WorstStopCard";
 import { SectionLink } from "@/components/SectionLink";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
+import { startVehicleCounts, VehicleCards, VehiclesHeading } from "@/components/VehiclesSection";
 import { ON_TIME_CAPTION, ON_TIME_SHARE_CAPTION, SITE_DESCRIPTION } from "@/lib/copy";
 import {
   getCancelledByRoute,
@@ -381,27 +381,25 @@ export default async function Home({
     filters.hours == null && schools !== "only"
       ? startTripPunctuality(range, TODAY_REVALIDATE)
       : null;
-  const rows = await getFilteredRankings(range, filters, TODAY_REVALIDATE);
+  // The streamed bands' reads start now rather than once the awaits below let
+  // Suspense reach them, so their scans overlap the rankings. The shame cards'
+  // own calls join these reads while they are still running.
+  preloadHomeShame(range, { mode, schools }, filters.hours);
+  const vehicleCounts = startVehicleCounts(range, mode, schools, filters.hours);
   // Kick the alerts fetch off early so it overlaps the queries below. Today's
   // alerts line streams it; a past day's banner awaits it at render.
   // Its 5-minute cache means only the first request in a window pays AT's
   // latency. Null when AT's feed did not answer.
   const alertsPromise = getServiceAlerts().catch((): null => null);
-  const earliestDay = await getEarliestDataDay(1);
-  // Only pin ?day on route links for a past day; today's links stay clean so they
-  // don't bounce through dropTodayParam's redirect (a 307 on every click).
-  const linkDay = dayLinkParam(serviceDate, today);
-  const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
-  const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   // The KPI strip reflects exactly the visible rows, so the mode filter and the
   // school-bus toggle both flow through to the totals (no separate fleet query).
   // Cancellations are the exception: they produce no arrival row, so they need
   // their own count under the same filters.
-  const [cancelledTotal, cancelledByRoute, cancelledWithoutSchool] = hasRankingFilters(filters)
-    ? await getFilteredCancellations(range, filters, { mode, schools }).then(
+  const cancellations = hasRankingFilters(filters)
+    ? getFilteredCancellations(range, filters, { mode, schools }).then(
         (c) => [c.total, c.byRoute, schools === "include" ? c.withoutSchool : null] as const,
       )
-    : await Promise.all([
+    : Promise.all([
         getCancelledCount(range, { mode, schools }, TODAY_REVALIDATE),
         getCancelledByRoute(range, { mode, schools }, TODAY_REVALIDATE),
         // The count school services leave out, for the "+N" beside each figure.
@@ -409,6 +407,17 @@ export default async function Home({
           ? getCancelledCount(range, { mode, schools: "exclude" }, TODAY_REVALIDATE)
           : null,
       ]);
+  const [rows, earliestDay, cancelled] = await Promise.all([
+    getFilteredRankings(range, filters, TODAY_REVALIDATE),
+    getEarliestDataDay(1),
+    cancellations,
+  ]);
+  const [cancelledTotal, cancelledByRoute, cancelledWithoutSchool] = cancelled;
+  // Only pin ?day on route links for a past day; today's links stay clean so they
+  // don't bounce through dropTodayParam's redirect (a 307 on every click).
+  const linkDay = dayLinkParam(serviceDate, today);
+  const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
+  const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   const heroData = { ...summariseRows(visible), cancelled: cancelledTotal };
   const tripPunctuality =
     sumTripPunctuality?.(shownRouteSlugs(visible, cancelledByRoute.keys())) ?? null;
@@ -613,11 +622,40 @@ export default async function Home({
             schools={schools}
             hours={filters.hours}
             live={linkDay === undefined}
+            counts={vehicleCounts}
           />
         </Suspense>
       </section>
     </main>
   );
+}
+
+/**
+ * Start the board reads {@link HomeShameCards} makes, without waiting on them. A
+ * failure is left to the cards' own calls to report.
+ * @param range - The shown service day's window.
+ * @param filter - The page's mode and school filter.
+ * @param filter.mode - Mode filter, or null for every mode.
+ * @param filter.schools - Which school services count.
+ * @param hours - The part of the day the page is narrowed to, or null for all of it.
+ */
+function preloadHomeShame(
+  range: DateRange,
+  filter: { mode: Mode | null; schools: SchoolFilter },
+  hours: HourRange | null,
+): void {
+  const reads: Promise<unknown>[] = hours
+    ? [
+        getTripBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+        getRouteBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+        getStopBoardInHours(range, filter, hours, TODAY_REVALIDATE),
+      ]
+    : [
+        getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
+        getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
+        getStopBoardOfDay(range, filter, TODAY_REVALIDATE),
+      ];
+  for (const read of reads) read.catch(() => undefined);
 }
 
 /**
@@ -723,22 +761,26 @@ async function HomeShameCards({
       </div>
     );
   }
-  const [shameTrips, shameRoutes, shameStops] = await Promise.all([
-    getTripBoardOfDay(range, filter, TODAY_REVALIDATE),
+  const tripsBoard = getTripBoardOfDay(range, filter, TODAY_REVALIDATE);
+  // The crown streak needs only the trip board's crowned route, so it starts as
+  // soon as that board lands rather than after all three. The card's trip holds
+  // the day's crown, so that day starts the run; only the crown run is shown.
+  const crownStreak = tripsBoard.then(async (b) => {
+    const routeId = crownedRow(filterLiveHours(b.hours, serviceDate)).row?.routeId;
+    if (!routeId) return 0;
+    const streaks = await getShameStreaks("trip", [routeId], range, filter, { crownOnly: true });
+    return 1 + (streaks.get(routeId)?.prevCrownedDays ?? 0);
+  });
+  const [shameTrips, shameRoutes, shameStops, crownedDays] = await Promise.all([
+    tripsBoard,
     getRouteBoardOfDay(range, filter, TODAY_REVALIDATE),
     getStopBoardOfDay(range, filter, TODAY_REVALIDATE),
+    crownStreak,
   ]);
   const tripHours = filterLiveHours(shameTrips.hours, serviceDate);
   const trip = crownedRow(tripHours);
   const route = crownedRow(filterLiveHours(shameRoutes.hours, serviceDate));
   const stop = crownedRow(filterLiveHours(shameStops.hours, serviceDate));
-  // Needs the crowned trip's route, so it runs after the parallel three. The
-  // card's trip holds the day's crown, so that day starts the run.
-  const crownedDays = trip.row
-    ? 1 +
-      ((await getShameStreaks("trip", [trip.row.routeId], range, filter)).get(trip.row.routeId)
-        ?.prevCrownedDays ?? 0)
-    : 0;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {/* Each card opens what it names; the boards are a heading or a nav tab away. */}

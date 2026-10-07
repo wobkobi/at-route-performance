@@ -4,6 +4,7 @@ import {
   cachedForDay,
   cachedForRange,
   dayEntryRevalidate,
+  rangeIsFinal,
   scheduledAtWindow,
 } from "@/lib/data/cache";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
@@ -26,6 +27,7 @@ import {
   nzServiceDayRange,
   nzServiceDayString,
   nzWeekRange,
+  serviceDatesInRange,
   shiftDays,
   startedServiceDates,
 } from "@/lib/time/service-day";
@@ -352,7 +354,13 @@ interface SummaryRankings {
  * @returns The summarised dates and their rows.
  */
 async function querySummaryPart(range: DateRange): Promise<SummaryRankings> {
-  const summarised = await summaryDatesIn(range);
+  // A final window is summarised on every day by definition, so its dates need
+  // no read; `rangeIsFinal` answers from memory here, since the cache wrapper
+  // around this call has just asked it. Asked here rather than taken from the
+  // wrapper's argument, so the callback (part of the cache key) stays as it is.
+  const summarised = (await rangeIsFinal(range))
+    ? new Set(serviceDatesInRange(range))
+    : await summaryDatesIn(range);
   return {
     summarised: [...summarised],
     rows: summarised.size > 0 ? await querySummaryRankings(range) : [],
@@ -391,15 +399,15 @@ export async function getRankings(range: DateRange, revalidate: number): Promise
       range,
       revalidate,
     ),
-    getRouteRiderWait(range, revalidate),
+    getRouteRiderWait(range),
     started.includes(today)
-      ? cachedLiveRankingsOfDay(today, dayEntryRevalidate(today, revalidate, today))
+      ? cachedLiveRankingsOfDay(today, dayEntryRevalidate(today, today))
       : Promise.resolve<RouteRow[]>([]),
   ]);
   const summarised = new Set(summary.summarised);
   const pastLive = started.filter((d) => d !== today && !summarised.has(d));
   const pastSets = await Promise.all(
-    pastLive.map((d) => cachedLiveRankingsOfDay(d, dayEntryRevalidate(d, revalidate, today))),
+    pastLive.map((d) => cachedLiveRankingsOfDay(d, dayEntryRevalidate(d, today))),
   );
   return applyRoutePenalties(
     foldLineageRows([...summary.rows, ...todayRows, ...pastSets.flat()]),

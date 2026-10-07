@@ -258,21 +258,43 @@ export async function getRouteLabel(
   )();
 }
 
+/** One Route row as {@link routeTable} holds it. */
+export interface RouteTableRow {
+  id: string;
+  shortName: string | null;
+  longName: string | null;
+  mode: string;
+  colour: string | null;
+}
+
 /**
- * All routes as a `routeId > mode` map. Cached with a long TTL since routes
- * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
+ * Every route's id, names, mode and colour: a few hundred rows that only change on the GTFS
+ * sync. Held in process for ten minutes in front of an hourly Data Cache entry, because
+ * the per-day board reads ask for the mode map and the school filter's ids inside their
+ * own `unstable_cache` callbacks, where a nested Data Cache read is skipped and would
+ * query the table again for every day of a window.
+ * @returns Every route row.
+ */
+export function routeTable(): Promise<RouteTableRow[]> {
+  return memCache("route-table", TEN_MINUTE_REVALIDATE, () =>
+    unstable_cache(
+      () =>
+        prisma.route.findMany({
+          select: { id: true, shortName: true, longName: true, mode: true, colour: true },
+        }),
+      ["route-table"],
+      { revalidate: HOUR_REVALIDATE },
+    )(),
+  );
+}
+
+/**
+ * All routes as a `routeId > mode` map, built from {@link routeTable}. Used to resolve
+ * dominant mode per stop.
  * @returns Map from route id to its mode.
  */
 export async function getRouteModeMap(): Promise<Map<string, Mode>> {
-  const pairs = await unstable_cache(
-    async () => {
-      const rows = await prisma.route.findMany({ select: { id: true, mode: true } });
-      return rows.map((r) => [r.id, r.mode] as const);
-    },
-    ["route-mode-map"],
-    { revalidate: HOUR_REVALIDATE },
-  )();
-  return new Map(pairs as [string, Mode][]);
+  return new Map((await routeTable()).map((r) => [r.id, r.mode as Mode]));
 }
 
 /**

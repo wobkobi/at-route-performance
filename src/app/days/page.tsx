@@ -91,6 +91,9 @@ interface DaysSearchParams {
   rev?: string;
 }
 
+/** A day's cancellation count, and its per-route counts when the trip column needs them. */
+type DayCancellations = [cancelled: number, byRoute: Map<string, number> | null];
+
 /** One past day as the table sorts it; the figures are null on a day with no arrivals. */
 interface DayLine {
   slot: Exclude<DaySlot, { kind: "future" }>;
@@ -202,6 +205,20 @@ export default async function DaysPage({
                 readFallback("trip-punctuality", null),
               ),
         );
+  // Each day's cancellations, started beside the routes rather than once the body
+  // has them. The day view's own range and keys, so these reads share its cache;
+  // the by-route count only names the routes the trip tallies are summed over.
+  const cancelledByDay: (Promise<DayCancellations> | null)[] = dates.map((date) => {
+    if (date > today) return null;
+    const dayRange = nzServiceDayRange(date);
+    const read = Promise.all([
+      getCancelledCount(dayRange, { mode, schools }, TODAY_REVALIDATE),
+      tripByDay ? getCancelledByRoute(dayRange, { mode, schools }, TODAY_REVALIDATE) : null,
+    ]);
+    // Awaited later by the body, as dayRows is above.
+    read.catch(() => undefined);
+    return read;
+  });
 
   return (
     <main className="space-y-4">
@@ -235,6 +252,7 @@ export default async function DaysPage({
           dates={dates}
           dayRows={dayRows}
           tripByDay={tripByDay}
+          cancelledByDay={cancelledByDay}
           monthView={window === "month"}
           mode={mode}
           schools={schools}
@@ -294,6 +312,8 @@ async function DaysFilters({
  * @param root0.dayRows - Each date's routes, in the same order, null for a day not yet started.
  * @param root0.tripByDay - Each date's trip tallies per route, in the same order, null where
  *   the read failed or the day has not started; null as a whole when the view has no column.
+ * @param root0.cancelledByDay - Each date's cancellation count and per-route counts, in the
+ *   same order, null for a day not yet started.
  * @param root0.monthView - Whether the window is a month.
  * @param root0.mode - Active mode filter, or null for every mode.
  * @param root0.schools - Which school services count.
@@ -306,6 +326,7 @@ async function DaysBody({
   dates,
   dayRows,
   tripByDay,
+  cancelledByDay,
   monthView,
   mode,
   schools,
@@ -316,6 +337,7 @@ async function DaysBody({
   dates: string[];
   dayRows: Promise<(RouteRow[] | null)[]>;
   tripByDay: Promise<RoutePunctuality | null>[] | null;
+  cancelledByDay: (Promise<DayCancellations> | null)[];
   monthView: boolean;
   mode: Mode | null;
   schools: SchoolFilter;
@@ -330,13 +352,10 @@ async function DaysBody({
   const slots: DaySlot[] = await Promise.all(
     dates.map(async (date, i) => {
       const rows = allRows[i];
-      if (!rows) return daySlot(date, today, null, { mode, schools });
-      // The day view's own range and keys, so these reads share its cache. The
-      // by-route count only names the routes the trip tallies are summed over.
-      const range = nzServiceDayRange(date);
-      const [cancelled, cancelledByRoute, byRoute] = await Promise.all([
-        getCancelledCount(range, { mode, schools }, TODAY_REVALIDATE),
-        tripByDay ? getCancelledByRoute(range, { mode, schools }, TODAY_REVALIDATE) : null,
+      const cancelledRead = cancelledByDay[i];
+      if (!rows || !cancelledRead) return daySlot(date, today, null, { mode, schools });
+      const [[cancelled, cancelledByRoute], byRoute] = await Promise.all([
+        cancelledRead,
         tripByDay?.[i] ?? null,
       ]);
       if (cancelledByRoute) {

@@ -18,6 +18,28 @@ describe("memCache", () => {
       vi.useRealTimers();
     }
   });
+
+  it("holds each value for the time its TTL function gives it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      /**
+       * Hold an empty value for less time than a full one.
+       * @param v - The fetched value.
+       * @returns Seconds to hold it.
+       */
+      const ttl = (v: string): number => (v === "" ? 10 : 60);
+      await memCache("k-ttl-empty", ttl, () => Promise.resolve(""));
+      await memCache("k-ttl-full", ttl, () => Promise.resolve("full"));
+      vi.advanceTimersByTime(11_000);
+      const empty = vi.fn(() => Promise.resolve("refetched"));
+      const full = vi.fn(() => Promise.resolve("refetched"));
+      expect(await memCache("k-ttl-empty", ttl, empty)).toBe("refetched");
+      expect(await memCache("k-ttl-full", ttl, full)).toBe("full");
+      expect(full).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("sharedInFlight", () => {

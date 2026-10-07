@@ -1,6 +1,6 @@
 // src/app/api/ingest/gtfs/shapes/route.ts
-// Cron-only POST that syncs GTFS shape geometry (road paths) and
-// trip metadata. Both run in parallel off AT's full GTFS zip, which is large to
+// Cron-only POST that syncs GTFS shape geometry (road paths), trip metadata
+// and each route's stopping patterns. These run in parallel off AT's full GTFS zip, which is large to
 // download and parse; trip metadata then tops up the school routes the zip
 // leaves out from AT's API, one call per route. Hence the infrequent, static schedule rather than the
 // regular ingest cadence. Responds 202 before the sync runs (it takes minutes,
@@ -32,6 +32,7 @@ async function runShapesSync(startTime: number): Promise<void> {
       tripMeta: tripMeta.upserted,
       tripMetaFromApi: tripMeta.fromApi,
       tripMetaFailedRoutes: tripMeta.failedRoutes,
+      routePatterns: tripMeta.patterns,
       duration_ms: Date.now() - startTime,
     });
     await recordIngestRun({

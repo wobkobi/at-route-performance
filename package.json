@@ -1,10 +1,11 @@
 {
   "name": "at-route-performance",
-  "version": "2.54.11",
+  "version": "2.54.29",
   "private": true,
   "type": "module",
   "scripts": {
     "analyze": "next experimental-analyze",
+    "backfill:trips": "tsx --env-file=.env.local scripts/backfill-trip-punctuality.ts",
     "build": "next build",
     "db:push": "prisma db push",
     "dev": "next dev",

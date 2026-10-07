@@ -5,6 +5,7 @@ import { TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma, runCommand } from "@/lib/db";
 import { unstable_cache } from "@/lib/mem-cache";
 import { DATA_START_DAY } from "@/lib/time/data-start";
+import { requestNow } from "@/lib/time/request-now";
 import {
   nzServiceDayRange,
   nzServiceDayString,
@@ -71,19 +72,27 @@ async function findQualifyingDataDay(direction: 1 | -1, minEvents: number): Prom
 }
 
 /**
- * The most recent event's scheduled time, for empty-window fallback.
- * @returns The max `scheduledAt`, or null when there are no events.
+ * The most recent event's scheduled time, no later than now, for anchoring a
+ * window on the latest day with data. Ingest writes a stop's predicted arrival
+ * ahead of time, so the newest `scheduledAt` sits in the near future; late in
+ * the evening that is already the next service day, which would roll "the last
+ * 7 days" onto a day with a handful of arrivals. Clamping to now keeps the
+ * anchor on a day that has begun.
+ * @returns The max `scheduledAt` clamped to now, or null when there are no events.
  */
 export async function getLatestEventDate(): Promise<Date | null> {
   // Indexed endpoint lookup; still cached because the latest event only
   // advances once per ingest cycle and this sits on the home page's
   // critical path.
-  const iso = await unstable_cache(
-    async () => (await endpointEventTime(-1))?.toISOString() ?? null,
-    ["latest-event-date"],
-    { revalidate: TEN_MINUTE_REVALIDATE },
-  )();
-  return iso ? new Date(iso) : null;
+  const [iso, now] = await Promise.all([
+    unstable_cache(
+      async () => (await endpointEventTime(-1))?.toISOString() ?? null,
+      ["latest-event-date"],
+      { revalidate: TEN_MINUTE_REVALIDATE },
+    )(),
+    requestNow(),
+  ]);
+  return iso ? new Date(Math.min(Date.parse(iso), now.getTime())) : null;
 }
 
 /**

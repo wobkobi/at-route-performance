@@ -106,7 +106,17 @@ export function fareZonesOf(lat: number, lon: number): FareZoneKey[] {
  * @returns Zone keys in display order.
  */
 export function routeFareZones(stops: ReadonlyArray<{ lat: number; lon: number }>): FareZoneKey[] {
-  const hit = new Set<FareZoneKey>();
-  for (const s of stops) for (const z of fareZonesOf(s.lat, s.lon)) hit.add(z);
+  return zonesServed(stops.map((s) => fareZonesOf(s.lat, s.lon)));
+}
+
+/**
+ * The zones a route serves, from each of its stops' zones already placed by
+ * {@link fareZonesOf}. For a caller placing many routes that share stops, which
+ * can place each stop once.
+ * @param stopZones - Each stop's zones.
+ * @returns Zone keys in display order.
+ */
+export function zonesServed(stopZones: ReadonlyArray<readonly FareZoneKey[]>): FareZoneKey[] {
+  const hit = new Set(stopZones.flat());
   return FARE_ZONES.map((z) => z.key).filter((k) => hit.has(k));
 }

@@ -106,6 +106,39 @@ function VehicleFigures({
   );
 }
 
+/** The two counts behind {@link VehicleCards}, as running reads; null when a count failed. */
+export interface VehicleCountReads {
+  windowCount: Promise<VehicleCounts | null>;
+  allTimeCount: Promise<VehicleCounts | null>;
+}
+
+/**
+ * Start the two counts {@link VehicleCards} shows, so a page can begin them before
+ * its own reads and hand them down rather than wait for the cards to render. The
+ * window's count starts first, so its day reads hold the shared in-flight entries.
+ * @param range - The window the page shows.
+ * @param mode - Mode filter, or null for every mode.
+ * @param schools - Which school services count.
+ * @param hours - Part of the day to count, or null for all of it.
+ * @returns The running reads.
+ */
+export function startVehicleCounts(
+  range: DateRange,
+  mode: Mode | null,
+  schools: SchoolFilter,
+  hours: HourRange | null = null,
+): VehicleCountReads {
+  const filter = { mode, schools };
+  return {
+    windowCount: getVehicleCounts(range, filter, TODAY_REVALIDATE, hours).catch(
+      readFallback("getVehicleCounts", null),
+    ),
+    allTimeCount: getVehicleCountsAllTime(filter, TODAY_REVALIDATE, hours).catch(
+      readFallback("getVehicleCountsAllTime", null),
+    ),
+  };
+}
+
 /**
  * The two vehicle cards, one for the page's window and one since the archive
  * began, under the page's mode, school and time-of-day filters, then the train
@@ -121,6 +154,8 @@ function VehicleFigures({
  * @param props.hours - Part of the day to count, or null/undefined for all of it.
  * @param props.live - Whether the window is the day still under way, so a range
  *   running to the day's end reads "to now".
+ * @param props.counts - The counts, already started by the page ({@link startVehicleCounts});
+ *   started here when absent.
  * @returns The cards.
  */
 export async function VehicleCards({
@@ -130,6 +165,7 @@ export async function VehicleCards({
   schools,
   hours = null,
   live = false,
+  counts,
 }: {
   range: DateRange;
   label: string;
@@ -137,15 +173,9 @@ export async function VehicleCards({
   schools: SchoolFilter;
   hours?: HourRange | null;
   live?: boolean;
+  counts?: VehicleCountReads;
 }): Promise<JSX.Element> {
-  const filter = { mode, schools };
-  // The window's count starts first, so its day reads hold the shared in-flight entries.
-  const windowCount = getVehicleCounts(range, filter, TODAY_REVALIDATE, hours).catch(
-    readFallback("getVehicleCounts", null),
-  );
-  const allTimeCount = getVehicleCountsAllTime(filter, TODAY_REVALIDATE, hours).catch(
-    readFallback("getVehicleCountsAllTime", null),
-  );
+  const { windowCount, allTimeCount } = counts ?? startVehicleCounts(range, mode, schools, hours);
   // Keep the function alive past the response until both counts land, so a count
   // cut off by the wait still fills the day caches for the next visit.
   after(() => Promise.all([windowCount, allTimeCount]));

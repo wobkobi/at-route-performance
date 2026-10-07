@@ -112,12 +112,12 @@ describe("getTripPunctuality", () => {
     expect(await pending).toEqual({ "101-1": tally(3) });
   });
 
-  it("shares a day's entry between the week and month, and keeps the day view's faster one", async () => {
+  it("shares today's entry between the day view and the week, whatever their TTLs", async () => {
     aggregateRows.mockResolvedValue([]);
     await getTripPunctuality(WINDOW, 3600);
     await getTripPunctuality(TODAY, 120);
     expect(dayKeys).toEqual([
-      ["trip-punctuality-day", "2026-10-05", "300"],
+      ["trip-punctuality-day", "2026-10-05", "120"],
       ["trip-punctuality-day", "2026-10-03", "300"],
       ["trip-punctuality-day", "2026-10-04", "300"],
       ["trip-punctuality-day", "2026-10-05", "120"],

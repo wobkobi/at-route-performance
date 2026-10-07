@@ -1,7 +1,7 @@
 // tests/lib/feed/ingest.test.ts
 // Tests the pure op builders behind the GTFS static sync.
 import { mapRouteType, type RouteAttr } from "@/lib/feed/at-static";
-import { routeUpsertOps } from "@/lib/feed/ingest";
+import { patternUpsertOps, routeUpsertOps } from "@/lib/feed/ingest";
 import { describe, expect, it, vi } from "vitest";
 
 // The sync module wires a Prisma client at import; these tests never touch it.
@@ -67,5 +67,29 @@ describe("routeUpsertOps", () => {
       SEEN_AT,
     );
     expect(ops.map((o) => o.q._id)).toEqual(["OK-1"]);
+  });
+});
+
+describe("patternUpsertOps", () => {
+  const variant = {
+    headsign: "Britomart",
+    directionId: 0,
+    tripCount: 40,
+    stopIds: ["a", "b"],
+    shapeId: "s1",
+  };
+
+  it("keys each op on the versioned route id and stamps syncedAt as extended JSON", () => {
+    const [op] = patternUpsertOps([{ routeId: "70-203", variants: [variant] }], SEEN_AT);
+    if (op === undefined) throw new Error("expected one op");
+    expect(op.q).toEqual({ _id: "70-203" });
+    expect(op.u.$set).toEqual({
+      variants: [variant],
+      syncedAt: { $date: SEEN_AT.toISOString() },
+    });
+  });
+
+  it("writes nothing for a route with no usable variant", () => {
+    expect(patternUpsertOps([{ routeId: "70-203", variants: [] }], SEEN_AT)).toEqual([]);
   });
 });

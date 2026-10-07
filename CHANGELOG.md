@@ -32,6 +32,126 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.28] - 2026-10-08
+
+### Changed
+
+- The route map reads its stopping patterns from the nightly sync's stored rows, so a route page no
+  longer waits on several AT API calls; school routes still ask AT.
+
+## [2.54.27] - 2026-10-08
+
+### Changed
+
+- The nightly GTFS shapes sync now stores each route's stopping patterns from AT's zip, ready for
+  the route map to read.
+
+## [2.54.26] - 2026-10-08
+
+### Changed
+
+- The home page's week and month boards show at once; a slow previous window streams its rank arrows
+  in afterwards.
+
+## [2.54.25] - 2026-10-08
+
+### Changed
+
+- The shame day boards no longer wait for a slow streak walk; their flames stream in after the rows.
+
+## [2.54.24] - 2026-10-08
+
+### Changed
+
+- A route's map shape is built about once a day for every server instance, rather than once per cold
+  instance.
+
+## [2.54.23] - 2026-10-07
+
+### Changed
+
+- Past days without their nightly summary are re-read every 30 minutes once they have been over for
+  an hour, instead of every few minutes.
+
+## [2.54.22] - 2026-10-06
+
+### Changed
+
+- Detour checks read their trips' arrivals with a plain $in rather than Prisma's in filter.
+
+## [2.54.21] - 2026-10-06
+
+### Changed
+
+- The home day view, Day by day and stop pages start their cancellations, shame boards, vehicle
+  counts and sibling lookups beside the main reads instead of after them; cancellation counts filter
+  routes in memory, and a closed window's summary check skips its dates query.
+
+## [2.54.20] - 2026-10-06
+
+### Changed
+
+- Two parts of a page asking for the same cached window at once now run one read between them.
+
+## [2.54.19] - 2026-10-06
+
+### Fixed
+
+- The latest event date is clamped to now, so stored predicted arrivals no longer roll the last 7
+  days onto the next service day late in the evening.
+
+## [2.54.18] - 2026-10-06
+
+### Changed
+
+- Shame streaks read earlier days three at a time, and the home card's crown streak stops at the
+  first day without the crown.
+
+## [2.54.17] - 2026-10-06
+
+### Changed
+
+- The week and month steppers prefetch the neighbouring period only once the pointer or focus
+  reaches them, so a cold page no longer queues its own reads behind the next period's render.
+
+## [2.54.16] - 2026-10-06
+
+### Changed
+
+- Routes page: the area and fare-zone filters look up stop positions with one plain query (about
+  0.1s, was about 6s) and place each stop in its zones once.
+
+## [2.54.15] - 2026-10-06
+
+### Changed
+
+- With READ_TIMING=1 the server logs every cached read and raw aggregation taking 250ms or more, and
+  the CI smoke run sets it and marks where each page starts, so a slow page's log names the reads
+  behind it
+
+## [2.54.14] - 2026-10-06
+
+### Changed
+
+- The home page's week and month rank boards no longer wait for the previous period's figures: they
+  wait up to 2.5 seconds for the movement arrows and otherwise show without them, while the read
+  finishes in the background for the next visit
+
+## [2.54.13] - 2026-10-06
+
+### Changed
+
+- The worst-stops boards filter by mode and school service from a route table held in memory for ten
+  minutes, rather than querying the routes for every day they read
+
+## [2.54.12] - 2026-10-06
+
+### Changed
+
+- The day, week and month views read one shared entry for each live day rather than one each, so
+  today's heaviest scans run once instead of twice, and a day's summary check is remembered once the
+  summary exists instead of being asked for on every read
+
 ## [2.54.11] - 2026-10-06
 
 ### Changed

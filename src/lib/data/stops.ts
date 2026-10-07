@@ -1,6 +1,6 @@
 // src/lib/data/stops.ts
 // Stops and stations: station grouping, sibling stations and one stop's stats.
-import { cachedForRange, scheduledAtWindow } from "@/lib/data/cache";
+import { cachedForRange, rangeIsFinal, scheduledAtWindow } from "@/lib/data/cache";
 import { aggregateRows } from "@/lib/data/raw";
 import { DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
@@ -250,10 +250,12 @@ export async function getStopStats(
   range: DateRange,
   revalidate: number,
 ): Promise<StopStats | null> {
+  // Resolved outside the cached callback, where its own Data Cache read would be
+  // skipped, and beside the window's state check that cachedForRange makes first.
+  const [group] = await Promise.all([resolveStopGroup(id), rangeIsFinal(range)]);
+  if (!group) return null;
   return cachedForRange(
     async (classified) => {
-      const group = await resolveStopGroup(id);
-      if (!group) return null;
       const labels = new Map(group.platforms.map((p) => [p.id, p.label]));
 
       const res = await aggregateRows<StopStatsFacet>("ArrivalEvent", [

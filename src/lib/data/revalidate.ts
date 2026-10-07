@@ -46,6 +46,13 @@ export const SIX_HOUR_REVALIDATE = 6 * SEC_PER_HOUR;
 /** One day, for data that only changes on the daily GTFS sync. */
 export const DAY_REVALIDATE = SEC_PER_DAY;
 
+/**
+ * TTL for a window that ended over an hour ago but has no nightly summary yet.
+ * Trips still running at the 4am boundary have landed by then, so nothing moves
+ * its figures until the summary starts its `final` entry.
+ */
+export const ENDED_REVALIDATE = 30 * 60;
+
 /** TTL for a completed, classified service day's aggregation: it no longer changes. */
 export const COMPLETED_DAY_REVALIDATE = 7 * SEC_PER_DAY;
 

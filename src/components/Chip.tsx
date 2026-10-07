@@ -156,14 +156,18 @@ export function ChipTab({
  * The chevron either side of a date that steps to the previous or next day,
  * week or month. With no step to take, a `.step-slot` holds its 44px so the
  * date and the tabs beside it do not slide when the reader reaches either end.
- * Both directions prefetch in full: the stepper is how the archive is read, so
- * the next click is nearly always one of these. The chevron pulses while the
+ * Both directions prefetch in full by default: the stepper is how the archive
+ * is read, so the next click is nearly always one of these. A caller whose
+ * neighbour is costly to render passes `prefetch={null}` (Next's default, the
+ * shell only) and flips it to full on `onIntent`. The chevron pulses while the
  * click waits on the server.
  * @param root0 - Props.
  * @param root0.href - The neighbouring period, or null when there is none.
  * @param root0.dir - Which way it steps.
  * @param root0.label - Accessible name, such as "Previous day".
  * @param root0.fallback - What stands in with no step, when not the empty slot.
+ * @param root0.prefetch - The link's prefetch: full (`true`) unless given.
+ * @param root0.onIntent - Called when the reader points at, focuses or presses the link.
  * @returns The link or its placeholder.
  */
 export function StepperLink({
@@ -171,21 +175,28 @@ export function StepperLink({
   dir,
   label,
   fallback,
+  prefetch = true,
+  onIntent,
 }: {
   href: string | null | undefined;
   dir: "prev" | "next";
   label: string;
   fallback?: ReactNode;
+  prefetch?: boolean | null;
+  onIntent?: () => void;
 }): JSX.Element {
   if (!href) return <>{fallback ?? <span className="step-slot" aria-hidden />}</>;
   const Chevron = dir === "prev" ? ChevronLeft : ChevronRight;
   return (
     <Link
       href={href}
-      prefetch
+      prefetch={prefetch}
       scroll={false}
       className="chip chip-icon chip-off"
       aria-label={label}
+      onPointerEnter={onIntent}
+      onPointerDown={onIntent}
+      onFocus={onIntent}
     >
       <StepPending>
         <Chevron />

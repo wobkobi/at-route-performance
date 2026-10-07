@@ -6,7 +6,7 @@
 // blocks the page shell.
 
 import { FleetSummary } from "@/components/ranking/FleetSummary";
-import { RankBoard } from "@/components/ranking/RankBoard";
+import { RankBoard, type RankDeltas } from "@/components/ranking/RankBoard";
 import { WorstRouteCard } from "@/components/ranking/WorstRouteCard";
 import { WorstStopCard } from "@/components/ranking/WorstStopCard";
 import { ShameOfDay } from "@/components/shame/ShameOfDay";
@@ -48,7 +48,7 @@ import {
 import { rangeIsEmpty } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
 import type { PunctualityCounts } from "@/lib/trip/punctuality";
-import { buildHref } from "@/lib/utils";
+import { buildHref, headStart, settleWithin } from "@/lib/utils";
 import type { RouteRow } from "@/types/api";
 import type {
   FleetSummary as FleetSummaryData,
@@ -56,10 +56,25 @@ import type {
   ShameRouteOfWeek,
   ShameStopOfWeek,
 } from "@/types/dashboard";
-import type { JSX } from "react";
+import { after } from "next/server";
+import { Suspense, type JSX } from "react";
 
 /** Routes each board shows; the full ranking is on the Routes page. */
 const BOARD_SIZE = 10;
+
+/**
+ * How long the boards give the previous window once their own rows are in. It is
+ * read beside the rows, so a cached one has usually landed already and its arrows
+ * render in place; one still running streams its arrows in after the boards.
+ */
+const PREV_HEAD_START_MS = 50;
+
+/**
+ * How long streamed arrows may hold the page's stream open. Past this the badge
+ * slots stay empty, and the read runs on after the response to fill its caches
+ * for the next visit.
+ */
+const PREV_WAIT_MS = 2_500;
 
 /** The view a period batch is loaded for. */
 export interface PeriodView {
@@ -85,8 +100,6 @@ export interface PeriodCore {
   availableModes: Set<string>;
   offSchedule: RouteRow[];
   reliable: RouteRow[];
-  offScheduleDeltas: ReturnType<typeof computeRankDelta> | undefined;
-  reliableDeltas: ReturnType<typeof computeRankDelta> | undefined;
   cancelledByRoute: Awaited<ReturnType<typeof getCancelledByRoute>>;
   /**
    * AT's trip punctuality over the strip's routes, still loading; null under a time-of-day
@@ -106,6 +119,8 @@ export interface PeriodCore {
  */
 export interface PeriodBatch {
   core: Promise<PeriodCore>;
+  /** The previous window's rows under the same filters, for the rank arrows only. */
+  prev: Promise<RouteRow[]>;
   shame: Promise<ShameOfWeek>;
   shameRoute: Promise<ShameRouteOfWeek>;
   shameStop: Promise<ShameStopOfWeek>;
@@ -129,12 +144,22 @@ function handled<T>(p: Promise<T>): Promise<T> {
  * streamed part awaits the promise it needs, so the queries run once however
  * many parts read them.
  * @param view - The window, filters and range to load.
- * @returns The three reads, in flight.
+ * @returns The reads, in flight.
  */
 export function loadPeriodBatch(view: PeriodView): PeriodBatch {
-  const { mode, schools, range } = view;
+  const { window, mode, schools, period, range, anchor, filters } = view;
+  // The first week and the first month have no real previous window: resolvePrevRange
+  // clamps it away to nothing, and querying that would rank every route as a new entry.
+  // Read under the same filters, so a rank arrow compares like with like (last
+  // month's Saturdays against this month's).
+  const prevRange = resolvePrevRange(window, period, anchor);
   return {
     core: handled(loadPeriodCore(view)),
+    prev: handled(
+      rangeIsEmpty(prevRange)
+        ? Promise.resolve<RouteRow[]>([])
+        : getFilteredRankings(prevRange, filters, PERIOD_REVALIDATE),
+    ),
     shame: handled(getTripBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
     shameRoute: handled(getRouteBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
     shameStop: handled(getStopBoardOfWeek(range, { mode, schools }, PERIOD_REVALIDATE)),
@@ -147,10 +172,7 @@ export function loadPeriodBatch(view: PeriodView): PeriodBatch {
  * @returns The derived figures.
  */
 async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
-  const { window, mode, dir, schools, period, range, anchor, filters } = view;
-  // The first week and the first month have no real previous window: resolvePrevRange
-  // clamps it away to nothing, and querying that would rank every route as a new entry.
-  const prevRange = resolvePrevRange(window, period, anchor);
+  const { mode, dir, schools, range, filters } = view;
   // AT's trip measures are kept per whole day of any type, so a part-of-day or day-type view
   // goes without, as does a view of school services alone. Started beside the rankings,
   // since the tallies do not depend on which routes those show.
@@ -158,28 +180,21 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     filters.hours == null && filters.days == null && schools !== "only"
       ? startTripPunctuality(range, PERIOD_REVALIDATE)
       : null;
-  const [rows, prevRows, [cancelled, cancelledByRoute, cancelledWithoutSchool]] = await Promise.all(
-    [
-      getFilteredRankings(range, filters, PERIOD_REVALIDATE),
-      // The previous window under the same filters, so a rank arrow compares
-      // like with like (last month's Saturdays against this month's).
-      rangeIsEmpty(prevRange)
-        ? Promise.resolve<RouteRow[]>([])
-        : getFilteredRankings(prevRange, filters, PERIOD_REVALIDATE),
-      hasRankingFilters(filters)
-        ? getFilteredCancellations(range, filters, { mode, schools }).then(
-            (c) => [c.total, c.byRoute, schools === "include" ? c.withoutSchool : null] as const,
-          )
-        : Promise.all([
-            getCancelledCount(range, { mode, schools }, PERIOD_REVALIDATE),
-            getCancelledByRoute(range, { mode, schools }, PERIOD_REVALIDATE),
-            // The count school services leave out, for the "+N" beside each figure.
-            schools === "include"
-              ? getCancelledCount(range, { mode, schools: "exclude" }, PERIOD_REVALIDATE)
-              : null,
-          ]),
-    ],
-  );
+  const [rows, [cancelled, cancelledByRoute, cancelledWithoutSchool]] = await Promise.all([
+    getFilteredRankings(range, filters, PERIOD_REVALIDATE),
+    hasRankingFilters(filters)
+      ? getFilteredCancellations(range, filters, { mode, schools }).then(
+          (c) => [c.total, c.byRoute, schools === "include" ? c.withoutSchool : null] as const,
+        )
+      : Promise.all([
+          getCancelledCount(range, { mode, schools }, PERIOD_REVALIDATE),
+          getCancelledByRoute(range, { mode, schools }, PERIOD_REVALIDATE),
+          // The count school services leave out, for the "+N" beside each figure.
+          schools === "include"
+            ? getCancelledCount(range, { mode, schools: "exclude" }, PERIOD_REVALIDATE)
+            : null,
+        ]),
+  ]);
   const modeFiltered = mode ? rows.filter((r) => r.mode === mode) : rows;
   const visible = modeFiltered.filter((r) => rowAllowedBySchool(r, schools));
   // A single-mode view uses a lower bar so low-frequency modes (ferries) appear.
@@ -192,10 +207,6 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     direction: dir,
     size: Infinity,
   });
-  const prevFiltered = (mode ? prevRows.filter((r) => r.mode === mode) : prevRows).filter((r) =>
-    rowAllowedBySchool(r, schools),
-  );
-  const hasPrev = prevFiltered.length > 0;
   return {
     // The KPI strip reflects exactly the visible rows, so the mode filter and the
     // school-bus toggle both flow through to the totals (no separate fleet query).
@@ -208,18 +219,6 @@ async function loadPeriodCore(view: PeriodView): Promise<PeriodCore> {
     availableModes: new Set(rows.filter((r) => r.events >= boardMin).map((r) => r.mode)),
     offSchedule,
     reliable: boards.reliable,
-    offScheduleDeltas: hasPrev
-      ? computeRankDelta(
-          offSchedule,
-          deriveOffSchedule(prevFiltered, { minEvents: boardMin, direction: dir, size: Infinity }),
-        )
-      : undefined,
-    reliableDeltas: hasPrev
-      ? computeRankDelta(
-          boards.reliable,
-          deriveBoards(prevFiltered, { minEvents: boardMin, size: Infinity }).reliable,
-        )
-      : undefined,
     cancelledByRoute,
     tripPunctuality:
       sumTripPunctuality?.(shownRouteSlugs(visible, cancelledByRoute.keys())) ?? null,
@@ -317,9 +316,76 @@ export async function PeriodStopCard({
   );
 }
 
+/** Rank movement on each board, undefined where there is nothing to compare. */
+interface BoardDeltas {
+  offSchedule: RankDeltas | undefined;
+  reliable: RankDeltas | undefined;
+}
+
+/**
+ * Rank movement on both boards against the previous window, or none without one.
+ * Deltas run across the whole ranked lists, so a route entering the top ten from
+ * further down shows how far it climbed.
+ * @param b - The period's derived boards.
+ * @param prevRows - The previous window's rows, or null when they did not arrive in time.
+ * @param view - The window and filters the batch was loaded for.
+ * @returns The movement for each board, undefined where there is nothing to compare.
+ */
+function rankDeltas(b: PeriodCore, prevRows: RouteRow[] | null, view: PeriodView): BoardDeltas {
+  const { mode, dir, schools } = view;
+  const prev = (prevRows ?? []).filter(
+    (r) => (!mode || r.mode === mode) && rowAllowedBySchool(r, schools),
+  );
+  if (prev.length === 0) return { offSchedule: undefined, reliable: undefined };
+  // The same bar loadPeriodCore ranked the current window by.
+  const minEvents = mode ? MIN_MODE_EVENTS : MIN_BOARD_EVENTS;
+  return {
+    offSchedule: computeRankDelta(
+      b.offSchedule,
+      deriveOffSchedule(prev, { minEvents, direction: dir, size: Infinity }),
+    ),
+    reliable: computeRankDelta(
+      b.reliable,
+      deriveBoards(prev, { minEvents, size: Infinity }).reliable,
+    ),
+  };
+}
+
+/**
+ * The footnote sentence naming what the movement arrows compare against.
+ * @param window - The shown window.
+ * @returns The sentence, with its leading space.
+ */
+function movementSentence(window: PeriodWindow): string {
+  return ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`;
+}
+
+/**
+ * The footnote's arrows sentence once streamed deltas land; nothing when they
+ * brought no arrows.
+ * @param props - Component props.
+ * @param props.deltas - Both boards' movement, still loading.
+ * @param props.window - The shown window.
+ * @returns The sentence, or null.
+ */
+async function MovementNote({
+  deltas,
+  window,
+}: {
+  deltas: Promise<BoardDeltas>;
+  window: PeriodWindow;
+}): Promise<string | null> {
+  const d = await deltas;
+  return (d.offSchedule ?? d.reliable) ? movementSentence(window) : null;
+}
+
 /**
  * The two rank boards with rank movement against the previous period, the
- * not-enough-data note above them and the refresh note below.
+ * not-enough-data note above them and the refresh note below. The previous window
+ * is read beside the rows and given {@link PREV_HEAD_START_MS} after them: a cached
+ * one renders its arrows in place, while a cold one leaves the boards to render
+ * without waiting and streams the arrows into their reserved column, for at most
+ * {@link PREV_WAIT_MS}.
  * @param props - Component props.
  * @param props.batch - The period's reads.
  * @param props.view - The window and filters the batch was loaded for.
@@ -334,6 +400,21 @@ export async function PeriodBoards({
 }): Promise<JSX.Element> {
   const { window, mode, dir, schools, period, filters } = view;
   const b = await batch.core;
+  // Keep the function alive past the response until the previous window lands, so
+  // a read cut off by the wait still fills its caches for the next visit.
+  after(() => batch.prev.catch(() => undefined));
+  const prevSafe = batch.prev.catch(() => null);
+  // A first week or month resolves its empty previous window at once, so it
+  // always settles here and its boards reserve no arrow column.
+  const early = await headStart(prevSafe, PREV_HEAD_START_MS);
+  const streamed = early.settled
+    ? null
+    : handled(settleWithin(prevSafe, PREV_WAIT_MS).then((prev) => rankDeltas(b, prev, view)));
+  const deltas = early.settled ? rankDeltas(b, early.value, view) : null;
+  const offScheduleDeltas = streamed
+    ? handled(streamed.then((d) => d.offSchedule))
+    : deltas?.offSchedule;
+  const reliableDeltas = streamed ? handled(streamed.then((d) => d.reliable)) : deltas?.reliable;
   // No hours on the route links: the route page's week view has no part-of-day
   // figures to open on.
   const routeParams = routeLinkParams(window, null, period);
@@ -356,7 +437,7 @@ export async function PeriodBoards({
           metric="delay"
           caption={ON_TIME_CAPTION}
           cancelled={b.cancelledByRoute}
-          deltas={b.offScheduleDeltas}
+          deltas={offScheduleDeltas}
           routeParams={routeParams}
           total={b.offSchedule.length}
           minEvents={boardMin}
@@ -372,7 +453,7 @@ export async function PeriodBoards({
           rows={b.reliable.slice(0, BOARD_SIZE)}
           metric="onTime"
           caption={ON_TIME_SHARE_CAPTION}
-          deltas={b.reliableDeltas}
+          deltas={reliableDeltas}
           routeParams={routeParams}
           total={b.reliable.length}
           minEvents={boardMin}
@@ -386,8 +467,13 @@ export async function PeriodBoards({
 
       <p className="text-xs text-at-muted">
         Rankings are built from real-time arrivals and refresh hourly. {CANCELLED_SPLIT_COPY}
-        {(b.offScheduleDeltas ?? b.reliableDeltas) &&
-          ` Movement arrows compare each route to its position in the previous ${window === "month" ? "month" : "week"}.`}
+        {streamed ? (
+          <Suspense fallback={null}>
+            <MovementNote deltas={streamed} window={window} />
+          </Suspense>
+        ) : (
+          (deltas?.offSchedule ?? deltas?.reliable) && movementSentence(window)
+        )}
       </p>
     </>
   );

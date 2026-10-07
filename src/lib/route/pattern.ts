@@ -1,16 +1,18 @@
 // src/lib/route/pattern.ts
-// Build a route's directional stopping patterns from the AT GTFS
-// schedule. Trips are grouped by `(direction_id, shape_id)`; each group's ordered
-// stop list is resolved from one representative trip's stoptimes. AT exposes no
-// route-shape endpoint, so every pattern costs a separate stoptimes call - hence
-// resolving only the most-frequent patterns (capped at MAX_PATTERNS) to stay
-// within the API quota. Only stop order is available here, no road geometry.
-// Results are cached daily and keyed by route, since the schedule is static.
+// A route's directional stopping patterns. The GTFS shapes sync stores them nightly
+// from AT's zip (see lib/feed/gtfs-trips.ts), so a route usually reads one row. A
+// route with no stored row - the school routes the zip leaves out, or a new feed
+// version the sync has not reached - is built from AT's API instead: its trips, then
+// one stoptimes call per pattern, capped at MAX_PATTERNS to stay within the quota.
+// Both paths group trips the same way (lib/route/pattern-groups.ts). Only stop
+// order is available here, no road geometry. Results are cached daily by route.
 import { routeIdsForSlug } from "@/lib/data";
 import { DAY_REVALIDATE } from "@/lib/data/revalidate";
+import { prisma } from "@/lib/db";
 import { fetchAll } from "@/lib/feed/at-static";
 import { unstable_cache } from "@/lib/mem-cache";
-import type { RoutePattern, RouteVariant } from "@/types/api";
+import { patternVariants, toRoutePattern, topPatternGroups } from "@/lib/route/pattern-groups";
+import type { RoutePattern } from "@/types/api";
 
 /** GTFS trip attributes (subset) from `/routes/{id}/trips`. */
 interface TripAttr {
@@ -27,86 +29,64 @@ interface StopTimeAttr {
 }
 
 /**
- * Cap on how many distinct patterns to resolve stop orders for. AT exposes no
- * route-shape geometry endpoint, so each pattern costs one stoptimes call;
- * resolving only the most-frequent patterns keeps well within the API quota.
+ * The pattern the shapes sync stored for a route version, or null when it has none.
+ * @param routeId - AT's versioned route id.
+ * @returns The stored pattern, or null.
  */
-const MAX_PATTERNS = 8;
-
-/**
- * Build a route's stopping patterns per direction from the AT GTFS schedule.
- * Trips are grouped by `(direction_id, shape_id)`; the most-frequent patterns
- * each contribute one ordered stop list (resolved from a representative trip's
- * stoptimes). No road geometry is available, only stop order.
- * @param routeId - AT route id.
- * @returns Patterns grouped by direction, variants sorted most-frequent first.
- */
-async function queryRoutePattern(routeId: string): Promise<RoutePattern> {
-  const trips = await fetchAll<TripAttr>(`/routes/${encodeURIComponent(routeId)}/trips`);
-
-  // Group trips by (direction, shape); keep a representative trip and a count.
-  const groups = new Map<
-    string,
-    {
-      directionId: number;
-      headsign: string | null;
-      tripId: string;
-      shapeId: string | null;
-      count: number;
-    }
-  >();
-  for (const t of trips) {
-    if (!t.trip_id) continue;
-    const directionId = t.direction_id ?? 0;
-    const key = `${directionId}::${t.shape_id ?? ""}`;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.count++;
-    } else {
-      groups.set(key, {
-        directionId,
-        headsign: t.trip_headsign ?? null,
-        tripId: t.trip_id,
-        shapeId: t.shape_id ?? null,
-        count: 1,
-      });
-    }
-  }
-
-  // Resolve stop order for the most-frequent patterns only (quota guard).
-  const topGroups = [...groups.values()].sort((a, b) => b.count - a.count).slice(0, MAX_PATTERNS);
-
-  const directions: Record<number, { variants: RouteVariant[] }> = {};
-  await Promise.all(
-    topGroups.map(async (g) => {
-      const stoptimes = await fetchAll<StopTimeAttr>(
-        `/trips/${encodeURIComponent(g.tripId)}/stoptimes`,
-      );
-      const stopIds = stoptimes
-        .slice()
-        .sort((a, b) => a.stop_sequence - b.stop_sequence)
-        .map((s) => s.stop_id);
-      if (stopIds.length < 2) return;
-      (directions[g.directionId] ??= { variants: [] }).variants.push({
-        headsign: g.headsign,
-        directionId: g.directionId,
-        tripCount: g.count,
-        stopIds,
-        shapeId: g.shapeId,
-      });
-    }),
+async function storedRoutePattern(routeId: string): Promise<RoutePattern | null> {
+  const row = await prisma.routePattern.findUnique({
+    where: { id: routeId },
+    select: { variants: true },
+  });
+  if (!row || row.variants.length === 0) return null;
+  return toRoutePattern(
+    row.variants.map((v) => ({
+      headsign: v.headsign,
+      directionId: v.directionId,
+      tripCount: v.tripCount,
+      stopIds: v.stopIds,
+      shapeId: v.shapeId,
+    })),
   );
-
-  for (const d of Object.values(directions)) {
-    d.variants.sort((a, b) => b.tripCount - a.tripCount);
-  }
-  return { directions };
 }
 
 /**
- * Cached route stopping patterns (daily; the schedule is static). Keyed by
- * route so a handful of viewed routes per day stay well within AT's quota.
+ * Build a route's stopping patterns from AT's API: its trips grouped by
+ * {@link topPatternGroups}, each kept group's stop order read from its
+ * representative trip's stoptimes.
  * @param routeId - AT route id.
+ * @returns Patterns grouped by direction, variants sorted most-frequent first.
+ */
+async function queryRoutePatternFromApi(routeId: string): Promise<RoutePattern> {
+  const trips = await fetchAll<TripAttr>(`/routes/${encodeURIComponent(routeId)}/trips`);
+  const groups = topPatternGroups(
+    trips.map((t) => ({
+      tripId: t.trip_id,
+      directionId: t.direction_id ?? null,
+      shapeId: t.shape_id ?? null,
+      headsign: t.trip_headsign ?? null,
+    })),
+  );
+  const stopIds = new Map(
+    await Promise.all(
+      groups.map(async (g) => {
+        const stoptimes = await fetchAll<StopTimeAttr>(
+          `/trips/${encodeURIComponent(g.tripId)}/stoptimes`,
+        );
+        const ordered = stoptimes
+          .toSorted((a, b) => a.stop_sequence - b.stop_sequence)
+          .map((s) => s.stop_id);
+        return [g.tripId, ordered] as const;
+      }),
+    ),
+  );
+  return toRoutePattern(patternVariants(groups, (tripId) => stopIds.get(tripId)));
+}
+
+/**
+ * Cached route stopping patterns (daily; the schedule is static): the stored row
+ * when the sync has one, AT's API otherwise.
+ * @param routeId - AT route id (a slug or a versioned id).
  * @returns Patterns grouped by direction.
  */
 export async function getRoutePattern(routeId: string): Promise<RoutePattern> {
@@ -114,7 +94,9 @@ export async function getRoutePattern(routeId: string): Promise<RoutePattern> {
   // routeIdsForSlug never returns empty (it falls back to `[slug]`), so the
   // default only restates that contract for the type checker.
   const [latestId = routeId] = await routeIdsForSlug(routeId);
-  return unstable_cache(() => queryRoutePattern(latestId), ["route-pattern", latestId], {
-    revalidate: DAY_REVALIDATE,
-  })();
+  return unstable_cache(
+    async () => (await storedRoutePattern(latestId)) ?? queryRoutePatternFromApi(latestId),
+    ["route-pattern", latestId],
+    { revalidate: DAY_REVALIDATE },
+  )();
 }

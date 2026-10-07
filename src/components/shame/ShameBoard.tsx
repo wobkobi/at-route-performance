@@ -10,7 +10,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Hint } from "@/components/ui/Hint";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
-import { SHAME_RANKED_LIMIT, type ShameStreak, type StreakBoard } from "@/lib/data";
+import {
+  getShameStreaks,
+  SHAME_RANKED_LIMIT,
+  type ShameFilter,
+  type ShameStreak,
+  type StreakBoard,
+} from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import { plural } from "@/lib/format";
 import type { HourSlot } from "@/lib/page/nav";
 import type { RouteDisplay } from "@/lib/route/slug";
@@ -19,9 +26,11 @@ import {
   nzHourLabel,
   SERVICE_START_HOUR,
   weekdayShort,
+  type DateRange,
 } from "@/lib/time/service-day";
+import { headStart } from "@/lib/utils";
 import Link from "next/link";
-import type { JSX, ReactNode } from "react";
+import { Suspense, type JSX, type ReactNode } from "react";
 
 /**
  * The label column's box, shared by the hour, day and rank labels so rows line
@@ -302,7 +311,7 @@ export function ShameRowBody({
  * @param props.hoursLabel - The hourly count's label, which each board words its own way.
  * @returns The flame, or null for a route in one hour with no streak.
  */
-export function ShameDayFlame({
+function ShameDayFlame({
   name,
   noun,
   worst,
@@ -345,6 +354,169 @@ export function ShameDayFlame({
     return <FlameCount kind="hours" count={hourCount} worst={worst} label={hoursLabel} />;
   }
   return null;
+}
+
+/** Each day-board route's streak, keyed by route id. */
+export type ShameStreaks = ReadonlyMap<string, ShameStreak>;
+
+/** A day board's streaks: read already, or still being read. */
+export type DayStreaks = ShameStreaks | Promise<ShameStreaks>;
+
+/**
+ * How long a day board waits for its streaks before rendering without them. A
+ * warm walk is a handful of cache reads and lands inside it, so the flames render
+ * in place; a cold one is up to five rounds of full-day scans, and the board
+ * shows first while the flames stream in.
+ */
+const STREAK_HEAD_START_MS = 150;
+
+/**
+ * The day-board flame's box while the streaks are still being read, so the flame
+ * fills in without moving what follows it. Every count is at most two digits (a
+ * streak stops at 15 days, a day has 24 hourly slots), so "24h" on the bolder
+ * worst row is the widest badge it holds. No z-index: an empty slot lets a press
+ * through to the row's stretched link, and the flame's own Hint lifts itself.
+ */
+const FLAME_SLOT = "inline-flex h-5 w-12 shrink-0 items-center";
+
+/**
+ * Start a day board's streak walk and give it {@link STREAK_HEAD_START_MS}. A
+ * walk that lands in time comes back as its map; one still running comes back as
+ * its promise, for {@link ShameDayFlameSlot} to stream. A failed walk reads as no
+ * streaks, so the board keeps its hours flames rather than failing once on screen.
+ * Wrapped in an object because a promise of a promise would flatten.
+ * @param board - The board the streaks are counted on.
+ * @param routeIds - The routes on the shown day's board.
+ * @param range - The shown service day's window.
+ * @param filter - The board's mode and school filter.
+ * @returns The streaks, read or still being read.
+ */
+export async function readDayStreaks(
+  board: StreakBoard,
+  routeIds: readonly string[],
+  range: DateRange,
+  filter: ShameFilter,
+): Promise<{ streaks: DayStreaks }> {
+  const streaks: Promise<ShameStreaks> = getShameStreaks(board, routeIds, range, filter).catch(
+    readFallback(`${board}-shame-streaks`, new Map<string, ShameStreak>()),
+  );
+  const early = await headStart(streaks, STREAK_HEAD_START_MS);
+  return { streaks: early.settled ? early.value : streaks };
+}
+
+/**
+ * A day-board row's flame. With the streaks read it is {@link ShameDayFlame} as
+ * is; while they are still being read it holds a fixed slot showing the hours
+ * flame alone, which the streak can only keep or upgrade, never drop. That flame
+ * goes without its tooltip until then: a fallback is never hydrated, so its
+ * button would neither open nor survive the swap. It sits in the same two boxes
+ * the {@link Hint} wraps it in, so the swap does not move it.
+ * @param props - Component props.
+ * @param props.name - The route's name, for the flame's label.
+ * @param props.noun - What the board ranks, for the crown label.
+ * @param props.worst - Whether this row holds the day's worst.
+ * @param props.hourCount - How many of the day's hourly slots the route took.
+ * @param props.hoursLabel - The hourly count's label.
+ * @param props.routeId - The row's route, to look its streak up by.
+ * @param props.streaks - The board's streaks, shared by every row.
+ * @returns The flame, its reserved slot, or null.
+ */
+export function ShameDayFlameSlot({
+  name,
+  noun,
+  worst,
+  hourCount,
+  hoursLabel,
+  routeId,
+  streaks,
+}: {
+  name: string;
+  noun: StreakBoard;
+  worst: boolean;
+  hourCount: number;
+  hoursLabel: string;
+  routeId: string;
+  streaks: DayStreaks;
+}): JSX.Element | null {
+  if (!(streaks instanceof Promise)) {
+    return (
+      <ShameDayFlame
+        name={name}
+        noun={noun}
+        worst={worst}
+        hourCount={hourCount}
+        streak={streaks.get(routeId)}
+        hoursLabel={hoursLabel}
+      />
+    );
+  }
+  return (
+    <span className={FLAME_SLOT}>
+      <Suspense
+        fallback={
+          hourCount > 1 ? (
+            <span className="relative inline-block">
+              <span className="inline-block">
+                <FlameCount kind="hours" count={hourCount} worst={worst} />
+              </span>
+            </span>
+          ) : null
+        }
+      >
+        <StreamedDayFlame
+          name={name}
+          noun={noun}
+          worst={worst}
+          hourCount={hourCount}
+          hoursLabel={hoursLabel}
+          routeId={routeId}
+          streaks={streaks}
+        />
+      </Suspense>
+    </span>
+  );
+}
+
+/**
+ * A day-board row's flame once the streak walk has landed.
+ * @param props - Component props.
+ * @param props.name - The route's name, for the flame's label.
+ * @param props.noun - What the board ranks, for the crown label.
+ * @param props.worst - Whether this row holds the day's worst.
+ * @param props.hourCount - How many of the day's hourly slots the route took.
+ * @param props.hoursLabel - The hourly count's label.
+ * @param props.routeId - The row's route, to look its streak up by.
+ * @param props.streaks - The board's one streak walk, shared by every row.
+ * @returns The strongest flame that applies, or null.
+ */
+async function StreamedDayFlame({
+  name,
+  noun,
+  worst,
+  hourCount,
+  hoursLabel,
+  routeId,
+  streaks,
+}: {
+  name: string;
+  noun: StreakBoard;
+  worst: boolean;
+  hourCount: number;
+  hoursLabel: string;
+  routeId: string;
+  streaks: Promise<ShameStreaks>;
+}): Promise<JSX.Element | null> {
+  const streak = (await streaks).get(routeId);
+  return (
+    <ShameDayFlame
+      name={name}
+      noun={noun}
+      worst={worst}
+      hourCount={hourCount}
+      streak={streak}
+      hoursLabel={hoursLabel}
+    />
+  );
 }
 
 /**

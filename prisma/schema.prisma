@@ -81,6 +81,29 @@ model TripMeta {
   @@map("tripMeta")
 }
 
+/// One stopping pattern: a (direction, shape) group's stop order, from its first trip.
+type PatternVariant {
+  headsign    String?
+  directionId Int
+  /// How many of the route's trips run this pattern.
+  tripCount   Int
+  stopIds     String[]
+  shapeId     String?
+}
+
+// A route's stopping patterns (its most-frequent (direction, shape) groups), built
+// by the GTFS shapes sync from the zip's trips.txt and stop_times.txt and keyed by
+// AT's versioned route id. The route map reads these rather than AT's API, which
+// costs one call per pattern. Routes the zip leaves out (school routes) have no row
+// and are still read from the API.
+model RoutePattern {
+  id       String           @id @map("_id")
+  variants PatternVariant[]
+  syncedAt DateTime
+
+  @@map("routePattern")
+}
+
 // One row per observed stop arrival: the scheduled vs actual time and the signed
 // deviation (deviationSec) every on-time stat is built from. `source` records how
 // it was derived ("AT_GTFSRT" with a real delay, or "AT_GTFSRT_NO_DELAY" for a
