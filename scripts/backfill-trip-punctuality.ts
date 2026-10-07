@@ -7,6 +7,7 @@
 // holds, so run the GTFS sync first. Safe to re-run: each day's rows are replaced, not added to.
 //
 // Usage:
+//   npm run backfill:trips -- 2026-10-02 --dry-run
 //   npx tsx --env-file=.env.local scripts/backfill-trip-punctuality.ts 2026-10-02
 //   npx tsx --env-file=.env.local scripts/backfill-trip-punctuality.ts --all
 //   (--all = every completed day from the first day on record; add --dry-run to print each
@@ -20,7 +21,9 @@ import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/ser
 import { punctualPct, reliablePct, sumCounts } from "@/lib/trip/punctuality";
 
 const argv = process.argv.slice(2);
-const dryRun = argv.includes("--dry-run");
+// PowerShell drops the bare `--` in `npm run backfill:trips -- --dry-run`, so npm keeps the flag as
+// its own config and passes it on only as npm_config_dry_run.
+const dryRun = argv.includes("--dry-run") || process.env.npm_config_dry_run === "true";
 const args = argv.filter((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const today = nzServiceDayString();
 
