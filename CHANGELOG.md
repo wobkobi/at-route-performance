@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.25] - 2026-10-08
+
+### Changed
+
+- The shame day boards no longer wait for a slow streak walk; their flames stream in after the rows.
+
 ## [2.54.24] - 2026-10-08
 
 ### Changed

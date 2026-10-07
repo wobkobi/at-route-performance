@@ -26,6 +26,29 @@ export function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | nu
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
+/** A promise's outcome after a head start: its value, or still running. */
+export type HeadStart<T> = { settled: true; value: T } | { settled: false };
+
+/**
+ * Give a promise a short head start before choosing how to render it. A component
+ * that awaits a promise always streams in its own later chunk, even when the
+ * promise has already settled, so a cached read rendered that way still pops in
+ * after the content around it. Render a settled value in place and stream only
+ * what is still running. Unlike {@link settleWithin}, a value of null still counts
+ * as settled. A rejection inside the head start rejects, so pass a caught promise.
+ * @param promise - The work, already started.
+ * @param ms - The head start, in milliseconds; 0 still lets an already-settled promise through.
+ * @returns The value once settled in time, or `{ settled: false }` with the promise still running.
+ */
+export function headStart<T>(promise: Promise<T>, ms: number): Promise<HeadStart<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<HeadStart<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ settled: false }), ms);
+  });
+  const settled = promise.then((value): HeadStart<T> => ({ settled: true, value }));
+  return Promise.race([settled, deadline]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Exponential backoff for a retried AT request: 1s, 2s, 4s and so on, capped at 60s.
  * @param attempt - The zero-based attempt that just failed.
