@@ -2,11 +2,13 @@
 // Cron-only POST that pre-computes completed days into the Data Cache so the
 // first reader to step onto one never pays for a cold day. Two parts: yesterday's
 // three per-day board aggregations on the default filter variant (the keys the
-// week and month views compose), answered in the response; then every day page
-// at each of the last seven completed days, rendered after the 202 so each page
-// fills exactly the keys it reads. Entries are written by the deployment that
-// runs this, so pointing cron-job.org at production warms the production cache.
-// Not an ingest: it writes no data and records no IngestRun.
+// week and month views compose), answered in the response; then the home page's
+// week and month views and every day page at each of the last seven completed
+// days, rendered after the 202 so each page fills exactly the keys it reads.
+// Scheduled just after the 4am service-day change, when yesterday has only just
+// ended and the week and month have moved on. Entries are written by the
+// deployment that runs this, so pointing cron-job.org at production warms the
+// production cache. Not an ingest: it writes no data and records no IngestRun.
 
 import { readFailed } from "@/lib/api-error";
 import { requireCronAuth } from "@/lib/cron/auth";
@@ -32,7 +34,7 @@ import { after, NextResponse } from "next/server";
 const PAGE_CONCURRENCY = 3;
 
 /**
- * Render each day page once, so its data reads land in the Data Cache under
+ * Render each warmed page once, so its data reads land in the Data Cache under
  * the keys a reader's request will look up. Invoked via `after` so the 202 is
  * sent first: the external scheduler drops a request at 30s. A failed page is
  * logged and skipped, never retried, since the next reader fills it anyway.
@@ -66,9 +68,10 @@ async function warmPages(origin: string, yesterday: string): Promise<void> {
 }
 
 /**
- * Warm yesterday's per-day shame-board cache entries, then the last week of
- * day pages in the background. Schedule after the nightly aggregate + cleanup,
- * so yesterday is warmed under its final key.
+ * Warm yesterday's per-day shame-board cache entries, then the week and month
+ * views and the last week of day pages in the background. Schedule after the
+ * 4am service-day change: before it, "yesterday" is the day before the one
+ * still running, and the week and month have not yet moved to their new range.
  * @param request - Request carrying the cron bearer token.
  * @returns 202 JSON `{ date, trips, routes, stops, pages, duration_ms }`; 401 or
  *   500 on a bad token or secret, 503/500 when the board reads fail.

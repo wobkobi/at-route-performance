@@ -49,7 +49,7 @@ All endpoints are **POST**. Create one cron-job.org job per row.
 | GTFS shapes sync | `/api/ingest/gtfs/shapes` | POST   | daily 02:10         | Refresh route geometry (shapes)  |
 | Daily aggregate  | `/api/ingest/aggregate`   | POST   | daily 02:30         | Roll up DailyRouteSummary        |
 | Cleanup          | `/api/ingest/cleanup`     | POST   | daily 03:00         | Apply retention                  |
-| Cache pre-warm   | `/api/warm`               | POST   | daily 03:15         | Pre-compute the last week's days |
+| Cache pre-warm   | `/api/warm`               | POST   | daily 04:10         | Pre-compute the last week's days |
 
 Full URL = `https://<your-app>.vercel.app` + the path above.
 
@@ -60,11 +60,12 @@ at 14:30 and cleanup at 15:00 UTC, every one of them NZST. An earlier version of
 summer UTC hours as if they were fixed, which read as an hour of drift for half the year. Document
 the local time, which does not move.
 
-The service day starts at **4am Auckland**, so the three jobs scheduled between 02:00 and 03:15 all
-fire while the previous service day is still running. That is deliberate and the 4am move does not
-change it: 02:30 is before both the old 5am boundary and the new 4am one, so the daily aggregate
-still rolls up the last _completed_ service day rather than the one in progress. The cleanup at
-03:00 snaps its cutoff to a service-day start for the same reason.
+The service day starts at **4am Auckland**, so the jobs scheduled between 02:00 and 03:00 all fire
+while the previous service day is still running; the pre-warm at 04:10 is the one job placed after
+the change, on purpose (see Notes). That is deliberate and the 4am move does not change it: 02:30 is
+before both the old 5am boundary and the new 4am one, so the daily aggregate still rolls up the last
+_completed_ service day rather than the one in progress. The cleanup at 03:00 snaps its cutoff to a
+service-day start for the same reason.
 
 What matters is the order, not the hour: cleanup must run after the aggregate, because deletion is
 irreversible and the rollup reads the events the cleanup then removes.
@@ -89,10 +90,13 @@ irreversible and the rollup reads the events the cleanup then removes.
   and finish after the response - cron-job.org drops requests at 30 s, and these can run for
   minutes. A cron-job.org "success" therefore means the job was accepted; check the footer freshness
   indicator (IngestRun) or the Vercel function logs for the actual outcome.
-- The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders
-  every page with a day stepper after the response, three at a time (`PAGE_CONCURRENCY`). The list
-  is `DAY_PAGES` in `src/lib/cron/warm.ts` - home, the three shame boards, rankings, vehicles and
-  cancellations - across the last `WARM_DAYS` (7) completed days, never before the archive starts.
+- The pre-warm answers `202` once yesterday's three board aggregations are cached, then renders the
+  home page's week and month views (`PERIOD_PATHS`) and every page with a day stepper after the
+  response, three at a time (`PAGE_CONCURRENCY`). The day-page list is `DAY_PAGES` in
+  `src/lib/cron/warm.ts` - the pages whose `SITE_PAGES` entry has `takesDay` - across the last
+  `WARM_DAYS` (7) completed days, never before the archive starts. It runs at 04:10, after the 4am
+  service-day change: any earlier and "yesterday" is the day before the one still running, so the
+  day that has just ended goes unwarmed and the week and month views warm a range that moves at 4am.
   Adding a day-stepper page to the site means adding it there too, or its first reader each day pays
   for the cold render. It records no IngestRun; its outcome is the `[WARM] Pages warmed` or
   `[WARM] Pages failed` line in the Vercel function logs, which carries the slowest path. A day

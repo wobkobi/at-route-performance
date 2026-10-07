@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.30] - 2026-10-08
+
+### Changed
+
+- The nightly cache warm also renders the home page's week and month views, and runs at 04:10 after
+  the service day changes, so the day that has just ended is warm before its first reader.
+
 ## [2.54.28] - 2026-10-08
 
 ### Changed
