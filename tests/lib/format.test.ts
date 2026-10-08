@@ -41,6 +41,23 @@ describe("formatDelay", () => {
   it("rounds fractional seconds (no decimals)", () => {
     expect(formatDelay(90.7)).toBe("1m 31s late");
   });
+  it("reads an hour or more as hours and minutes, seconds dropped", () => {
+    expect(formatDelay(400 * 60 + 12)).toBe("6h 40m late");
+    expect(formatDelay(-(2 * 3600 + 29))).toBe("2h early");
+    expect(formatDelay(3600)).toBe("1h late");
+    expect(formatDelay(3630)).toBe("1h 1m late");
+  });
+  it("keeps minutes and seconds just under the hour", () => {
+    expect(formatDelay(3599)).toBe("59m 59s late");
+  });
+});
+
+describe("formatDuration", () => {
+  it("reads an hour or more as hours and minutes", () => {
+    expect(formatDuration(400 * 60 + 12)).toBe("6h 40m");
+    expect(formatDuration(7199)).toBe("2h");
+    expect(formatDuration(3599)).toBe("59m 59s");
+  });
 });
 
 describe("non-finite guards", () => {
