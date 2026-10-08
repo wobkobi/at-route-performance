@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.32] - 2026-10-08
+
+### Changed
+
+- Partial Prefetching set off explicitly, so the day and period steppers keep prefetching their
+  neighbour in full and the build stops warning
+
 ## [2.54.31] - 2026-10-08
 
 ### Changed
