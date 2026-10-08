@@ -209,7 +209,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         .filter((l) => l.runs.length > 0)
         .sort((a, b) => MODE_ORDER[a.mode] - MODE_ORDER[b.mode]);
     },
-    ["network-lines-v14"],
+    ["network-lines-v15"],
     { revalidate: DAY_REVALIDATE },
   )();
 }

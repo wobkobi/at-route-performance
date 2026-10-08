@@ -202,6 +202,45 @@ describe("laneRuns on a divided road", () => {
     );
     expect(b?.map(northOf)).toEqual([40]);
   });
+
+  /**
+   * How far north of the test latitude each point of some runs sits.
+   * @param runs - The runs.
+   * @returns Metres north, per point.
+   */
+  const norths = (runs: { points: [number, number][] }[] | undefined): number[] =>
+    (runs ?? []).flatMap((r) => r.points.map(([lat]) => Math.round((lat - LAT) / LAT_PER_M)));
+
+  it("keeps a pull across a short stretch where the other road sits just beyond reach", () => {
+    // Karanga-a-Hape: the other tunnel 45 m off, 58 m for about 100 m at the platforms.
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "TRAIN", points: eastWest(0, 1000) },
+        {
+          colour: "#bbbbbb",
+          mode: "TRAIN",
+          points: [...eastWest(1000, 580, 45), ...eastWest(560, 490, 58), ...eastWest(470, 0, 45)],
+        },
+      ],
+      2,
+    );
+    expect(Math.max(...norths(b).map(Math.abs))).toBeLessThanOrEqual(5);
+  });
+
+  it("does not bridge a long stretch where the roads part", () => {
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        {
+          colour: "#bbbbbb",
+          mode: "BUS",
+          points: [...eastWest(1000, 820, 45), ...eastWest(800, 200, 58), ...eastWest(180, 0, 45)],
+        },
+      ],
+      2,
+    );
+    expect(norths(b)).toContain(58);
+  });
 });
 
 describe("shiftPixels", () => {

@@ -72,6 +72,13 @@ const MIN_SNAP_STEPS = 6;
 const SNAP_JUMP_M = 20;
 
 /**
+ * The longest break between two pulls that is bridged, in steps (180 m): long
+ * enough for a station where a line's two tracks part for a platform each, and
+ * short against two roads that part for good.
+ */
+const MAX_BRIDGE_STEPS = 12;
+
+/**
  * Two headings count as one road's two directions when they are within 25
  * degrees of opposite: the dot product of their unit vectors is below this.
  */
@@ -225,6 +232,8 @@ interface Anchor {
  * each one's own unpulled steps then join the anchors, so the first path along a
  * road is the line every route on it draws on. A pull only holds over
  * {@link MIN_SNAP_STEPS} in a row; a shorter one is a crossing, not a shared road.
+ * A break of up to {@link MAX_BRIDGE_STEPS} between two pulls onto one road is
+ * pulled across too.
  *
  * Anchors sit on a {@link SNAP_M} grid, and a step reads the nine cells around
  * its own, which covers every anchor within reach. Steps landing in a lane cell
@@ -247,6 +256,35 @@ function snapShared(lines: readonly LaneInput[], walks: Step[][], cosLat: number
     Math.floor((lon * M_PER_DEG * cosLat) / SNAP_M),
     Math.floor((lat * M_PER_DEG) / SNAP_M),
   ];
+  /**
+   * The anchor nearest a point that lies along the same road as another, within
+   * {@link SNAP_JUMP_M}: heading either way along it, whatever the heading of
+   * the step being placed.
+   * @param lat - The point's latitude.
+   * @param lon - The point's longitude.
+   * @param road - An anchor on the road.
+   * @returns The anchor, or null when none is that near.
+   */
+  const alongRoad = (lat: number, lon: number, road: Anchor): Anchor | null => {
+    const [gx, gy] = snapCell(lat, lon);
+    let best: Anchor | null = null;
+    let bestM = SNAP_JUMP_M;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const a of anchors.get(`${gx + dx},${gy + dy}`) ?? []) {
+          if (a.mode !== road.mode || Math.abs(a.ux * road.ux + a.uy * road.uy) < ALIGNED_DOT) {
+            continue;
+          }
+          const m = Math.hypot((a.lon - lon) * M_PER_DEG * cosLat, (a.lat - lat) * M_PER_DEG);
+          if (m <= bestM) {
+            best = a;
+            bestM = m;
+          }
+        }
+      }
+    }
+    return best;
+  };
   lines.forEach((line, i) => {
     const steps = walks[i] ?? [];
     const targets = steps.map((s): Anchor | null => {
@@ -295,6 +333,46 @@ function snapShared(lines: readonly LaneInput[], walks: Step[][], cosLat: number
       while (to + 1 < targets.length && steady(to)) to++;
       if (to - from + 1 < MIN_SNAP_STEPS) targets.fill(null, from, to + 1);
       from = to + 1;
+    }
+    /**
+     * How far step k is pulled, as a latitude and longitude difference.
+     * @param k - A pulled step's index.
+     * @returns The anchor's position less the step's own.
+     */
+    const pull = (k: number): [number, number] => [
+      (targets[k]?.lat ?? 0) - (steps[k]?.lat ?? 0),
+      (targets[k]?.lon ?? 0) - (steps[k]?.lon ?? 0),
+    ];
+    // Bridge a short break between two pulls of about the same size. Where two
+    // lines sit right at the reach, as Karanga-a-Hape's two tunnels do, the pull
+    // drops out and back in and the drawn line would hop across and return. Each
+    // step between is moved by a pull eased from one side's to the other's, then
+    // onto the anchor of that road nearest where it lands, if one is near.
+    for (let k = 1; k < targets.length; k++) {
+      const road = targets[k - 1];
+      if (targets[k] || !road) continue;
+      let end = k;
+      while (end < targets.length && !targets[end]) end++;
+      const [aLat, aLon] = pull(k - 1);
+      const [bLat, bLon] = pull(end);
+      const jump = Math.hypot((bLon - aLon) * M_PER_DEG * cosLat, (bLat - aLat) * M_PER_DEG);
+      if (end < targets.length && end - k <= MAX_BRIDGE_STEPS && jump <= SNAP_JUMP_M) {
+        for (let j = k; j < end; j++) {
+          const s = steps[j];
+          if (!s) continue;
+          const f = (j - k + 1) / (end - k + 1);
+          const lat = s.lat + aLat + (bLat - aLat) * f;
+          const lon = s.lon + aLon + (bLon - aLon) * f;
+          targets[j] = alongRoad(lat, lon, road) ?? {
+            lat,
+            lon,
+            ux: s.ux,
+            uy: s.uy,
+            mode: line.mode,
+          };
+        }
+      }
+      k = end;
     }
     steps.forEach((s, k) => {
       const t = targets[k];

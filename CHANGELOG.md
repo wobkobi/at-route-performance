@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.37] - 2026-10-08
+
+### Fixed
+
+- Two lines merged onto one road stay merged across a break of up to 180 m, so the City Rail Link's
+  two tunnels at Karanga-a-Hape no longer draw as a hook with the red and green lines swapping
+  sides; the same fix clears the ladder rungs between Papatoetoe's two directions and zigzags at
+  Akoranga and lower Queen Street
+
 ## [2.54.36] - 2026-10-08
 
 ### Fixed
