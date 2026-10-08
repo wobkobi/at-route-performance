@@ -32,6 +32,12 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.31] - 2026-10-08
+
+### Changed
+
+- Next 16.4.0, eslint-config-next 16.4.0 and minor dependency updates
+
 ## [2.54.30] - 2026-10-08
 
 ### Changed
