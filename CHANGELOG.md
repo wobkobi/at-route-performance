@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.34] - 2026-10-08
+
+### Changed
+
+- Each ingest poll logs the CPU it spent per phase, to find what uses up the free-tier Active CPU
+  allowance
+
 ## [2.54.33] - 2026-10-08
 
 ### Changed
