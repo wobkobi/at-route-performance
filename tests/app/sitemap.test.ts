@@ -3,14 +3,14 @@
 // one URL each, and a build with no database still answering.
 import sitemap from "@/app/sitemap";
 import { getDirectoryRoutes } from "@/lib/data";
-import { crawlableOrigin } from "@/lib/site-url";
+import { siteOrigin } from "@/lib/site-url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/data", () => ({ getDirectoryRoutes: vi.fn() }));
-vi.mock("@/lib/site-url", () => ({ crawlableOrigin: vi.fn() }));
+vi.mock("@/lib/site-url", () => ({ siteOrigin: vi.fn() }));
 
 const mockedRoutes = vi.mocked(getDirectoryRoutes);
-const mockedOrigin = vi.mocked(crawlableOrigin);
+const mockedOrigin = vi.mocked(siteOrigin);
 
 const ORIGIN = "https://example.test";
 

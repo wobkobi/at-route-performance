@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.33] - 2026-10-08
+
+### Changed
+
+- Share-card URLs always resolve against the site origin, so local builds stop warning about
+  metadataBase
+
 ## [2.54.32] - 2026-10-08
 
 ### Changed

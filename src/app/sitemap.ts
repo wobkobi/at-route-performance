@@ -9,7 +9,7 @@ import { operatorHref } from "@/lib/operators";
 import { routeHref } from "@/lib/page/hrefs";
 import { SITE_PAGES } from "@/lib/page/site-nav";
 import { routeSlug } from "@/lib/route/slug";
-import { crawlableOrigin } from "@/lib/site-url";
+import { siteOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 
 /**
@@ -46,7 +46,7 @@ const PRIORITY: Record<(typeof SITE_PAGES)[number]["href"], number> = {
  * @returns The canonical URLs.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const origin = crawlableOrigin();
+  const origin = siteOrigin();
   const sections: MetadataRoute.Sitemap = [
     ...SITE_PAGES.map(({ href }) => ({
       url: `${origin}${href}`,
