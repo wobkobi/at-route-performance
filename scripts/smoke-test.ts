@@ -379,13 +379,13 @@ async function dynamicPages(baseUrl: string): Promise<PageSpec[]> {
       headers: requestHeaders(),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    const routes = (await res.json()) as { id: string; mode: string }[];
+    const routes = (await res.json()) as { routeId: string; mode: string }[];
     const train = routes.find((r) => r.mode === "TRAIN");
     if (!train) {
       warnMissingSample("train line in the directory");
       return pages;
     }
-    const slug = train.id.replace(/-\d+$/, "");
+    const slug = train.routeId.replace(/-\d+$/, "");
     pages.push({ path: `/route/${encodeURIComponent(slug)}`, name: `Route ${slug} (train)` });
     const station = await firstLink(
       baseUrl,
@@ -858,6 +858,10 @@ async function main(): Promise<void> {
 
     const results: PageResult[] = [];
     for (const spec of pages) {
+      // On the same stream as the server's lines, so a page's read timings (READ_TIMING=1)
+      // land under it. A line logs when its read ends, so a background refresh or work
+      // kept alive by after() can land under the next page instead.
+      process.stderr.write(`  [PAGE] start ${spec.path}\n`);
       const result = await checkPage(browser, baseUrl, spec);
       results.push(result);
       const icon = result.status === "pass" ? "ok" : "x";

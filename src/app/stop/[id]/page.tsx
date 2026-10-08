@@ -159,15 +159,16 @@ export default async function StopPage({
   // awaited rather than streamed: it sits above the page's content, and letting
   // it pop in afterwards shoved everything below it down as the reader arrived.
   const alertsPromise = getServiceAlerts();
-  // getEarliestDataDay and the sibling lookup are both independent of the day
-  // and of the stop query.
-  const [shown, earliestDay, siblings] = await Promise.all([
-    resolveShownDay(resolveRequestedDay(sp.day), today),
+  // The stop query waits only on the shown day; the archive's first day and the
+  // sibling lookup, which need neither, run beside both.
+  const shownRead = resolveShownDay(resolveRequestedDay(sp.day), today);
+  const [shown, earliestDay, stats, siblings] = await Promise.all([
+    shownRead,
     getEarliestDataDay(1),
+    shownRead.then((s) => getStopStats(id, s.range, LIVE_DAY_REVALIDATE)),
     getStationSiblings(id),
   ]);
-  const { range, serviceDate } = shown;
-  const stats = await getStopStats(id, range, LIVE_DAY_REVALIDATE);
+  const { serviceDate } = shown;
   if (!stats) notFound();
 
   const nav = dayRangeNav(shown, earliestDay, today);

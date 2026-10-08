@@ -1,10 +1,15 @@
 // src/lib/feed/gtfs-trips.ts
 // Fetch and parse per-trip headsign, direction and shape from the AT GTFS feed's `trips.txt`,
 // topped up from AT's v3 API for the routes the zip leaves out. The public zip omits every
-// school route (S454 and some 300 more), though the API lists them and their trips.
+// school route (S454 and some 300 more), though the API lists them and their trips. The
+// same read builds each zip route's stopping patterns, so the route page need not ask AT.
+import { groupBy } from "@/lib/collections";
 import { fetchAll } from "@/lib/feed/at-static";
 import { parseAgencies, type AgencyRecord } from "@/lib/feed/gtfs-agencies";
+import { readStopTimes } from "@/lib/feed/gtfs-stop-ends";
+import { patternVariants, topPatternGroups, type PatternGroup } from "@/lib/route/pattern-groups";
 import { sleep } from "@/lib/utils";
+import type { RouteVariant } from "@/types/api";
 import { strFromU8, unzipSync, type UnzipFileInfo } from "fflate";
 
 /** AT's full GTFS feed (zip); `trips.txt` holds headsign, direction and shape per trip_id. */
@@ -38,6 +43,10 @@ export interface TripRecord {
   headsign: string | null;
   directionId: number | null;
   shapeId: string | null;
+  /** The trip's opening stops, in order; absent for a trip the zip has no stop times for. */
+  startStopIds?: string[];
+  /** The trip's last stop; absent alongside {@link TripRecord.startStopIds}. */
+  lastStopId?: string;
 }
 
 /**
@@ -79,7 +88,7 @@ function parseTrips(txt: string): TripRecord[] {
 }
 
 /**
- * Unzip filter: decompress only `trips.txt`.
+ * Unzip filter: decompress only `trips.txt` and `agency.txt`.
  * @param file - A zip entry being considered.
  * @returns True to decompress the entry.
  */
@@ -87,15 +96,52 @@ function onlyTripsAndAgencies(file: UnzipFileInfo): boolean {
   return file.name === "trips.txt" || file.name === "agency.txt";
 }
 
+/** A route's stopping pattern as the sync stores it: the variants of every direction. */
+export interface PatternRecord {
+  routeId: string;
+  variants: RouteVariant[];
+}
+
 /**
- * Download AT's GTFS zip and extract trip metadata from `trips.txt` and the
- * operator list from `agency.txt`. Only those two files are decompressed.
- * @returns One {@link TripRecord} per trip in the feed, and one agency per
- *   operator; no agencies when `agency.txt` is absent, so the stored list stands.
- * @throws {Error} When the download fails or `trips.txt` is absent.
+ * Each route's pattern groups from its zip trips, with the representative trips
+ * whose whole stop order `stop_times.txt` must yield.
+ * @param trips - Trips parsed from `trips.txt`, in file order.
+ * @returns The groups by route, and every representative trip id.
+ */
+export function patternGroupsByRoute(trips: readonly TripRecord[]): {
+  groups: Map<string, PatternGroup[]>;
+  representatives: Set<string>;
+} {
+  const groups = new Map<string, PatternGroup[]>();
+  const representatives = new Set<string>();
+  for (const [routeId, routeTrips] of groupBy(trips, (t) => t.routeId)) {
+    const top = topPatternGroups(
+      routeTrips.map((t) => ({
+        tripId: t.id,
+        directionId: t.directionId,
+        shapeId: t.shapeId,
+        headsign: t.headsign,
+      })),
+    );
+    groups.set(routeId, top);
+    for (const g of top) representatives.add(g.tripId);
+  }
+  return { groups, representatives };
+}
+
+/**
+ * Download AT's GTFS zip and extract trip metadata from `trips.txt`, each
+ * trip's opening and last stops from `stop_times.txt` ({@link readStopTimes},
+ * streamed), each route's stopping pattern from the same read, and the
+ * operator list from `agency.txt`.
+ * @returns One {@link TripRecord} per trip in the feed, one pattern per route with a
+ *   usable variant, and one agency per operator; no agencies when `agency.txt` is
+ *   absent, so the stored list stands.
+ * @throws {Error} When the download fails or `trips.txt` or `stop_times.txt` is absent.
  */
 export async function fetchTripsAndAgencies(): Promise<{
   trips: TripRecord[];
+  patterns: PatternRecord[];
   agencies: AgencyRecord[];
 }> {
   const res = await fetch(GTFS_ZIP_URL, {
@@ -108,8 +154,18 @@ export async function fetchTripsAndAgencies(): Promise<{
   const data = files["trips.txt"];
   if (!data) throw new Error("trips.txt not found in the GTFS zip");
   const agency = files["agency.txt"];
+  // Trips first, so the stop_times pass knows which few trips to keep whole.
+  const parsed = parseTrips(strFromU8(data));
+  const { groups, representatives } = patternGroupsByRoute(parsed);
+  const { ends, sequences } = readStopTimes(buf, representatives);
+  const patterns: PatternRecord[] = [];
+  for (const [routeId, routeGroups] of groups) {
+    const variants = patternVariants(routeGroups, (tripId) => sequences.get(tripId));
+    if (variants.length > 0) patterns.push({ routeId, variants });
+  }
   return {
-    trips: parseTrips(strFromU8(data)),
+    trips: parsed.map((t) => ({ ...t, ...ends.get(t.id) })),
+    patterns,
     agencies: agency ? parseAgencies(strFromU8(agency)) : [],
   };
 }

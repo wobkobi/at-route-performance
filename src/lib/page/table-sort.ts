@@ -9,8 +9,8 @@ export type SortDir = "asc" | "desc";
 /**
  * Every `sort` value the site uses, so one `?sort=` means the same measure on
  * every page: `ontime` is the on-time share, `off` the average off by, `delay`
- * the signed early-or-late average, `late`/`early` their shares or counts, and
- * `arrivals` the arrival count.
+ * the signed early-or-late average, `late`/`early` their shares or counts,
+ * `arrivals` the arrival count, and `punctual` AT's punctual-trip share.
  */
 export const SORT_KEYS = [
   "route",
@@ -27,6 +27,7 @@ export const SORT_KEYS = [
   "early",
   "arrivals",
   "cancelled",
+  "punctual",
   "routes",
   "vehicles",
   "running",

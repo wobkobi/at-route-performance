@@ -71,6 +71,14 @@ const nextConfig: NextConfig = {
    * rather than unmounting it, so client state survives Back.
    */
   cacheComponents: true,
+  /**
+   * Off: the day and period steppers prefetch their neighbour in full with
+   * `prefetch={true}` so a step lands instantly. Partial Prefetching would cut
+   * those down to the route's shared shell plus cached URL content, leaving the
+   * figures to stream in after the click. Next turns it on for everyone at the
+   * next major, so the steppers need checking against it before then.
+   */
+  partialPrefetching: false,
   // Drop the X-Powered-By: Next.js header so responses don't advertise the framework/version.
   poweredByHeader: false,
   output: "standalone",

@@ -9,9 +9,9 @@ import { prisma } from "@/lib/db";
 import { fetchRoutes, fetchStops, mapRouteType, type RouteAttr } from "@/lib/feed/at-static";
 import {
   AGENCIES_SETTING,
-  type AgencyRecord,
   mergeAgencies,
   parseStoredAgencies,
+  type AgencyRecord,
 } from "@/lib/feed/gtfs-agencies";
 import { getSetting, setSetting } from "@/lib/feed/gtfs-settings";
 import { fetchShapes } from "@/lib/feed/gtfs-shapes";
@@ -19,6 +19,7 @@ import {
   fetchRouteTrips,
   fetchTripsAndAgencies,
   routesMissingFromZip,
+  type PatternRecord,
 } from "@/lib/feed/gtfs-trips";
 
 /** Max update operations per bulk `update` command (well under Mongo's 1000 cap). */
@@ -158,21 +159,26 @@ export async function syncShapes(): Promise<{ upserted: number }> {
 
 /**
  * Fetch GTFS trip metadata from AT's full feed and upsert it into the
- * `tripMeta` collection (headsign, direction and shape keyed by trip_id).
+ * `tripMeta` collection (headsign, direction, shape, and opening and last
+ * stops, keyed by trip_id).
  * The zip leaves out every school route, so each route AT's API lists with no
  * zip trip is filled from the API instead; without those rows a school
  * route's line diagram cannot place an arrival in a direction. The same zip
- * carries the operator list, which {@link syncAgencies} stores.
+ * carries the operator list, which {@link syncAgencies} stores, and each zip
+ * route's stopping patterns, stored in `routePattern` (API-filled routes have
+ * none: their stop times would cost a call per pattern, so the route page asks
+ * for them itself).
  * @returns Trips upserted, how many of them came from the API, the routes whose
- *   API call failed, and the operators AT currently lists.
+ *   API call failed, the patterns stored and the operators AT currently lists.
  */
 export async function syncTripMeta(): Promise<{
   upserted: number;
   fromApi: number;
   failedRoutes: number;
+  patterns: number;
   agencies: number;
 }> {
-  const [{ trips: zipTrips, agencies }, routes] = await Promise.all([
+  const [{ trips: zipTrips, patterns, agencies }, routes] = await Promise.all([
     fetchTripsAndAgencies(),
     fetchRoutes(),
   ]);
@@ -190,18 +196,42 @@ export async function syncTripMeta(): Promise<{
         headsign: t.headsign,
         directionId: t.directionId,
         shapeId: t.shapeId,
+        // API-filled trips carry no stop times, so they leave any stored ends alone.
+        ...(t.startStopIds && t.lastStopId
+          ? { startStopIds: t.startStopIds, lastStopId: t.lastStopId }
+          : {}),
       },
     },
   }));
 
   await bulkUpsert("tripMeta", ops);
+  const patternOps = patternUpsertOps(patterns, new Date());
+  await bulkUpsert("routePattern", patternOps);
   await syncAgencies(agencies);
   return {
     upserted: ops.length,
     fromApi: api.trips.length,
     failedRoutes: api.failed,
+    patterns: patternOps.length,
     agencies: agencies.length,
   };
+}
+
+/**
+ * Build the `routePattern` upsert ops for one sync run. A route the zip no longer
+ * carries keeps its last row: patterns are keyed by versioned route id, and the
+ * route page reads only the newest version's.
+ * @param patterns - Each zip route's variants, from the sync's read of the zip.
+ * @param syncedAt - The instant this sync ran, in extended JSON (see {@link routeUpsertOps}).
+ * @returns One upsert op per route with a usable variant.
+ */
+export function patternUpsertOps(patterns: readonly PatternRecord[], syncedAt: Date): UpsertOp[] {
+  return patterns
+    .filter((p) => p.variants.length > 0)
+    .map((p) => ({
+      q: { _id: p.routeId },
+      u: { $set: { variants: p.variants, syncedAt: { $date: syncedAt.toISOString() } } },
+    }));
 }
 
 /**

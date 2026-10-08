@@ -9,7 +9,7 @@ import { LoadingLine } from "@/components/Loading";
 import { cn } from "@/lib/cn";
 import { SERVICE_DAY_NOTE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/copy";
 import { pageMetadata } from "@/lib/og";
-import { productionOrigin } from "@/lib/site-url";
+import { siteOrigin } from "@/lib/site-url";
 import { DATA_START_LABEL } from "@/lib/time/data-start";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -21,13 +21,9 @@ import { Suspense } from "react";
 import { gothamNarrow } from "./fonts";
 import "./globals.css";
 
-// The production origin, so card and page URLs in metadata resolve absolute.
-// Null locally, where Next falls back to localhost; a preview deployment's own
-// URL still wins for its cards.
-const productionBase = productionOrigin();
-
 export const metadata: Metadata = {
-  metadataBase: productionBase ? new URL(productionBase) : undefined,
+  // Card and page URLs in metadata resolve against the site's own origin.
+  metadataBase: new URL(siteOrigin()),
   // The template names the site in every child segment's tab, so a page that
   // sets its own title no longer replaces the only mention of where it is.
   // It does not reach a title set in this same segment, which is why the home

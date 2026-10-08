@@ -5,8 +5,9 @@ import { LoadingBlock } from "@/components/Loading";
 import { FlameCount } from "@/components/shame/FlameCount";
 import {
   hourSlotRenderer,
+  readDayStreaks,
   ShameBoard,
-  ShameDayFlame,
+  ShameDayFlameSlot,
   ShameDayLabel,
   ShameHourLabel,
   ShameRankLabel,
@@ -26,7 +27,6 @@ import {
   getRouteBoardOfDay,
   getRouteBoardOfWeek,
   getShameDayHours,
-  getShameStreaks,
   MIN_ROUTE_EVENTS_HOUR,
   PERIOD_REVALIDATE,
   SHAME_RANKED_LIMIT,
@@ -248,7 +248,8 @@ async function RouteDayBoard({
   const visibleHours = filterLiveHours(shame.hours, serviceDate);
   const daySpan = serviceHourSpan(dayHours);
   const routeHourCounts = countBy(visibleHours, (h) => h.routeId);
-  const routeStreakMap = await getShameStreaks("route", [...routeHourCounts.keys()], range, filter);
+  // A cold walk streams its flames in after the board rather than holding it.
+  const { streaks } = await readDayStreaks("route", [...routeHourCounts.keys()], range, filter);
 
   const worst = pickWorst(visibleHours);
   const worstKey = worst && isCrownable(worst) ? `${worst.hour}-${worst.routeId}` : null;
@@ -290,12 +291,13 @@ async function RouteDayBoard({
           subtitle={routeSubtitle(r)}
           worst={isWorst}
           flame={
-            <ShameDayFlame
+            <ShameDayFlameSlot
               name={name}
               noun="route"
               worst={isWorst}
               hourCount={hourCount}
-              streak={routeStreakMap.get(r.routeId)}
+              routeId={r.routeId}
+              streaks={streaks}
               hoursLabel={
                 isWorst
                   ? `${name}: worst route of the day · worst in ${hourCount} hours`

@@ -36,6 +36,20 @@ export function routeSlug(routeId: string): string {
 }
 
 /**
+ * The slugs of every route a view covers: its ranked rows' plus those with only
+ * cancellations, which leave no arrival row to rank.
+ * @param rows - The view's rows.
+ * @param cancelledSlugs - Slugs of the view's routes with a cancellation.
+ * @returns The slugs.
+ */
+export function shownRouteSlugs(
+  rows: readonly { routeId: string }[],
+  cancelledSlugs: Iterable<string> = [],
+): Set<string> {
+  return new Set([...rows.map((r) => routeSlug(r.routeId)), ...cancelledSlugs]);
+}
+
+/**
  * The numeric feed version encoded in a route id's suffix ("501-217" > 217), or
  * 0 when the id carries no suffix. Lets callers pick the most recent version.
  * @param routeId - A full AT route id.

@@ -1,5 +1,5 @@
 // tests/lib/geo/fare-zones.test.ts
-import { fareZonesOf, routeFareZones } from "@/lib/geo/fare-zone-geo";
+import { fareZonesOf, routeFareZones, zonesServed } from "@/lib/geo/fare-zone-geo";
 import { FARE_ZONES, isFareZoneKey } from "@/lib/geo/fare-zones";
 import ZONES from "@/lib/geo/fare-zones.json";
 import { describe, expect, it } from "vitest";
@@ -38,6 +38,21 @@ describe("routeFareZones", () => {
       { lat: -36.8698, lon: 174.778 },
     ];
     expect(routeFareZones(stops)).toEqual(["city", "isthmus", "northern-manukau"]);
+  });
+});
+
+describe("zonesServed", () => {
+  it("agrees with routeFareZones over stops placed one at a time", () => {
+    const stops = [
+      { lat: -36.924, lon: 174.786 },
+      { lat: -36.8443, lon: 174.7676 },
+      { lat: -36.8698, lon: 174.778 },
+    ];
+    expect(zonesServed(stops.map((s) => fareZonesOf(s.lat, s.lon)))).toEqual(routeFareZones(stops));
+  });
+
+  it("drops repeats and keeps display order whatever order the stops come in", () => {
+    expect(zonesServed([["isthmus"], ["city", "isthmus"], []])).toEqual(["city", "isthmus"]);
   });
 });
 

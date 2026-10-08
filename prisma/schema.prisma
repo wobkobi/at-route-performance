@@ -68,13 +68,40 @@ model Shape {
 // GTFS trip metadata (from trips.txt), keyed by AT trip_id. `shapeId` names the
 // road path the trip drives, which the realtime ingest measures vehicles against.
 model TripMeta {
-  id          String  @id @map("_id")
-  routeId     String?
-  headsign    String?
-  directionId Int?
-  shapeId     String?
+  id           String   @id @map("_id")
+  routeId      String?
+  headsign     String?
+  directionId  Int?
+  shapeId      String?
+  /// Up to three opening stops in order, never the last, for judging its departure (GTFS stop_times).
+  startStopIds String[]
+  /// The trip's last stop, for judging its arrival.
+  lastStopId   String?
 
   @@map("tripMeta")
+}
+
+/// One stopping pattern: a (direction, shape) group's stop order, from its first trip.
+type PatternVariant {
+  headsign    String?
+  directionId Int
+  /// How many of the route's trips run this pattern.
+  tripCount   Int
+  stopIds     String[]
+  shapeId     String?
+}
+
+// A route's stopping patterns (its most-frequent (direction, shape) groups), built
+// by the GTFS shapes sync from the zip's trips.txt and stop_times.txt and keyed by
+// AT's versioned route id. The route map reads these rather than AT's API, which
+// costs one call per pattern. Routes the zip leaves out (school routes) have no row
+// and are still read from the API.
+model RoutePattern {
+  id       String           @id @map("_id")
+  variants PatternVariant[]
+  syncedAt DateTime
+
+  @@map("routePattern")
 }
 
 // One row per observed stop arrival: the scheduled vs actual time and the signed
@@ -277,6 +304,57 @@ model DailyRouteSummary {
   createdAt      DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id])
+
+  @@unique([routeId, date])
+  @@index([date])
+}
+
+// AT's trip measures (lib/trip/punctuality.ts) per route per completed service day,
+// written by the nightly rollup. Kept apart from DailyRouteSummary because a route
+// can have cancelled trips and no recorded arrival all day: it gets a tally here
+// without a summary row that would read as a route that ran with no figures. A
+// row with routeId "*" and zero counts marks the day's write as complete; readers
+// trust a day's rows only once it is there. Pruned with the daily summaries. Read
+// and written through raw commands, and the writer creates these indexes itself
+// (lib/cron/trip-punctuality.ts), so the collection works before a schema push.
+model DailyTripTally {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  routeId   String
+  date      DateTime // NZ service-day start (4am Auckland, stored as UTC)
+  /// Trips with a departure read, and how many left inside the reliable window.
+  departed  Int
+  reliable  Int
+  /// Trips with a departure and an arrival read, and how many were punctual.
+  timed     Int
+  punctual  Int
+  /// Trips that never ran or were cut short, failures in both measures.
+  cancelled Int
+
+  @@unique([routeId, date])
+  @@index([date])
+}
+
+/// One vehicle seen on a route in a day, and the Auckland clock hours it was due at a stop.
+type VehicleSeen {
+  /// Vehicle id, as the feed sends it (digits only).
+  v String
+  /// Bit n set when the vehicle was due at a stop in clock hour n (0-23).
+  h Int
+}
+
+// The distinct vehicles each route ran per completed service day, written by the
+// nightly rollup so the home page's vehicle counts union stored days instead of
+// scanning every day's arrivals. A row with routeId "*" and no vehicles marks the
+// day's write as complete, as on DailyTripTally; a day without it is scanned live.
+// The hour bits let a count narrow to part of the day. Pruned with the daily
+// summaries. Read and written through raw commands, and the writer creates these
+// indexes itself (lib/cron/vehicle-sets.ts), so the collection works before a
+// schema push.
+model DailyVehicleSet {
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  routeId String
+  date    DateTime // NZ service-day start (4am Auckland, stored as UTC)
+  vs      VehicleSeen[]
 
   @@unique([routeId, date])
   @@index([date])

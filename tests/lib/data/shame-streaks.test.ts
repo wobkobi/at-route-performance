@@ -79,17 +79,37 @@ describe("getShameStreaks", () => {
 
   it("ends every run at a day with nothing on the board", async () => {
     days.set("2026-09-30", [hour("A", 900)]);
+    days.set("2026-09-29", [hour("A", 900)]);
     const streaks = await getShameStreaks("route", ["A"], shown, filter);
     expect(streaks.get("A")).toEqual({ days: 1, prevHours: 0, prevCrownedDays: 0 });
-    expect(routeBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("stops reading once every run has broken", async () => {
-    days.set("2026-10-01", [hour("A", 600)]);
-    days.set("2026-09-30", [hour("B", 600)]);
-    days.set("2026-09-29", [hour("A", 600)]);
-    await getShameStreaks("route", ["A"], shown, filter);
+  it("reads three days at a time and stops reading once every run has broken", async () => {
+    for (const date of ["2026-10-01", "2026-09-30", "2026-09-29", "2026-09-28"]) {
+      days.set(date, [hour("A", 600)]);
+    }
+    days.set("2026-09-27", [hour("B", 600)]);
+    days.set("2026-09-26", [hour("A", 600)]);
+    const streaks = await getShameStreaks("route", ["A"], shown, filter);
+    // The run breaks on 27 Sep, so 26 Sep's return does not join it.
+    expect(streaks.get("A")).toEqual({ days: 5, prevHours: 4, prevCrownedDays: 4 });
     expect(routeBoard.mock.calls.map(([range]) => dayOf(range))).toEqual([
+      "2026-10-01",
+      "2026-09-30",
+      "2026-09-29",
+      "2026-09-28",
+      "2026-09-27",
+      "2026-09-26",
+    ]);
+  });
+
+  it("reads one day at a time on a crown-only walk and stops when the crown run breaks", async () => {
+    days.set("2026-10-01", [hour("A", 600)]);
+    days.set("2026-09-30", [hour("B", 900), hour("A", 200)]);
+    days.set("2026-09-29", [hour("A", 600)]);
+    const streaks = await getShameStreaks("trip", ["A"], shown, filter, { crownOnly: true });
+    expect(streaks.get("A")?.prevCrownedDays).toBe(1);
+    expect(tripBoard.mock.calls.map(([range]) => dayOf(range))).toEqual([
       "2026-10-01",
       "2026-09-30",
     ]);

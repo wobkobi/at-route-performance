@@ -1,7 +1,13 @@
 // tests/lib/feed/gtfs-trips.test.ts
-// Tests the API top-up for routes the GTFS zip leaves out.
+// Tests the API top-up for routes the GTFS zip leaves out, and picking each zip route's
+// pattern representatives.
 import { fetchAll } from "@/lib/feed/at-static";
-import { fetchRouteTrips, routesMissingFromZip, type TripRecord } from "@/lib/feed/gtfs-trips";
+import {
+  fetchRouteTrips,
+  patternGroupsByRoute,
+  routesMissingFromZip,
+  type TripRecord,
+} from "@/lib/feed/gtfs-trips";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/feed/at-static", () => ({ fetchAll: vi.fn() }));
@@ -32,6 +38,37 @@ describe("routesMissingFromZip", () => {
 
   it("returns nothing when the zip covers every route", () => {
     expect(routesMissingFromZip([zipTrip("70-203")], ["70-203"])).toEqual([]);
+  });
+});
+
+describe("patternGroupsByRoute", () => {
+  it("groups each route's trips on its own and names one representative per group", () => {
+    /**
+     * Build a zip trip on a (route, shape) pattern.
+     * @param id - Trip id.
+     * @param routeId - The trip's route.
+     * @param shapeId - The trip's shape.
+     * @returns A TripRecord.
+     */
+    const t = (id: string, routeId: string, shapeId: string): TripRecord => ({
+      id,
+      routeId,
+      headsign: null,
+      directionId: 0,
+      shapeId,
+    });
+    const { groups, representatives } = patternGroupsByRoute([
+      t("a1", "70-203", "A"),
+      t("n1", "NX1-203", "N"),
+      t("a2", "70-203", "A"),
+      t("b1", "70-203", "B"),
+    ]);
+    expect(groups.get("70-203")?.map((g) => [g.tripId, g.count])).toEqual([
+      ["a1", 2],
+      ["b1", 1],
+    ]);
+    expect(groups.get("NX1-203")?.map((g) => g.tripId)).toEqual(["n1"]);
+    expect(representatives).toEqual(new Set(["a1", "b1", "n1"]));
   });
 });
 

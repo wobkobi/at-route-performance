@@ -85,6 +85,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       AT_API_KEY: ${{ secrets.AT_API_KEY }}
+      # Log the slow reads behind each page (src/lib/read-timing.ts).
+      READ_TIMING: "1"
 
     steps:
       - name: Checkout code

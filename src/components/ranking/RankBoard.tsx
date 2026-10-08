@@ -15,12 +15,12 @@ import {
   OFF_SCHEDULE_TONE_CLASS,
   offScheduleValue,
 } from "@/lib/format";
-import { type LinkQuery, routeHref } from "@/lib/page/hrefs";
+import { routeHref, type LinkQuery } from "@/lib/page/hrefs";
 import { RANK_CLASS, ROUTE_NAME_CLASS } from "@/lib/page/row";
 import { routeDisplayName, routeSlug, routeSubtitle } from "@/lib/route/slug";
 import type { RouteRow } from "@/types/api";
 import Link from "next/link";
-import type { JSX } from "react";
+import { Suspense, type JSX } from "react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa";
 
 /**
@@ -58,6 +58,27 @@ function DeltaBadge({ delta }: { delta: number | null | undefined }): JSX.Elemen
       {Math.abs(delta)}
     </span>
   );
+}
+
+/** Per-route position change against the previous period: positive climbed, null a new entry. */
+export type RankDeltas = ReadonlyMap<string, number | null>;
+
+/**
+ * A row's movement badge once the board's deltas have streamed in; nothing when
+ * the previous period brought none.
+ * @param props - Badge props.
+ * @param props.deltas - The board's deltas, still loading.
+ * @param props.routeId - The row's route.
+ * @returns The badge, or null.
+ */
+async function StreamedDeltaBadge({
+  deltas,
+  routeId,
+}: {
+  deltas: Promise<RankDeltas | undefined>;
+  routeId: string;
+}): Promise<JSX.Element | null> {
+  return <DeltaBadge delta={(await deltas)?.get(routeId)} />;
 }
 
 /**
@@ -115,8 +136,11 @@ export interface RankBoardProps {
    * viewed, built by `routeLinkParams`. Omit for the route's default view.
    */
   routeParams?: LinkQuery;
-  /** Per-route position delta from the previous period (positive = climbed, null = new entry). */
-  deltas?: Map<string, number | null>;
+  /**
+   * Per-route position delta from the previous period (positive = climbed, null = new
+   * entry). A promise reserves the badge column at once and fills it as it resolves.
+   */
+  deltas?: RankDeltas | Promise<RankDeltas | undefined>;
   /** Cancelled trips per route slug in the same window; a route with any gets an "N cancelled" note. */
   cancelled?: Map<string, number>;
   /**
@@ -149,7 +173,7 @@ export interface RankBoardProps {
  * @param props.metric - Whether the right column is a delay or on-time %.
  * @param props.caption - One line under the heading saying what the column is (optional).
  * @param props.routeParams - Params each route link carries, from `routeLinkParams` (optional).
- * @param props.deltas - Per-route position deltas from the previous period (optional).
+ * @param props.deltas - Per-route position deltas from the previous period, or a promise of them to stream in (optional).
  * @param props.cancelled - Cancelled trips per route slug, shown beside each route's name (optional).
  * @param props.seeAllHref - Link to the full ranking (optional).
  * @param props.total - How many routes the full ranking holds (optional).
@@ -242,7 +266,13 @@ export function RankBoard({
                       <span className="flex w-15 shrink-0 items-center">
                         <span className={RANK_CLASS}>{i + 1}</span>
                         <span className="flex w-9 shrink-0 items-center pl-0.5">
-                          <DeltaBadge delta={deltas.get(r.routeId)} />
+                          {deltas instanceof Promise ? (
+                            <Suspense fallback={null}>
+                              <StreamedDeltaBadge deltas={deltas} routeId={r.routeId} />
+                            </Suspense>
+                          ) : (
+                            <DeltaBadge delta={deltas.get(r.routeId)} />
+                          )}
                         </span>
                       </span>
                     ) : (

@@ -1,8 +1,6 @@
 // src/lib/data/shame-filter.ts
 // The mode and school-service filter every shame, stop and cancellation read shares.
-import { HOUR_REVALIDATE } from "@/lib/data/revalidate";
-import { prisma } from "@/lib/db";
-import { unstable_cache } from "@/lib/mem-cache";
+import { routeTable } from "@/lib/data/routes";
 import type { Mode } from "@/lib/mode";
 import type { DelayDirection } from "@/lib/rankings";
 import { rowAllowedBySchool, type SchoolFilter } from "@/lib/school-bus";
@@ -47,6 +45,8 @@ export function schoolRouteMatch(schools: SchoolFilter): Record<string, unknown>
  * Resolve the route ids whose events the worst-stop ranking should include,
  * mirroring the home page's mode + school filters. Returns null when no filter
  * applies (every mode, school included), so the caller can skip the `$in` match.
+ * Filtered in memory from the route table held in process, since the per-day board
+ * reads call this inside their own cached callbacks.
  * @param mode - Restrict to this mode, or null for every mode.
  * @param schools - Which `S###` school services count.
  * @returns Included route ids, or null when no route filter is needed.
@@ -56,16 +56,7 @@ export async function worstStopRouteIds(
   schools: SchoolFilter,
 ): Promise<string[] | null> {
   if (!mode && schools === "include") return null;
-  return unstable_cache(
-    async () => {
-      // Push mode filter to DB; school-bus detection needs name fields so stays in JS.
-      const routes = await prisma.route.findMany({
-        where: mode ? { mode } : undefined,
-        select: { id: true, shortName: true, longName: true },
-      });
-      return routes.filter((r) => rowAllowedBySchool(r, schools)).map((r) => r.id);
-    },
-    ["worst-stop-route-ids", mode ?? "all", schools],
-    { revalidate: HOUR_REVALIDATE },
-  )();
+  return (await routeTable())
+    .filter((r) => (!mode || r.mode === mode) && rowAllowedBySchool(r, schools))
+    .map((r) => r.id);
 }

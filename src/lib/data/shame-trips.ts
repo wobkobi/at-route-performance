@@ -13,6 +13,7 @@ import {
   padScanRange,
   SERVICE_START_HOUR,
   serviceDatesInRange,
+  startedServiceDates,
 } from "@/lib/time/service-day";
 import { type HourRange, hoursInRange } from "@/lib/time/time-of-day";
 import type { ShameOfDay, ShameOfWeek, ShameRanked, ShameTrip } from "@/types/dashboard";
@@ -361,13 +362,13 @@ export async function getTripBoardOfWeek(
   revalidate: number,
 ): Promise<ShameOfWeek> {
   const { mode = null, schools = "exclude" } = filter;
-  // Resolve each service day independently (cached per day) and combine, so a
+  // Resolve each started service day independently (cached per day) and combine, so a
   // busy live day never forces one heavy 7-day aggregation. This also makes the
   // per-day worst the day's actual worst run (AT reuses tripIds across days, so a
   // single week-wide grouping would otherwise collapse a trip's daily runs).
   const days = (
     await Promise.all(
-      serviceDatesInRange(range).map((date) =>
+      startedServiceDates(range).map((date) =>
         cachedTripBoardOfDay(date, mode, schools, revalidate),
       ),
     )

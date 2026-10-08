@@ -2,15 +2,15 @@
 // Unit tests for robots.txt: search engines stay welcome, the filter permutation
 // space does not, and a preview deployment keeps out of the index entirely.
 import robots from "@/app/robots";
-import { crawlableOrigin, isProductionDeployment } from "@/lib/site-url";
+import { isProductionDeployment, siteOrigin } from "@/lib/site-url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/site-url", () => ({
-  crawlableOrigin: vi.fn(),
   isProductionDeployment: vi.fn(),
+  siteOrigin: vi.fn(),
 }));
 
-const mockedOrigin = vi.mocked(crawlableOrigin);
+const mockedOrigin = vi.mocked(siteOrigin);
 const mockedIsProduction = vi.mocked(isProductionDeployment);
 
 const ORIGIN = "https://example.test";

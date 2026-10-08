@@ -1,9 +1,10 @@
 // src/lib/data/routes.ts
 // Route identity: slugs to ids, lineage-aware id sets, the CRL successor gate and the directory.
+import { groupBy } from "@/lib/collections";
 import { aggregateRows } from "@/lib/data/raw";
 import { DAY_REVALIDATE, HOUR_REVALIDATE, TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
-import { unstable_cache } from "@/lib/mem-cache";
+import { memCache, unstable_cache } from "@/lib/mem-cache";
 import type { Mode } from "@/lib/mode";
 import {
   allSuccessorSlugs,
@@ -15,13 +16,40 @@ import { routeDisplayName, routeSlug, routeVersion, type RouteDisplay } from "@/
 import { MS_PER_DAY } from "@/lib/time/service-day";
 
 /**
+ * Every route id grouped by slug, newest version first, from one read of the small Route
+ * table per process every ten minutes. Held in memory rather than the Data Cache: the reads
+ * that resolve dozens of slugs (the rider-wait penalties, once per day of a window) run
+ * inside another `unstable_cache` callback, where a nested `unstable_cache` skips its read,
+ * so a per-slug entry there would cost a query for every slug on every day. The short life
+ * bounds how long a version published by a GTFS sync stays out of its slug's ids.
+ * @returns Slug to its route ids, newest version first.
+ */
+function routeIdsBySlug(): Promise<Map<string, string[]>> {
+  return memCache("route-ids-by-slug", TEN_MINUTE_REVALIDATE, async () => {
+    const routes = await prisma.route.findMany({ select: { id: true } });
+    const bySlug = groupBy(
+      routes.map((r) => r.id),
+      routeSlug,
+    );
+    for (const ids of bySlug.values()) ids.sort((a, b) => routeVersion(b) - routeVersion(a));
+    return bySlug;
+  });
+}
+
+/**
  * Every AT route id sharing one slug - the same route across feed-version
  * republishes (see {@link routeSlug}) - newest version first, or empty when the
- * slug matches nothing. Cached hourly; route ids only change on the GTFS sync.
+ * slug matches nothing. Read from {@link routeIdsBySlug}; a slug the table does not
+ * hold (a full route id, or a slug first published by a GTFS sync since the table was
+ * read) is looked up on its own, cached hourly. A new version of a slug the table already
+ * holds shows up when the table refreshes. Route ids only change on the GTFS sync.
  * @param slug - A version-stripped route slug (or a full route id).
  * @returns Matching route ids, newest version first.
  */
 async function routeIdsMatching(slug: string): Promise<string[]> {
+  // A copy, so a caller's push or sort cannot reach the shared table.
+  const known = (await routeIdsBySlug()).get(slug);
+  if (known) return [...known];
   return unstable_cache(
     async () => {
       const routes = await prisma.route.findMany({
@@ -230,21 +258,43 @@ export async function getRouteLabel(
   )();
 }
 
+/** One Route row as {@link routeTable} holds it. */
+export interface RouteTableRow {
+  id: string;
+  shortName: string | null;
+  longName: string | null;
+  mode: string;
+  colour: string | null;
+}
+
 /**
- * All routes as a `routeId > mode` map. Cached with a long TTL since routes
- * only change when GTFS is re-ingested. Used to resolve dominant mode per stop.
+ * Every route's id, names, mode and colour: a few hundred rows that only change on the GTFS
+ * sync. Held in process for ten minutes in front of an hourly Data Cache entry, because
+ * the per-day board reads ask for the mode map and the school filter's ids inside their
+ * own `unstable_cache` callbacks, where a nested Data Cache read is skipped and would
+ * query the table again for every day of a window.
+ * @returns Every route row.
+ */
+export function routeTable(): Promise<RouteTableRow[]> {
+  return memCache("route-table", TEN_MINUTE_REVALIDATE, () =>
+    unstable_cache(
+      () =>
+        prisma.route.findMany({
+          select: { id: true, shortName: true, longName: true, mode: true, colour: true },
+        }),
+      ["route-table"],
+      { revalidate: HOUR_REVALIDATE },
+    )(),
+  );
+}
+
+/**
+ * All routes as a `routeId > mode` map, built from {@link routeTable}. Used to resolve
+ * dominant mode per stop.
  * @returns Map from route id to its mode.
  */
 export async function getRouteModeMap(): Promise<Map<string, Mode>> {
-  const pairs = await unstable_cache(
-    async () => {
-      const rows = await prisma.route.findMany({ select: { id: true, mode: true } });
-      return rows.map((r) => [r.id, r.mode] as const);
-    },
-    ["route-mode-map"],
-    { revalidate: HOUR_REVALIDATE },
-  )();
-  return new Map(pairs as [string, Mode][]);
+  return new Map((await routeTable()).map((r) => [r.id, r.mode as Mode]));
 }
 
 /**

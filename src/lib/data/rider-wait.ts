@@ -2,10 +2,9 @@
 // The rider-wait penalty of each service day's cancellations (lib/rider-wait.ts),
 // read for the routes that had one: their runs give the gap to the next trip and
 // the usual stop count. Cached under the day, so a week or month reuses each day.
-import { cachedForDay, windowEnd } from "@/lib/data/cache";
+import { cachedForDay, dayEntryRevalidate, windowEnd } from "@/lib/data/cache";
 import { getNetworkCancelledTrips } from "@/lib/data/cancelled";
 import { aggregateRows, dateWindow, toIso } from "@/lib/data/raw";
-import { LIVE_DAY_REVALIDATE } from "@/lib/data/revalidate";
 import { routeIdsForSlug } from "@/lib/data/routes";
 import { realDeviationMatchFor } from "@/lib/deviation";
 import {
@@ -19,7 +18,12 @@ import {
   type TripPenalty,
 } from "@/lib/rider-wait";
 import { routeSlug } from "@/lib/route/slug";
-import { nzServiceDayRange, serviceDatesInRange, type DateRange } from "@/lib/time/service-day";
+import {
+  nzServiceDayRange,
+  nzServiceDayString,
+  serviceDatesInRange,
+  type DateRange,
+} from "@/lib/time/service-day";
 import type { HourRange } from "@/lib/time/time-of-day";
 
 /** One service day's penalties. */
@@ -41,14 +45,19 @@ interface RunRaw {
 
 /**
  * One service day's penalties. Only the routes with a flagged trip are scanned,
- * on the `(routeId, scheduledAt)` index.
+ * on the `(routeId, scheduledAt)` index. The TTL is part of the key (see
+ * {@link dayEntryRevalidate}).
  * @param date - Service date (`YYYY-MM-DD`).
+ * @param revalidate - TTL in seconds while the day can still change.
  * @returns The day's penalties.
  */
-function riderWaitOfDay(date: string): Promise<DayRiderWait> {
+function riderWaitOfDay(date: string, revalidate: number): Promise<DayRiderWait> {
   const range = nzServiceDayRange(date);
   return cachedForDay(
     async (classified) => {
+      // Nested on purpose: here the day's cancellations skip their cache read, one
+      // small query per miss of this entry. Read outside, they would cost a Data
+      // Cache read for every day of every window on each request, hits included.
       const cancelled = await getNetworkCancelledTrips(range);
       // A cancellation is charged only once its scheduled departure has passed.
       // The arrivals it is weighed against stop at the same instant
@@ -111,9 +120,9 @@ function riderWaitOfDay(date: string): Promise<DayRiderWait> {
       }));
       return riderWaitPenalties(runs, flags);
     },
-    ["rider-wait-v2", date],
+    ["rider-wait-v2", date, String(revalidate)],
     date,
-    LIVE_DAY_REVALIDATE,
+    revalidate,
   );
 }
 
@@ -140,8 +149,11 @@ export async function getRiderWaitOfDates(
   hours: HourRange | null,
 ): Promise<Record<string, Penalty>> {
   const now = new Date();
+  const today = nzServiceDayString(now);
   const started = dates.filter((d) => nzServiceDayRange(d).start <= now);
-  const days = await Promise.all(started.map(riderWaitOfDay));
+  const days = await Promise.all(
+    started.map((d) => riderWaitOfDay(d, dayEntryRevalidate(d, today))),
+  );
   const out: Record<string, Penalty> = {};
   for (const day of days) {
     const routes = hours ? penaltiesInHours(day.trips, hours) : day.routes;
@@ -159,5 +171,5 @@ export async function getRiderWaitOfDates(
  */
 export async function getTripRiderWait(range: DateRange): Promise<Record<string, TripPenalty>> {
   const [date] = serviceDatesInRange(range);
-  return date ? (await riderWaitOfDay(date)).trips : {};
+  return date ? (await riderWaitOfDay(date, dayEntryRevalidate(date))).trips : {};
 }

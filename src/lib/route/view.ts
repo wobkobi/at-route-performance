@@ -7,14 +7,15 @@
 // the full line already covers are dropped, and directions that share terminals
 // (or are a prefix/suffix extension of one another) are folded together so the
 // diagram shows branches rather than duplicate panels. The static shape depends
-// only on the schedule, so it is cached for 24 h; only the day's delay colouring
-// is recomputed per request.
+// only on the schedule, so it is held in the Data Cache for a day (shared by every
+// instance) with an in-process copy in front; only the day's delay colouring is
+// recomputed per request.
 import { pushTo } from "@/lib/collections";
-import { getRecentStopIds } from "@/lib/data";
-import { DAY_REVALIDATE } from "@/lib/data/revalidate";
+import { getRecentStopIds, routeIdsForSlug } from "@/lib/data";
+import { DAY_REVALIDATE, HOUR_REVALIDATE, TEN_MINUTE_REVALIDATE } from "@/lib/data/revalidate";
 import { prisma } from "@/lib/db";
 import { offsetPath } from "@/lib/map/route-geo";
-import { memCache } from "@/lib/mem-cache";
+import { memCache, unstable_cache } from "@/lib/mem-cache";
 import { getRoutePattern } from "@/lib/route/pattern";
 import { normaliseHeadsign, stationId, stationName } from "@/lib/stop/station";
 import type { RoutePattern, RouteVariant } from "@/types/api";
@@ -83,6 +84,71 @@ interface RouteShape {
   rawToCanon: Map<string, string>;
 }
 
+/** {@link RouteShape} as the Data Cache holds it: JSON only, so each Map travels as its entries. */
+interface StoredShape {
+  staticStops: RouteShape["staticStops"];
+  routeLines: RouteLine[];
+  directions: RoutePattern["directions"];
+  nameByStop: Array<[string, string]>;
+  directionIdAliases: Array<[number, number]>;
+  rawToCanon: Array<[string, string]>;
+}
+
+/**
+ * Thrown inside the shape's Data Cache entry when the route draws nothing. A
+ * throw stores nothing, so an empty answer (a feed blip, stops not yet synced) is
+ * never held for the entry's whole day.
+ */
+class EmptyShapeError extends Error {
+  override name = "EmptyShapeError";
+}
+
+/**
+ * Round a coordinate to six decimal places (about 0.1 m). Offset road lines carry
+ * full-precision floats, and halving their text keeps a many-variant route well
+ * under the Data Cache's 2 MB item limit.
+ * @param n - Degrees.
+ * @returns The rounded degrees.
+ */
+function roundCoord(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+/**
+ * Flatten a shape into its JSON-safe stored form.
+ * @param shape - The built shape.
+ * @returns The stored form, with rounded road lines.
+ */
+function toStored(shape: RouteShape): StoredShape {
+  return {
+    staticStops: shape.staticStops,
+    routeLines: shape.routeLines.map((l) => ({
+      directionId: l.directionId,
+      points: l.points.map(([lat, lon]) => [roundCoord(lat), roundCoord(lon)]),
+    })),
+    directions: shape.directions,
+    nameByStop: [...shape.nameByStop],
+    directionIdAliases: [...shape.directionIdAliases],
+    rawToCanon: [...shape.rawToCanon],
+  };
+}
+
+/**
+ * Rebuild a shape's Maps from its stored form.
+ * @param stored - The stored form.
+ * @returns The shape.
+ */
+function fromStored(stored: StoredShape): RouteShape {
+  return {
+    staticStops: stored.staticStops,
+    routeLines: stored.routeLines,
+    directions: stored.directions,
+    nameByStop: new Map(stored.nameByStop),
+    directionIdAliases: new Map(stored.directionIdAliases),
+    rawToCanon: new Map(stored.rawToCanon),
+  };
+}
+
 /**
  * A shape with nothing in it, for a route whose pattern could not be read.
  * Built fresh each time rather than shared, so no caller can mutate a constant
@@ -123,41 +189,46 @@ function isInteriorSub(a: string[], b: string[]): boolean {
 }
 
 /**
- * Compute the static route shape: stopping pattern, stop positions, and road
- * geometry. Everything here depends only on the GTFS schedule (stable within a
- * day), so the result is cached with a 24 h TTL and shared across requests that
- * hit the same route.
- * @param routeId - AT route id.
- * @param mode - Route mode (only trains have platform headsigns to normalise).
- * @returns Static shape data with uncoloured stops.
+ * A pattern's variants with a usable length, by direction. The not-recently-served
+ * filter is applied later per *station* (not per platform), so a station is kept
+ * when any of its platforms ran - otherwise a variant that uses a quiet platform
+ * loses a whole station (e.g. Britomart) and stops merging with the main line.
+ * @param pattern - The route's stopping pattern.
+ * @returns The directions that have at least one variant of two or more stops.
  */
-async function queryRouteShape(routeId: string, mode: string): Promise<RouteShape> {
-  const empty = emptyShape();
-
-  // Neither call is caught here. A swallowed failure would be indistinguishable
-  // from a route with no schedule, and worse, `buildRouteView` caches this
-  // result for 24 hours - so one AT blip would leave the route with no
-  // directions and no diagram for the rest of the day. Rejecting instead leaves
-  // the cache empty, and the caller says what happened.
-  const [pattern, activeStops] = await Promise.all([
-    getRoutePattern(routeId),
-    getRecentStopIds(routeId),
-  ]);
-
-  // Keep every variant with a usable length; the not-recently-served filter is
-  // applied later per *station* (not per platform), so a station is kept when any
-  // of its platforms ran - otherwise a variant that uses a quiet platform loses a
-  // whole station (e.g. Britomart) and stops merging with the main line.
-  const directionsRaw: RoutePattern["directions"] = {};
+function usableDirections(pattern: RoutePattern): RoutePattern["directions"] {
+  const directions: RoutePattern["directions"] = {};
   for (const [dir, d] of Object.entries(pattern.directions)) {
     const variants = d.variants.filter((v) => v.stopIds.length >= 2);
-    if (variants.length > 0) directionsRaw[Number(dir)] = { variants };
+    if (variants.length > 0) directions[Number(dir)] = { variants };
   }
+  return directions;
+}
+
+/**
+ * Compute the static route shape: stop positions, merged directions and road
+ * geometry from the route's usable pattern. Everything here depends only on the
+ * GTFS schedule (stable within a day), so {@link loadRouteShape} holds the result
+ * for a day.
+ * @param routeId - AT route id.
+ * @param mode - Route mode (only trains have platform headsigns to normalise).
+ * @param directionsRaw - The pattern's usable variants, from {@link usableDirections}.
+ * @returns Static shape data with uncoloured stops.
+ * @throws {EmptyShapeError} When the route has nothing to draw.
+ */
+async function queryRouteShape(
+  routeId: string,
+  mode: string,
+  directionsRaw: RoutePattern["directions"],
+): Promise<RouteShape> {
+  // Not caught: a swallowed failure would read as a route that ran nowhere and
+  // would be held for the day. Rejecting stores nothing, and the caller says so.
+  const activeStops = await getRecentStopIds(routeId);
 
   const patternStopIds = [
     ...new Set(Object.values(directionsRaw).flatMap((d) => d.variants.flatMap((v) => v.stopIds))),
   ];
-  if (patternStopIds.length === 0) return empty;
+  if (patternStopIds.length === 0) throw new EmptyShapeError();
 
   const stopDocs = await prisma.stop.findMany({
     where: { id: { in: patternStopIds } },
@@ -170,7 +241,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
       platformCode: true,
     },
   });
-  if (stopDocs.length === 0) return empty;
+  if (stopDocs.length === 0) throw new EmptyShapeError();
 
   // Canonical-place remap: collapse each platform, bay and pier onto its parent
   // id, keeping one display name + coordinate per place. Variants that use
@@ -386,6 +457,7 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
       const coord = canonCoord.get(cid) as { lat: number; lon: number };
       return { stop_id: cid, name: canonName.get(cid) ?? cid, lat: coord.lat, lon: coord.lon };
     });
+  if (staticStops.length === 0) throw new EmptyShapeError();
 
   const nameByStop = new Map(usedStations.map((cid) => [cid, canonName.get(cid) ?? cid]));
 
@@ -440,12 +512,45 @@ async function queryRouteShape(routeId: string, mode: string): Promise<RouteShap
 }
 
 /**
+ * Load a route's static shape through the Data Cache, keyed by the feed version
+ * so a new schedule builds afresh. The pattern is read before the entry, not
+ * inside it: a Data Cache read nested in another entry's callback is skipped, so
+ * from inside, every rebuild would ask AT again rather than reading the pattern's
+ * own day-long entry. Reading it first also lets a route with no usable variant
+ * return before the entry and its stop-activity read.
+ * @param routeId - AT route id (a slug or a versioned id).
+ * @param latestId - The route's id in the newest feed version.
+ * @param mode - Route mode (only trains have platform headsigns to normalise).
+ * @returns The shape, empty when the route has nothing to draw.
+ */
+async function loadRouteShape(
+  routeId: string,
+  latestId: string,
+  mode: string,
+): Promise<RouteShape> {
+  const directionsRaw = usableDirections(await getRoutePattern(routeId));
+  if (Object.keys(directionsRaw).length === 0) return emptyShape();
+  try {
+    const stored = await unstable_cache(
+      async () => toStored(await queryRouteShape(routeId, mode, directionsRaw)),
+      ["route-shape-v1", routeId, latestId, mode],
+      { revalidate: DAY_REVALIDATE },
+    )();
+    return fromStored(stored);
+  } catch (err) {
+    if (err instanceof Error && err.name === "EmptyShapeError") return emptyShape();
+    throw err;
+  }
+}
+
+/**
  * Build the route map (stops + per-variant path lines) and the line-diagram
  * inputs from the schedule pattern, colouring stops by the supplied per-stop
- * stats. The static shape (pattern, stop positions, road geometry) is cached
- * with a 24 h TTL via {@link queryRouteShape} so AT API calls and Prisma queries
- * only fire once per route per day. Only the per-day delay colouring is applied
- * fresh on each request.
+ * stats. The static shape (stop positions, merged directions, road geometry)
+ * comes from {@link loadRouteShape}, held for a day in the Data Cache that every
+ * instance shares, so AT and the stop and shape queries run about once per route
+ * per day rather than once per cold instance. Only the per-day delay colouring is
+ * applied fresh on each request.
  *
  * Train platforms are collapsed to one station (see {@link stationId}), which
  * merges the otherwise-duplicate per-platform variants into a single line.
@@ -461,19 +566,22 @@ export async function buildRouteView(
   byStop: MapStop[],
   mode: string,
 ): Promise<RouteView> {
-  // queryRouteShape returns Map values (nameByStop, directionIdAliases, rawToCanon)
-  // which next/cache would lose when serialising to JSON. Use memCache instead so
-  // the Maps are stored in-process without serialisation. The 24 h TTL means each
-  // worker thread pays the AT API cost at most once per day.
   let shape: RouteShape;
   let patternFailed = false;
   try {
-    shape = await memCache(`route-shape|${routeId}|${mode}`, DAY_REVALIDATE, () =>
-      queryRouteShape(routeId, mode),
+    // routeIdsForSlug never returns empty (it falls back to `[slug]`).
+    const [latestId = routeId] = await routeIdsForSlug(routeId);
+    // An in-process copy in front of the Data Cache saves rebuilding the Maps on
+    // every request. An empty shape is held briefly, so a route whose stops sync
+    // later in the day draws soon after.
+    shape = await memCache(
+      `route-shape|${latestId}|${mode}`,
+      (s) => (s.staticStops.length > 0 ? HOUR_REVALIDATE : TEN_MINUTE_REVALIDATE),
+      () => loadRouteShape(routeId, latestId, mode),
     );
   } catch (err) {
-    // memCache stores nothing for a rejected factory, so the next request
-    // retries rather than living with this for the 24 h TTL.
+    // Neither cache stores a rejection, so the next request retries rather than
+    // living with this for the day.
     console.warn(
       `[ROUTE-VIEW] Pattern unavailable for ${routeId}`,
       err instanceof Error ? err.message : err,

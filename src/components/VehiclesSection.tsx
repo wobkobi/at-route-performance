@@ -5,13 +5,16 @@
 import { ModeIcon } from "@/components/ModeIcon";
 import { SectionLink } from "@/components/SectionLink";
 import { getVehicleCounts, getVehicleCountsAllTime, TODAY_REVALIDATE } from "@/lib/data";
+import { readFallback } from "@/lib/db";
 import { formatCount } from "@/lib/format";
 import { MODES, modeWord, type Mode } from "@/lib/mode";
 import { type SchoolFilter } from "@/lib/school-bus";
 import { DATA_START_SHORT } from "@/lib/time/data-start";
 import type { DateRange } from "@/lib/time/service-day";
 import { hourRangeClock, type HourRange } from "@/lib/time/time-of-day";
+import { settleWithin } from "@/lib/utils";
 import type { VehicleCounts } from "@/lib/vehicle/counts";
+import { after } from "next/server";
 import type { JSX } from "react";
 
 /**
@@ -31,12 +34,23 @@ export const TRAIN_COUNT_NOTE =
   "Trains are counted by the unit carrying each trip; a unit coupled behind it is not seen.";
 
 /**
+ * How long a card waits for its count before showing {@link STILL_COUNTING}. A cold count
+ * reads every day it covers from the raw arrivals, minutes on a cold disk, and the page's
+ * stream cannot finish until every card has rendered. The count keeps running and fills
+ * the day caches, so a later visit shows the figures.
+ */
+export const VEHICLE_COUNT_WAIT_MS = 12_000;
+
+/** Shown in place of a card's figures while its count is still being read. */
+export const STILL_COUNTING = "Still counting. The figures show on a later visit.";
+
+/**
  * One span's figures: an eyebrow naming the span on a hairline, then a figure
  * per mode. Same shape as the fleet strip - a rule, a label, then the numbers -
  * so the two read as one set rather than as two kinds of container.
  * @param props - Component props.
  * @param props.eyebrow - The span the figures cover.
- * @param props.counts - Distinct vehicles per mode.
+ * @param props.counts - Distinct vehicles per mode, or null while still being counted.
  * @param props.modes - Which modes to show.
  * @returns The column.
  */
@@ -46,34 +60,92 @@ function VehicleCard({
   modes,
 }: {
   eyebrow: string;
-  counts: VehicleCounts;
+  counts: VehicleCounts | null;
   modes: readonly Mode[];
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-4 border-t border-at-border pt-4">
       <p className="at-eyebrow text-at-muted">{eyebrow}</p>
-      <dl className="grid grid-cols-3 gap-4">
-        {modes.map((m) => (
-          <div key={m} className="flex flex-col gap-1">
-            <dt className="at-eyebrow flex items-center gap-1.5 text-at-muted">
-              <ModeIcon mode={m} className="h-4 w-4" decorative />
-              {modeWord(m, counts[m] !== 1)}
-            </dt>
-            <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums sm:text-3xl">
-              {formatCount(counts[m])}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {counts ? (
+        <VehicleFigures counts={counts} modes={modes} />
+      ) : (
+        <p className="text-sm text-at-muted">{STILL_COUNTING}</p>
+      )}
     </div>
   );
+}
+
+/**
+ * A figure per mode.
+ * @param props - Component props.
+ * @param props.counts - Distinct vehicles per mode.
+ * @param props.modes - Which modes to show.
+ * @returns The figures.
+ */
+function VehicleFigures({
+  counts,
+  modes,
+}: {
+  counts: VehicleCounts;
+  modes: readonly Mode[];
+}): JSX.Element {
+  return (
+    <dl className="grid grid-cols-3 gap-4">
+      {modes.map((m) => (
+        <div key={m} className="flex flex-col gap-1">
+          <dt className="at-eyebrow flex items-center gap-1.5 text-at-muted">
+            <ModeIcon mode={m} className="h-4 w-4" decorative />
+            {modeWord(m, counts[m] !== 1)}
+          </dt>
+          <dd className="text-2xl font-ultra tracking-zero text-at-ink tabular-nums sm:text-3xl">
+            {formatCount(counts[m])}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** The two counts behind {@link VehicleCards}, as running reads; null when a count failed. */
+export interface VehicleCountReads {
+  windowCount: Promise<VehicleCounts | null>;
+  allTimeCount: Promise<VehicleCounts | null>;
+}
+
+/**
+ * Start the two counts {@link VehicleCards} shows, so a page can begin them before
+ * its own reads and hand them down rather than wait for the cards to render. The
+ * window's count starts first, so its day reads hold the shared in-flight entries.
+ * @param range - The window the page shows.
+ * @param mode - Mode filter, or null for every mode.
+ * @param schools - Which school services count.
+ * @param hours - Part of the day to count, or null for all of it.
+ * @returns The running reads.
+ */
+export function startVehicleCounts(
+  range: DateRange,
+  mode: Mode | null,
+  schools: SchoolFilter,
+  hours: HourRange | null = null,
+): VehicleCountReads {
+  const filter = { mode, schools };
+  return {
+    windowCount: getVehicleCounts(range, filter, TODAY_REVALIDATE, hours).catch(
+      readFallback("getVehicleCounts", null),
+    ),
+    allTimeCount: getVehicleCountsAllTime(filter, TODAY_REVALIDATE, hours).catch(
+      readFallback("getVehicleCountsAllTime", null),
+    ),
+  };
 }
 
 /**
  * The two vehicle cards, one for the page's window and one since the archive
  * began, under the page's mode, school and time-of-day filters, then the train
  * note. With a part of the day set, both count only vehicles on runs due in
- * those hours, and both eyebrows name them.
+ * those hours, and both eyebrows name them. Each card waits at most
+ * {@link VEHICLE_COUNT_WAIT_MS} for its count; a failed count shows the same line. A count
+ * cut off by the wait runs on after the response (`after`) to fill the day caches.
  * @param props - Component props.
  * @param props.range - The window the page shows.
  * @param props.label - How the window is named on its card ("Today", a date, a week).
@@ -82,6 +154,8 @@ function VehicleCard({
  * @param props.hours - Part of the day to count, or null/undefined for all of it.
  * @param props.live - Whether the window is the day still under way, so a range
  *   running to the day's end reads "to now".
+ * @param props.counts - The counts, already started by the page ({@link startVehicleCounts});
+ *   started here when absent.
  * @returns The cards.
  */
 export async function VehicleCards({
@@ -91,6 +165,7 @@ export async function VehicleCards({
   schools,
   hours = null,
   live = false,
+  counts,
 }: {
   range: DateRange;
   label: string;
@@ -98,11 +173,15 @@ export async function VehicleCards({
   schools: SchoolFilter;
   hours?: HourRange | null;
   live?: boolean;
+  counts?: VehicleCountReads;
 }): Promise<JSX.Element> {
-  const filter = { mode, schools };
+  const { windowCount, allTimeCount } = counts ?? startVehicleCounts(range, mode, schools, hours);
+  // Keep the function alive past the response until both counts land, so a count
+  // cut off by the wait still fills the day caches for the next visit.
+  after(() => Promise.all([windowCount, allTimeCount]));
   const [inWindow, allTime] = await Promise.all([
-    getVehicleCounts(range, filter, TODAY_REVALIDATE, hours),
-    getVehicleCountsAllTime(filter, TODAY_REVALIDATE, hours),
+    settleWithin(windowCount, VEHICLE_COUNT_WAIT_MS),
+    settleWithin(allTimeCount, VEHICLE_COUNT_WAIT_MS),
   ]);
   const modes = vehicleModesShown(mode);
   /**

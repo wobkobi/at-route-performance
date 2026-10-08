@@ -5,7 +5,7 @@
 
 import { cn } from "@/lib/cn";
 import { onTimeWindowMinutes, onTimeWindowPhrase } from "@/lib/copy";
-import { formatPct } from "@/lib/format";
+import { formatPct, shareFraction } from "@/lib/format";
 import { useState, type FocusEvent, type JSX, type PointerEvent } from "react";
 
 /** The three bands a measured arrival can fall in, in the order they are drawn. */
@@ -16,18 +16,6 @@ const SPLIT_BANDS = [
 ] as const;
 
 type BandKey = (typeof SPLIT_BANDS)[number]["key"];
-
-/**
- * "About 1 in 4" for a share, so a segment's note says how often a rider meets
- * it rather than restating the percentage. Null under 1%, where "1 in 150"
- * reads as more precise than the share it came from.
- * @param pct - The share, 0-100.
- * @returns The phrase, or null for a share too small to put that way.
- */
-function oneIn(pct: number): string | null {
-  if (pct < 1) return null;
-  return pct >= 50 ? `about ${Math.round(pct / 10)} in 10` : `about 1 in ${Math.round(100 / pct)}`;
-}
 
 /**
  * What each band means, in the window of the mode being looked at. A mixed-mode
@@ -148,7 +136,7 @@ export function SplitBar({
   }
 
   return (
-    <div className="relative lg:col-span-4">
+    <div className="relative lg:col-span-full">
       <div className="flex h-3 bg-at-bg">
         {SPLIT_BANDS.map((b) => (
           <button
@@ -193,10 +181,10 @@ export function SplitBar({
         >
           <p className={cn("font-semibold", active.toneClass)}>
             {active.label} {formatPct(shares[active.key])}
-            {oneIn(shares[active.key]) && (
+            {shareFraction(shares[active.key]) && (
               <span className="font-normal text-at-muted">
                 {" "}
-                · {oneIn(shares[active.key])} arrivals
+                · {shareFraction(shares[active.key])} arrivals
               </span>
             )}
           </p>

@@ -5,13 +5,12 @@
 // ArrivalEvent over the last week of completed service days. A week catches
 // weekend-only and weekday-only services alike.
 import { cachedForDay } from "@/lib/data/cache";
-import { aggregateRows, dateWindow } from "@/lib/data/raw";
+import { aggregateRows, dateWindow, findRows } from "@/lib/data/raw";
 import { SIX_HOUR_REVALIDATE } from "@/lib/data/revalidate";
-import { prisma } from "@/lib/db";
 import { type AreaKey, routeAreas } from "@/lib/geo/areas";
-import { routeFareZones } from "@/lib/geo/fare-zone-geo";
+import { fareZonesOf, zonesServed } from "@/lib/geo/fare-zone-geo";
 import type { FareZoneKey } from "@/lib/geo/fare-zones";
-import { unstable_cache } from "@/lib/mem-cache";
+import { memCache } from "@/lib/mem-cache";
 import { routeSlug } from "@/lib/route/slug";
 import { nzServiceDayRange, nzServiceDayString, shiftDays } from "@/lib/time/service-day";
 
@@ -50,6 +49,13 @@ function routeStopsOfDay(date: string): Promise<Record<string, string[]>> {
   );
 }
 
+/** A stop's position as the raw find returns it. */
+interface StopPoint {
+  _id: string;
+  lat: number;
+  lon: number;
+}
+
 /** Each route's areas and fare zones, keyed by route slug. */
 export interface RouteGeography {
   areas: Record<string, AreaKey[]>;
@@ -60,41 +66,44 @@ export interface RouteGeography {
  * The areas and fare zones each route served over the last week of completed
  * service days, keyed by route slug; both are placed from the same stops, so
  * they come from one pass. A route with no arrival in that week has no entry,
- * so it matches no area or zone filter. Cached for six hours on top of the
- * per-day scans.
+ * so it matches no area or zone filter. Held in memory for six hours on top of the
+ * per-day entries, rather than in the Data Cache: a Data Cache entry around the day
+ * reads would skip their cached values and scan all seven days each time it missed.
  * @returns Route slug to its areas and to its zones, each in display order.
  */
 export async function getRouteGeography(): Promise<RouteGeography> {
   const yesterday = shiftDays(nzServiceDayString(), -1);
-  return unstable_cache(
-    async () => {
-      const dates = Array.from({ length: LOOKBACK_DAYS }, (_, i) => shiftDays(yesterday, -i));
-      const days = await Promise.all(dates.map(routeStopsOfDay));
-      const stopsBySlug = new Map<string, Set<string>>();
-      for (const day of days) {
-        for (const [slug, stops] of Object.entries(day)) {
-          const set = stopsBySlug.get(slug) ?? new Set<string>();
-          for (const id of stops) set.add(id);
-          stopsBySlug.set(slug, set);
-        }
+  return memCache(`route-geography:${yesterday}`, SIX_HOUR_REVALIDATE, async () => {
+    const dates = Array.from({ length: LOOKBACK_DAYS }, (_, i) => shiftDays(yesterday, -i));
+    const days = await Promise.all(dates.map(routeStopsOfDay));
+    const stopsBySlug = new Map<string, Set<string>>();
+    for (const day of days) {
+      for (const [slug, stops] of Object.entries(day)) {
+        const set = stopsBySlug.get(slug) ?? new Set<string>();
+        for (const id of stops) set.add(id);
+        stopsBySlug.set(slug, set);
       }
-      const allStops = [...new Set([...stopsBySlug.values()].flatMap((s) => [...s]))];
-      const coords = await prisma.stop.findMany({
-        where: { id: { in: allStops } },
-        select: { id: true, lat: true, lon: true },
-      });
-      const coordById = new Map(coords.map((c) => [c.id, c]));
-      const out: RouteGeography = { areas: {}, zones: {} };
-      for (const [slug, stops] of stopsBySlug) {
-        const points = [...stops]
-          .map((id) => coordById.get(id))
-          .filter((c): c is NonNullable<typeof c> => c !== undefined);
-        out.areas[slug] = routeAreas(points);
-        out.zones[slug] = routeFareZones(points);
-      }
-      return out;
-    },
-    ["route-geography", yesterday],
-    { revalidate: SIX_HOUR_REVALIDATE },
-  )();
+    }
+    const allStops = [...new Set([...stopsBySlug.values()].flatMap((s) => [...s]))];
+    // A raw find, not Prisma's `in`: the week's stops are nearly every stop on the
+    // network, and Prisma's form of that lookup took over five seconds (see findRows).
+    const coords = await findRows<StopPoint>(
+      "Stop",
+      { _id: { $in: allStops } },
+      { lat: 1, lon: 1 },
+    );
+    // Each stop is placed once: most stops serve several routes.
+    const placed = new Map(
+      coords.map((c) => [c._id, { point: c, zones: fareZonesOf(c.lat, c.lon) }]),
+    );
+    const out: RouteGeography = { areas: {}, zones: {} };
+    for (const [slug, stops] of stopsBySlug) {
+      const shown = [...stops]
+        .map((id) => placed.get(id))
+        .filter((p): p is NonNullable<typeof p> => p !== undefined);
+      out.areas[slug] = routeAreas(shown.map((p) => p.point));
+      out.zones[slug] = zonesServed(shown.map((p) => p.zones));
+    }
+    return out;
+  });
 }

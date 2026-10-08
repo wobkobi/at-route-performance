@@ -2,7 +2,7 @@
 // src/components/PunctualityStat.tsx
 // Render a punctuality breakdown of early, on-time, and late share bars.
 
-import { PopoverPanel, usePopover } from "@/components/ui/Popover";
+import { PopoverPanel, usePopover, type PopoverPanelProps } from "@/components/ui/Popover";
 import { cn } from "@/lib/cn";
 import { onTimeWindowSentence } from "@/lib/copy";
 import { barPct, formatDelay, formatDuration, formatPct } from "@/lib/format";
@@ -277,6 +277,7 @@ const STAT_TEXT = { lg: "text-2xl", md: "text-2xl sm:text-3xl", sm: "text-xl" } 
  * @param props.label - What it counts.
  * @param props.size - Cell size, matching the stats beside it.
  * @param props.note - A line under the value, such as what it covers.
+ * @param props.info - An {@link InfoPopover} beside the label, explaining the figure.
  * @param props.children - The value.
  * @returns The cell.
  */
@@ -284,16 +285,21 @@ export function StatCell({
   label,
   size = "lg",
   note,
+  info,
   children,
 }: {
   label: string;
   note?: ReactNode;
+  info?: ReactNode;
   size?: NonNullable<PunctualityStatProps["size"]>;
   children: ReactNode;
 }): JSX.Element {
   return (
-    <div className={STAT_PAD[size]}>
-      <div className="at-eyebrow text-at-muted">{label}</div>
+    <div className={cn(STAT_PAD[size], info && "relative")}>
+      <div className="at-eyebrow flex items-center gap-1 text-at-muted">
+        {label}
+        {info}
+      </div>
       <span className={cn("at-figure block", STAT_TEXT[size])}>{children}</span>
       {note && <p className="mt-0.5 text-xs text-at-muted">{note}</p>}
     </div>
@@ -329,8 +335,6 @@ export function PunctualityInfo({
   variant,
   extra,
 }: PunctualityInfoProps): JSX.Element {
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const popover = usePopover(buttonRef);
   const {
     on_time_pct,
     early_pct,
@@ -340,6 +344,70 @@ export function PunctualityInfo({
     mode,
     cancellations,
   } = breakdown;
+  return (
+    <InfoPopover label={label}>
+      {variant === "split" ? (
+        <>
+          <p className="at-eyebrow text-at-muted">Of all arrivals</p>
+          {on_time_pct == null ? (
+            /* An unknown share is said in words: a bar drawn at 0% would read
+               as nothing arriving on time rather than nothing being known, and
+               would contradict the dashes in the rows beside it. */
+            <p className="mt-2 text-sm text-at-muted">
+              No arrivals were recorded in this window, so there is no split to show.
+            </p>
+          ) : (
+            <>
+              {/* Stacked share bar: on time / late / early. */}
+              <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
+                <span className="bg-at-ontime" style={{ width: `${barPct(on_time_pct)}%` }} />
+                <span className="bg-at-late" style={{ width: `${barPct(late_pct)}%` }} />
+                <span className="bg-at-early" style={{ width: `${barPct(early_pct)}%` }} />
+              </div>
+              <div className="mt-2 space-y-1 text-sm">
+                <BandRow colour="bg-at-ontime" label="On time" value={formatPct(on_time_pct)} />
+                <BandRow colour="bg-at-late" label="Late" value={formatPct(late_pct)} />
+                <BandRow colour="bg-at-early" label="Early" value={formatPct(early_pct)} />
+              </div>
+            </>
+          )}
+          <p className="mt-2 text-xs leading-snug text-at-muted">
+            {onTimeWindowSentence(mode)}{" "}
+            {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}
+          </p>
+          {extra}
+        </>
+      ) : (
+        <AverageDetail net={avg_delay_sec} magnitude={avg_abs_delay_sec} />
+      )}
+    </InfoPopover>
+  );
+}
+
+/**
+ * An info button beside a figure's label and the breakdown popover it opens. The popover
+ * anchors to the nearest positioned ancestor, so the caller makes that container `relative`.
+ * @param props - Component props.
+ * @param props.label - Caption the button and popover are named after.
+ * @param props.align - Edge of the anchor the panel lines up with from `sm` up; `end` keeps a
+ *   right-hand cell's panel on screen.
+ * @param props.panelClassName - Extra panel classes, such as a breakpoint that flips the edge.
+ * @param props.children - The popover's content.
+ * @returns The button and, while open, the popover.
+ */
+export function InfoPopover({
+  label,
+  align,
+  panelClassName,
+  children,
+}: {
+  label: string;
+  align?: PopoverPanelProps["align"];
+  panelClassName?: string;
+  children: ReactNode;
+}): JSX.Element {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popover = usePopover(buttonRef);
   return (
     <>
       <button
@@ -365,43 +433,10 @@ export function PunctualityInfo({
         popover={popover}
         role="group"
         label={`${label} breakdown`}
-        className="p-3 sm:w-64"
+        align={align}
+        className={cn("p-3 sm:w-64", panelClassName)}
       >
-        {variant === "split" ? (
-          <>
-            <p className="at-eyebrow text-at-muted">Of all arrivals</p>
-            {on_time_pct == null ? (
-              /* An unknown share used to clamp to 0% and draw the bar empty,
-                     which reads as nothing having arrived on time rather than as
-                     nothing being known - the graphic said catastrophe while the
-                     rows beside it said "—". Say it in words instead. */
-              <p className="mt-2 text-sm text-at-muted">
-                No arrivals were recorded in this window, so there is no split to show.
-              </p>
-            ) : (
-              <>
-                {/* Stacked share bar: on time / late / early. */}
-                <div className="mt-2 flex h-2 overflow-hidden bg-at-bg">
-                  <span className="bg-at-ontime" style={{ width: `${barPct(on_time_pct)}%` }} />
-                  <span className="bg-at-late" style={{ width: `${barPct(late_pct)}%` }} />
-                  <span className="bg-at-early" style={{ width: `${barPct(early_pct)}%` }} />
-                </div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <BandRow colour="bg-at-ontime" label="On time" value={formatPct(on_time_pct)} />
-                  <BandRow colour="bg-at-late" label="Late" value={formatPct(late_pct)} />
-                  <BandRow colour="bg-at-early" label="Early" value={formatPct(early_pct)} />
-                </div>
-              </>
-            )}
-            <p className="mt-2 text-xs leading-snug text-at-muted">
-              {onTimeWindowSentence(mode)}{" "}
-              {cancellations === "counted" ? CANCELLED_SPLIT_COPY : CANCELLED_EXCLUDED_COPY}
-            </p>
-            {extra}
-          </>
-        ) : (
-          <AverageDetail net={avg_delay_sec} magnitude={avg_abs_delay_sec} />
-        )}
+        {children}
       </PopoverPanel>
     </>
   );

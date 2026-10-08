@@ -50,6 +50,8 @@ export interface VehicleMarkerOptions {
   glyph: MarkerGlyph | null;
   /** Compass heading in degrees (0 = north), or null when the feed gave none. */
   bearing: number | null;
+  /** The vehicle the page is about: a pale halo in the ring colour sets it off the stop dots. */
+  focus?: boolean;
 }
 
 /**
@@ -57,10 +59,14 @@ export interface VehicleMarkerOptions {
  * it into the 20x20 middle of the disc whatever its shape, centred along its
  * shorter side. The chevron is drawn last with a white edge, so the ring cannot
  * hide it and it reads over any tile; no chevron means the feed gave no heading.
+ * A focused marker's halo fills the rest of the 40px box behind the disc.
  * @param o - Marker options.
  * @returns The SVG markup.
  */
 export function vehicleMarkerHtml(o: VehicleMarkerOptions): string {
+  const halo = o.focus
+    ? `<circle cx="20" cy="20" r="19.5" fill="${o.ring}" fill-opacity="0.3"/>`
+    : "";
   const glyph = o.glyph
     ? `<svg x="10" y="10" width="20" height="20" viewBox="${o.glyph.viewBox}" fill="${o.glyphColour}">${o.glyph.body}</svg>`
     : "";
@@ -72,6 +78,7 @@ export function vehicleMarkerHtml(o: VehicleMarkerOptions): string {
         `stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/></g>`;
   return (
     `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">` +
+    halo +
     `<circle cx="20" cy="20" r="14" fill="#fff" stroke="${o.ring}" stroke-width="3"/>` +
     glyph +
     arrow +

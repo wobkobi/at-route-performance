@@ -99,6 +99,13 @@ export {
 } from "@/lib/data/stop-search";
 export { getStationSiblings, getStopIdentity, getStopStats } from "@/lib/data/stops";
 export {
+  getTripPunctuality,
+  getTripPunctualityOf,
+  punctualityForSlugs,
+  startTripPunctuality,
+  type RoutePunctuality,
+} from "@/lib/data/trip-punctuality";
+export {
   getLatestTripDay,
   getRouteTripStats,
   getTripHeadsign,

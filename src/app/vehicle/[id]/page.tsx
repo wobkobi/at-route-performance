@@ -343,6 +343,9 @@ export default async function VehiclePage({
             routeId={liveOnMap ? routeSlug(liveOnMap.routeId) : undefined}
             live={liveOnMap !== null}
             filterTripId={liveOnMap?.tripId ?? undefined}
+            focusVehicle={
+              liveOnMap ? { vehicleId: id, lat: liveOnMap.lat, lon: liveOnMap.lon } : undefined
+            }
             mode={mode ?? undefined}
             school={liveSchool}
             stopLinks
@@ -353,6 +356,7 @@ export default async function VehiclePage({
             Every trip it made{serviceDate === today ? " so far" : ""}, with each stop coloured by
             how late it was there on average.
             {liveMap && " Stops still ahead on its current trip have no reading yet."}
+            {liveOnMap && " The map opens on where it is now; Re-centre shows the whole day."}
           </p>
           <MapMarkKey live={liveOnMap !== null} mode={mode ?? undefined} school={liveSchool} />
         </Panel>

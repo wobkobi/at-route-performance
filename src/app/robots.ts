@@ -4,7 +4,7 @@
 // page multiplies by day, window, mode, direction, part of day, sort and page,
 // and each combination is a distinct URL and a distinct uncached render.
 
-import { crawlableOrigin, isProductionDeployment } from "@/lib/site-url";
+import { isProductionDeployment, siteOrigin } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 
 /**
@@ -67,7 +67,7 @@ const PREVIEW_PATHS = ["/api/og"];
  * @returns The rules, and where to find the sitemap.
  */
 export default function robots(): MetadataRoute.Robots {
-  const origin = crawlableOrigin();
+  const origin = siteOrigin();
 
   // A preview deployment answers on its own public URL, so letting it be indexed
   // would put a throwaway build in search results beside the real site.

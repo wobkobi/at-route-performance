@@ -32,6 +32,281 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.33] - 2026-10-08
+
+### Changed
+
+- Share-card URLs always resolve against the site origin, so local builds stop warning about
+  metadataBase
+
+## [2.54.32] - 2026-10-08
+
+### Changed
+
+- Partial Prefetching set off explicitly, so the day and period steppers keep prefetching their
+  neighbour in full and the build stops warning
+
+## [2.54.31] - 2026-10-08
+
+### Changed
+
+- Next 16.4.0, eslint-config-next 16.4.0 and minor dependency updates
+
+## [2.54.30] - 2026-10-08
+
+### Changed
+
+- The nightly cache warm also renders the home page's week and month views, and runs at 04:10 after
+  the service day changes, so the day that has just ended is warm before its first reader.
+
+## [2.54.28] - 2026-10-08
+
+### Changed
+
+- The route map reads its stopping patterns from the nightly sync's stored rows, so a route page no
+  longer waits on several AT API calls; school routes still ask AT.
+
+## [2.54.27] - 2026-10-08
+
+### Changed
+
+- The nightly GTFS shapes sync now stores each route's stopping patterns from AT's zip, ready for
+  the route map to read.
+
+## [2.54.26] - 2026-10-08
+
+### Changed
+
+- The home page's week and month boards show at once; a slow previous window streams its rank arrows
+  in afterwards.
+
+## [2.54.25] - 2026-10-08
+
+### Changed
+
+- The shame day boards no longer wait for a slow streak walk; their flames stream in after the rows.
+
+## [2.54.24] - 2026-10-08
+
+### Changed
+
+- A route's map shape is built about once a day for every server instance, rather than once per cold
+  instance.
+
+## [2.54.23] - 2026-10-07
+
+### Changed
+
+- Past days without their nightly summary are re-read every 30 minutes once they have been over for
+  an hour, instead of every few minutes.
+
+## [2.54.22] - 2026-10-06
+
+### Changed
+
+- Detour checks read their trips' arrivals with a plain $in rather than Prisma's in filter.
+
+## [2.54.21] - 2026-10-06
+
+### Changed
+
+- The home day view, Day by day and stop pages start their cancellations, shame boards, vehicle
+  counts and sibling lookups beside the main reads instead of after them; cancellation counts filter
+  routes in memory, and a closed window's summary check skips its dates query.
+
+## [2.54.20] - 2026-10-06
+
+### Changed
+
+- Two parts of a page asking for the same cached window at once now run one read between them.
+
+## [2.54.19] - 2026-10-06
+
+### Fixed
+
+- The latest event date is clamped to now, so stored predicted arrivals no longer roll the last 7
+  days onto the next service day late in the evening.
+
+## [2.54.18] - 2026-10-06
+
+### Changed
+
+- Shame streaks read earlier days three at a time, and the home card's crown streak stops at the
+  first day without the crown.
+
+## [2.54.17] - 2026-10-06
+
+### Changed
+
+- The week and month steppers prefetch the neighbouring period only once the pointer or focus
+  reaches them, so a cold page no longer queues its own reads behind the next period's render.
+
+## [2.54.16] - 2026-10-06
+
+### Changed
+
+- Routes page: the area and fare-zone filters look up stop positions with one plain query (about
+  0.1s, was about 6s) and place each stop in its zones once.
+
+## [2.54.15] - 2026-10-06
+
+### Changed
+
+- With READ_TIMING=1 the server logs every cached read and raw aggregation taking 250ms or more, and
+  the CI smoke run sets it and marks where each page starts, so a slow page's log names the reads
+  behind it
+
+## [2.54.14] - 2026-10-06
+
+### Changed
+
+- The home page's week and month rank boards no longer wait for the previous period's figures: they
+  wait up to 2.5 seconds for the movement arrows and otherwise show without them, while the read
+  finishes in the background for the next visit
+
+## [2.54.13] - 2026-10-06
+
+### Changed
+
+- The worst-stops boards filter by mode and school service from a route table held in memory for ten
+  minutes, rather than querying the routes for every day they read
+
+## [2.54.12] - 2026-10-06
+
+### Changed
+
+- The day, week and month views read one shared entry for each live day rather than one each, so
+  today's heaviest scans run once instead of twice, and a day's summary check is remembered once the
+  summary exists instead of being asked for on every read
+
+## [2.54.11] - 2026-10-06
+
+### Changed
+
+- The vehicle counts on the home page read each finished day from a small set of vehicles the
+  nightly rollup stores per route, rather than scanning the arrivals of that day, so the month and
+  all-time counts come back in a fraction of the time. Days without a stored set are still scanned,
+  and a backfill script stores the days from before this change
+
+## [2.54.9] - 2026-10-06
+
+### Changed
+
+- The home page's vehicle counts no longer hold up the page while their figures are read: each card
+  waits up to 12 seconds, then says it is still counting while the count finishes in the background.
+  Raw arrival scans for the counts run two at a time, the shown window ahead of the all-time
+  history, so they no longer take every database connection.
+
+## [2.54.8] - 2026-10-05
+
+### Changed
+
+- Rankings, cancellation penalties and trip punctuality read each live day through its own entry
+  outside the window cache, under one rule for a day entry's refresh time
+
+## [2.54.7] - 2026-10-05
+
+### Changed
+
+- Route geography and the filtered rankings no longer wrap their per-day reads in a window cache
+  entry, which made every miss read each day again
+
+## [2.54.6] - 2026-10-05
+
+### Changed
+
+- Home vehicle counts read every day through its own cached entry, and the window and all-time
+  counts share a day read that is already running; the in-memory cache sweeps expired entries
+
+## [2.54.5] - 2026-10-05
+
+### Fixed
+
+- Smoke test reads the train route id from the directory again, so the train line and station pages
+  are checked
+
+## [2.54.4] - 2026-10-05
+
+### Changed
+
+- Route slugs resolve to their ids from one read of the route table per server every ten minutes,
+  rather than one database lookup per slug; a cold month load made about 620 of those lookups for
+  the previous month's rider-wait figures
+
+## [2.54.3] - 2026-10-05
+
+### Changed
+
+- Trip punctuality caches only the stored tallies per window and reads each live day through its own
+  day entry, which the week and month now share; inside the window's cache that day entry was
+  skipped, so every cold week or month load judged today again from the arrivals
+
+## [2.54.2] - 2026-10-05
+
+### Changed
+
+- The week shame boards, the network cancellations and the filtered rankings no longer query days of
+  the window still to come, which had no arrivals to find; a cold month load early in the month ran
+  about 130 such queries
+
+## [2.54.1] - 2026-10-05
+
+### Changed
+
+- Home starts its trip punctuality read beside the rankings rather than after them, so a cold load
+  no longer waits for one and then the other
+
+## [2.54.0] - 2026-10-05
+
+### Added
+
+- A vehicle's page opens its map on the vehicle when it is on a trip, haloed so it stands out from
+  the stops, with a Show the bus button beside Re-centre
+
+## [2.53.0] - 2026-10-05
+
+### Added
+
+- AT's own trip punctuality and reliability show on the route page, the home page and Days, with an
+  info button that defines both and says what each leaves out; the route page's stops sit under the
+  trips board, beside the line diagram
+
+## [2.52.2] - 2026-10-05
+
+### Fixed
+
+- Trip punctuality counts move to their own collection, one row per route per day, so a route with
+  cancelled trips and no recorded arrival keeps its cancellations; a day counts as stored only once
+  its whole write has landed, and a running day counts only trips already due
+
+## [2.52.0] - 2026-10-05
+
+### Added
+
+- The nightly aggregate judges each trip AT's way and stores per-route counts for each day, routes
+  with only cancelled trips included: punctual (left the first stop between 1 minute early and 5
+  minutes late, and reached the last stop no more than 5 minutes late) and reliable (left between 1
+  minute early and 10 minutes late). AT's bus feed often misses a bus leaving its first stop, so the
+  second or third stop stands in for the departure; trips that never ran or were cut short count as
+  failures. Nothing on the site shows these yet
+
+## [2.51.0] - 2026-10-05
+
+### Added
+
+- The nightly timetable sync reads each trip's first stops and last stop from AT's stop times and
+  stores them with the trip, so a trip can be judged the way AT judges it: off its first stop on
+  time, into its last stop on time. The 100MB stop times file is read a piece at a time, so the
+  sync's memory stays small
+
+## [2.50.1] - 2026-10-05
+
+### Fixed
+
+- The verdict bar's note puts each share as a fraction people say ("about 2 in 5", "about 9 in 10",
+  "nearly all") instead of an exact "1 in 67" or an odd "11 in 12", so it reads as how often a rider
+  meets it
+
 ## [2.50.0] - 2026-10-05
 
 ### Added
