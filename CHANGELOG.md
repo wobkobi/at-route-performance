@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.54.36] - 2026-10-08
+
+### Fixed
+
+- Routes sharing a road on the live map's network lines draw as one line instead of loose strands of
+  the same colour: a route's shape a few metres off another's now joins it, a railway beside a road
+  no longer moves the bus lanes aside, and the lines keep their road at street zoom
+
 ## [2.54.35] - 2026-10-08
 
 ### Changed

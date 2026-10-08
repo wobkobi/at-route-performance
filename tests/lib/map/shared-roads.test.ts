@@ -153,6 +153,44 @@ describe("laneRuns on a divided road", () => {
     expect(rail?.map(northOf)).toEqual([30]);
   });
 
+  it("pulls a path running the same way a few metres off onto the earlier one", () => {
+    // Two routes' shapes for one road, traced 9 m apart.
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000, 9) },
+      ],
+      30,
+    );
+    expect(b?.map(northOf)).toEqual([0]);
+  });
+
+  it("gives routes of one colour one lane where their shapes sit apart", () => {
+    // Only the route traced 9 m north is within the grid's reach of the red one
+    // 21 m north, unless the two blue paths are first made one road.
+    const runs = laneRuns(
+      [
+        { colour: "#0000ff", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#0000ff", mode: "BUS", points: eastWest(0, 1000, 9) },
+        { colour: "#ff0000", mode: "BUS", points: eastWest(0, 1000, 21) },
+      ],
+      30,
+    );
+    expect(runs[1]?.map((r) => r.slot)).toEqual(runs[0]?.map((r) => r.slot));
+  });
+
+  it("does not move a road aside for a line of another mode beside it", () => {
+    const [bus, rail] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#bbbbbb", mode: "TRAIN", points: eastWest(0, 1000, 6) },
+      ],
+      30,
+    );
+    expect(bus?.map((r) => r.slot)).toEqual([0]);
+    expect(rail?.map((r) => r.slot)).toEqual([0]);
+  });
+
   it("does not pull a short opposite stretch across", () => {
     // 60 m beside the other road, under the 90 m a pull must last.
     const [, b] = laneRuns(
