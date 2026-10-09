@@ -32,6 +32,14 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.55.0] - 2026-10-10
+
+### Added
+
+- Hovering a route line on the live map lights every route within reach of the pointer, the same set
+  a tap lists, so a shared road such as a lane of Shore-blue buses lights all of its routes instead
+  of only the one drawn on top
+
 ## [2.54.37] - 2026-10-08
 
 ### Fixed
