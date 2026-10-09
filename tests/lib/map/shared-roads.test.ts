@@ -153,6 +153,44 @@ describe("laneRuns on a divided road", () => {
     expect(rail?.map(northOf)).toEqual([30]);
   });
 
+  it("pulls a path running the same way a few metres off onto the earlier one", () => {
+    // Two routes' shapes for one road, traced 9 m apart.
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000, 9) },
+      ],
+      30,
+    );
+    expect(b?.map(northOf)).toEqual([0]);
+  });
+
+  it("gives routes of one colour one lane where their shapes sit apart", () => {
+    // Only the route traced 9 m north is within the grid's reach of the red one
+    // 21 m north, unless the two blue paths are first made one road.
+    const runs = laneRuns(
+      [
+        { colour: "#0000ff", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#0000ff", mode: "BUS", points: eastWest(0, 1000, 9) },
+        { colour: "#ff0000", mode: "BUS", points: eastWest(0, 1000, 21) },
+      ],
+      30,
+    );
+    expect(runs[1]?.map((r) => r.slot)).toEqual(runs[0]?.map((r) => r.slot));
+  });
+
+  it("does not move a road aside for a line of another mode beside it", () => {
+    const [bus, rail] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        { colour: "#bbbbbb", mode: "TRAIN", points: eastWest(0, 1000, 6) },
+      ],
+      30,
+    );
+    expect(bus?.map((r) => r.slot)).toEqual([0]);
+    expect(rail?.map((r) => r.slot)).toEqual([0]);
+  });
+
   it("does not pull a short opposite stretch across", () => {
     // 60 m beside the other road, under the 90 m a pull must last.
     const [, b] = laneRuns(
@@ -163,6 +201,45 @@ describe("laneRuns on a divided road", () => {
       30,
     );
     expect(b?.map(northOf)).toEqual([40]);
+  });
+
+  /**
+   * How far north of the test latitude each point of some runs sits.
+   * @param runs - The runs.
+   * @returns Metres north, per point.
+   */
+  const norths = (runs: { points: [number, number][] }[] | undefined): number[] =>
+    (runs ?? []).flatMap((r) => r.points.map(([lat]) => Math.round((lat - LAT) / LAT_PER_M)));
+
+  it("keeps a pull across a short stretch where the other road sits just beyond reach", () => {
+    // Karanga-a-Hape: the other tunnel 45 m off, 58 m for about 100 m at the platforms.
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "TRAIN", points: eastWest(0, 1000) },
+        {
+          colour: "#bbbbbb",
+          mode: "TRAIN",
+          points: [...eastWest(1000, 580, 45), ...eastWest(560, 490, 58), ...eastWest(470, 0, 45)],
+        },
+      ],
+      2,
+    );
+    expect(Math.max(...norths(b).map(Math.abs))).toBeLessThanOrEqual(5);
+  });
+
+  it("does not bridge a long stretch where the roads part", () => {
+    const [, b] = laneRuns(
+      [
+        { colour: "#aaaaaa", mode: "BUS", points: eastWest(0, 1000) },
+        {
+          colour: "#bbbbbb",
+          mode: "BUS",
+          points: [...eastWest(1000, 820, 45), ...eastWest(800, 200, 58), ...eastWest(180, 0, 45)],
+        },
+      ],
+      2,
+    );
+    expect(norths(b)).toContain(58);
   });
 });
 

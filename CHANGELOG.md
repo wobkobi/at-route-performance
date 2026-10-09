@@ -32,6 +32,45 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.55.0] - 2026-10-10
+
+### Added
+
+- Hovering a route line on the live map lights every route within reach of the pointer, the same set
+  a tap lists, so a shared road such as a lane of Shore-blue buses lights all of its routes instead
+  of only the one drawn on top
+
+## [2.54.37] - 2026-10-08
+
+### Fixed
+
+- Two lines merged onto one road stay merged across a break of up to 180 m, so the City Rail Link's
+  two tunnels at Karanga-a-Hape no longer draw as a hook with the red and green lines swapping
+  sides; the same fix clears the ladder rungs between Papatoetoe's two directions and zigzags at
+  Akoranga and lower Queen Street
+
+## [2.54.36] - 2026-10-08
+
+### Fixed
+
+- Routes sharing a road on the live map's network lines draw as one line instead of loose strands of
+  the same colour: a route's shape a few metres off another's now joins it, a railway beside a road
+  no longer moves the bus lanes aside, and the lines keep their road at street zoom
+
+## [2.54.35] - 2026-10-08
+
+### Changed
+
+- A delay of an hour or more reads in hours and minutes ("6h 40m late") instead of hundreds of
+  minutes, as Te Huia's 400-minute delay did
+
+## [2.54.34] - 2026-10-08
+
+### Changed
+
+- Each ingest poll logs the CPU it spent per phase, to find what uses up the free-tier Active CPU
+  allowance
+
 ## [2.54.33] - 2026-10-08
 
 ### Changed

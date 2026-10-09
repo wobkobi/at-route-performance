@@ -171,6 +171,52 @@ async function bulkUpsertArrivals(docs: ArrivalUpsert[]): Promise<number> {
   return written;
 }
 
+/** Per-phase CPU for the run log, from {@link cpuTimer}. */
+interface CpuTimer {
+  /** Close the phase that started at the previous mark (or the timer's start). */
+  mark: (phase: string) => void;
+  /** Milliseconds per closed phase, plus `total` since the timer started. */
+  summary: () => Record<string, number>;
+}
+
+/**
+ * Whole milliseconds of CPU, user and system together.
+ * @param usage - A `process.cpuUsage` reading or difference.
+ * @returns The milliseconds.
+ */
+function cpuMs(usage: NodeJS.CpuUsage): number {
+  return Math.round((usage.user + usage.system) / 1000);
+}
+
+/**
+ * Time CPU per phase of a poll, so the run log shows where the poll spends the
+ * Active CPU it is billed for. `process.cpuUsage` covers the whole process,
+ * Prisma's engine threads included, so a page render sharing the Fluid instance
+ * lands in whichever phase it overlaps; read a single run with care and many
+ * runs together.
+ * @returns The timer, started now.
+ */
+function cpuTimer(): CpuTimer {
+  const start = process.cpuUsage();
+  let last = start;
+  const phases: Record<string, number> = {};
+  return {
+    /**
+     * Record the CPU since the previous mark under this phase's name.
+     * @param phase - Name the phase takes in the log.
+     */
+    mark: (phase) => {
+      phases[phase] = cpuMs(process.cpuUsage(last));
+      last = process.cpuUsage();
+    },
+    /**
+     * The closed phases and the run's total so far.
+     * @returns Milliseconds keyed by phase, plus `total`.
+     */
+    summary: () => ({ ...phases, total: cpuMs(process.cpuUsage(start)) }),
+  };
+}
+
 interface DebugStats {
   seen: number;
   withTU: number;
@@ -210,6 +256,7 @@ function toStuArray<T>(v: T | T[] | undefined): T[] {
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
+  const cpu = cpuTimer();
 
   const denied = requireCronAuth(request);
   if (denied) return denied;
@@ -260,8 +307,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (drained && (drained.replayed > 0 || drained.dropped > 0)) {
       console.log("[SPOOL] Drained", drained);
     }
+    cpu.mark("start");
 
     const feed = await fetchATTripUpdates();
+    cpu.mark("feed");
 
     if (wantPeek) {
       const withTrip = (feed.entity ?? []).filter((e) => e.trip_update).slice(0, 5);
@@ -309,6 +358,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       fleet: [],
     }));
     const vehicleByTrip = vehicles.byTrip;
+    cpu.mark("vehicles");
 
     let seen = 0;
     let withTU = 0;
@@ -453,6 +503,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         serviceDate: r.serviceDate ?? undefined,
       },
     }));
+    cpu.mark("rows");
     const stopCount = await writeOrHold(
       () => bulkUpsertArrivals(arrivalDocs),
       { kind: "arrivals", docs: arrivalDocs },
@@ -488,6 +539,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { kind: "insert", collection: "CancelledTrip", docs: cancelledDocs },
       heldBack,
     );
+    cpu.mark("writes");
 
     // Off-route readings never fail the poll: the arrival events above are the
     // point of the run, and a missed reading only shortens a detour by one poll.
@@ -499,6 +551,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         return 0;
       },
     );
+    cpu.mark("offRoute");
 
     // The fleet register is best-effort too: a missed write only leaves a label
     // one poll stale.
@@ -508,6 +561,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
       return 0;
     });
+    cpu.mark("fleet");
 
     const closureCount =
       Date.now() - startTime > CLOSURE_STEP_CUTOFF_MS
@@ -518,6 +572,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             });
             return 0;
           });
+    cpu.mark("closures");
 
     const stopResult = { count: stopCount };
     const tripResult = { count: tripCount };
@@ -582,6 +637,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       offRouteInserted: offRouteCount,
       closuresWritten: closureCount,
       duration_ms: duration,
+      cpu_ms: cpu.summary(),
+      uptime_s: Math.round(process.uptime()),
       source: "cron",
     });
 
@@ -602,6 +659,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       error: msg,
       duration_ms: duration,
+      cpu_ms: cpu.summary(),
     });
 
     await recordIngestRun({

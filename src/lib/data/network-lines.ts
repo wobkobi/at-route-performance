@@ -22,8 +22,14 @@ import { lineName } from "@/lib/route/line-name";
 import { routeSlug } from "@/lib/route/slug";
 import type { NetworkLine } from "@/types/api";
 
-/** How far from the line a bend may sit before the overlay drops it, in metres. */
-const OVERVIEW_TOLERANCE_M = 30;
+/**
+ * How far from the line a bend may sit before the overlay drops it, in metres.
+ * Each route's stretches are thinned on their own, so two routes on one road
+ * can be drawn up to this far apart; at street zoom anything much over 2 m
+ * splits a shared road into strands. 2 m costs about 150 KB gzipped for the
+ * whole network.
+ */
+const OVERVIEW_TOLERANCE_M = 2;
 
 /** Rounding factor for the wire: five decimal places, about a metre. */
 const WIRE_SCALE = 1e5;
@@ -203,7 +209,7 @@ export async function getNetworkLines(): Promise<NetworkLine[]> {
         .filter((l) => l.runs.length > 0)
         .sort((a, b) => MODE_ORDER[a.mode] - MODE_ORDER[b.mode]);
     },
-    ["network-lines-v12"],
+    ["network-lines-v15"],
     { revalidate: DAY_REVALIDATE },
   )();
 }

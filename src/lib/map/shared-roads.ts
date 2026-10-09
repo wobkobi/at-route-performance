@@ -9,13 +9,16 @@
 // its current zoom, so the spacing holds however far in the reader is.
 //
 // Routes of one colour share a lane and overlap, which is the point: forty
-// Shore-blue buses down one road read as one blue road, not forty lines.
+// Shore-blue buses down one road read as one blue road, not forty lines. Lanes
+// are counted per mode, so a bus road beside a railway keeps its lane.
 //
-// Before any of that, a path running the other way beside an earlier one is
-// pulled onto it. Each route is drawn along one direction, and a divided road
-// keeps its directions apart: the Harbour Bridge's two carriageways sit 45 m
-// apart, too far for the grid to call them one road, so every colour on it drew
-// twice, once per carriageway.
+// Before any of that, a path beside an earlier one of its mode is pulled onto
+// it, so one road is one line however each route's shape traces it. A route's
+// shape can sit up to 15 m off another's on the same road, and each then read
+// its own cells, drew apart and took its own lane. A path running the other way
+// is pulled from further: each route is drawn along one direction, and a
+// divided road keeps its directions apart, like the Harbour Bridge's two
+// carriageways 45 m apart.
 
 import { pushTo } from "@/lib/collections";
 import { M_PER_DEG } from "@/lib/geo/distance";
@@ -47,6 +50,13 @@ const MIN_RUN_STEPS = 4;
 const SNAP_M = 50;
 
 /**
+ * Farthest a path is pulled onto an earlier one running the same way, in
+ * metres: about the most two routes' shapes for one road sit apart, and tighter
+ * than {@link SNAP_M} since a road's own directions are not what is being joined.
+ */
+const SAME_SNAP_M = 15;
+
+/**
  * The shortest stretch pulled across, in steps (90 m), so a route passing an
  * opposite one where a cross street meets it stays where it is.
  */
@@ -62,18 +72,28 @@ const MIN_SNAP_STEPS = 6;
 const SNAP_JUMP_M = 20;
 
 /**
+ * The longest break between two pulls that is bridged, in steps (180 m): long
+ * enough for a station where a line's two tracks part for a platform each, and
+ * short against two roads that part for good.
+ */
+const MAX_BRIDGE_STEPS = 12;
+
+/**
  * Two headings count as one road's two directions when they are within 25
  * degrees of opposite: the dot product of their unit vectors is below this.
  */
 const OPPOSED_DOT = -Math.cos((25 * Math.PI) / 180);
+
+/** Two headings count as one direction when within 25 degrees of each other. */
+const ALIGNED_DOT = -OPPOSED_DOT;
 
 /** One route's path as the lanes are worked out over it. */
 export interface LaneInput {
   /** The colour lanes are shared by: routes of one colour ride one lane. */
   colour: string;
   /**
-   * Paths only pull onto others of the same mode, so a bus road beside a rail
-   * line stays beside it. Paths without one pull onto each other.
+   * Paths only pull onto, and make lanes with, others of the same mode, so a bus
+   * road beside a rail line stays beside it. Paths without one count as one mode.
    */
   mode?: string;
   /** The path as `[lat, lon]` pairs, at full detail. */
@@ -206,11 +226,14 @@ interface Anchor {
 }
 
 /**
- * Pull each path's steps onto an earlier path running the other way within
- * {@link SNAP_M}, in place. Paths are taken in order and each one's own steps
- * then join the anchors, so the first path along a divided road is the line
- * both its directions draw on. A pull only holds over {@link MIN_SNAP_STEPS} in
- * a row; a shorter one is a crossing, not a shared road.
+ * Pull each path's steps onto an earlier path of its mode, in place: one running
+ * the other way within {@link SNAP_M}, or the same way within
+ * {@link SAME_SNAP_M}, whichever anchor is nearer. Paths are taken in order and
+ * each one's own unpulled steps then join the anchors, so the first path along a
+ * road is the line every route on it draws on. A pull only holds over
+ * {@link MIN_SNAP_STEPS} in a row; a shorter one is a crossing, not a shared road.
+ * A break of up to {@link MAX_BRIDGE_STEPS} between two pulls onto one road is
+ * pulled across too.
  *
  * Anchors sit on a {@link SNAP_M} grid, and a step reads the nine cells around
  * its own, which covers every anchor within reach. Steps landing in a lane cell
@@ -220,7 +243,7 @@ interface Anchor {
  * @param walks - Each path's steps, moved in place.
  * @param cosLat - Longitude scale at the network's latitude.
  */
-function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: number): void {
+function snapShared(lines: readonly LaneInput[], walks: Step[][], cosLat: number): void {
   const anchors = new Map<string, Anchor[]>();
   const seen = new Set<string>();
   /**
@@ -233,6 +256,35 @@ function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: numbe
     Math.floor((lon * M_PER_DEG * cosLat) / SNAP_M),
     Math.floor((lat * M_PER_DEG) / SNAP_M),
   ];
+  /**
+   * The anchor nearest a point that lies along the same road as another, within
+   * {@link SNAP_JUMP_M}: heading either way along it, whatever the heading of
+   * the step being placed.
+   * @param lat - The point's latitude.
+   * @param lon - The point's longitude.
+   * @param road - An anchor on the road.
+   * @returns The anchor, or null when none is that near.
+   */
+  const alongRoad = (lat: number, lon: number, road: Anchor): Anchor | null => {
+    const [gx, gy] = snapCell(lat, lon);
+    let best: Anchor | null = null;
+    let bestM = SNAP_JUMP_M;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const a of anchors.get(`${gx + dx},${gy + dy}`) ?? []) {
+          if (a.mode !== road.mode || Math.abs(a.ux * road.ux + a.uy * road.uy) < ALIGNED_DOT) {
+            continue;
+          }
+          const m = Math.hypot((a.lon - lon) * M_PER_DEG * cosLat, (a.lat - lat) * M_PER_DEG);
+          if (m <= bestM) {
+            best = a;
+            bestM = m;
+          }
+        }
+      }
+    }
+    return best;
+  };
   lines.forEach((line, i) => {
     const steps = walks[i] ?? [];
     const targets = steps.map((s): Anchor | null => {
@@ -242,9 +294,11 @@ function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: numbe
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           for (const a of anchors.get(`${gx + dx},${gy + dy}`) ?? []) {
-            if (a.mode !== line.mode || a.ux * s.ux + a.uy * s.uy > OPPOSED_DOT) continue;
+            if (a.mode !== line.mode) continue;
+            const dot = a.ux * s.ux + a.uy * s.uy;
+            const reach = dot < OPPOSED_DOT ? SNAP_M : dot > ALIGNED_DOT ? SAME_SNAP_M : 0;
             const m = Math.hypot((a.lon - s.lon) * M_PER_DEG * cosLat, (a.lat - s.lat) * M_PER_DEG);
-            if (m <= bestM) {
+            if (m <= reach && m <= bestM) {
               best = a;
               bestM = m;
             }
@@ -280,11 +334,51 @@ function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: numbe
       if (to - from + 1 < MIN_SNAP_STEPS) targets.fill(null, from, to + 1);
       from = to + 1;
     }
+    /**
+     * How far step k is pulled, as a latitude and longitude difference.
+     * @param k - A pulled step's index.
+     * @returns The anchor's position less the step's own.
+     */
+    const pull = (k: number): [number, number] => [
+      (targets[k]?.lat ?? 0) - (steps[k]?.lat ?? 0),
+      (targets[k]?.lon ?? 0) - (steps[k]?.lon ?? 0),
+    ];
+    // Bridge a short break between two pulls of about the same size. Where two
+    // lines sit right at the reach, as Karanga-a-Hape's two tunnels do, the pull
+    // drops out and back in and the drawn line would hop across and return. Each
+    // step between is moved by a pull eased from one side's to the other's, then
+    // onto the anchor of that road nearest where it lands, if one is near.
+    for (let k = 1; k < targets.length; k++) {
+      const road = targets[k - 1];
+      if (targets[k] || !road) continue;
+      let end = k;
+      while (end < targets.length && !targets[end]) end++;
+      const [aLat, aLon] = pull(k - 1);
+      const [bLat, bLon] = pull(end);
+      const jump = Math.hypot((bLon - aLon) * M_PER_DEG * cosLat, (bLat - aLat) * M_PER_DEG);
+      if (end < targets.length && end - k <= MAX_BRIDGE_STEPS && jump <= SNAP_JUMP_M) {
+        for (let j = k; j < end; j++) {
+          const s = steps[j];
+          if (!s) continue;
+          const f = (j - k + 1) / (end - k + 1);
+          const lat = s.lat + aLat + (bLat - aLat) * f;
+          const lon = s.lon + aLon + (bLon - aLon) * f;
+          targets[j] = alongRoad(lat, lon, road) ?? {
+            lat,
+            lon,
+            ux: s.ux,
+            uy: s.uy,
+            mode: line.mode,
+          };
+        }
+      }
+      k = end;
+    }
     steps.forEach((s, k) => {
       const t = targets[k];
       if (t) {
         // Moved onto the anchor, keeping its own heading so the lanes still
-        // know it travels the road the other way.
+        // know which way it travels the road.
         s.lat = t.lat;
         s.lon = t.lon;
         s.cx = Math.floor((t.lon * M_PER_DEG * cosLat) / CELL_M);
@@ -307,8 +401,8 @@ function snapOpposed(lines: readonly LaneInput[], walks: Step[][], cosLat: numbe
 /**
  * Split every path into stretches, each with the lane its colour takes there.
  * Paths are read in the order given, and the first through a road sets which
- * side of it is left and, on a divided road, which carriageway both directions
- * draw on (see {@link snapOpposed}), so a stable order gives a stable picture.
+ * side of it is left and the line every route on it draws on (see
+ * {@link snapShared}), so a stable order gives a stable picture.
  * @param lines - The routes' paths and colours.
  * @param tolerance - How far a thinned stretch may stray from its path, in metres.
  * @returns For each input, in order, its runs; a path under two points gets none.
@@ -317,12 +411,13 @@ export function laneRuns(lines: readonly LaneInput[], tolerance: number): LaneRu
   const first = lines.find((l) => l.points.length > 0)?.points[0];
   const cosLat = Math.cos(((first?.[0] ?? 0) * Math.PI) / 180) || 1e-6;
   const walks = lines.map((l) => walk(l.points, cosLat));
-  snapOpposed(lines, walks, cosLat);
+  snapShared(lines, walks, cosLat);
 
+  // Cells are kept per mode, so only routes of one mode share out a road's lanes.
   const cells = new Map<string, Cell>();
   lines.forEach((line, i) => {
     for (const s of walks[i] ?? []) {
-      const key = `${s.cx},${s.cy}`;
+      const key = `${line.mode ?? ""}|${s.cx},${s.cy}`;
       const cell = cells.get(key);
       if (cell) cell.colours.add(line.colour);
       else cells.set(key, { colours: new Set([line.colour]), rx: s.ux, ry: s.uy });
@@ -336,14 +431,15 @@ export function laneRuns(lines: readonly LaneInput[], tolerance: number): LaneRu
       const near = new Set<string>();
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
-          for (const c of cells.get(`${s.cx + dx},${s.cy + dy}`)?.colours ?? []) near.add(c);
+          const key = `${line.mode ?? ""}|${s.cx + dx},${s.cy + dy}`;
+          for (const c of cells.get(key)?.colours ?? []) near.add(c);
         }
       }
       if (near.size < 2) return 0;
       // A fixed order, so every route on the road ranks the colours alike.
       const order = [...near].sort();
       const lane = order.indexOf(line.colour) - (order.length - 1) / 2;
-      const own = cells.get(`${s.cx},${s.cy}`);
+      const own = cells.get(`${line.mode ?? ""}|${s.cx},${s.cy}`);
       // Against the road's reference direction: travelling it the other way
       // flips left and right, so the lane flips with it to stay on its side.
       const facing = own && own.rx * s.ux + own.ry * s.uy < 0 ? -1 : 1;

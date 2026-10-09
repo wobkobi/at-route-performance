@@ -115,6 +115,29 @@ export interface FormatDelayOptions {
 }
 
 /**
+ * A magnitude in whole seconds as compact parts. Under an hour it reads to the
+ * second ("6m 18s"); from an hour up it rounds to the minute ("6h 40m"), since a
+ * train 400 minutes late reads better in hours and its seconds say nothing.
+ * Zero parts are dropped, so the result is empty only for 0.
+ * @param total - Non-negative whole seconds.
+ * @returns The parts, largest first.
+ */
+function durationParts(total: number): string[] {
+  if (total >= 3600) {
+    const mins = Math.round(total / 60);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? [`${h}h`, `${m}m`] : [`${h}h`];
+  }
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  const parts: string[] = [];
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0) parts.push(`${secs}s`);
+  return parts;
+}
+
+/**
  * Render a signed schedule deviation as a human string with no decimals.
  * Negative is early, positive is late; zero components are dropped.
  *
@@ -126,8 +149,8 @@ export interface FormatDelayOptions {
  * @param sec - Signed deviation in seconds (negative early, positive late).
  * @param options - On-time rule: a `mode` (asymmetric on-time window) or a
  *   symmetric `thresholdSec`; below it the value reads "on time".
- * @returns A string like `6m 18s late`, `3m early`, `45s late`, or `on time`;
- *   the unknown dash for a value that is not a finite number.
+ * @returns A string like `6m 18s late`, `3m early`, `45s late`, `6h 40m late`,
+ *   or `on time`; the unknown dash for a value that is not a finite number.
  */
 export function formatDelay(sec: number, options: FormatDelayOptions = {}): string {
   if (!Number.isFinite(sec)) return UNKNOWN_VALUE;
@@ -139,33 +162,21 @@ export function formatDelay(sec: number, options: FormatDelayOptions = {}): stri
   if (onTime) return "on time";
 
   const direction = rounded > 0 ? "late" : "early";
-  const total = Math.abs(rounded);
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-
-  const parts: string[] = [];
-  if (mins > 0) parts.push(`${mins}m`);
-  if (secs > 0) parts.push(`${secs}s`);
-  // parts is non-empty here: total > threshold >= 0 implies total >= 1.
-  return `${parts.join(" ")} ${direction}`;
+  // Non-empty here: total > threshold >= 0 implies total >= 1.
+  return `${durationParts(Math.abs(rounded)).join(" ")} ${direction}`;
 }
 
 /**
- * Render a non-negative duration in seconds as `6m 18s` / `3m` / `45s` / `0s`
- * (no direction word). For magnitudes like "off-schedule by".
+ * Render a non-negative duration in seconds as `6h 40m` / `6m 18s` / `3m` /
+ * `45s` / `0s` (no direction word). For magnitudes like "off-schedule by".
  * @param sec - A duration in seconds (rounded; negatives are treated as 0).
  * @returns The compact duration string, or the unknown dash for a value that is
  *   not a finite number.
  */
 export function formatDuration(sec: number): string {
   if (!Number.isFinite(sec)) return UNKNOWN_VALUE;
-  const total = Math.max(0, Math.round(sec));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  const parts: string[] = [];
-  if (mins > 0) parts.push(`${mins}m`);
-  if (secs > 0 || mins === 0) parts.push(`${secs}s`);
-  return parts.join(" ");
+  const parts = durationParts(Math.max(0, Math.round(sec)));
+  return parts.length > 0 ? parts.join(" ") : "0s";
 }
 
 /**

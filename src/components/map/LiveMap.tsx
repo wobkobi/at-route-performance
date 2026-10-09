@@ -286,6 +286,8 @@ export default function LiveMap({
       slot: number;
       at: Leaflet.LatLng[];
     }[] = [];
+    // The routes drawn bold, so a move only restyles the ones that change.
+    let lit = new Set<string>();
     /**
      * Set every stretch at its lane for the current zoom. Lanes are counted in
      * line widths, so they are placed in pixels: spaced a bus line's width plus a
@@ -295,7 +297,7 @@ export default function LiveMap({
       const zoom = map.getZoom();
       const spacing = lineStyle("BUS", zoom).weight + 1;
       for (const d of drawn) {
-        d.path.setStyle(lineStyle(d.line.mode, zoom));
+        d.path.setStyle(lineStyle(d.line.mode, zoom, lit.has(d.line.slug)));
         if (d.slot === 0) continue;
         const px = d.at.map((ll): [number, number] => {
           const p = map.project(ll, zoom);
@@ -307,38 +309,70 @@ export default function LiveMap({
       }
     };
     /**
-     * Light every stretch of one route, or put them back.
-     * @param slug - The route.
-     * @param on - Whether the pointer is on it.
+     * Light every stretch of the given routes and put the rest back.
+     * @param slugs - The routes under the pointer.
      */
-    const light = (slug: string, on: boolean): void => {
+    const light = (slugs: Set<string>): void => {
       const zoom = map.getZoom();
       for (const d of drawn) {
-        if (d.line.slug === slug) d.path.setStyle(lineStyle(d.line.mode, zoom, on));
+        const on = slugs.has(d.line.slug);
+        if (on !== lit.has(d.line.slug)) d.path.setStyle(lineStyle(d.line.mode, zoom, on));
       }
+      lit = slugs;
     };
     /**
-     * Open a popup naming every route drawn within reach of a tap, since a
-     * shared road hides all but the top line from the canvas's own hit test.
-     * @param e - The tap on a line.
+     * Every route drawn within reach of a point, nearest first. A shared road
+     * hides all but the top line from the canvas's own hit test, so each stretch
+     * near the point is measured here instead.
+     * @param at - The point, in layer pixels.
+     * @returns The routes' slugs with their distances, nearest first.
      */
-    const pick = (e: Leaflet.LeafletMouseEvent): void => {
+    const within = (at: Leaflet.Point): [string, number][] => {
       const reach = 6 + lineStyle("BUS", map.getZoom()).weight;
+      const box = L.latLngBounds(
+        map.layerPointToLatLng(at.subtract([reach, reach])),
+        map.layerPointToLatLng(at.add([reach, reach])),
+      );
       const nearest = new Map<string, number>();
       for (const d of drawn) {
+        if (!d.path.getBounds().intersects(box)) continue;
         const pts = d.path.getLatLngs() as Leaflet.LatLng[];
         let best = Infinity;
         for (let i = 0; i + 1 < pts.length; i++) {
           const a = map.latLngToLayerPoint(pts[i] as Leaflet.LatLng);
           const b = map.latLngToLayerPoint(pts[i + 1] as Leaflet.LatLng);
-          best = Math.min(best, L.LineUtil.pointToSegmentDistance(e.layerPoint, a, b));
+          best = Math.min(best, L.LineUtil.pointToSegmentDistance(at, a, b));
         }
         if (best <= reach && best < (nearest.get(d.line.slug) ?? Infinity)) {
           nearest.set(d.line.slug, best);
         }
       }
-      const hits = [...nearest]
-        .sort((a, b) => a[1] - b[1])
+      return [...nearest].sort((a, b) => a[1] - b[1]);
+    };
+    // One measure per frame however fast the pointer moves. Leaving one line for
+    // the next schedules the clear and the relight in the same frame, so the
+    // lines in between never flash back.
+    let frame = 0;
+    /**
+     * Light every route within reach of the pointer.
+     * @param e - The pointer on a line.
+     */
+    const hover = (e: Leaflet.LeafletMouseEvent): void => {
+      const at = e.layerPoint;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => light(new Set(within(at).map(([slug]) => slug))));
+    };
+    /** Put every lit route back once the pointer is off the lines. */
+    const leave = (): void => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => light(new Set()));
+    };
+    /**
+     * Open a popup naming every route drawn within reach of a tap.
+     * @param e - The tap on a line.
+     */
+    const pick = (e: Leaflet.LeafletMouseEvent): void => {
+      const hits = within(e.layerPoint)
         .map(([slug]) => lines.find((l) => l.slug === slug))
         .filter((l): l is NetworkLine => l !== undefined);
       if (hits.length === 0) return;
@@ -363,8 +397,9 @@ export default function LiveMap({
         if (at.length < 2) continue;
         const path = L.polyline(at, { renderer, color: line.colour });
         path.on("click", pick);
-        path.on("mouseover", () => light(line.slug, true));
-        path.on("mouseout", () => light(line.slug, false));
+        path.on("mouseover", hover);
+        path.on("mousemove", hover);
+        path.on("mouseout", leave);
         path.addTo(lineLayer).bringToBack();
         drawn.push({ path, line, slot: run.slot, at });
       }
@@ -372,6 +407,7 @@ export default function LiveMap({
     place();
     map.on("zoomend", place);
     return () => {
+      cancelAnimationFrame(frame);
       map.off("zoomend", place);
     };
   }, [lines, modes, ready, showLines]);
