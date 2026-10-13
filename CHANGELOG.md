@@ -32,6 +32,15 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.55.1] - 2026-10-14
+
+### Changed
+
+- The ingest no longer rewrites an arrival or a vehicle that has not changed since the previous
+  poll, and checks for stop closures every four minutes instead of every two, to bring its CPU back
+  under the hosting plan's monthly allowance. Nothing on the site changes, except that a vehicle's
+  last-seen time can now be up to 10 minutes early once it leaves service
+
 ## [2.55.0] - 2026-10-10
 
 ### Added

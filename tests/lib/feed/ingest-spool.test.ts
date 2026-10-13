@@ -3,6 +3,7 @@
 // ways a batch leaves the spool without being replayed (too old, unreadable), and
 // when the spool is worth listing at all, since each listing is a billed blob
 // operation. The blob store is mocked; nothing here touches Vercel.
+import type { RecordedRun } from "@/lib/feed/ingest-run";
 import {
   drainSpool,
   spoolEnabled,
@@ -102,7 +103,9 @@ describe("without a store configured", () => {
 
   it("never asks for a drain, whatever the run stamps say", () => {
     expect(spoolMayHold(null)).toBe(false);
-    expect(spoolMayHold({ completedAt: new Date(0), spoolPending: true })).toBe(false);
+    expect(
+      spoolMayHold({ startedAt: new Date(0), completedAt: new Date(0), spoolPending: true }),
+    ).toBe(false);
   });
 });
 
@@ -306,11 +309,9 @@ describe("spoolMayHold", () => {
    * @param spoolPending - Whether it left batches behind.
    * @returns The stamp.
    */
-  function stamp(
-    agoMs: number,
-    spoolPending = false,
-  ): { completedAt: Date; spoolPending: boolean } {
-    return { completedAt: new Date(NOW - agoMs), spoolPending };
+  function stamp(agoMs: number, spoolPending = false): RecordedRun {
+    const at = new Date(NOW - agoMs);
+    return { startedAt: at, completedAt: at, spoolPending };
   }
 
   it("says no on a healthy cadence", () => {
