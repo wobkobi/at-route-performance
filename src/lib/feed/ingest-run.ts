@@ -102,6 +102,8 @@ export async function getLastIngestRun(endpoint: string): Promise<LastIngestRun 
 
 /** The newest run recorded for an endpoint, whatever its outcome. */
 export interface RecordedRun {
+  /** When the run started, which is how an instance knows the run was its own. */
+  startedAt: Date;
   /** When the run finished. */
   completedAt: Date;
   /** Whether it left spooled batches behind for a later run to replay. */
@@ -118,17 +120,21 @@ export interface RecordedRun {
  * a cached stamp would read as a gap that is not there. Ordered on
  * `[endpoint, completedAt]`, the index the model already carries.
  * @param endpoint - Endpoint slug to look up (e.g. "at" for the realtime feed).
- * @returns The newest run's stamp and spool state, or null when none is logged.
+ * @returns The newest run's stamps and spool state, or null when none is logged.
  */
 export async function lastRecordedRun(endpoint: string): Promise<RecordedRun | null> {
   const run = await prisma.ingestRun.findFirst({
     where: { endpoint },
     orderBy: { completedAt: "desc" },
-    select: { completedAt: true, detail: true },
+    select: { startedAt: true, completedAt: true, detail: true },
   });
   if (!run) return null;
   const detail = run.detail as { spoolPending?: unknown } | null;
-  return { completedAt: run.completedAt, spoolPending: detail?.spoolPending === true };
+  return {
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    spoolPending: detail?.spoolPending === true,
+  };
 }
 
 /** A resolved "last updated" instant plus the projected "next update" instant. */

@@ -9,12 +9,15 @@
 // outage leaves rows unnamed rather than failing. The same vehicle read feeds
 // the off-route check (lib/off-route.ts) and the fleet register
 // (lib/store/fleet.ts), and the stop closures (lib/stop/closures.ts) are recorded
-// last; all three are best-effort.
+// last, on every other poll; all three are best-effort.
 // Inserts go through ordered:false bulk commands so duplicate polls are skipped
-// in one round-trip per batch, making repeated runs idempotent.
+// in one round-trip per batch, making repeated runs idempotent. Arrival and fleet
+// writes the previous poll on this instance already made are not sent again
+// (lib/feed/poll-memo.ts), since each row written is billed CPU.
 
 import { apiError } from "@/lib/api-error";
 import { requireCronAuth } from "@/lib/cron/auth";
+import { INGEST_INTERVAL_SEC } from "@/lib/data";
 import {
   DUPLICATE_KEY,
   isDatabaseUnreachableError,
@@ -34,6 +37,7 @@ import {
   spoolWrites,
   type SpooledWrite,
 } from "@/lib/feed/ingest-spool";
+import { pollMemo } from "@/lib/feed/poll-memo";
 import { fetchVehicleSnapshot, type VehicleSnapshot } from "@/lib/feed/vehicles";
 import { recordFleet } from "@/lib/store/fleet";
 import { recordOffRouteSightings } from "@/lib/store/off-route";
@@ -59,6 +63,15 @@ const INSERT_BATCH = 1000;
  * poll makes a skip up.
  */
 const CLOSURE_STEP_CUTOFF_MS = 60_000;
+
+/**
+ * The closure step runs on one poll in this many. Its ~90ms of CPU is mostly
+ * fixed reads, paid whether or not anything changed, and the closure logic folds
+ * evidence in so that a missed poll loses nothing (lib/stop/closures.ts). The
+ * poll's two-minute slot picks which polls run it, so the choice holds whichever
+ * instance takes the poll.
+ */
+const CLOSURE_EVERY_NTH_POLL = 2;
 
 /**
  * Insert documents into a collection in batches, skipping duplicate-key rows
@@ -294,19 +307,21 @@ export async function POST(request: Request): Promise<NextResponse> {
     const lastRun = await lastRecordedRun("at").catch(
       readFallback("ingest-last-run", "unreadable" as const),
     );
-    const drained =
-      lastRun !== "unreadable" && spoolMayHold(lastRun)
-        ? await drainSpool(replaySpooled).catch((err: unknown) => {
-            console.error("[SPOOL] Drain failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            return null;
-          })
-        : null;
+    const drainDue = lastRun !== "unreadable" && spoolMayHold(lastRun);
+    const drained = drainDue
+      ? await drainSpool(replaySpooled).catch((err: unknown) => {
+          console.error("[SPOOL] Drain failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return null;
+        })
+      : null;
     if (drained?.pending) spoolPending = true;
     if (drained && (drained.replayed > 0 || drained.dropped > 0)) {
       console.log("[SPOOL] Drained", drained);
     }
+    // A drain, even a failed one, may have re-issued older writes over the rows.
+    pollMemo.begin(lastRun === "unreadable" ? null : (lastRun?.startedAt ?? null), drainDue);
     cpu.mark("start");
 
     const feed = await fetchATTripUpdates();
@@ -503,12 +518,23 @@ export async function POST(request: Request): Promise<NextResponse> {
         serviceDate: r.serviceDate ?? undefined,
       },
     }));
+    // Only visits whose write moved since this instance's last poll go out; the
+    // rest would rewrite a row with what it already holds. A held write spools
+    // every visit, since the memo cannot vouch for rows a replay will overwrite.
+    const arrivalPick = pollMemo.pickArrivals(
+      arrivalDocs,
+      (d) => `${d.tripId}|${d.stopId}|${d.scheduledAt.$date}`,
+      (d) => JSON.stringify(d.write),
+    );
     cpu.mark("rows");
+    const heldBefore = heldBack.length;
     const stopCount = await writeOrHold(
-      () => bulkUpsertArrivals(arrivalDocs),
+      () => bulkUpsertArrivals(arrivalPick.changed),
       { kind: "arrivals", docs: arrivalDocs },
       heldBack,
     );
+    if (heldBack.length === heldBefore) arrivalPick.commit();
+    else pollMemo.reset();
     const tripDocs = tripRows.map((r) => ({
       tripId: r.tripId,
       routeId: r.routeId,
@@ -554,24 +580,34 @@ export async function POST(request: Request): Promise<NextResponse> {
     cpu.mark("offRoute");
 
     // The fleet register is best-effort too: a missed write only leaves a label
-    // one poll stale.
-    const fleetCount = await recordFleet(vehicles.fleet).catch((err: unknown) => {
-      console.warn("[INGEST] Fleet register write failed", {
-        error: err instanceof Error ? err.message : String(err),
+    // one poll stale. Unchanged vehicles are rewritten only to keep `lastSeenAt`
+    // within FLEET_REFRESH_MS of the truth.
+    const fleetAt = new Date();
+    const fleetPick = pollMemo.pickFleet(vehicles.fleet, fleetAt);
+    const fleetCount = await recordFleet(fleetPick.changed, fleetAt)
+      .then((n) => {
+        fleetPick.commit();
+        return n;
+      })
+      .catch((err: unknown) => {
+        console.warn("[INGEST] Fleet register write failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return 0;
       });
-      return 0;
-    });
     cpu.mark("fleet");
 
-    const closureCount =
-      Date.now() - startTime > CLOSURE_STEP_CUTOFF_MS
-        ? 0
-        : await recordStopClosures(feed).catch((err: unknown) => {
-            console.warn("[INGEST] Stop closure step failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            return 0;
+    const closureDue =
+      Math.floor(startTime / (INGEST_INTERVAL_SEC * 1000)) % CLOSURE_EVERY_NTH_POLL === 0 &&
+      Date.now() - startTime <= CLOSURE_STEP_CUTOFF_MS;
+    const closureCount = !closureDue
+      ? 0
+      : await recordStopClosures(feed).catch((err: unknown) => {
+          console.warn("[INGEST] Stop closure step failed", {
+            error: err instanceof Error ? err.message : String(err),
           });
+          return 0;
+        });
     cpu.mark("closures");
 
     const stopResult = { count: stopCount };
@@ -626,15 +662,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const duration = Date.now() - startTime;
+    /** Visits left alone because the row already held this poll's write. */
+    const unchanged = arrivalDocs.length - arrivalPick.changed.length;
 
     // LOG for monitoring
     console.log("[INGEST]", {
       timestamp: new Date().toISOString(),
       inserted: stopResult.count,
       tried: stopRows.length,
+      unchanged,
       tripInserted: tripResult.count,
       tripTried: tripRows.length,
       offRouteInserted: offRouteCount,
+      fleetWritten: fleetCount,
       closuresWritten: closureCount,
       duration_ms: duration,
       cpu_ms: cpu.summary(),
@@ -647,11 +687,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       startedAt: new Date(startTime),
       success: true,
       count: stopResult.count + tripResult.count,
-      detail: { spoolPending },
+      // The CPU split lives only in the function log, which Hobby keeps for an
+      // hour; the row keeps what the memo saved, so a day of it can be read back.
+      detail: { spoolPending, unchanged, cpuMs: cpu.summary().total },
     });
+    pollMemo.recorded(new Date(startTime));
 
     return NextResponse.json(body);
   } catch (err) {
+    // Whatever the failed poll wrote is unknown, so the next one writes every row.
+    pollMemo.reset();
     const duration = Date.now() - startTime;
     const msg = err instanceof Error ? err.message : "Unknown error";
 
