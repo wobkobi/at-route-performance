@@ -32,6 +32,13 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.55.2] - 2026-10-14
+
+### Changed
+
+- Patch and minor dependency updates (puppeteer 25.13, eslint-plugin-jsdoc 65.3, vitest 5.0.4, zod
+  4.6.7 and others)
+
 ## [2.55.1] - 2026-10-14
 
 ### Changed
