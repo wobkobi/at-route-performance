@@ -31,10 +31,15 @@ import { fetchATTripUpdates } from "@/lib/feed/at";
 import { claimIngestLease, releaseIngestLease, UNLEASED } from "@/lib/feed/ingest-lease";
 import { lastRecordedRun, recordIngestRun } from "@/lib/feed/ingest-run";
 import {
+  beforeDeadline,
   drainSpool,
-  spoolEnabled,
+  LATE,
+  newPollHold,
+  noteOutage,
   spoolMayHold,
   spoolWrites,
+  within,
+  writeOrHold,
   type SpooledWrite,
 } from "@/lib/feed/ingest-spool";
 import { pollMemo } from "@/lib/feed/poll-memo";
@@ -74,6 +79,21 @@ const CLOSURE_STEP_CUTOFF_MS = 60_000;
 const CLOSURE_EVERY_NTH_POLL = 2;
 
 /**
+ * How long the lease release may take. It can run after the deadline, so it
+ * needs its own bound, and a release that lands late still frees the lease in
+ * time for the next poll.
+ */
+const RELEASE_WAIT_MS = 5_000;
+
+/**
+ * The drain's share of the poll's budget. It runs before the feed is even
+ * fetched, so a drain allowed the whole budget against a slow database would
+ * leave the feed fetches (up to 15s each, with a retry) running past the
+ * two-minute slot, and the next poll would find the lease still held.
+ */
+const DRAIN_BUDGET_MS = 30_000;
+
+/**
  * Insert documents into a collection in batches, skipping duplicate-key rows
  * (ordered: false) in a single round-trip per batch - no per-document fallback
  * and no multi-document transaction. A duplicate key is the expected outcome of
@@ -98,30 +118,6 @@ async function bulkInsert(collection: string, docs: Record<string, unknown>[]): 
     inserted += res.n ?? 0;
   }
   return inserted;
-}
-
-/**
- * Run a write, or hold it back for a later run when the database is
- * unreachable. Only an outage is held: a write that failed on its own merits
- * (a bad document, a failed validation) would fail the same way on replay, so
- * it still fails the run and gets seen.
- * @param attempt - Issues the write.
- * @param held - The same write in the shape the replay re-issues it.
- * @param heldBack - Collects what this poll could not write.
- * @returns Rows written, or 0 when the write was held.
- */
-async function writeOrHold(
-  attempt: () => Promise<number>,
-  held: SpooledWrite,
-  heldBack: SpooledWrite[],
-): Promise<number> {
-  try {
-    return await attempt();
-  } catch (err) {
-    if (!spoolEnabled() || !isDatabaseUnreachableError(err)) throw err;
-    heldBack.push(held);
-    return 0;
-  }
 }
 
 /**
@@ -283,15 +279,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   const wantDebug = url.searchParams.get("debug") === "1";
   const wantPeek = url.searchParams.get("peek") === "1";
 
+  /** Writes this poll could not make, and whether it has stopped calling the database. */
+  const hold = newPollHold(startTime);
+
   // One poll writes at a time; a peek writes nothing, so it never waits on one.
-  const lease = wantPeek ? UNLEASED : await claimIngestLease();
+  // A claim still unanswered at the deadline polls unleased, the way a failed
+  // one does.
+  const claimed = wantPeek ? UNLEASED : await beforeDeadline(() => claimIngestLease(), hold);
+  const lease = claimed === LATE ? UNLEASED : claimed;
   if (lease === null) {
     console.log("[INGEST] Skipped: the previous poll is still running");
     return NextResponse.json({ skipped: true, reason: "The previous poll is still running." });
   }
-
-  /** Writes this poll could not make because the database was unreachable. */
-  const heldBack: SpooledWrite[] = [];
 
   /** Whether the spool still holds batches when this poll ends, for the next run. */
   let spoolPending = false;
@@ -304,12 +303,32 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Reading the stamp first is what keeps the poll off the spool: listing costs
     // a Blob operation every run where a drain is almost never needed, and a stamp
     // read that throws says the database is down, which a replay needs up anyway.
-    const lastRun = await lastRecordedRun("at").catch(
-      readFallback("ingest-last-run", "unreadable" as const),
-    );
+    // It is also the poll's outage probe: an unreachable database here sends every
+    // write straight to the hold instead of waiting out each one.
+    const lastRun = await beforeDeadline(() => lastRecordedRun("at"), hold)
+      .then((run) => (run === LATE ? ("unreadable" as const) : run))
+      .catch((err: unknown) => {
+        noteOutage(hold, err);
+        return readFallback("ingest-last-run", "unreadable" as const)(err);
+      });
     const drainDue = lastRun !== "unreadable" && spoolMayHold(lastRun);
+    /**
+     * Replay one spooled batch inside the drain's share of the poll. A replay
+     * still running when that runs out counts as refused, so its batch stays in
+     * the spool for the next poll; replaying it twice is harmless. Running out
+     * does not mark the poll down: the drain only spent its own share, and the
+     * poll's own writes still race the full deadline.
+     * @param writes - The batch, in the order it was held.
+     * @returns Rows written.
+     */
+    const replayBeforeDeadline = async (writes: SpooledWrite[]): Promise<number> => {
+      const left = startTime + DRAIN_BUDGET_MS - Date.now();
+      const rows = left > 0 ? await within(() => replaySpooled(writes), left) : LATE;
+      if (rows === LATE) throw new Error("Drain out of time; batch left for the next poll");
+      return rows;
+    };
     const drained = drainDue
-      ? await drainSpool(replaySpooled).catch((err: unknown) => {
+      ? await drainSpool(replayBeforeDeadline).catch((err: unknown) => {
           console.error("[SPOOL] Drain failed", {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -527,13 +546,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       (d) => JSON.stringify(d.write),
     );
     cpu.mark("rows");
-    const heldBefore = heldBack.length;
+    const heldBefore = hold.writes.length;
     const stopCount = await writeOrHold(
       () => bulkUpsertArrivals(arrivalPick.changed),
       { kind: "arrivals", docs: arrivalDocs },
-      heldBack,
+      hold,
     );
-    if (heldBack.length === heldBefore) arrivalPick.commit();
+    if (hold.writes.length === heldBefore) arrivalPick.commit();
     else pollMemo.reset();
     const tripDocs = tripRows.map((r) => ({
       tripId: r.tripId,
@@ -546,7 +565,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const tripCount = await writeOrHold(
       () => bulkInsert("TripDelay", tripDocs),
       { kind: "insert", collection: "TripDelay", docs: tripDocs },
-      heldBack,
+      hold,
     );
 
     // Idempotent: the @@unique([tripId, serviceDate]) index drops repeat polls of
@@ -563,20 +582,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     const cancelledCount = await writeOrHold(
       () => bulkInsert("CancelledTrip", cancelledDocs),
       { kind: "insert", collection: "CancelledTrip", docs: cancelledDocs },
-      heldBack,
+      hold,
     );
     cpu.mark("writes");
 
+    // The three best-effort steps below are skipped outright once the poll is
+    // down, and stop being waited on at the deadline: none of them spools, so
+    // all a slow or failing attempt could do is push the spool write past the
+    // limit.
+
     // Off-route readings never fail the poll: the arrival events above are the
     // point of the run, and a missed reading only shortens a detour by one poll.
-    const offRouteCount = await recordOffRouteSightings(vehicles.readings, feed).catch(
-      (err: unknown) => {
-        console.warn("[INGEST] Off-route check failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return 0;
-      },
-    );
+    const offRouteCount = hold.down
+      ? 0
+      : await beforeDeadline(() => recordOffRouteSightings(vehicles.readings, feed), hold)
+          .then((n) => (n === LATE ? 0 : n))
+          .catch((err: unknown) => {
+            noteOutage(hold, err);
+            console.warn("[INGEST] Off-route check failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return 0;
+          });
     cpu.mark("offRoute");
 
     // The fleet register is best-effort too: a missed write only leaves a label
@@ -584,30 +611,40 @@ export async function POST(request: Request): Promise<NextResponse> {
     // within FLEET_REFRESH_MS of the truth.
     const fleetAt = new Date();
     const fleetPick = pollMemo.pickFleet(vehicles.fleet, fleetAt);
-    const fleetCount = await recordFleet(fleetPick.changed, fleetAt)
-      .then((n) => {
-        fleetPick.commit();
-        return n;
-      })
-      .catch((err: unknown) => {
-        console.warn("[INGEST] Fleet register write failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return 0;
-      });
+    const fleetCount = hold.down
+      ? 0
+      : await beforeDeadline(() => recordFleet(fleetPick.changed, fleetAt), hold)
+          .then((n) => {
+            // A write that ran out of time may or may not land, so the memo
+            // cannot vouch for it.
+            if (n === LATE) return 0;
+            fleetPick.commit();
+            return n;
+          })
+          .catch((err: unknown) => {
+            noteOutage(hold, err);
+            console.warn("[INGEST] Fleet register write failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return 0;
+          });
     cpu.mark("fleet");
 
     const closureDue =
+      !hold.down &&
       Math.floor(startTime / (INGEST_INTERVAL_SEC * 1000)) % CLOSURE_EVERY_NTH_POLL === 0 &&
       Date.now() - startTime <= CLOSURE_STEP_CUTOFF_MS;
     const closureCount = !closureDue
       ? 0
-      : await recordStopClosures(feed).catch((err: unknown) => {
-          console.warn("[INGEST] Stop closure step failed", {
-            error: err instanceof Error ? err.message : String(err),
+      : await beforeDeadline(() => recordStopClosures(feed), hold)
+          .then((n) => (n === LATE ? 0 : n))
+          .catch((err: unknown) => {
+            noteOutage(hold, err);
+            console.warn("[INGEST] Stop closure step failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return 0;
           });
-          return 0;
-        });
     cpu.mark("closures");
 
     const stopResult = { count: stopCount };
@@ -615,12 +652,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Held rows go to the spool once, as one batch, so a replay re-issues this
     // poll's writes in the order they were meant to happen.
-    const spooled = heldBack.length > 0 && (await spoolWrites(heldBack));
+    const spooled = hold.writes.length > 0 && (await spoolWrites(hold.writes));
     if (spooled) spoolPending = true;
-    if (heldBack.length > 0) {
-      console.warn("[SPOOL] Database unreachable, batch held", {
-        writes: heldBack.length,
+    if (hold.writes.length > 0) {
+      console.warn("[SPOOL] Database unreachable or out of time, batch held", {
+        writes: hold.writes.length,
         stored: spooled,
+        duration_ms: Date.now() - startTime,
       });
     }
 
@@ -682,16 +720,27 @@ export async function POST(request: Request): Promise<NextResponse> {
       source: "cron",
     });
 
-    await recordIngestRun({
-      endpoint: "at",
-      startedAt: new Date(startTime),
-      success: true,
-      count: stopResult.count + tripResult.count,
-      // The CPU split lives only in the function log, which Hobby keeps for an
-      // hour; the row keeps what the memo saved, so a day of it can be read back.
-      detail: { spoolPending, unchanged, cpuMs: cpu.summary().total },
-    });
-    pollMemo.recorded(new Date(startTime));
+    // A poll that found the database down cannot record itself, and trying only
+    // waits out another server selection. Leaving no row is what tells the next
+    // poll to drain: the gap in the run stamps is the signal spoolMayHold reads.
+    // The same goes for a poll out of time, which held its writes too.
+    if (!hold.down) {
+      const stamped = await beforeDeadline(
+        () =>
+          recordIngestRun({
+            endpoint: "at",
+            startedAt: new Date(startTime),
+            success: true,
+            count: stopResult.count + tripResult.count,
+            // The CPU split lives only in the function log, which Hobby keeps for an
+            // hour; the row keeps what the memo saved, so a day of it can be read back.
+            detail: { spoolPending, unchanged, cpuMs: cpu.summary().total },
+          }),
+        hold,
+      );
+      // A stamp that may never land must not vouch for the memo.
+      if (stamped !== LATE) pollMemo.recorded(new Date(startTime));
+    }
 
     return NextResponse.json(body);
   } catch (err) {
@@ -699,6 +748,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     pollMemo.reset();
     const duration = Date.now() - startTime;
     const msg = err instanceof Error ? err.message : "Unknown error";
+    noteOutage(hold, err);
 
     console.error("[INGEST] Failed", {
       timestamp: new Date().toISOString(),
@@ -707,13 +757,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       cpu_ms: cpu.summary(),
     });
 
-    await recordIngestRun({
-      endpoint: "at",
-      startedAt: new Date(startTime),
-      success: false,
-      error: msg,
-      detail: { spoolPending },
-    });
+    if (!hold.down) {
+      await beforeDeadline(
+        () =>
+          recordIngestRun({
+            endpoint: "at",
+            startedAt: new Date(startTime),
+            success: false,
+            error: msg,
+            detail: { spoolPending },
+          }),
+        hold,
+      );
+    }
 
     // The message stays in the log and the IngestRun row; the body says only which side failed.
     return isDatabaseUnreachableError(err)
@@ -722,6 +778,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } finally {
     // Best effort: an unreleased lease expires on its own, so a failed release
     // costs at most one skipped poll and must not mask the poll's own outcome.
-    await releaseIngestLease(lease).catch(() => {});
+    // Bounded on its own, since it can run after the deadline has passed.
+    await within(() => releaseIngestLease(lease), RELEASE_WAIT_MS).catch(() => {});
   }
 }

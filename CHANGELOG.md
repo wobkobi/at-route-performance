@@ -32,6 +32,22 @@ needed. Where an entry has to use one of the terms below, this is what it means.
 - **Smoke test** - an automated check that opens every page in a real browser and fails if one
   errors or shows broken text.
 
+## [2.55.4] - 2026-10-20
+
+### Removed
+
+- The guide to running the database yourself is no longer published with the source
+
+## [2.55.3] - 2026-10-20
+
+### Fixed
+
+- When the database stopped answering, or slowed to a crawl, a poll kept waiting on it until the
+  host killed it, and that poll's arrivals were lost: on 19 Oct 2026 this cost about 40% of the day.
+  A poll now stops calling the database at the first sign it is down, or once it has spent 80
+  seconds, and holds the rest of its writes for a later poll to replay, so a stopped or slow
+  database delays the figures instead of losing them
+
 ## [2.55.2] - 2026-10-14
 
 ### Changed

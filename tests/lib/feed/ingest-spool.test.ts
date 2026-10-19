@@ -5,10 +5,18 @@
 // operation. The blob store is mocked; nothing here touches Vercel.
 import type { RecordedRun } from "@/lib/feed/ingest-run";
 import {
+  beforeDeadline,
   drainSpool,
+  LATE,
+  newPollHold,
+  noteOutage,
+  POLL_BUDGET_MS,
   spoolEnabled,
   spoolMayHold,
   spoolWrites,
+  within,
+  writeOrHold,
+  type PollHold,
   type SpooledWrite,
 } from "@/lib/feed/ingest-spool";
 import { gzipSync } from "fflate";
@@ -134,6 +142,138 @@ describe("spoolWrites", () => {
     // Throwing here would turn one lost poll into a failed run.
     blob.put.mockRejectedValue(new Error("blob store unavailable"));
     await expect(spoolWrites(WRITES)).resolves.toBe(false);
+  });
+});
+
+describe("writeOrHold", () => {
+  /** What the driver throws when mongod is stopped. */
+  const UNREACHABLE = new Error("Server selection timeout: No available servers");
+  const [ARRIVALS, TRIPS] = WRITES as [SpooledWrite, SpooledWrite];
+
+  /**
+   * A hold already marked down, as a poll has once it stops calling the database.
+   * @param writes - What it has held so far.
+   * @returns The hold.
+   */
+  function downHold(writes: SpooledWrite[] = []): PollHold {
+    return { ...newPollHold(Date.now()), writes, down: true };
+  }
+
+  it("passes a landed write through and holds nothing", async () => {
+    const hold = newPollHold(Date.now());
+    await expect(writeOrHold(() => Promise.resolve(5), ARRIVALS, hold)).resolves.toBe(5);
+    expect(hold).toMatchObject({ writes: [], down: false });
+  });
+
+  it("holds a write the database was not up to take, and marks the poll down", async () => {
+    const hold = newPollHold(Date.now());
+    await expect(writeOrHold(() => Promise.reject(UNREACHABLE), ARRIVALS, hold)).resolves.toBe(0);
+    expect(hold).toMatchObject({ writes: [ARRIVALS], down: true });
+  });
+
+  it("holds a write still running at the deadline, and marks the poll down", async () => {
+    // A slow database never throws: the write just hangs until Vercel kills the
+    // poll, so the deadline is the only thing that can get its rows to the spool.
+    const hold: PollHold = { writes: [], down: false, deadline: Date.now() + 20 };
+    /**
+     * A write against a database too slow to answer.
+     * @returns A promise that never settles.
+     */
+    const hangs = (): Promise<number> => new Promise(() => {});
+    await expect(writeOrHold(hangs, ARRIVALS, hold)).resolves.toBe(0);
+    expect(hold).toMatchObject({ writes: [ARRIVALS], down: true });
+  });
+
+  it("never starts a write once the deadline has passed", async () => {
+    const hold: PollHold = { writes: [], down: false, deadline: Date.now() - 1 };
+    const attempt = vi.fn(() => Promise.resolve(1));
+    await expect(writeOrHold(attempt, TRIPS, hold)).resolves.toBe(0);
+    expect(attempt).not.toHaveBeenCalled();
+    expect(hold).toMatchObject({ writes: [TRIPS], down: true });
+  });
+
+  it("holds every later write without trying it once the poll is down", async () => {
+    // Each try against a stopped mongod waits out a 30s server selection; a poll
+    // that kept trying was killed at the 300s limit before it reached the spool.
+    const hold = downHold([ARRIVALS]);
+    const attempt = vi.fn(() => Promise.resolve(1));
+    await expect(writeOrHold(attempt, TRIPS, hold)).resolves.toBe(0);
+    expect(attempt).not.toHaveBeenCalled();
+    expect(hold.writes).toEqual([ARRIVALS, TRIPS]);
+  });
+
+  it("fails the run on a write that failed on its own merits", async () => {
+    const hold = newPollHold(Date.now());
+    const bad = new Error("TripDelay insert: 1 entry failed, first (code 121): validation");
+    await expect(writeOrHold(() => Promise.reject(bad), TRIPS, hold)).rejects.toBe(bad);
+    expect(hold).toMatchObject({ writes: [], down: false });
+  });
+
+  it("holds nothing without a store, so the rows are lost loudly", async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    const hold = downHold();
+    await expect(writeOrHold(() => Promise.reject(UNREACHABLE), ARRIVALS, hold)).rejects.toBe(
+      UNREACHABLE,
+    );
+    expect(hold.writes).toEqual([]);
+  });
+});
+
+describe("within", () => {
+  it("returns the result of a call that settles in time", async () => {
+    await expect(within(() => Promise.resolve(7), 1_000)).resolves.toBe(7);
+  });
+
+  it("returns LATE for a call still running when time runs out", async () => {
+    await expect(within(() => new Promise(() => {}), 10)).resolves.toBe(LATE);
+  });
+
+  it("passes on a rejection that arrives in time", async () => {
+    const err = new Error("refused");
+    await expect(within(() => Promise.reject(err), 1_000)).rejects.toBe(err);
+  });
+
+  it("swallows a rejection that arrives after time ran out", async () => {
+    // Left unhandled, the late rejection would crash the function instance the
+    // next poll runs on; vitest fails the test on one, so passing proves it.
+    /**
+     * A call that fails only after the caller stopped waiting.
+     * @returns A promise that rejects after 30ms.
+     */
+    const late = (): Promise<never> =>
+      new Promise((_, reject) => setTimeout(() => reject(new Error("too late")), 30));
+    await expect(within(late, 5)).resolves.toBe(LATE);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+});
+
+describe("beforeDeadline", () => {
+  it("leaves the poll up when the call settles in time", async () => {
+    const hold = newPollHold(Date.now());
+    await expect(beforeDeadline(() => Promise.resolve("ok"), hold)).resolves.toBe("ok");
+    expect(hold.down).toBe(false);
+  });
+
+  it("marks the poll down when the call runs out of time", async () => {
+    const hold: PollHold = { writes: [], down: false, deadline: Date.now() + 10 };
+    await expect(beforeDeadline(() => new Promise(() => {}), hold)).resolves.toBe(LATE);
+    expect(hold.down).toBe(true);
+  });
+
+  it("gives every poll the same budget from its own start", () => {
+    expect(newPollHold(1_000).deadline).toBe(1_000 + POLL_BUDGET_MS);
+    // Inside the two-minute cadence, so the lease is free before the next poll.
+    expect(POLL_BUDGET_MS).toBeLessThan(120_000);
+  });
+});
+
+describe("noteOutage", () => {
+  it("marks the poll down only for a database that cannot be reached", () => {
+    const hold = newPollHold(Date.now());
+    noteOutage(hold, new Error("E11000 duplicate key error collection: setting"));
+    expect(hold.down).toBe(false);
+    noteOutage(hold, new Error("connect ECONNREFUSED 127.0.0.1:27019"));
+    expect(hold.down).toBe(true);
   });
 });
 
