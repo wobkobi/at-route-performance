@@ -8,6 +8,7 @@
 // with duplicate keys ignored, and the arrival writes are upserts keyed on the
 // stop visit. A batch that partly landed before the outage no-ops on replay.
 
+import { isDatabaseUnreachableError } from "@/lib/db";
 import type { RecordedRun } from "@/lib/feed/ingest-run";
 import { MS_PER_DAY } from "@/lib/time/service-day";
 import { del, get, list, put } from "@vercel/blob";
@@ -38,10 +39,49 @@ const MAX_AGE_MS = MS_PER_DAY;
  */
 const MISSED_RUN_MS = 180_000;
 
+/**
+ * How long a poll may spend on database calls before it holds what is left and
+ * finishes. Under the two-minute cadence on purpose: a poll that ends inside its
+ * own slot has released the lease before the next one fires, so a slow database
+ * costs a spooled batch rather than a skipped poll. The 40s of slack covers the
+ * spool put, the bounded lease release and the scheduler's ~15s of jitter within
+ * its minute.
+ */
+export const POLL_BUDGET_MS = 80_000;
+
+/** Returned in place of a result by a call still running when its time ran out. */
+export const LATE = Symbol("late");
+
 /** One write held back from a poll, in the shape the replay re-issues it. */
 export type SpooledWrite =
   | { kind: "insert"; collection: string; docs: Record<string, unknown>[] }
   | { kind: "arrivals"; docs: unknown[] };
+
+/** What one poll could not write, and whether it has stopped calling the database. */
+export interface PollHold {
+  /** Writes held back, in the order to replay them. */
+  writes: SpooledWrite[];
+  /**
+   * Set by the first call that finds the database unreachable, or that is still
+   * running at the deadline. Once set, the poll stops calling the database: a
+   * call against a stopped mongod waits out the driver's 30s server selection
+   * and a write retries that five times, and a slow one never throws at all, so
+   * a poll that kept trying ran into Vercel's 300s limit and was killed before it
+   * reached the spool - losing the very rows the spool exists for.
+   */
+  down: boolean;
+  /** Epoch ms after which no further database call starts. */
+  deadline: number;
+}
+
+/**
+ * A fresh hold for a poll.
+ * @param startedAt - Epoch ms the poll started.
+ * @returns An empty hold whose deadline is {@link POLL_BUDGET_MS} after the start.
+ */
+export function newPollHold(startedAt: number): PollHold {
+  return { writes: [], down: false, deadline: startedAt + POLL_BUDGET_MS };
+}
 
 /** What a drain did, for the run's log line. */
 export interface DrainResult {
@@ -99,6 +139,100 @@ export async function spoolWrites(writes: SpooledWrite[]): Promise<boolean> {
     });
     return false;
   }
+}
+
+/**
+ * Note a failed database call, marking the poll down when the failure says the
+ * database is unreachable. Any other failure leaves the poll as it was: a bad
+ * document or a failed validation says nothing about whether the next call
+ * will land.
+ * @param hold - The poll's hold.
+ * @param err - The thrown value.
+ */
+export function noteOutage(hold: PollHold, err: unknown): void {
+  if (isDatabaseUnreachableError(err)) hold.down = true;
+}
+
+/**
+ * Give a call at most `ms` to settle. The call is not cancelled when time runs
+ * out - Prisma's raw commands take no abort signal - so it carries on in the
+ * background, and a rejection it settles with later is swallowed rather than
+ * left unhandled.
+ * @param run - Starts the call.
+ * @param ms - How long to wait for it.
+ * @returns The call's result, or {@link LATE} when it was still running.
+ */
+export async function within<T>(run: () => Promise<T>, ms: number): Promise<T | typeof LATE> {
+  const work = run();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), Math.max(0, ms));
+  });
+  try {
+    const out = await Promise.race([work, late]);
+    if (out === LATE) work.catch(() => {});
+    return out;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Make a database call only if the poll has time left, and stop waiting on it
+ * at the deadline. Either way out of time marks the poll down, so every later
+ * call is skipped too. A call already past the deadline is never started.
+ * @param run - Starts the call.
+ * @param hold - The poll's hold, marked down when time runs out.
+ * @returns The call's result, or {@link LATE} when it ran out of time.
+ */
+export async function beforeDeadline<T>(
+  run: () => Promise<T>,
+  hold: PollHold,
+): Promise<T | typeof LATE> {
+  const left = hold.deadline - Date.now();
+  const out = left > 0 ? await within(run, left) : LATE;
+  if (out === LATE) hold.down = true;
+  return out;
+}
+
+/**
+ * Run a write, or hold it back for a later run when the database is
+ * unreachable or too slow to take it before the poll's deadline. Only those are
+ * held: a write that failed on its own merits would fail the same way on replay,
+ * so it still fails the run and gets seen. Once the poll is down, the write is
+ * held without being tried at all, which is what keeps the poll inside the
+ * function limit.
+ *
+ * A write that missed the deadline may still land afterwards. Replaying it is
+ * harmless, since the inserts ignore duplicates and the arrival writes are
+ * upserts; the one cost is that a late upsert can put back a prediction a newer
+ * write already replaced, until the next poll writes the visit again.
+ *
+ * Without a spool store nothing is held: the write is tried and its failure
+ * thrown, so the rows are lost loudly rather than parked somewhere that does
+ * not exist.
+ * @param attempt - Issues the write.
+ * @param held - The same write in the shape the replay re-issues it.
+ * @param hold - The poll's hold, which collects the write when it is held.
+ * @returns Rows written, or 0 when the write was held.
+ */
+export async function writeOrHold(
+  attempt: () => Promise<number>,
+  held: SpooledWrite,
+  hold: PollHold,
+): Promise<number> {
+  if (!spoolEnabled()) return attempt();
+  if (!hold.down) {
+    try {
+      const out = await beforeDeadline(attempt, hold);
+      if (out !== LATE) return out;
+    } catch (err) {
+      noteOutage(hold, err);
+      if (!hold.down) throw err;
+    }
+  }
+  hold.writes.push(held);
+  return 0;
 }
 
 /**
