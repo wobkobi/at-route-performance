@@ -41,7 +41,7 @@
     "edge >= 93"
   ],
   "dependencies": {
-    "@prisma/client": "6.19.3",
+    "@prisma/client": "7.10.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.1",
     "@vercel/speed-insights": "^2.0.0",
